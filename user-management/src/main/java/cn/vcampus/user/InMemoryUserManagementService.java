@@ -13,6 +13,7 @@ public final class InMemoryUserManagementService implements UserManagementServic
     private final Map<String, Account> accounts = new ConcurrentHashMap<String, Account>();
     private final Map<String, Session> sessions = new ConcurrentHashMap<String, Session>();
     private final PasswordHasher passwordHasher = new PasswordHasher();
+    private final RolePermissionPolicy permissionPolicy = new RolePermissionPolicy();
 
     @Override public ServiceResult<Void> register(UserCredentials c) {
         final Account account;
@@ -59,7 +60,11 @@ public final class InMemoryUserManagementService implements UserManagementServic
     @Override public ServiceResult<Boolean> authorize(String token, String permission) {
         Session session = sessions.get(token);
         if (session == null) return ServiceResult.failure(StatusCode.UNAUTHORIZED, "invalid session");
-        boolean allowed = session.getUser().getRole() == Role.ADMIN || "user:read".equals(permission);
+        Permission requestedPermission = Permission.fromCode(permission);
+        if (requestedPermission == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "invalid permission");
+        }
+        boolean allowed = permissionPolicy.isAllowed(session.getUser().getRole(), requestedPermission);
         return allowed ? ServiceResult.ok(Boolean.TRUE) : ServiceResult.failure(StatusCode.FORBIDDEN, "permission denied");
     }
 
