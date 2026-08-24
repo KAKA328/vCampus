@@ -32,7 +32,13 @@ public final class InMemoryUserManagementService implements UserManagementServic
         if (session == null || !session.getUser().getUserId().equals(userId)) {
             return ServiceResult.failure(StatusCode.UNAUTHORIZED, "invalid session");
         }
-        accounts.remove(userId); sessions.remove(token); return ServiceResult.ok(null);
+        accounts.remove(userId);
+        for (Map.Entry<String, Session> entry : sessions.entrySet()) {
+            if (entry.getValue().getUser().getUserId().equals(userId)) {
+                sessions.remove(entry.getKey());
+            }
+        }
+        return ServiceResult.ok(null);
     }
 
     @Override public ServiceResult<Session> login(UserCredentials c) {
