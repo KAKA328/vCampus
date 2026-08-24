@@ -1,0 +1,32 @@
+# Maven / Gradle outputs
+target/
+build/
+out/
+*.class
+.tmp-classes*/
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+.classpath
+.project
+.settings/
+
+# Local database and secrets
+*.accdb
+*.mdb
+*.db
+*.sqlite
+!database/*.accdb
+!database/*.mdb
+!database/*.db
+!database/*.sqlite
+*.env
+*.local
+
+# Logs and OS files
+*.log
+logs/
+Thumbs.db
+.DS_Store
