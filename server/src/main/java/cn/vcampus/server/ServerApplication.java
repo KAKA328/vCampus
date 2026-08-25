@@ -1,7 +1,6 @@
 package cn.vcampus.server;
 
 import cn.vcampus.common.Message;
-import cn.vcampus.user.InMemoryUserManagementService;
 import cn.vcampus.user.UserManagementService;
 
 import java.io.Closeable;
@@ -71,7 +70,15 @@ public final class ServerApplication implements Closeable {
     }
 
     public static void main(String[] args) throws IOException {
-        int port = args.length == 0 ? DEFAULT_PORT : Integer.parseInt(args[0]);
-        new ServerApplication(port, new InMemoryUserManagementService()).start();
+        int port = parsePort(args);
+        new ServerApplication(port, UserServiceFactory.create(args)).start();
+    }
+
+    private static int parsePort(String[] args) {
+        for (int i = 0; i < args.length - 1; i++) {
+            if ("--port".equals(args[i])) return Integer.parseInt(args[i + 1]);
+        }
+        if (args.length > 0 && args[0].matches("\\d+")) return Integer.parseInt(args[0]);
+        return DEFAULT_PORT;
     }
 }

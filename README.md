@@ -30,6 +30,14 @@ java -jar client/target/vCampusClient.jar
 
 当前骨架提供协议、接口、入口和测试数据脚本；用户管理已有内存演示实现，其他业务模块由各分支通过 Pull Request 实现。
 
+## 设计基线
+
+- [项目进度计划报告](docs/PROJECT_PLAN.md)
+- [软件设计说明书草案](docs/SYSTEM_DESIGN.md)
+- [接口基线](docs/INTERFACES.md)
+- [模块对接说明](docs/MODULE_INTEGRATION_GUIDE.md)
+- [验收清单](docs/ACCEPTANCE_CHECKLIST.md)
+
 ## 协作约定
 
 采用 GitHub Flow：`main` 保持可构建，每项工作从 `main` 创建短期分支，例如：
