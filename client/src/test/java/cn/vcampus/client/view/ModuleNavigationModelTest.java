@@ -1,8 +1,10 @@
 package cn.vcampus.client.view;
 
 import cn.vcampus.common.Role;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -27,5 +29,19 @@ class ModuleNavigationModelTest {
         assertTrue(model.visibleModules(Role.ADMIN).contains("选课管理"));
         assertTrue(model.visibleModules(Role.ADMIN).contains("图书管理"));
         assertTrue(model.visibleModules(Role.ADMIN).contains("商店管理"));
+    }
+
+    @Test
+    void studentModuleCardsHaveReadableDescriptions() {
+        ModuleNavigationModel model = new ModuleNavigationModel();
+
+        List<ModuleDescriptor> modules = model.visibleModuleCards(Role.STUDENT);
+
+        assertEquals(model.visibleModules(Role.STUDENT).size(), modules.size());
+        for (ModuleDescriptor module : modules) {
+            assertFalse(module.getTitle().trim().isEmpty());
+            assertTrue(module.getSummary().length() >= 10);
+            assertTrue(module.getStatus().contains("待接入") || module.getStatus().contains("可用"));
+        }
     }
 }
