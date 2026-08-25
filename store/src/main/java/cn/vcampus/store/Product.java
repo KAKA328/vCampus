@@ -4,8 +4,53 @@ import java.io.Serializable;
 
 /** Product value object. */
 public final class Product implements Serializable {
-    private static final long serialVersionUID = 1L;
-    private final String productId; private final String name; private final int stock;
-    public Product(String productId, String name, int stock) { this.productId=productId; this.name=name; this.stock=stock; }
-    public String getProductId() { return productId; } public String getName() { return name; } public int getStock() { return stock; }
+    private static final long serialVersionUID = 1L;// 序列化版本号
+    private final String productId;// 商品编号
+    private final String name;// 商品名称
+    private final int stock;// 库存数量
+    private final double price;// 商品价格
+    private final String description;// 商品描述
+    private final String category;// 商品类别
+
+    public Product(String productId, String name, int stock, double price, String description, String category) {
+        this.productId = checkStr(productId, "productId");
+        this.name = checkStr(name, "name");
+        if (price < 0 || stock < 0)
+            throw new IllegalArgumentException("price cannot be negative");
+        this.price = price;
+        this.stock = stock;
+        this.description = description;
+        this.category = checkStr(category, "category");
+    }
+
+    public String getProductId() {
+        return productId;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public int getStock() {
+        return stock;
+    }
+
+    public double getPrice() {
+        return price;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    private static String checkStr(String value, String field) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException(field + " cannot be empty");
+        }
+        return value.trim();
+    }
 }
