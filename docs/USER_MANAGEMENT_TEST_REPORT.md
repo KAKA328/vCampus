@@ -1,63 +1,94 @@
-# 用户管理 E1 实验报告
+# 用户管理 E1-E3 阶段实验报告
 
 ## 1. 实验目标
 
-本次实验完成“内存版用户管理闭环”，范围限定为用户注册、登录、授权、登出、自注销及服务器 Socket 消息分发验证。不接入 Access 数据库，不制作 Swing 界面，不修改学生学籍、选课、图书馆、商店四个业务模块。
+本阶段围绕组长负责的用户管理模块推进，覆盖注册、登录、授权、登出、注销、角色权限、数据持久化接口、审计记录、服务器通信和 Swing 客户端入口。范围仍限定在用户管理与总控框架，不实现学生学籍、选课、图书馆、商店四个成员模块的具体业务逻辑。
 
 ## 2. 实验环境
 
 | 项目 | 实际情况 |
 |---|---|
 | 操作系统 | Windows |
-| Java | `25.0.2`，使用 `javac --release 8` 检查 Java 8 兼容性 |
-| Maven | 本机未安装，`mvn clean test` 无法执行 |
+| Java | `25.0.2`，项目源码按 Java 8 兼容方式编写 |
+| Maven | Apache Maven 3.9.16，已可执行 `mvn clean test` |
 | Git 分支 | `feature/user-management` |
-| 服务器端口 | Socket 演示使用临时端口 `19191` |
+| 数据库目标 | Microsoft Access，已预留 `tblUser`、`tblAuditLog` 表结构与 UCanAccess 接入代码 |
+| GUI 技术 | Java Swing |
+| Socket 演示端口 | 临时端口 `19192` |
 
-## 3. 实际执行命令
+## 3. E1 完成情况：内存版用户管理闭环
 
-```powershell
-git push origin main
-git switch -c feature/user-management
+E1 已完成用户管理核心流程，确保在不依赖数据库和 GUI 的情况下，业务规则可以独立运行和测试。
 
-$mainSources = rg --files -g '*.java' -g '!**/src/test/**' -g '!**/.tmp-classes-user-e1/**'
-javac --release 8 -encoding UTF-8 -d '.tmp-classes-user-e1-final\classes' $mainSources
-
-mvn clean test
-```
-
-`javac --release 8` 编译通过，仅出现 Java 25 对 `--release 8` 的过时警告。`mvn clean test` 失败原因是本机未安装 Maven，因此正式 JUnit 测试结果需后续在安装 Maven 后或通过 GitHub Actions 补跑。
-
-## 4. 用户业务用例结果
-
-本地使用临时 Java 验证入口 `UserManagementE1Check` 运行以下场景，结果均通过：
-
-| 编号 | 用例 | 结果 |
+| 编号 | 功能/用例 | 结果 |
 |---|---|---|
-| U01 | 同一账号注册两次，第二次返回 `CONFLICT` | 通过 |
+| U01 | 同一账号重复注册，第二次返回 `CONFLICT` | 通过 |
 | U02 | 未知账号和错误密码登录，均返回 `UNAUTHORIZED` 且提示一致 | 通过 |
-| U03 | 登出后再次登出，第二次返回 `UNAUTHORIZED` | 通过 |
+| U03 | 正常登出后再次登出，第二次返回 `UNAUTHORIZED` | 通过 |
 | U04 | A 的 token 尝试注销 B，返回 `UNAUTHORIZED`，B 仍可登录 | 通过 |
-| U05 | 自注销后账号不可登录，且该用户全部旧会话失效 | 通过 |
-| U06 | 无效角色代码注册，返回 `BAD_REQUEST` | 通过 |
+| U05 | 用户自注销后账号不可登录，且该用户旧会话全部失效 | 通过 |
+| U06 | 无效角色编码注册，返回 `BAD_REQUEST` | 通过 |
 
-## 5. 角色权限矩阵结果
+角色权限已拆分为 `Permission` 与 `RolePermissionPolicy`，避免权限判断散落在业务代码中。
 
-已新增 `Permission` 与 `RolePermissionPolicy`，权限判断不再依赖单个硬编码字符串。
-
-| 角色 | 已验证允许 |
+| 角色 | 已验证允许权限 |
 |---|---|
 | `ADMIN` | 全部已定义权限 |
-| `STUDENT` | `USER_SELF_READ`、`COURSE_READ`、`COURSE_SELECT`、`LIBRARY_READ`、`LIBRARY_BORROW`、`STORE_READ`、`STORE_PURCHASE` |
-| `TEACHER` | `USER_SELF_READ`、`STUDENT_READ`、`COURSE_READ` |
-| `LIBRARIAN` | `LIBRARY_READ`、`LIBRARY_MANAGE` |
-| `STORE_MANAGER` | `STORE_READ`、`STORE_MANAGE` |
+| `STUDENT` | 自身信息读取、课程查询/选课、图书查询/借阅、商店查询/购买 |
+| `TEACHER` | 自身信息读取、学生信息读取、课程查询 |
+| `LIBRARIAN` | 图书查询、图书管理 |
+| `STORE_MANAGER` | 商品查询、商品管理 |
 
-服务接口 `authorize(String token, String permission)` 仍保持字符串协议兼容：未登录返回 `UNAUTHORIZED`，无效权限编码返回 `BAD_REQUEST`，已登录但无权返回 `FORBIDDEN`。
+## 4. E2 完成情况：持久化接口、审计与管理员注销
 
-## 6. 服务器消息分发结果
+E2 已完成用户管理服务的分层改造，为 Access 数据库接入做好准备。
 
-已新增 `server/src/test/java/cn/vcampus/server/UserMessageHandlerTest.java`，并用临时验证入口 `ServerHandlerCheck` 本地确认以下场景通过：
+| 项目 | 完成内容 |
+|---|---|
+| 用户仓储接口 | 新增 `UserRepository`，把用户账号读取、保存、删除从业务服务中抽离 |
+| 内存仓储实现 | 新增 `InMemoryUserRepository`，用于测试和无数据库运行 |
+| 审计仓储接口 | 新增 `AuditLogRepository`，统一记录注册、登录、登出、注销等事件 |
+| 内存审计实现 | 新增 `InMemoryAuditLogRepository`，用于验证审计记录 |
+| 默认业务服务 | 新增 `DefaultUserManagementService`，统一承载注册、登录、授权、注销逻辑 |
+| 会话管理 | 新增 `SessionManager`，管理 token 与用户会话 |
+| 管理员注销 | 支持管理员注销他人账号，并清理该用户全部会话 |
+| Access 接入代码 | 新增 `AccessUserRepository`、`AccessAuditLogRepository`、`UserServiceFactory` |
+| 数据库脚本 | 更新 `database/schema.sql`，新增迁移脚本 `001_user_audit.up.sql` / `001_user_audit.down.sql` |
+
+E2 新增自动化测试：
+
+| 测试项 | 结果 |
+|---|---|
+| 注册账号可被另一个服务实例读取并登录 | 通过 |
+| 管理员可注销其他用户并生成审计记录 | 通过 |
+| 普通用户不能注销其他用户 | 通过 |
+
+## 5. E3 完成情况：Swing 客户端与总控入口
+
+E3 已完成客户端 GUI 框架和角色菜单入口，为后续成员模块接入预留位置。
+
+| 项目 | 完成内容 |
+|---|---|
+| Swing 登录界面 | 新增 `LoginFrame`，支持账号、密码、服务器地址和端口输入 |
+| Swing 注册界面 | 新增 `RegisterDialog`，支持用户注册、角色选择和错误提示 |
+| 主界面总控 | 新增 `MainFrame`，登录后按角色显示可访问模块 |
+| 角色菜单模型 | 新增 `ModuleNavigationModel`，集中控制不同角色能看到的模块 |
+| GUI 主题 | 新增 `VCampusTheme`，统一颜色、字体、按钮和边距 |
+| 远程用户服务 | 新增 `RemoteUserService`，封装注册、登录、登出请求 |
+| Socket 客户端 | 新增 `SocketMessageClient`，负责客户端与服务器消息收发 |
+| 客户端启动方式 | 默认启动 Swing GUI；使用 `--demo` 可运行命令行通信演示 |
+
+E3 新增自动化测试：
+
+| 测试项 | 结果 |
+|---|---|
+| 学生登录后可看到学籍信息、选课系统、图书馆、商店入口 | 通过 |
+| 学生登录后不能看到用户管理入口 | 通过 |
+| 管理员登录后可看到用户管理、学籍管理、选课管理、图书管理、商店管理入口 | 通过 |
+
+## 6. 服务器消息分发验证
+
+服务器端已通过 `UserMessageHandlerTest` 验证用户相关消息分发。
 
 | 请求 | 预期 | 结果 |
 |---|---|---|
@@ -73,13 +104,13 @@ mvn clean test
 服务器启动：
 
 ```powershell
-java -cp '.tmp-classes-user-e1-socket-green\classes' cn.vcampus.server.ServerApplication 19191
+java -cp "common\target\classes;user-management\target\classes;server\target\classes" cn.vcampus.server.ServerApplication 19192
 ```
 
 客户端运行：
 
 ```powershell
-java -cp '.tmp-classes-user-e1-socket-green\classes' cn.vcampus.client.ClientApplication 127.0.0.1 19191
+java -cp "common\target\classes;user-management\target\classes;client\target\classes" cn.vcampus.client.ClientApplication --demo --host 127.0.0.1 --port 19192
 ```
 
 实际输出：
@@ -94,17 +125,40 @@ demo-authorize-old-token AUTHORIZE OLD_TOKEN actual=UNAUTHORIZED expected=UNAUTH
 
 结果满足 `OK -> OK -> OK -> OK -> UNAUTHORIZED`。
 
-## 8. 安全检查
+## 8. Maven 自动化测试结果
 
-- 密码仍通过 PBKDF2 哈希保存，内存账号对象不保存明文密码。
-- 登录失败统一返回 `invalid credentials`，不暴露账号是否存在。
-- 客户端演示不输出密码，也不输出完整 token。
-- 自注销后会删除账号并销毁该账号全部会话，旧 token 不能继续授权。
+已执行：
 
-## 9. 当前限制与下一步
+```powershell
+mvn clean test
+```
 
-- 本机 Maven 未安装，正式 JUnit 自动化测试需在 Maven 可用环境或 GitHub Actions 中补跑。
-- 当前用户数据仍为内存存储，服务器重启后账号丢失。
-- 管理员注销他人账号、审计记录、Access 持久化、Swing 登录/注册界面和可独立运行胖 JAR 不属于 E1，放入后续 E2-E4。
+本阶段测试全部通过：
 
-下一步 E2：抽取 `UserRepository`，接入 Access `tblUser` 和 `tblAuditLog`，实现用户持久化、审计记录和管理员注销他人账号。
+| 模块 | 测试数量 | 结果 |
+|---|---:|---|
+| `common` | 2 | 通过 |
+| `user-management` | 11 | 通过 |
+| `server` | 5 | 通过 |
+| `client` | 2 | 通过 |
+| 合计 | 20 | 通过 |
+
+## 9. 安全与规范检查
+
+- 密码通过 PBKDF2 哈希保存，不保存明文密码。
+- 登录失败统一返回 `invalid credentials`，避免泄露账号是否存在。
+- token 通过 `SecureRandom` 生成，并在登出、注销后失效。
+- 自注销和管理员注销都会清理对应用户全部会话。
+- 审计记录已覆盖注册、登录、登出、注销等关键操作。
+- GUI 不在界面中显示密码或 token。
+- Access 数据库接入代码不把数据库路径硬编码死，支持通过启动参数传入。
+- 当前 Java 主代码文件体量可控，没有单个文件过度膨胀。
+
+## 10. 当前限制与下一步
+
+| 阶段 | 后续事项 |
+|---|---|
+| E2 | 准备实际 `.accdb` 文件后，使用 `--db 数据库路径` 启动服务器，进行真实 Access 读写验证 |
+| E3 | 启动服务器后运行客户端 GUI，人工检查登录、注册、角色菜单、退出登录体验 |
+| E4 | 打包可运行程序，补充用户使用说明书、最终测试截图和验收清单 |
+| 集成 | 等其他组员模块完成后，把学籍、选课、图书馆、商店页面替换到主界面占位面板中 |
