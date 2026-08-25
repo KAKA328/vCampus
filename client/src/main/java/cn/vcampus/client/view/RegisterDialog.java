@@ -20,18 +20,17 @@ import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JPasswordField;
 import javax.swing.JTextField;
 
 /** Registration dialog for demo accounts. */
 public final class RegisterDialog extends JDialog {
     private final String host;
     private final int port;
-    private final JTextField userId = new JTextField(18);
-    private final JTextField displayName = new JTextField(18);
-    private final JPasswordField password = new JPasswordField(18);
+    private final JTextField userId = new PromptTextField(18, CredentialInputGuidance.USER_ID_HINT);
+    private final JTextField displayName = new PromptTextField(18, CredentialInputGuidance.DISPLAY_NAME_HINT);
+    private final PromptPasswordField password = new PromptPasswordField(18, CredentialInputGuidance.PASSWORD_HINT);
     private final JComboBox<Role> role = new JComboBox<Role>(Role.values());
-    private final JLabel status = new JLabel("密码长度要求 6 到 16 位");
+    private final JLabel status = new JLabel("请按输入框提示填写，带提示文字的空框不会作为内容提交");
 
     RegisterDialog(java.awt.Frame owner, String host, int port) {
         super(owner, "注册用户", true);
@@ -115,7 +114,9 @@ public final class RegisterDialog extends JDialog {
             } else {
                 showStatus("注册失败：" + response.getStatusCode(), VCampusTheme.DANGER);
             }
-        } catch (RuntimeException | IOException | ClassNotFoundException failure) {
+        } catch (IllegalArgumentException invalidInput) {
+            showStatus(invalidInput.getMessage(), VCampusTheme.DANGER);
+        } catch (IOException | ClassNotFoundException failure) {
             showStatus("注册失败，请检查输入和服务器连接", VCampusTheme.DANGER);
         } finally {
             Arrays.fill(secret, '\0');
