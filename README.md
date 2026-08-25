@@ -35,6 +35,7 @@ java -jar client/target/vCampusClient.jar
 - [项目进度计划报告](docs/PROJECT_PLAN.md)
 - [软件设计说明书草案](docs/SYSTEM_DESIGN.md)
 - [接口基线](docs/INTERFACES.md)
+- [模块对接说明](docs/MODULE_INTEGRATION_GUIDE.md)
 - [验收清单](docs/ACCEPTANCE_CHECKLIST.md)
 
 ## 协作约定

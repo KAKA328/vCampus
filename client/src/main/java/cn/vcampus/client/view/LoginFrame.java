@@ -19,7 +19,6 @@ import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JPasswordField;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 
@@ -27,8 +26,8 @@ import javax.swing.SwingUtilities;
 public final class LoginFrame extends JFrame {
     private final String host;
     private final int port;
-    private final JTextField userId = new JTextField(20);
-    private final JPasswordField password = new JPasswordField(20);
+    private final JTextField userId = new PromptTextField(20, CredentialInputGuidance.USER_ID_HINT);
+    private final PromptPasswordField password = new PromptPasswordField(20, CredentialInputGuidance.PASSWORD_HINT);
     private final JLabel status = new JLabel("请输入账号和密码");
 
     public LoginFrame(String host, int port) {
