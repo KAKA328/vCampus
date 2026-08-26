@@ -25,6 +25,21 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
+            <groupId>cn.vcampus</groupId>
+            <artifactId>student-management</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>cn.vcampus</groupId>
+            <artifactId>library</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>cn.vcampus</groupId>
+            <artifactId>store</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>

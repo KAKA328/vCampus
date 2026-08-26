@@ -26,5 +26,12 @@ class MessageTest {
         assertEquals("COURSE_CREATE", MessageType.valueOf("COURSE_CREATE").name());
         assertEquals("COURSE_UPDATE", MessageType.valueOf("COURSE_UPDATE").name());
         assertEquals("COURSE_DEACTIVATE", MessageType.valueOf("COURSE_DEACTIVATE").name());
+        assertEquals("COURSE_GRADE_WRITE", MessageType.valueOf("COURSE_GRADE_WRITE").name());
+    }
+
+    @Test
+    void messageTypesExposeFiveModuleIntegrationContract() {
+        assertEquals("STUDENT_REVIEW", MessageType.valueOf("STUDENT_REVIEW").name());
+        assertEquals("STORE_ORDER_QUERY", MessageType.valueOf("STORE_ORDER_QUERY").name());
     }
 }

@@ -5,6 +5,8 @@ import cn.vcampus.common.MessageType;
 import cn.vcampus.common.Role;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
+import cn.vcampus.course.CourseGradeCommand;
+import cn.vcampus.course.CourseManagementCommand;
 import cn.vcampus.course.CourseQueryCommand;
 import cn.vcampus.course.CourseSelectionCommand;
 import cn.vcampus.course.CourseSelectionService;
@@ -49,6 +51,18 @@ final class CourseMessageHandler {
                 case COURSE_DROP:
                     CourseSelectionCommand drop = payload(request, CourseSelectionCommand.class);
                     result = drop(drop);
+                    break;
+                case COURSE_CREATE:
+                    result = createCourse(payload(request, CourseManagementCommand.class));
+                    break;
+                case COURSE_UPDATE:
+                    result = updateCourse(payload(request, CourseManagementCommand.class));
+                    break;
+                case COURSE_DEACTIVATE:
+                    result = deactivateCourse(payload(request, CourseManagementCommand.class));
+                    break;
+                case COURSE_GRADE_WRITE:
+                    result = recordGrade(payload(request, CourseGradeCommand.class));
                     break;
                 default:
                     return Message.response(request, StatusCode.NOT_FOUND,
@@ -97,6 +111,47 @@ final class CourseMessageHandler {
             return ServiceResult.failure(scope.getStatus(), scope.getMessage());
         }
         return courses.drop(command.getStudentId(), command.getCourseId());
+    }
+
+    private ServiceResult<Void> createCourse(CourseManagementCommand command) {
+        ServiceResult<Boolean> authorization = users.authorize(command.getToken(), Permission.COURSE_MANAGE.getCode());
+        if (authorization.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(authorization.getStatus(), authorization.getMessage());
+        }
+        return courses.createCourse(command.getCourse());
+    }
+
+    private ServiceResult<Void> updateCourse(CourseManagementCommand command) {
+        ServiceResult<Boolean> authorization = users.authorize(command.getToken(), Permission.COURSE_MANAGE.getCode());
+        if (authorization.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(authorization.getStatus(), authorization.getMessage());
+        }
+        return courses.updateCourse(command.getCourse());
+    }
+
+    private ServiceResult<Void> deactivateCourse(CourseManagementCommand command) {
+        ServiceResult<Boolean> authorization = users.authorize(command.getToken(), Permission.COURSE_MANAGE.getCode());
+        if (authorization.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(authorization.getStatus(), authorization.getMessage());
+        }
+        return courses.deactivateCourse(command.getCourseId());
+    }
+
+    private ServiceResult<Void> recordGrade(CourseGradeCommand command) {
+        ServiceResult<Boolean> authorization = users.authorize(command.getToken(), Permission.GRADE_WRITE.getCode());
+        if (authorization.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(authorization.getStatus(), authorization.getMessage());
+        }
+        ServiceResult<Session> current = users.currentSession(command.getToken());
+        if (current.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(current.getStatus(), current.getMessage());
+        }
+        Role role = current.getData().getUser().getRole();
+        if (role != Role.ADMIN && !current.getData().getUser().getUserId().equals(command.getTeacherId())) {
+            return ServiceResult.failure(StatusCode.FORBIDDEN, "teacher scope denied");
+        }
+        return courses.recordGrade(command.getTeacherId(),
+                command.getStudentId(), command.getCourseId(), command.getScore());
     }
 
     private ServiceResult<Session> authorizeStudentScope(String token, String studentId, Permission permission) {

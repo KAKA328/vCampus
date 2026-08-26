@@ -15,8 +15,13 @@ public final class Course implements Serializable {
     private final String name;
     private final int credits;
     private final int capacity;
+    private final boolean active;
 
     public Course(String courseId, String name, int credits, int capacity) {
+        this(courseId, name, credits, capacity, true);
+    }
+
+    public Course(String courseId, String name, int credits, int capacity, boolean active) {
         this.courseId = requireText(courseId, "courseId");
         this.name = requireText(name, "name");
         if (credits <= 0) {
@@ -27,6 +32,7 @@ public final class Course implements Serializable {
         }
         this.credits = credits;
         this.capacity = capacity;
+        this.active = active;
     }
 
     public String getCourseId() {
@@ -43,6 +49,10 @@ public final class Course implements Serializable {
 
     public int getCapacity() {
         return capacity;
+    }
+
+    public boolean isActive() {
+        return active;
     }
 
     private static String requireText(String value, String fieldName) {
