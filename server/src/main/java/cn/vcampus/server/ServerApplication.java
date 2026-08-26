@@ -4,6 +4,8 @@ import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
 import cn.vcampus.course.CourseSelectionService;
 import cn.vcampus.course.InMemoryCourseSelectionService;
+import cn.vcampus.store.StoreService;
+import cn.vcampus.store.InMemoryStoreService;
 import cn.vcampus.user.UserManagementService;
 
 import java.io.Closeable;
@@ -17,24 +19,33 @@ import java.nio.file.Path;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** Minimal multi-client server entry point; replace the in-memory service with Access-backed services. */
+/**
+ * Minimal multi-client server entry point; replace the in-memory service with
+ * Access-backed services.
+ */
 public final class ServerApplication implements Closeable {
     public static final int DEFAULT_PORT = 19090;
 
     private final int port;
     private final UserMessageHandler userMessages;
     private final CourseMessageHandler courseMessages;
+    private final StoreMessageHandler storeMessages;
     private final ExecutorService clients = Executors.newCachedThreadPool();
     private ServerSocket serverSocket;
 
     public ServerApplication(int port, UserManagementService users) {
-        this(port, users, new InMemoryCourseSelectionService());
+        this(port, users, new InMemoryCourseSelectionService(), new InMemoryStoreService());
     }
 
-    ServerApplication(int port, UserManagementService users, CourseSelectionService courses) {
+    public ServerApplication(int port, UserManagementService users, CourseSelectionService courses) {
+        this(port, users, courses, new InMemoryStoreService());
+    }
+
+    ServerApplication(int port, UserManagementService users, CourseSelectionService courses, StoreService store) {
         this.port = port;
         this.userMessages = new UserMessageHandler(users);
         this.courseMessages = new CourseMessageHandler(courses, users);
+        this.storeMessages = new StoreMessageHandler(store, users);
     }
 
     public void start() throws IOException {
@@ -44,28 +55,38 @@ public final class ServerApplication implements Closeable {
             try {
                 clients.submit(new ClientHandler(serverSocket.accept()));
             } catch (IOException acceptedFailure) {
-                if (!serverSocket.isClosed()) throw acceptedFailure;
+                if (!serverSocket.isClosed())
+                    throw acceptedFailure;
             }
         }
     }
 
-    @Override public void close() throws IOException {
-        if (serverSocket != null) serverSocket.close();
+    @Override
+    public void close() throws IOException {
+        if (serverSocket != null)
+            serverSocket.close();
         clients.shutdownNow();
     }
 
     private final class ClientHandler implements Runnable {
         private final Socket socket;
-        private ClientHandler(Socket socket) { this.socket = socket; }
 
-        @Override public void run() {
+        private ClientHandler(Socket socket) {
+            this.socket = socket;
+        }
+
+        @Override
+        public void run() {
             try (Socket client = socket;
-                 ObjectInputStream input = new ObjectInputStream(client.getInputStream());
-                 ObjectOutputStream output = new ObjectOutputStream(client.getOutputStream())) {
+                    ObjectInputStream input = new ObjectInputStream(client.getInputStream());
+                    ObjectOutputStream output = new ObjectOutputStream(client.getOutputStream())) {
                 while (!client.isClosed()) {
                     Message request;
-                    try { request = (Message) input.readObject(); }
-                    catch (EOFException end) { break; }
+                    try {
+                        request = (Message) input.readObject();
+                    } catch (EOFException end) {
+                        break;
+                    }
                     output.writeObject(ServerApplication.this.dispatch(request));
                     output.flush();
                 }
@@ -73,12 +94,14 @@ public final class ServerApplication implements Closeable {
                 System.err.println("client connection closed: " + failure.getMessage());
             }
         }
-
     }
 
     Message dispatch(Message request) {
         if (request != null && isCourseMessage(request.getType())) {
             return courseMessages.handle(request);
+        }
+        if (request != null && isStoreMessage(request.getType())) {
+            return storeMessages.handle(request);
         }
         return userMessages.handle(request);
     }
@@ -92,6 +115,11 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.COURSE_DEACTIVATE;
     }
 
+    private static boolean isStoreMessage(MessageType type) {
+        return type == MessageType.STORE_QUERY
+                || type == MessageType.STORE_PURCHASE || type == MessageType.STORE_ORDER_QUERY;
+    }
+
     public static void main(String[] args) throws IOException {
         int port = parsePort(args);
         Path databasePath = UserServiceFactory.databasePath(args);
@@ -103,9 +131,11 @@ public final class ServerApplication implements Closeable {
 
     private static int parsePort(String[] args) {
         for (int i = 0; i < args.length - 1; i++) {
-            if ("--port".equals(args[i])) return Integer.parseInt(args[i + 1]);
+            if ("--port".equals(args[i]))
+                return Integer.parseInt(args[i + 1]);
         }
-        if (args.length > 0 && args[0].matches("\\d+")) return Integer.parseInt(args[0]);
+        if (args.length > 0 && args[0].matches("\\d+"))
+            return Integer.parseInt(args[0]);
         return DEFAULT_PORT;
     }
 }
