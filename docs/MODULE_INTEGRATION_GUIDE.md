@@ -141,7 +141,7 @@ Message response = Message.response(request, StatusCode.OK, data);
 |---|---|
 | 用户管理 | `REGISTER`、`UNREGISTER`、`LOGIN`、`LOGOUT`、`AUTHORIZE` |
 | 学生学籍 | `STUDENT_QUERY`、`STUDENT_UPDATE` |
-| 选课系统 | `COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP` |
+| 选课系统 | `COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP`、`COURSE_CREATE`、`COURSE_UPDATE`、`COURSE_DEACTIVATE` |
 | 图书馆 | `LIBRARY_QUERY`、`LIBRARY_BORROW`、`LIBRARY_RETURN` |
 | 商店 | `STORE_QUERY`、`STORE_PURCHASE` |
 
@@ -152,6 +152,8 @@ common/src/main/java/cn/vcampus/common/MessageType.java
 docs/INTERFACES.md
 docs/MODULE_INTEGRATION_GUIDE.md
 ```
+
+公共角色、权限编码和数据范围见 [`PERMISSIONS.md`](PERMISSIONS.md)。课程新增、修改和停开操作必须先校验 `COURSE_MANAGE`；任课教师录入成绩校验 `GRADE_WRITE`；教务复核校验 `ACADEMIC_REVIEW`。
 
 ## 6. Payload 设计规则
 
@@ -259,9 +261,16 @@ final class CourseMessageHandler {
                     break;
                 case COURSE_SELECT:
                     CourseSelectionCommand select = payload(request, CourseSelectionCommand.class);
-                    ServiceResult<Void> auth = users.authorize(select.getToken(), "COURSE_SELECT");
+                    ServiceResult<Boolean> auth = users.authorize(select.getToken(), "COURSE_SELECT");
                     if (auth.getStatus() != StatusCode.OK) {
                         return Message.response(request, auth.getStatus(), null);
+                    }
+                    ServiceResult<Session> current = users.currentSession(select.getToken());
+                    if (current.getStatus() != StatusCode.OK) {
+                        return Message.response(request, current.getStatus(), null);
+                    }
+                    if (!current.getData().getUser().getUserId().equals(select.getStudentId())) {
+                        return Message.response(request, StatusCode.FORBIDDEN, "student scope denied");
                     }
                     result = service.select(select.getStudentId(), select.getCourseId());
                     break;
@@ -300,6 +309,9 @@ private Message dispatch(Message request) {
         case COURSE_QUERY:
         case COURSE_SELECT:
         case COURSE_DROP:
+        case COURSE_CREATE:
+        case COURSE_UPDATE:
+        case COURSE_DEACTIVATE:
             return courseMessages.handle(request);
         case LIBRARY_QUERY:
         case LIBRARY_BORROW:
@@ -441,6 +453,16 @@ cd D:\codex\java协作
 ```powershell
 mvn clean test
 ```
+
+首次需要管理员账号时，在启动服务器的同一个 PowerShell 终端设置：
+
+```powershell
+$env:VCAMPUS_BOOTSTRAP_ADMIN_ID="admin001"
+$env:VCAMPUS_BOOTSTRAP_ADMIN_PASSWORD="Admin123"
+$env:VCAMPUS_BOOTSTRAP_ADMIN_NAME="系统管理员"
+```
+
+该账号由服务器进程初始化，不经过客户端公开注册接口。不要把真实密码写入源码、脚本或提交记录。
 
 启动服务器：
 

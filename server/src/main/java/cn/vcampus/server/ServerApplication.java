@@ -2,6 +2,8 @@ package cn.vcampus.server;
 
 import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
+import cn.vcampus.course.CourseSelectionService;
+import cn.vcampus.course.InMemoryCourseSelectionService;
 import cn.vcampus.store.StoreService;
 import cn.vcampus.store.InMemoryStoreService;
 import cn.vcampus.user.UserManagementService;
@@ -13,6 +15,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.file.Path;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -25,13 +28,23 @@ public final class ServerApplication implements Closeable {
 
     private final int port;
     private final UserMessageHandler userMessages;
+    private final CourseMessageHandler courseMessages;
+    private final StoreMessageHandler storeMessages;
     private final ExecutorService clients = Executors.newCachedThreadPool();
     private ServerSocket serverSocket;
-    private final StoreMessageHandler storeMessages;
 
-    public ServerApplication(int port, UserManagementService users, StoreService store) {
+    public ServerApplication(int port, UserManagementService users) {
+        this(port, users, new InMemoryCourseSelectionService(), new InMemoryStoreService());
+    }
+
+    public ServerApplication(int port, UserManagementService users, CourseSelectionService courses) {
+        this(port, users, courses, new InMemoryStoreService());
+    }
+
+    ServerApplication(int port, UserManagementService users, CourseSelectionService courses, StoreService store) {
         this.port = port;
         this.userMessages = new UserMessageHandler(users);
+        this.courseMessages = new CourseMessageHandler(courses, users);
         this.storeMessages = new StoreMessageHandler(store, users);
     }
 
@@ -69,31 +82,48 @@ public final class ServerApplication implements Closeable {
                     ObjectOutputStream output = new ObjectOutputStream(client.getOutputStream())) {
                 while (!client.isClosed()) {
                     Message request;
-                    try {
-                        request = (Message) input.readObject();
-                    } catch (EOFException end) {
-                        break;
-                    }
-                    output.writeObject(dispatch(request));
+                    try { request = (Message) input.readObject(); }
+                    catch (EOFException end) { break; }
+                    output.writeObject(ServerApplication.this.dispatch(request));
                     output.flush();
                 }
             } catch (IOException | ClassNotFoundException failure) {
                 System.err.println("client connection closed: " + failure.getMessage());
             }
         }
+    }
 
-        private Message dispatch(Message request) {
-            if (request != null && request.getType() == MessageType.STORE_QUERY
-                    || request != null && request.getType() == MessageType.STORE_PURCHASE) {
-                return storeMessages.handle(request);
-            }
-            return userMessages.handle(request);
+    Message dispatch(Message request) {
+        if (request != null && isCourseMessage(request.getType())) {
+            return courseMessages.handle(request);
         }
+        if (request != null && isStoreMessage(request.getType())) {
+            return storeMessages.handle(request);
+        }
+        return userMessages.handle(request);
+    }
+
+    private static boolean isCourseMessage(MessageType type) {
+        return type == MessageType.COURSE_QUERY
+                || type == MessageType.COURSE_SELECT
+                || type == MessageType.COURSE_DROP
+                || type == MessageType.COURSE_CREATE
+                || type == MessageType.COURSE_UPDATE
+                || type == MessageType.COURSE_DEACTIVATE;
+    }
+
+    private static boolean isStoreMessage(MessageType type) {
+        return type == MessageType.STORE_QUERY
+                || type == MessageType.STORE_PURCHASE;
     }
 
     public static void main(String[] args) throws IOException {
         int port = parsePort(args);
-        new ServerApplication(port, UserServiceFactory.create(args), new InMemoryStoreService()).start();
+        Path databasePath = UserServiceFactory.databasePath(args);
+        CourseSelectionService courses = databasePath == null
+                ? new InMemoryCourseSelectionService()
+                : new AccessCourseSelectionService(databasePath);
+        new ServerApplication(port, UserServiceFactory.create(args), courses).start();
     }
 
     private static int parsePort(String[] args) {

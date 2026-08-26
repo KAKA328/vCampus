@@ -21,10 +21,23 @@ public final class DefaultUserManagementService implements UserManagementService
     }
 
     @Override public ServiceResult<Void> register(UserCredentials c) {
+        Role role = role(c);
+        if (role == null) return ServiceResult.failure(StatusCode.BAD_REQUEST, "invalid registration data");
+        return createAccount(c, role);
+    }
+
+    /** Creates a trusted bootstrap/admin-provisioned account; never expose this method as a public Socket action. */
+    public ServiceResult<Void> provisionAccount(UserCredentials c) {
+        Role role = role(c);
+        if (role == null) return ServiceResult.failure(StatusCode.BAD_REQUEST, "invalid account data");
+        return createAccount(c, role);
+    }
+
+    private ServiceResult<Void> createAccount(UserCredentials c, Role role) {
         final User user;
         try {
-            user = new User(c.getUserId(), c.getDisplayName(), Role.valueOf(c.getRoleCode()));
-        } catch (IllegalArgumentException invalidRole) {
+            user = new User(c.getUserId(), c.getDisplayName(), role);
+        } catch (IllegalArgumentException invalidUser) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "invalid registration data");
         }
         UserAccount account = new UserAccount(user, passwordHasher.hash(c.getPassword()), true);
@@ -32,6 +45,14 @@ public final class DefaultUserManagementService implements UserManagementService
             return ServiceResult.failure(StatusCode.CONFLICT, "user already exists");
         }
         return ServiceResult.ok(null);
+    }
+
+    private static Role role(UserCredentials credentials) {
+        try {
+            return Role.valueOf(credentials.getRoleCode());
+        } catch (IllegalArgumentException invalidRole) {
+            return null;
+        }
     }
 
     @Override public ServiceResult<Void> unregister(String userId, String token) {
@@ -55,17 +76,25 @@ public final class DefaultUserManagementService implements UserManagementService
         return ServiceResult.ok(sessions.create(account.getUser()));
     }
 
+    @Override public ServiceResult<Session> currentSession(String token) {
+        Session session = sessions.find(token);
+        if (session == null) return ServiceResult.failure(StatusCode.UNAUTHORIZED, "invalid session");
+        return ServiceResult.ok(session);
+    }
+
     @Override public ServiceResult<Void> logout(String token) {
         if (!sessions.invalidate(token)) return ServiceResult.failure(StatusCode.UNAUTHORIZED, "invalid session");
         return ServiceResult.ok(null);
     }
 
     @Override public ServiceResult<Boolean> authorize(String token, String permission) {
-        Session session = sessions.find(token);
-        if (session == null) return ServiceResult.failure(StatusCode.UNAUTHORIZED, "invalid session");
+        ServiceResult<Session> current = currentSession(token);
+        if (current.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(current.getStatus(), current.getMessage());
+        }
         Permission requestedPermission = Permission.fromCode(permission);
         if (requestedPermission == null) return ServiceResult.failure(StatusCode.BAD_REQUEST, "invalid permission");
-        boolean allowed = permissionPolicy.isAllowed(session.getUser().getRole(), requestedPermission);
+        boolean allowed = permissionPolicy.isAllowed(current.getData().getUser().getRole(), requestedPermission);
         return allowed ? ServiceResult.ok(Boolean.TRUE) : ServiceResult.failure(StatusCode.FORBIDDEN, "permission denied");
     }
 }

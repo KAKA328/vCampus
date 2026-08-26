@@ -26,6 +26,10 @@ public final class InMemoryUserManagementService implements UserManagementServic
         return delegate.login(c);
     }
 
+    @Override public ServiceResult<Session> currentSession(String token) {
+        return delegate.currentSession(token);
+    }
+
     @Override public ServiceResult<Void> logout(String token) {
         return delegate.logout(token);
     }

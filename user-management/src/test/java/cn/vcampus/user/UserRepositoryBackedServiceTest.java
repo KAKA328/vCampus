@@ -2,6 +2,7 @@ package cn.vcampus.user;
 
 import cn.vcampus.common.Role;
 import cn.vcampus.common.StatusCode;
+import cn.vcampus.common.User;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,19 +25,18 @@ class UserRepositoryBackedServiceTest {
     void adminCanUnregisterAnotherUserAndAuditIsRecorded() {
         InMemoryUserRepository users = new InMemoryUserRepository();
         InMemoryAuditLogRepository auditLog = new InMemoryAuditLogRepository();
-        UserManagementService service = new DefaultUserManagementService(users, new SessionManager(), auditLog);
-        UserCredentials admin = new UserCredentials("admin001", "admin1", "Admin", Role.ADMIN.name());
+        SessionManager sessions = new SessionManager();
+        UserManagementService service = new DefaultUserManagementService(users, sessions, auditLog);
         UserCredentials student = new UserCredentials("stu001", "stu001", "Student", Role.STUDENT.name());
-        service.register(admin);
         service.register(student);
-        Session adminSession = service.login(admin).getData();
+        Session adminSession = sessions.create(new User("admin001", "Admin", Role.ADMIN));
 
         assertEquals(StatusCode.OK, service.unregister(student.getUserId(), adminSession.getToken()).getStatus());
 
         assertEquals(StatusCode.UNAUTHORIZED, service.login(student).getStatus());
         assertEquals(1, auditLog.findAll().size());
         assertEquals("UNREGISTER_USER", auditLog.findAll().get(0).getAction());
-        assertEquals(admin.getUserId(), auditLog.findAll().get(0).getActorUserId());
+        assertEquals("admin001", auditLog.findAll().get(0).getActorUserId());
         assertEquals(student.getUserId(), auditLog.findAll().get(0).getTargetId());
     }
 

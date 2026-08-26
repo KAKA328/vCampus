@@ -1,6 +1,7 @@
 package cn.vcampus.client.view;
 
 import cn.vcampus.client.service.RemoteUserService;
+import cn.vcampus.common.Role;
 import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -139,6 +140,11 @@ public final class MainFrame extends JFrame {
     private void showModule(ModuleDescriptor module) {
         selectNav(module.getTitle());
         content.removeAll();
+        if (useStudentCourseSelectionPanel(session.getUser().getRole(), module)) {
+            content.add(new CourseSelectionPanel(host, port, session), BorderLayout.CENTER);
+            refreshContent();
+            return;
+        }
         JPanel panel = new JPanel(new BorderLayout(0, 18));
         panel.setOpaque(false);
         panel.add(sectionTitle(module.getTitle(), module.getSummary()), BorderLayout.NORTH);
@@ -184,6 +190,10 @@ public final class MainFrame extends JFrame {
     private void refreshContent() {
         content.revalidate();
         content.repaint();
+    }
+
+    static boolean useStudentCourseSelectionPanel(Role role, ModuleDescriptor module) {
+        return role == Role.STUDENT && module != null && "选课系统".equals(module.getTitle());
     }
 
     private static String escapeHtml(String value) {

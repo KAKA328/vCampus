@@ -4,10 +4,16 @@ import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
 import cn.vcampus.common.Role;
 import cn.vcampus.common.StatusCode;
+import cn.vcampus.common.User;
 import cn.vcampus.user.AuthorizationRequest;
+import cn.vcampus.user.DefaultUserManagementService;
+import cn.vcampus.user.InMemoryAuditLogRepository;
+import cn.vcampus.user.InMemoryUserRepository;
 import cn.vcampus.user.InMemoryUserManagementService;
 import cn.vcampus.user.Permission;
 import cn.vcampus.user.Session;
+import cn.vcampus.user.SessionManager;
+import cn.vcampus.user.UserManagementService;
 import cn.vcampus.user.UserCredentials;
 import org.junit.jupiter.api.Test;
 
@@ -50,6 +56,19 @@ class UserMessageHandlerTest {
     }
 
     @Test
+    void forgedCoursePermissionRequestFromStoreManagerIsForbidden() {
+        SessionManager sessions = new SessionManager();
+        UserManagementService users = new DefaultUserManagementService(
+                new InMemoryUserRepository(), sessions, new InMemoryAuditLogRepository());
+        UserMessageHandler restrictedHandler = new UserMessageHandler(users);
+        Session session = sessions.create(new User("store01", "Store Manager", Role.STORE_MANAGER));
+
+        assertForbidden(restrictedHandler, session, Permission.COURSE_READ);
+        assertForbidden(restrictedHandler, session, Permission.COURSE_SELECT);
+        assertForbidden(restrictedHandler, session, Permission.COURSE_MANAGE);
+    }
+
+    @Test
     void unsupportedMessageTypeReturnsNotFound() {
         Message response = handler.handle(Message.request("r7", MessageType.COURSE_QUERY, null));
 
@@ -61,5 +80,11 @@ class UserMessageHandlerTest {
         Message response = handler.handle(null);
 
         assertEquals(StatusCode.BAD_REQUEST, response.getStatusCode());
+    }
+
+    private void assertForbidden(UserMessageHandler target, Session session, Permission permission) {
+        Message response = target.handle(Message.request("forged-" + permission, MessageType.AUTHORIZE,
+                new AuthorizationRequest(session.getToken(), permission.getCode())));
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode(), permission.name());
     }
 }

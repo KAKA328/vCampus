@@ -60,7 +60,7 @@ public final class RegisterDialog extends JDialog {
         JLabel title = new JLabel("创建 vCampus 用户");
         title.setFont(VCampusTheme.font(Font.BOLD, 21));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        JLabel subtitle = new JLabel("请填写账号信息，并选择对应用户角色。");
+        JLabel subtitle = new JLabel("请填写账号信息，并选择本次实验需要使用的角色。");
         subtitle.setForeground(VCampusTheme.MUTED);
         panel.add(title, BorderLayout.NORTH);
         panel.add(subtitle, BorderLayout.SOUTH);
