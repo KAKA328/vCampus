@@ -41,7 +41,7 @@ $env:VCAMPUS_BOOTSTRAP_ADMIN_NAME="系统管理员"
 java -cp "common\target\classes;user-management\target\classes;server\target\classes" cn.vcampus.server.ServerApplication --port 19195
 ```
 
-服务器启动时会创建 `ADMIN` 账号；登录时使用上面的账号和密码。内存模式下服务器关闭后账号会消失，因此下次启动仍需保留这些环境变量；接入 Access 后账号写入数据库，后续启动不会重置已存在账号的密码。用完可在另一个 PowerShell 中执行 `Remove-Item Env:VCAMPUS_BOOTSTRAP_ADMIN_PASSWORD` 清除当前终端变量。
+服务器启动时会创建 `ADMIN` 账号；登录时使用上面的账号和密码。内存模式下服务器关闭后账号会消失，因此下次启动仍需保留这些环境变量；接入 Access 后账号写入数据库，后续启动不会重置已存在账号的密码。服务器停止并回到同一个 PowerShell 后，可执行 `Remove-Item Env:VCAMPUS_BOOTSTRAP_ADMIN_ID, Env:VCAMPUS_BOOTSTRAP_ADMIN_PASSWORD, Env:VCAMPUS_BOOTSTRAP_ADMIN_NAME` 清除变量。
 
 ## 设计基线
 
