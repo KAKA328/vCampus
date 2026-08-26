@@ -33,8 +33,7 @@ public final class ClientApplication {
         try (Socket socket = new Socket(host, port);
              ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream());
              ObjectInputStream input = new ObjectInputStream(socket.getInputStream())) {
-            UserCredentials demo = new UserCredentials("demo-student-" + System.currentTimeMillis(),
-                    "demo123", "Demo Student", "STUDENT");
+            UserCredentials demo = demoCredentials(System.currentTimeMillis());
 
             Message registerResponse = exchange(output, input,
                     Message.request("demo-register", MessageType.REGISTER, demo));
@@ -59,6 +58,10 @@ public final class ClientApplication {
                             new AuthorizationRequest(session.getToken(), Permission.COURSE_SELECT.getCode())));
             printResult(oldTokenResponse, "AUTHORIZE OLD_TOKEN", StatusCode.UNAUTHORIZED);
         }
+    }
+
+    static UserCredentials demoCredentials(long suffix) {
+        return new UserCredentials("demo_student_" + suffix, "demo123", "Demo Student", "STUDENT");
     }
 
     private static boolean contains(String[] args, String option) {

@@ -28,6 +28,29 @@ class InMemoryUserManagementServiceTest {
     }
 
     @Test
+    void secondLoginForSameUserIsRejectedWhileFirstSessionIsActive() {
+        UserCredentials credentials = new UserCredentials("u001b", "p00100", "Student", Role.STUDENT.name());
+        assertEquals(StatusCode.OK, service.register(credentials).getStatus());
+
+        ServiceResult<Session> first = service.login(credentials);
+        ServiceResult<Session> second = service.login(credentials);
+
+        assertEquals(StatusCode.OK, first.getStatus());
+        assertEquals(StatusCode.CONFLICT, second.getStatus());
+    }
+
+    @Test
+    void userCanLoginAgainAfterLogout() {
+        UserCredentials credentials = new UserCredentials("u001c", "p00100", "Student", Role.STUDENT.name());
+        assertEquals(StatusCode.OK, service.register(credentials).getStatus());
+        Session session = service.login(credentials).getData();
+
+        assertEquals(StatusCode.OK, service.logout(session.getToken()).getStatus());
+
+        assertEquals(StatusCode.OK, service.login(credentials).getStatus());
+    }
+
+    @Test
     void duplicateRegistrationIsRejected() {
         UserCredentials credentials = new UserCredentials("u002", "p00200", "Student", Role.STUDENT.name());
         service.register(credentials);
@@ -62,17 +85,16 @@ class InMemoryUserManagementServiceTest {
     }
 
     @Test
-    void unregisterRemovesAccountAndInvalidatesAllSessionsForUser() {
+    void unregisterRemovesAccountAndInvalidatesActiveSessionForUser() {
         UserCredentials credentials = new UserCredentials("u005", "p00500", "Student", Role.STUDENT.name());
         service.register(credentials);
-        Session firstSession = service.login(credentials).getData();
-        Session secondSession = service.login(credentials).getData();
+        Session session = service.login(credentials).getData();
 
-        assertEquals(StatusCode.OK, service.unregister(credentials.getUserId(), firstSession.getToken()).getStatus());
+        assertEquals(StatusCode.OK, service.unregister(credentials.getUserId(), session.getToken()).getStatus());
 
         assertEquals(StatusCode.UNAUTHORIZED, service.login(credentials).getStatus());
         assertEquals(StatusCode.UNAUTHORIZED,
-                service.authorize(secondSession.getToken(), Permission.USER_SELF_READ.getCode()).getStatus());
+                service.authorize(session.getToken(), Permission.USER_SELF_READ.getCode()).getStatus());
     }
 
     @Test

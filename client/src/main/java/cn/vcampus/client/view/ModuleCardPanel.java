@@ -6,6 +6,7 @@ import java.awt.event.ActionListener;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JTextArea;
 
 /** Reusable dashboard card for one business module. */
 final class ModuleCardPanel extends JPanel {
@@ -17,9 +18,13 @@ final class ModuleCardPanel extends JPanel {
         title.setFont(VCampusTheme.font(Font.BOLD, 17));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
 
-        JLabel summary = new JLabel("<html><div style='width:260px;line-height:1.5;'>"
-                + module.getSummary()
-                + "</div></html>");
+        JTextArea summary = new JTextArea(module.getSummary());
+        summary.setEditable(false);
+        summary.setFocusable(false);
+        summary.setLineWrap(true);
+        summary.setWrapStyleWord(true);
+        summary.setOpaque(false);
+        summary.setFont(VCampusTheme.font(Font.PLAIN, 14));
         summary.setForeground(VCampusTheme.TEXT);
 
         JLabel status = new JLabel(module.getStatus());

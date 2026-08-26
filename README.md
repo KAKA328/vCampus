@@ -28,7 +28,9 @@ java -jar server/target/vCampusServer.jar
 java -jar client/target/vCampusClient.jar
 ```
 
-当前骨架提供协议、接口、入口和测试数据脚本；用户管理已有内存演示实现，其他业务模块由各分支通过 Pull Request 实现。
+`mvn package` 会生成包含项目模块依赖的 `vCampusServer.jar` 和 `vCampusClient.jar`。若使用 Access 数据库启动服务器，可追加 `--db 数据库路径`；不指定数据库时使用内存演示数据。
+
+当前主线提供协议、接口、入口和测试数据脚本；用户管理已有内存与 Access 仓储实现，选课模块已接入课程查询、学生选课、退课和本人已选课程查询，学籍、图书馆、商店仍由各分支继续完善并通过 Pull Request 集成。
 
 ## 初始化系统管理员
 
@@ -43,6 +45,10 @@ java -cp "common\target\classes;user-management\target\classes;server\target\cla
 
 服务器启动时会创建 `ADMIN` 账号；登录时使用上面的账号和密码。内存模式下服务器关闭后账号会消失，因此下次启动仍需保留这些环境变量；接入 Access 后账号写入数据库，后续启动不会重置已存在账号的密码。服务器停止并回到同一个 PowerShell 后，可执行 `Remove-Item Env:VCAMPUS_BOOTSTRAP_ADMIN_ID, Env:VCAMPUS_BOOTSTRAP_ADMIN_PASSWORD, Env:VCAMPUS_BOOTSTRAP_ADMIN_NAME` 清除变量。
 
+## 登录会话规则
+
+同一账号同一时间只允许一个活动会话。账号已经登录时再次登录会返回 `CONFLICT`；正常退出登录、自注销、管理员注销该账号或服务器重启后，可以重新登录。
+
 ## 设计基线
 
 - [项目进度计划报告](docs/PROJECT_PLAN.md)
@@ -51,6 +57,7 @@ java -cp "common\target\classes;user-management\target\classes;server\target\cla
 - [角色权限矩阵](docs/PERMISSIONS.md)
 - [模块对接说明](docs/MODULE_INTEGRATION_GUIDE.md)
 - [验收清单](docs/ACCEPTANCE_CHECKLIST.md)
+- [后续实验推进计划](docs/NEXT_EXPERIMENT_PLAN.md)
 
 ## 协作约定
 
