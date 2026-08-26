@@ -99,6 +99,30 @@ class InMemoryCourseSelectionServiceTest {
         assertEquals(StatusCode.BAD_REQUEST, service.drop(" ", "JAVA101").getStatus());
     }
 
+    @Test
+    void createsUpdatesAndDeactivatesCoursesForManagementFlow() {
+        InMemoryCourseSelectionService service = serviceWithTwoCourses();
+
+        assertEquals(StatusCode.OK, service.createCourse(new Course("NET101", "计算机网络", 3, 30)).getStatus());
+        assertEquals(3, service.listCourses().getData().size());
+
+        assertEquals(StatusCode.OK, service.updateCourse(new Course("NET101", "网络技术", 2, 20)).getStatus());
+        assertEquals("网络技术", service.findCourse("NET101").getData().getName());
+
+        assertEquals(StatusCode.OK, service.deactivateCourse("NET101").getStatus());
+        assertEquals(false, service.findCourse("NET101").getData().isActive());
+        assertEquals(StatusCode.CONFLICT, service.select("20230001", "NET101").getStatus());
+    }
+
+    @Test
+    void recordsGradeForSelectedStudentCourse() {
+        InMemoryCourseSelectionService service = serviceWithTwoCourses();
+        service.select("20230001", "JAVA101");
+
+        assertEquals(StatusCode.OK, service.recordGrade("teacher001", "20230001", "JAVA101", 88).getStatus());
+        assertEquals(Integer.valueOf(88), service.gradeOf("20230001", "JAVA101").getData());
+    }
+
     private static InMemoryCourseSelectionService serviceWithTwoCourses() {
         return new InMemoryCourseSelectionService(Arrays.asList(
                 new Course("JAVA101", "Java 程序设计", 3, 2),

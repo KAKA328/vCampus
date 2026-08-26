@@ -126,6 +126,102 @@ public final class AccessCourseSelectionService implements CourseSelectionServic
         }
     }
 
+    @Override
+    public ServiceResult<Course> findCourse(String courseId) {
+        String normalizedCourseId = normalize(courseId);
+        if (normalizedCourseId == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "courseId must not be blank");
+        }
+        try (Connection connection = open()) {
+            Course course = findCourse(connection, normalizedCourseId);
+            if (course == null) {
+                return ServiceResult.failure(StatusCode.NOT_FOUND, "course not found");
+            }
+            return ServiceResult.ok(course);
+        } catch (SQLException failure) {
+            return ServiceResult.failure(StatusCode.SERVER_ERROR, "failed to find course");
+        }
+    }
+
+    @Override
+    public ServiceResult<Void> createCourse(Course course) {
+        if (course == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "course must not be null");
+        }
+        String sql = "INSERT INTO tblCourse(course_id,course_name,credits,capacity) VALUES(?,?,?,?)";
+        try (Connection connection = open();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, course.getCourseId());
+            statement.setString(2, course.getName());
+            statement.setInt(3, course.getCredits());
+            statement.setInt(4, course.getCapacity());
+            statement.executeUpdate();
+            return ServiceResult.ok(null);
+        } catch (SQLException failure) {
+            return ServiceResult.failure(StatusCode.CONFLICT, "failed to create course");
+        }
+    }
+
+    @Override
+    public ServiceResult<Void> updateCourse(Course course) {
+        if (course == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "course must not be null");
+        }
+        String sql = "UPDATE tblCourse SET course_name=?,credits=?,capacity=? WHERE course_id=?";
+        try (Connection connection = open();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, course.getName());
+            statement.setInt(2, course.getCredits());
+            statement.setInt(3, course.getCapacity());
+            statement.setString(4, course.getCourseId());
+            if (statement.executeUpdate() == 0) {
+                return ServiceResult.failure(StatusCode.NOT_FOUND, "course not found");
+            }
+            return ServiceResult.ok(null);
+        } catch (SQLException failure) {
+            return ServiceResult.failure(StatusCode.SERVER_ERROR, "failed to update course");
+        }
+    }
+
+    @Override
+    public ServiceResult<Void> deactivateCourse(String courseId) {
+        String normalizedCourseId = normalize(courseId);
+        if (normalizedCourseId == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "courseId must not be blank");
+        }
+        String sql = "DELETE FROM tblCourse WHERE course_id=? AND course_id NOT IN "
+                + "(SELECT course_id FROM tblCourseSelection)";
+        try (Connection connection = open();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, normalizedCourseId);
+            if (statement.executeUpdate() == 0) {
+                return ServiceResult.failure(StatusCode.CONFLICT,
+                        "course has selections or does not exist; keep historical data");
+            }
+            return ServiceResult.ok(null);
+        } catch (SQLException failure) {
+            return ServiceResult.failure(StatusCode.SERVER_ERROR, "failed to deactivate course");
+        }
+    }
+
+    @Override
+    public ServiceResult<Void> recordGrade(String teacherId, String studentId, String courseId, int score) {
+        if (normalize(teacherId) == null || normalize(studentId) == null || normalize(courseId) == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "teacherId, studentId and courseId must not be blank");
+        }
+        if (score < 0 || score > 100) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "score must be between 0 and 100");
+        }
+        return ServiceResult.failure(StatusCode.SERVER_ERROR,
+                "grade persistence is not configured for Access course service yet");
+    }
+
+    @Override
+    public ServiceResult<Integer> gradeOf(String studentId, String courseId) {
+        return ServiceResult.failure(StatusCode.NOT_FOUND, "grade not found");
+    }
+
     private static List<Course> readCourses(ResultSet results) throws SQLException {
         List<Course> courses = new ArrayList<Course>();
         while (results.next()) {

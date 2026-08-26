@@ -11,10 +11,12 @@
 - 用户管理模块基础实现；
 - Swing 登录、注册、主界面总控框架；
 - `Message` 消息协议、`ServiceResult` 返回格式和 `StatusCode` 状态码；
-- 学生学籍、选课、图书馆、商店四个模块的基础接口和实体占位类；
-- 选课模块的课程查询、学生选课、退课和本人已选课程查询已接入服务器和学生客户端页面。
+- 学生学籍、选课、图书馆、商店四个模块的基础接口、命令对象、内存实现和实体类；
+- 五个必做模块均已接入服务器 `MessageHandler` 和 `ServerApplication` 分发；
+- 客户端主界面已接入学籍、选课、图书馆、商店 Swing 页面；
+- 选课模块已支持课程查询、学生选课、退课、本人已选课程查询、教务开课/改课/停课和教师成绩录入的联调骨架。
 
-当前学生学籍、图书馆、商店还没有完整接入服务器分发和客户端页面；选课模块仍需补充教务开课/改课/停课、教师成绩录入和教务复核等管理功能。
+当前仍未完成的是各业务模块的完整 Access 持久化、真实授课范围校验、图书/商品管理的数据库落地、最终 JavaDoc 和验收文档整理。
 
 ## 2. 队友开始开发前要做什么
 
@@ -141,10 +143,10 @@ Message response = Message.response(request, StatusCode.OK, data);
 | 模块 | MessageType |
 |---|---|
 | 用户管理 | `REGISTER`、`UNREGISTER`、`LOGIN`、`LOGOUT`、`AUTHORIZE` |
-| 学生学籍 | `STUDENT_QUERY`、`STUDENT_UPDATE` |
-| 选课系统 | `COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP`、`COURSE_CREATE`、`COURSE_UPDATE`、`COURSE_DEACTIVATE` |
+| 学生学籍 | `STUDENT_QUERY`、`STUDENT_UPDATE`、`STUDENT_REVIEW` |
+| 选课系统 | `COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP`、`COURSE_CREATE`、`COURSE_UPDATE`、`COURSE_DEACTIVATE`、`COURSE_GRADE_WRITE` |
 | 图书馆 | `LIBRARY_QUERY`、`LIBRARY_BORROW`、`LIBRARY_RETURN` |
-| 商店 | `STORE_QUERY`、`STORE_PURCHASE` |
+| 商店 | `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY` |
 
 如果需要新增消息类型，必须同步修改：
 
@@ -317,6 +319,7 @@ private Message dispatch(Message request) {
         case COURSE_CREATE:
         case COURSE_UPDATE:
         case COURSE_DEACTIVATE:
+        case COURSE_GRADE_WRITE:
             return courseMessages.handle(request);
         case LIBRARY_QUERY:
         case LIBRARY_BORROW:
@@ -324,9 +327,11 @@ private Message dispatch(Message request) {
             return libraryMessages.handle(request);
         case STORE_QUERY:
         case STORE_PURCHASE:
+        case STORE_ORDER_QUERY:
             return storeMessages.handle(request);
         case STUDENT_QUERY:
         case STUDENT_UPDATE:
+        case STUDENT_REVIEW:
             return studentMessages.handle(request);
         default:
             return Message.response(request, StatusCode.NOT_FOUND, "message type is not supported");
@@ -349,7 +354,17 @@ client/src/main/java/cn/vcampus/client/view/ModuleNavigationModel.java
 client/src/main/java/cn/vcampus/client/view/ModuleDescriptor.java
 ```
 
-各模块负责人建议先提供自己的 `JPanel` 页面，不要一开始大改 `MainFrame`。
+当前已接入的页面包括：
+
+```text
+StudentProfilePanel.java      学籍查询与学业审查
+CourseSelectionPanel.java     学生选课、退课、已选课程
+CourseManagementPanel.java    教务课程维护、教师成绩录入
+LibraryPanel.java             图书查询、借阅、归还
+StorePanel.java               商品查询、购买、订单查询
+```
+
+各模块负责人后续可以在这些页面基础上继续补字段、表格和美化，不要各自大改 `MainFrame`。
 
 页面类示例：
 
