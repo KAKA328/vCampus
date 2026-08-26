@@ -7,6 +7,7 @@ public interface UserManagementService {
     ServiceResult<Void> register(UserCredentials credentials);
     ServiceResult<Void> unregister(String userId, String token);
     ServiceResult<Session> login(UserCredentials credentials);
+    ServiceResult<Session> currentSession(String token);
     ServiceResult<Void> logout(String token);
     ServiceResult<Boolean> authorize(String token, String permission);
 }

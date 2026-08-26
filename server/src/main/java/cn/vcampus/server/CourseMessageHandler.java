@@ -2,12 +2,14 @@ package cn.vcampus.server;
 
 import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
+import cn.vcampus.common.Role;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.CourseQueryCommand;
 import cn.vcampus.course.CourseSelectionCommand;
 import cn.vcampus.course.CourseSelectionService;
 import cn.vcampus.user.Permission;
+import cn.vcampus.user.Session;
 import cn.vcampus.user.UserManagementService;
 
 /**
@@ -59,10 +61,10 @@ final class CourseMessageHandler {
     }
 
     private ServiceResult<Void> select(CourseSelectionCommand command) {
-        ServiceResult<Boolean> authorization = users.authorize(
-                command.getToken(), Permission.COURSE_SELECT.getCode());
-        if (authorization.getStatus() != StatusCode.OK) {
-            return ServiceResult.failure(authorization.getStatus(), authorization.getMessage());
+        ServiceResult<Session> scope = authorizeStudentScope(
+                command.getToken(), command.getStudentId(), Permission.COURSE_SELECT);
+        if (scope.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(scope.getStatus(), scope.getMessage());
         }
         return courses.select(command.getStudentId(), command.getCourseId());
     }
@@ -77,10 +79,10 @@ final class CourseMessageHandler {
             case ALL_COURSES:
                 return courses.listCourses();
             case SELECTED_COURSES:
-                ServiceResult<Boolean> authorization = users.authorize(
-                        command.getToken(), Permission.COURSE_READ.getCode());
-                if (authorization.getStatus() != StatusCode.OK) {
-                    return ServiceResult.failure(authorization.getStatus(), authorization.getMessage());
+                ServiceResult<Session> scope = authorizeStudentScope(
+                        command.getToken(), command.getStudentId(), Permission.COURSE_READ);
+                if (scope.getStatus() != StatusCode.OK) {
+                    return ServiceResult.failure(scope.getStatus(), scope.getMessage());
                 }
                 return courses.selectedCourses(command.getStudentId());
             default:
@@ -89,12 +91,34 @@ final class CourseMessageHandler {
     }
 
     private ServiceResult<Void> drop(CourseSelectionCommand command) {
-        ServiceResult<Boolean> authorization = users.authorize(
-                command.getToken(), Permission.COURSE_SELECT.getCode());
+        ServiceResult<Session> scope = authorizeStudentScope(
+                command.getToken(), command.getStudentId(), Permission.COURSE_SELECT);
+        if (scope.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(scope.getStatus(), scope.getMessage());
+        }
+        return courses.drop(command.getStudentId(), command.getCourseId());
+    }
+
+    private ServiceResult<Session> authorizeStudentScope(String token, String studentId, Permission permission) {
+        ServiceResult<Boolean> authorization = users.authorize(token, permission.getCode());
         if (authorization.getStatus() != StatusCode.OK) {
             return ServiceResult.failure(authorization.getStatus(), authorization.getMessage());
         }
-        return courses.drop(command.getStudentId(), command.getCourseId());
+
+        ServiceResult<Session> current = users.currentSession(token);
+        if (current.getStatus() != StatusCode.OK) {
+            return current;
+        }
+
+        Session session = current.getData();
+        Role role = session.getUser().getRole();
+        if (role == Role.ADMIN) {
+            return current;
+        }
+        if (role == Role.STUDENT && session.getUser().getUserId().equals(studentId)) {
+            return current;
+        }
+        return ServiceResult.failure(StatusCode.FORBIDDEN, "student scope denied");
     }
 
     private static <T> T payload(Message request, Class<T> type) {
