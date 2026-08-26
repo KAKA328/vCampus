@@ -4,10 +4,12 @@ import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
+import cn.vcampus.store.StoreQueryCommand;
 import cn.vcampus.store.StorePurchaseCommand;
 import cn.vcampus.store.StoreService;
 import cn.vcampus.user.UserManagementService;
 import cn.vcampus.store.StoreOrderQueryCommand;
+import cn.vcampus.user.Session;
 
 class StoreMessageHandler {
     private final StoreService store;
@@ -29,6 +31,12 @@ class StoreMessageHandler {
             switch (request.getType()) {
                 // 仓库查询请求
                 case STORE_QUERY:
+                    StoreQueryCommand payload = payload(request, StoreQueryCommand.class);
+                    ServiceResult<Boolean> auth0 = users.authorize(payload.getToken(), "STORE_READ");
+                    if (auth0.getStatus() != StatusCode.OK) {
+                        result = auth0;
+                        break;
+                    }
                     result = store.listProducts();
                     break;
                 // 仓库购买请求
@@ -40,7 +48,16 @@ class StoreMessageHandler {
                         result = auth1;
                         break;
                     }
-                    result = store.purchase(spc.getStudentId(), spc.getProductId(), spc.getQuantity());
+                    // 通过token获取userId作为唯一可信身份标识
+                    String currToken1 = spc.getToken();
+                    ServiceResult<Session> sessionResult = users.currentSession(currToken1);
+                    if (sessionResult.getStatus() != StatusCode.OK) {
+                        result = sessionResult;
+                        break;
+                    }
+                    // 提取可信userId
+                    String userId1 = sessionResult.getData().getUser().getUserId();
+                    result = store.purchase(userId1, spc.getProductId(), spc.getQuantity());
                     break;
                 // 仓库订单查询请求
                 case STORE_ORDER_QUERY:
@@ -50,7 +67,16 @@ class StoreMessageHandler {
                         result = auth2;
                         break;
                     }
-                    result = store.findOrdersByStudentId(soqc.getStudentId());
+                    // 通过token获取userId作为唯一可信身份标识
+                    String currToken2 = soqc.getToken();
+                    ServiceResult<Session> sessionResult2 = users.currentSession(currToken2);
+                    if (sessionResult2.getStatus() != StatusCode.OK) {
+                        result = sessionResult2;
+                        break;
+                    }
+                    // 提取可信userId
+                    String userId2 = sessionResult2.getData().getUser().getUserId();
+                    result = store.findOrdersByUserId(userId2);
                     break;
                 default:
                     result = ServiceResult.failure(StatusCode.NOT_FOUND, "not implemented");

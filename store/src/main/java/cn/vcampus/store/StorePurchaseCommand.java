@@ -5,13 +5,11 @@ import java.io.Serializable;
 public final class StorePurchaseCommand implements Serializable {
     private static final long serialVersionUID = 1L;
     private final String token;
-    private final String studentId;
     private final String productId;
     private final int quantity;
 
-    public StorePurchaseCommand(String token, String studentId, String productId, int quantity) {
+    public StorePurchaseCommand(String token, String productId, int quantity) {
         this.token = checkStr(token, "token");
-        this.studentId = checkStr(studentId, "studentId");
         this.productId = checkStr(productId, "productId");
         if (quantity <= 0)
             throw new IllegalArgumentException("quantity must be greater than zero");
@@ -20,10 +18,6 @@ public final class StorePurchaseCommand implements Serializable {
 
     public String getToken() {
         return token;
-    }
-
-    public String getStudentId() {
-        return studentId;
     }
 
     public String getProductId() {

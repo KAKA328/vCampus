@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 public final class Order implements Serializable {
     private static final long serialVersionUID = 1L;
     private final String orderId; // 订单编号
-    private final String studentId; // 下单学生编号
+    private final String userId; // 下单用户编号
     private final String productId; // 购买的商品编号
     private final int quantity; // 购买数量
     private final double totalPrice; // 订单总价
@@ -16,10 +16,10 @@ public final class Order implements Serializable {
     private final String productName;// 购买时的商品名称
     private final double unitPrice;// 购买时的商品单价
 
-    public Order(String orderId, String studentId, String productId, int quantity, double totalPrice,
+    public Order(String orderId, String userId, String productId, int quantity, double totalPrice,
             LocalDateTime orderDate, String productName, double unitPrice) {
         this.orderId = checkStr(orderId, "orderId");
-        this.studentId = checkStr(studentId, "studentId");
+        this.userId = checkStr(userId, "userId");
         this.productId = checkStr(productId, "productId");
         if (quantity <= 0)
             throw new IllegalArgumentException("quantity cannot be negative");
@@ -36,8 +36,8 @@ public final class Order implements Serializable {
         return orderId;
     }
 
-    public String getStudentId() {
-        return studentId;
+    public String getUserId() {
+        return userId;
     }
 
     public String getProductId() {

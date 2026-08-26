@@ -25,7 +25,7 @@ public final class DefaultStoreService implements StoreService {
 
     // 购买方法
     @Override
-    public final ServiceResult<Void> purchase(String studentId, String productId, int quantity) {
+    public final ServiceResult<Void> purchase(String userId, String productId, int quantity) {
         Product toBuy = products.findById(productId);
         // 没有目标商品
         if (toBuy == null)
@@ -43,7 +43,7 @@ public final class DefaultStoreService implements StoreService {
             // 刷新库存
             products.updateStock(productId, toBuy.getStock() - quantity);
             // 创建订单,使用随机订单编号
-            Order newOrder = new Order(UUID.randomUUID().toString(), studentId, productId, quantity, totalPrice,
+            Order newOrder = new Order(UUID.randomUUID().toString(), userId, productId, quantity, totalPrice,
                     LocalDateTime.now(), toBuy.getName(), toBuy.getPrice());
             orders.create(newOrder);
             // 返回成功
@@ -51,9 +51,9 @@ public final class DefaultStoreService implements StoreService {
         }
     }
 
-    // 根据学生ID查询订单
+    // 根据用户ID查询订单
     @Override
-    public final ServiceResult<List<Order>> findOrdersByStudentId(String studentId) {
-        return ServiceResult.ok(orders.findByStudentId(studentId));
+    public final ServiceResult<List<Order>> findOrdersByUserId(String userId) {
+        return ServiceResult.ok(orders.findByUserId(userId));
     }
 }

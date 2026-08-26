@@ -38,10 +38,10 @@ class StoreServiceTest {
         int currStock = products.findById("00004").getStock();
         ServiceResult<Void> testResult = service.purchase("0120", "00004", 77);
         assertEquals(StatusCode.OK, testResult.getStatus());// 验证状态码
-        List<Order> studentOrders = orders.findByStudentId("0120"); // 获取学生订单列表
-        // 验证学生订单列表中是否包含该订单
+        List<Order> userOrders = orders.findByUserId("0120"); // 获取用户订单列表
+        // 验证用户订单列表中是否包含该订单
         boolean isFound = false;
-        for (Order order : studentOrders) {
+        for (Order order : userOrders) {
             if (order.getProductId().equals("00004") && order.getQuantity() == 77) {
                 isFound = true;
                 break;
@@ -69,8 +69,8 @@ class StoreServiceTest {
 
     // 测试没有订单的学生查询订单不会报错
     @Test
-    void testFindOrderByStudentIdEmpty() {
-        ServiceResult<List<Order>> testResult = service.findOrdersByStudentId("9999");
+    void testFindOrderByUserIdEmpty() {
+        ServiceResult<List<Order>> testResult = service.findOrdersByUserId("9999");
         assertEquals(StatusCode.OK, testResult.getStatus());
         assertNotNull(testResult.getData());
         assertTrue(testResult.getData().isEmpty());
@@ -78,11 +78,11 @@ class StoreServiceTest {
 
     // 测试只要购买了商品，就一定能够查到订单
     @Test
-    void testFindOrdersByStudentIdWithData() {
+    void testFindOrdersByUserIdWithData() {
         int currStock = products.findById("00004").getStock();
         int toBuy = currStock / 2;
         service.purchase("0110", "00004", toBuy);
-        ServiceResult<List<Order>> testResult = service.findOrdersByStudentId("0110");
+        ServiceResult<List<Order>> testResult = service.findOrdersByUserId("0110");
         assertEquals(StatusCode.OK, testResult.getStatus());
         assertEquals(toBuy, testResult.getData().get(0).getQuantity());
         assertEquals("00004", testResult.getData().get(0).getProductId());
@@ -96,7 +96,7 @@ class StoreServiceTest {
         double formerPrice = products.findById("00004").getPrice();
         service.purchase("0111", "00004", products.findById("00004").getStock() - 1);
         products.save(new Product("00004", "Toy Plane", 10000, 5, "A pastical toy plane", "Toy"));
-        ServiceResult<List<Order>> testResult = service.findOrdersByStudentId("0111");
+        ServiceResult<List<Order>> testResult = service.findOrdersByUserId("0111");
         assertEquals(formerName, testResult.getData().get(0).getProductName());
         assertEquals(formerPrice, testResult.getData().get(0).getUnitPrice());
     }
