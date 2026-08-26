@@ -32,6 +32,40 @@ class ModuleNavigationModelTest {
     }
 
     @Test
+    void teacherSeesTeachingLibraryAndStoreButNotManagementEntries() {
+        ModuleNavigationModel model = new ModuleNavigationModel();
+
+        assertTrue(model.visibleModules(Role.TEACHER).contains("学籍查询"));
+        assertTrue(model.visibleModules(Role.TEACHER).contains("选课系统"));
+        assertTrue(model.visibleModules(Role.TEACHER).contains("图书馆"));
+        assertTrue(model.visibleModules(Role.TEACHER).contains("商店"));
+        assertFalse(model.visibleModules(Role.TEACHER).contains("用户管理"));
+    }
+
+    @Test
+    void academicAdminSeesOnlyAcademicManagementEntries() {
+        ModuleNavigationModel model = new ModuleNavigationModel();
+        Role academicAdmin = Role.valueOf("ACADEMIC_ADMIN");
+
+        assertEquals(2, model.visibleModules(academicAdmin).size());
+        assertTrue(model.visibleModules(academicAdmin).contains("学籍管理"));
+        assertTrue(model.visibleModules(academicAdmin).contains("选课管理"));
+        assertFalse(model.visibleModules(academicAdmin).contains("图书馆"));
+        assertFalse(model.visibleModules(academicAdmin).contains("商店"));
+        assertFalse(model.visibleModules(academicAdmin).contains("用户管理"));
+    }
+
+    @Test
+    void storeManagerCannotSeeCourseSelectionEntry() {
+        ModuleNavigationModel model = new ModuleNavigationModel();
+
+        assertEquals(1, model.visibleModules(Role.STORE_MANAGER).size());
+        assertTrue(model.visibleModules(Role.STORE_MANAGER).contains("商店"));
+        assertFalse(model.visibleModules(Role.STORE_MANAGER).contains("选课系统"));
+        assertFalse(model.visibleModules(Role.STORE_MANAGER).contains("选课管理"));
+    }
+
+    @Test
     void studentModuleCardsHaveReadableDescriptions() {
         ModuleNavigationModel model = new ModuleNavigationModel();
 

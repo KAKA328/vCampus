@@ -22,7 +22,8 @@
 |---|---|
 | 学生 `STUDENT` | 查看和维护允许范围内的个人学籍，选课/退选，借书/还书，浏览和购买商品 |
 | 教师 `TEACHER` | 查看授课课程和学生名单，录入/修改所负责课程成绩，查询教学相关数据 |
-| 管理员 `ADMIN` | 用户授权和注销、学生/院系/班级维护、课程和库存管理、统计查询 |
+| 教务管理员 `ACADEMIC_ADMIN` | 维护学籍、开课和容量，执行成绩复核与学业审查 |
+| 系统管理员 `ADMIN` | 用户授权和注销、全部业务维护、审计和验收 |
 | 图书管理员 `LIBRARIAN` | 图书目录、库存、借阅规则和借还记录 |
 | 商店管理员 `STORE_MANAGER` | 商品、价格、库存和订单状态 |
 
@@ -53,6 +54,10 @@
 4. 权限在服务器端再次检查，不能只依赖客户端隐藏按钮。
 5. 每张业务表有主键；跨表关系使用外键；账号、课程、商品等业务编号使用唯一约束。
 6. 先完成可测试的接口和内存实现，再替换 Access Repository，降低联调风险。
+
+### 2.3 角色权限基线
+
+系统采用“角色 → 权限编码 → 数据范围”三级检查。学生和教师进入商店后仍保持原系统角色，只通过 `STORE_PURCHASE` 获得买家能力；商店管理员不具有任何课程权限。完整矩阵、权限编码及服务端强制规则见 [`PERMISSIONS.md`](PERMISSIONS.md)。
 
 ## 3. 系统总体结构
 
@@ -121,7 +126,7 @@ database                 vCampus.accdb、schema.sql、seed.sql
 
 | 功能 | 学生/教师 | 管理员 | 规则 |
 |---|---:|---:|---|
-| 注册 | 是 | 可代注册 | 账号唯一；密码 6-16 位；角色必须在白名单 |
+| 公开注册 | 仅学生 | 否 | 账号唯一；密码 6-16 位；角色固定为 `STUDENT`，管理角色不得由客户端自选 |
 | 登录 | 是 | 是 | 成功创建会话令牌；失败不泄露账号是否存在 |
 | 登出 | 是 | 是 | 令牌失效；重复登出返回未授权 |
 | 注销账号 | 当前账号 | 任意账号 | 当前用户需确认；管理员可注销其他账号；保留审计记录 |
@@ -249,7 +254,8 @@ database                 vCampus.accdb、schema.sql、seed.sql
 | `LOGOUT` | `String token` | 已登录 |
 | `AUTHORIZE` | `AuthorizationRequest` | 已登录 |
 | `STUDENT_QUERY/UPDATE` | 学生查询/更新请求 | 按角色和数据范围 |
-| `COURSE_QUERY/SELECT/DROP` | 课程/选课请求 | 按选课规则 |
+| `COURSE_QUERY/SELECT/DROP` | 课程/选课请求 | `COURSE_READ` 或 `COURSE_SELECT`，并校验本人/授课范围 |
+| `COURSE_CREATE/UPDATE/DEACTIVATE` | 课程维护请求 | `COURSE_MANAGE` |
 | `LIBRARY_QUERY/BORROW/RETURN` | 图书/借还请求 | 按借阅规则 |
 | `STORE_QUERY/PURCHASE` | 商品/购买请求 | 按库存和订单规则 |
 

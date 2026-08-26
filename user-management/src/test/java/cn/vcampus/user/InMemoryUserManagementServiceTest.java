@@ -3,6 +3,9 @@ package cn.vcampus.user;
 import cn.vcampus.common.Role;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -79,45 +82,72 @@ class InMemoryUserManagementServiceTest {
     }
 
     @Test
-    void rolePermissionPolicyAllowsAndRejectsExpectedPermissions() {
+    void selfRegistrationCannotClaimPrivilegedRoles() {
+        for (Role role : Role.values()) {
+            if (role == Role.STUDENT) {
+                continue;
+            }
+            UserCredentials credentials = new UserCredentials(
+                    "role_" + role.name().toLowerCase(), "role001", role.name(), role.name());
+            assertEquals(StatusCode.BAD_REQUEST, service.register(credentials).getStatus(), role.name());
+        }
+    }
+
+    @Test
+    void studentPermissionSetMatchesApprovedMatrix() {
+        RolePermissionPolicy policy = new RolePermissionPolicy();
+
+        assertExactPermissions(policy, Role.STUDENT,
+                "USER_SELF_READ", "STUDENT_READ", "COURSE_READ", "COURSE_SELECT",
+                "LIBRARY_READ", "LIBRARY_BORROW", "STORE_READ", "STORE_PURCHASE");
+    }
+
+    @Test
+    void teacherPermissionSetMatchesApprovedMatrix() {
+        RolePermissionPolicy policy = new RolePermissionPolicy();
+
+        assertExactPermissions(policy, Role.TEACHER,
+                "USER_SELF_READ", "STUDENT_READ", "COURSE_READ", "GRADE_WRITE",
+                "LIBRARY_READ", "LIBRARY_BORROW", "STORE_READ", "STORE_PURCHASE");
+    }
+
+    @Test
+    void academicAdminPermissionSetMatchesApprovedMatrix() {
+        RolePermissionPolicy policy = new RolePermissionPolicy();
+
+        assertExactPermissions(policy, Role.valueOf("ACADEMIC_ADMIN"),
+                "STUDENT_READ", "STUDENT_WRITE", "COURSE_READ", "COURSE_MANAGE",
+                "ACADEMIC_REVIEW");
+    }
+
+    @Test
+    void librarianPermissionSetMatchesApprovedMatrix() {
+        RolePermissionPolicy policy = new RolePermissionPolicy();
+
+        assertExactPermissions(policy, Role.LIBRARIAN,
+                "LIBRARY_READ", "LIBRARY_BORROW", "LIBRARY_MANAGE");
+    }
+
+    @Test
+    void storeManagerPermissionSetMatchesApprovedMatrix() {
+        RolePermissionPolicy policy = new RolePermissionPolicy();
+
+        assertExactPermissions(policy, Role.STORE_MANAGER,
+                "STORE_READ", "STORE_PURCHASE", "STORE_MANAGE");
+    }
+
+    @Test
+    void systemAdminRetainsEveryPermission() {
         RolePermissionPolicy policy = new RolePermissionPolicy();
 
         assertAllAllowed(policy, Role.ADMIN, Permission.values());
-        assertAllAllowed(policy, Role.STUDENT,
-                Permission.USER_SELF_READ,
-                Permission.COURSE_READ,
-                Permission.COURSE_SELECT,
-                Permission.LIBRARY_READ,
-                Permission.LIBRARY_BORROW,
-                Permission.STORE_READ,
-                Permission.STORE_PURCHASE);
-        assertAllRejected(policy, Role.STUDENT,
-                Permission.USER_MANAGE,
-                Permission.STUDENT_WRITE,
-                Permission.LIBRARY_MANAGE,
-                Permission.STORE_MANAGE);
+    }
 
-        assertAllAllowed(policy, Role.TEACHER,
-                Permission.USER_SELF_READ,
-                Permission.STUDENT_READ,
-                Permission.COURSE_READ);
-        assertAllRejected(policy, Role.TEACHER,
-                Permission.USER_MANAGE,
-                Permission.STORE_MANAGE);
-
-        assertAllAllowed(policy, Role.LIBRARIAN,
-                Permission.LIBRARY_READ,
-                Permission.LIBRARY_MANAGE);
-        assertAllRejected(policy, Role.LIBRARIAN,
-                Permission.USER_MANAGE,
-                Permission.STORE_MANAGE);
-
-        assertAllAllowed(policy, Role.STORE_MANAGER,
-                Permission.STORE_READ,
-                Permission.STORE_MANAGE);
-        assertAllRejected(policy, Role.STORE_MANAGER,
-                Permission.USER_MANAGE,
-                Permission.LIBRARY_MANAGE);
+    @Test
+    void publicPermissionCodesIncludeAcademicCourseAndGradeOperations() {
+        assertNotNull(Permission.fromCode("COURSE_MANAGE"));
+        assertNotNull(Permission.fromCode("GRADE_WRITE"));
+        assertNotNull(Permission.fromCode("ACADEMIC_REVIEW"));
     }
 
     @Test
@@ -140,6 +170,14 @@ class InMemoryUserManagementServiceTest {
     private static void assertAllRejected(RolePermissionPolicy policy, Role role, Permission... permissions) {
         for (Permission permission : permissions) {
             assertFalse(policy.isAllowed(role, permission), role + " should reject " + permission);
+        }
+    }
+
+    private static void assertExactPermissions(RolePermissionPolicy policy, Role role, String... permissionNames) {
+        Set<String> expected = new HashSet<String>(Arrays.asList(permissionNames));
+        for (Permission permission : Permission.values()) {
+            assertEquals(expected.contains(permission.name()), policy.isAllowed(role, permission),
+                    role + " permission mismatch for " + permission);
         }
     }
 }
