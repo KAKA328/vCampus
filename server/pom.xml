@@ -11,6 +11,11 @@
     <dependencies>
         <dependency>
             <groupId>cn.vcampus</groupId>
+            <artifactId>store</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>cn.vcampus</groupId>
             <artifactId>common</artifactId>
             <version>${project.version}</version>
         </dependency>

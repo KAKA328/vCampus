@@ -9,7 +9,8 @@ import java.nio.file.Path;
 
 /** Creates the user service for memory demos or Access-backed deployment. */
 final class UserServiceFactory {
-    private UserServiceFactory() { }
+    private UserServiceFactory() {
+    }
 
     static UserManagementService create(String[] args) {
         Path databasePath = databasePath(args);
