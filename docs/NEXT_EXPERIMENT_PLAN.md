@@ -7,6 +7,7 @@
 - 从最新 `main` 新建短期功能分支，不在旧分支上继续叠加改动。
 - 每次合并前运行 `mvn clean test`。
 - 修改公共协议、角色权限、数据库字段时，必须同步更新 `docs/INTERFACES.md`、`docs/PERMISSIONS.md` 和 `database/README.md`。
+- 合并其他子系统 PR 前，把“是否新增 `MessageType`、权限、跨模块接口、服务器 Handler、客户端调用和测试”作为固定流程点；缺一项不直接进 `main`。
 
 ## 实验 E2：用户会话与重复登录
 

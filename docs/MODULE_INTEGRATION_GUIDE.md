@@ -154,6 +154,8 @@ docs/INTERFACES.md
 docs/MODULE_INTEGRATION_GUIDE.md
 ```
 
+新增消息类型不能只改枚举。合并前必须同时确认：请求 payload、响应 payload、服务端 Handler、`ServerApplication` 分发、客户端远程调用、权限校验、接口文档和测试是否一起补齐。例如商店模块若新增订单查询能力，应在该模块分支中加入类似 `STORE_ORDER_QUERY` 的消息类型，并说明它查询的是“当前用户本人订单”还是“商店管理员订单列表”；服务器端必须按 token 和角色判断数据范围，不能只靠客户端隐藏按钮。
+
 公共角色、权限编码和数据范围见 [`PERMISSIONS.md`](PERMISSIONS.md)。课程新增、修改和停开操作必须先校验 `COURSE_MANAGE`；任课教师录入成绩校验 `GRADE_WRITE`；教务复核校验 `ACADEMIC_REVIEW`。
 
 ## 6. Payload 设计规则
@@ -527,8 +529,23 @@ PR 描述至少包含：
 - [ ] 数据库访问使用参数化查询；
 - [ ] `mvn clean test` 可以通过；
 - [ ] 如果改了接口或消息类型，已同步更新 `docs/INTERFACES.md`；
+- [ ] 如果新增了 `MessageType`，已同步补齐请求/响应载荷、服务器 Handler、客户端调用、权限校验和对应测试；
 - [ ] 如果改了数据库表，已同步更新 `database/schema.sql` 或迁移脚本；
 - [ ] 如果改了界面，已准备截图给组长确认。
+
+## 14.1 组长合并前检查清单
+
+组长合并 PR 前，除确认测试通过外，还需要重点检查公共契约是否变化：
+
+- [ ] 是否修改 `common/` 下的 `MessageType`、`Permission`、`Role`、通用实体或状态码；
+- [ ] 是否新增跨模块接口、命令对象、响应对象；
+- [ ] 是否需要在 `ServerApplication` 中新增分发分支；
+- [ ] 是否需要在客户端主界面或远程服务中新增入口；
+- [ ] 是否同步更新 `docs/INTERFACES.md`、`docs/PERMISSIONS.md`、`database/README.md`；
+- [ ] 是否存在“代码能编译，但其他模块不知道如何调用”的半成品接口；
+- [ ] 是否存在只在客户端限制权限、服务器没有返回 `FORBIDDEN` 的安全漏洞。
+
+如果发现新增接口没有被完整接入，应先让模块负责人补齐，或由组长创建小型公共接口修复提交，再合并到 `main`。
 
 ## 15. 推荐协作方式
 

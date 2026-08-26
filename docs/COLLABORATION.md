@@ -25,3 +25,26 @@
 - 不提交包含真实数据的数据库文件、密码或 IDE 产物；仅可提交 `database/` 下的脱敏测试数据库和脚本；
 - 接口变更同步更新 `common` 协议和设计说明书；
 - PR 说明包含变更内容、测试方式和已知问题。
+
+## 合并前公共接口核对流程
+
+合并任何子系统 PR 前，组长必须单独检查是否新增或修改了公共接口。公共接口包括但不限于：
+
+- `common/src/main/java/cn/vcampus/common/MessageType.java` 中的消息类型；
+- `common/src/main/java/cn/vcampus/common/Permission.java`、`Role.java` 等权限与身份定义；
+- 跨模块传输的 `Command`、`DTO`、实体类；
+- 服务器 `MessageHandler` 和 `ServerApplication` 分发入口；
+- 客户端远程服务调用和 Swing 入口；
+- 数据库表结构、字段和约束。
+
+如果某个模块需要新增消息类型，例如商店模块新增订单查询 `STORE_ORDER_QUERY`，可以先在该同学自己的分支里实现，但提交 PR 时必须同时说明：
+
+1. 新增的消息类型名称和用途；
+2. 请求 payload 类型、字段含义和权限要求；
+3. 响应 payload 类型和可能返回的 `StatusCode`；
+4. 服务端 Handler 是否已经接入；
+5. 客户端页面或远程服务是否已经调用；
+6. `docs/INTERFACES.md`、`docs/MODULE_INTEGRATION_GUIDE.md` 是否已同步更新；
+7. 是否补充了正常流程、异常流程、权限拒绝流程测试。
+
+缺少以上内容时，不直接合并到 `main`。可以要求组员补充，也可以由组长新建一个小的“公共接口补齐”提交后再合并。
