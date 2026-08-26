@@ -8,11 +8,16 @@ import java.util.concurrent.ConcurrentHashMap;
 /** Creates and invalidates server-side login sessions. */
 public final class SessionManager {
     private final Map<String, Session> sessions = new ConcurrentHashMap<String, Session>();
+    private final Map<String, String> activeTokensByUserId = new ConcurrentHashMap<String, String>();
 
-    public Session create(User user) {
+    public synchronized Session create(User user) {
+        if (activeTokensByUserId.containsKey(user.getUserId())) {
+            return null;
+        }
         String token = UUID.randomUUID().toString();
         Session session = new Session(token, user);
         sessions.put(token, session);
+        activeTokensByUserId.put(user.getUserId(), token);
         return session;
     }
 
@@ -20,15 +25,19 @@ public final class SessionManager {
         return sessions.get(token);
     }
 
-    public boolean invalidate(String token) {
-        return sessions.remove(token) != null;
+    public synchronized boolean invalidate(String token) {
+        Session removed = sessions.remove(token);
+        if (removed == null) {
+            return false;
+        }
+        activeTokensByUserId.remove(removed.getUser().getUserId(), token);
+        return true;
     }
 
-    public void invalidateUser(String userId) {
-        for (Map.Entry<String, Session> entry : sessions.entrySet()) {
-            if (entry.getValue().getUser().getUserId().equals(userId)) {
-                sessions.remove(entry.getKey());
-            }
+    public synchronized void invalidateUser(String userId) {
+        String token = activeTokensByUserId.remove(userId);
+        if (token != null) {
+            sessions.remove(token);
         }
     }
 }

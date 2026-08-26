@@ -73,7 +73,11 @@ public final class DefaultUserManagementService implements UserManagementService
                 || !passwordHasher.matches(c.getPassword(), account.getPasswordHash())) {
             return ServiceResult.failure(StatusCode.UNAUTHORIZED, "invalid credentials");
         }
-        return ServiceResult.ok(sessions.create(account.getUser()));
+        Session session = sessions.create(account.getUser());
+        if (session == null) {
+            return ServiceResult.failure(StatusCode.CONFLICT, "user is already logged in");
+        }
+        return ServiceResult.ok(session);
     }
 
     @Override public ServiceResult<Session> currentSession(String token) {

@@ -16,6 +16,7 @@ import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.SwingConstants;
 
 /** Main dashboard shell after login. */
@@ -133,7 +134,12 @@ public final class MainFrame extends JFrame {
         for (ModuleDescriptor module : modules) {
             grid.add(new ModuleCardPanel(module, e -> showModule(module)));
         }
-        panel.add(grid, BorderLayout.CENTER);
+        JScrollPane scroller = new JScrollPane(grid);
+        scroller.setBorder(null);
+        scroller.setOpaque(false);
+        scroller.getViewport().setOpaque(false);
+        scroller.getVerticalScrollBar().setUnitIncrement(16);
+        panel.add(scroller, BorderLayout.CENTER);
         return panel;
     }
 

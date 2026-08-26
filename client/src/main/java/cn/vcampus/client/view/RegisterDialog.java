@@ -42,7 +42,7 @@ public final class RegisterDialog extends JDialog {
     private void build() {
         setMinimumSize(new Dimension(540, 470));
         setSize(540, 470);
-        setResizable(false);
+        setResizable(true);
         setLocationRelativeTo(getOwner());
 
         JPanel root = new JPanel(new BorderLayout(0, 14));
