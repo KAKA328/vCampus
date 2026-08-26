@@ -21,7 +21,6 @@ import java.util.Set;
 public final class InMemoryCourseSelectionService implements CourseSelectionService {
     private final Map<String, Course> coursesById;
     private final Map<String, Set<String>> courseIdsByStudent;
-    private final Map<String, Integer> scoresByStudentAndCourse;
 
     /** Creates a service with a small set of courses for local development. */
     public InMemoryCourseSelectionService() {
@@ -43,7 +42,6 @@ public final class InMemoryCourseSelectionService implements CourseSelectionServ
 
         this.coursesById = new LinkedHashMap<String, Course>();
         this.courseIdsByStudent = new LinkedHashMap<String, Set<String>>();
-        this.scoresByStudentAndCourse = new LinkedHashMap<String, Integer>();
         for (Course course : courses) {
             if (course == null) {
                 throw new IllegalArgumentException("courses must not contain null");
@@ -72,9 +70,6 @@ public final class InMemoryCourseSelectionService implements CourseSelectionServ
         Course course = coursesById.get(normalizedCourseId);
         if (course == null) {
             return ServiceResult.failure(StatusCode.NOT_FOUND, "course not found");
-        }
-        if (!course.isActive()) {
-            return ServiceResult.failure(StatusCode.CONFLICT, "course is inactive");
         }
 
         Set<String> selectedCourseIds = courseIdsByStudent.get(normalizedStudentId);
@@ -134,92 +129,6 @@ public final class InMemoryCourseSelectionService implements CourseSelectionServ
         return ServiceResult.ok(Collections.unmodifiableList(selectedCourses));
     }
 
-    @Override
-    public synchronized ServiceResult<Course> findCourse(String courseId) {
-        String normalizedCourseId = normalize(courseId);
-        if (normalizedCourseId == null) {
-            return ServiceResult.failure(StatusCode.BAD_REQUEST, "courseId must not be blank");
-        }
-        Course course = coursesById.get(normalizedCourseId);
-        if (course == null) {
-            return ServiceResult.failure(StatusCode.NOT_FOUND, "course not found");
-        }
-        return ServiceResult.ok(course);
-    }
-
-    @Override
-    public synchronized ServiceResult<Void> createCourse(Course course) {
-        if (course == null) {
-            return ServiceResult.failure(StatusCode.BAD_REQUEST, "course must not be null");
-        }
-        if (coursesById.containsKey(course.getCourseId())) {
-            return ServiceResult.failure(StatusCode.CONFLICT, "course already exists");
-        }
-        coursesById.put(course.getCourseId(), course);
-        return ServiceResult.ok(null);
-    }
-
-    @Override
-    public synchronized ServiceResult<Void> updateCourse(Course course) {
-        if (course == null) {
-            return ServiceResult.failure(StatusCode.BAD_REQUEST, "course must not be null");
-        }
-        if (!coursesById.containsKey(course.getCourseId())) {
-            return ServiceResult.failure(StatusCode.NOT_FOUND, "course not found");
-        }
-        coursesById.put(course.getCourseId(), course);
-        return ServiceResult.ok(null);
-    }
-
-    @Override
-    public synchronized ServiceResult<Void> deactivateCourse(String courseId) {
-        ServiceResult<Course> existing = findCourse(courseId);
-        if (existing.getStatus() != StatusCode.OK) {
-            return ServiceResult.failure(existing.getStatus(), existing.getMessage());
-        }
-        Course course = existing.getData();
-        coursesById.put(course.getCourseId(),
-                new Course(course.getCourseId(), course.getName(), course.getCredits(), course.getCapacity(), false));
-        return ServiceResult.ok(null);
-    }
-
-    @Override
-    public synchronized ServiceResult<Void> recordGrade(String teacherId, String studentId, String courseId, int score) {
-        String normalizedTeacherId = normalize(teacherId);
-        String normalizedStudentId = normalize(studentId);
-        String normalizedCourseId = normalize(courseId);
-        if (normalizedTeacherId == null || normalizedStudentId == null || normalizedCourseId == null) {
-            return ServiceResult.failure(StatusCode.BAD_REQUEST,
-                    "teacherId, studentId and courseId must not be blank");
-        }
-        if (score < 0 || score > 100) {
-            return ServiceResult.failure(StatusCode.BAD_REQUEST, "score must be between 0 and 100");
-        }
-        if (findCourse(normalizedCourseId).getStatus() != StatusCode.OK) {
-            return ServiceResult.failure(StatusCode.NOT_FOUND, "course not found");
-        }
-        Set<String> selectedCourseIds = courseIdsByStudent.get(normalizedStudentId);
-        if (selectedCourseIds == null || !selectedCourseIds.contains(normalizedCourseId)) {
-            return ServiceResult.failure(StatusCode.NOT_FOUND, "course selection not found");
-        }
-        scoresByStudentAndCourse.put(scoreKey(normalizedStudentId, normalizedCourseId), Integer.valueOf(score));
-        return ServiceResult.ok(null);
-    }
-
-    @Override
-    public synchronized ServiceResult<Integer> gradeOf(String studentId, String courseId) {
-        String normalizedStudentId = normalize(studentId);
-        String normalizedCourseId = normalize(courseId);
-        if (normalizedStudentId == null || normalizedCourseId == null) {
-            return ServiceResult.failure(StatusCode.BAD_REQUEST, "studentId and courseId must not be blank");
-        }
-        Integer score = scoresByStudentAndCourse.get(scoreKey(normalizedStudentId, normalizedCourseId));
-        if (score == null) {
-            return ServiceResult.failure(StatusCode.NOT_FOUND, "grade not found");
-        }
-        return ServiceResult.ok(score);
-    }
-
     private int selectedCount(String courseId) {
         int count = 0;
         for (Set<String> selectedCourseIds : courseIdsByStudent.values()) {
@@ -236,9 +145,5 @@ public final class InMemoryCourseSelectionService implements CourseSelectionServ
         }
         String normalized = value.trim();
         return normalized.isEmpty() ? null : normalized;
-    }
-
-    private static String scoreKey(String studentId, String courseId) {
-        return studentId + "::" + courseId;
     }
 }

@@ -3,9 +3,6 @@ package cn.vcampus.client.service;
 import cn.vcampus.client.transport.SocketMessageClient;
 import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
-import cn.vcampus.course.Course;
-import cn.vcampus.course.CourseGradeCommand;
-import cn.vcampus.course.CourseManagementCommand;
 import cn.vcampus.course.CourseQueryCommand;
 import cn.vcampus.course.CourseSelectionCommand;
 import java.io.Closeable;
@@ -46,31 +43,6 @@ public final class RemoteCourseService implements Closeable {
             throws IOException, ClassNotFoundException {
         return send(MessageType.COURSE_DROP,
                 new CourseSelectionCommand(token, studentId, courseId));
-    }
-
-    /** 教务管理员新增开课。 */
-    public Message createCourse(String token, Course course)
-            throws IOException, ClassNotFoundException {
-        return send(MessageType.COURSE_CREATE, CourseManagementCommand.forCourse(token, course));
-    }
-
-    /** 教务管理员更新课程。 */
-    public Message updateCourse(String token, Course course)
-            throws IOException, ClassNotFoundException {
-        return send(MessageType.COURSE_UPDATE, CourseManagementCommand.forCourse(token, course));
-    }
-
-    /** 教务管理员停开课程。 */
-    public Message deactivateCourse(String token, String courseId)
-            throws IOException, ClassNotFoundException {
-        return send(MessageType.COURSE_DEACTIVATE, CourseManagementCommand.forCourseId(token, courseId));
-    }
-
-    /** 任课教师录入成绩。 */
-    public Message recordGrade(String token, String teacherId, String studentId, String courseId, int score)
-            throws IOException, ClassNotFoundException {
-        return send(MessageType.COURSE_GRADE_WRITE,
-                new CourseGradeCommand(token, teacherId, studentId, courseId, score));
     }
 
     private Message send(MessageType type, Object payload)

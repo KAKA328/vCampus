@@ -4,10 +4,6 @@ import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
 import cn.vcampus.course.CourseSelectionService;
 import cn.vcampus.course.InMemoryCourseSelectionService;
-import cn.vcampus.library.InMemoryLibraryService;
-import cn.vcampus.store.InMemoryStoreService;
-import cn.vcampus.student.InMemoryAcademicReviewService;
-import cn.vcampus.student.InMemoryStudentManagementService;
 import cn.vcampus.user.UserManagementService;
 
 import java.io.Closeable;
@@ -28,9 +24,6 @@ public final class ServerApplication implements Closeable {
     private final int port;
     private final UserMessageHandler userMessages;
     private final CourseMessageHandler courseMessages;
-    private final StudentMessageHandler studentMessages;
-    private final LibraryMessageHandler libraryMessages;
-    private final StoreMessageHandler storeMessages;
     private final ExecutorService clients = Executors.newCachedThreadPool();
     private ServerSocket serverSocket;
 
@@ -42,12 +35,6 @@ public final class ServerApplication implements Closeable {
         this.port = port;
         this.userMessages = new UserMessageHandler(users);
         this.courseMessages = new CourseMessageHandler(courses, users);
-        this.studentMessages = new StudentMessageHandler(
-                new InMemoryStudentManagementService(),
-                new InMemoryAcademicReviewService(),
-                users);
-        this.libraryMessages = new LibraryMessageHandler(new InMemoryLibraryService(), users);
-        this.storeMessages = new StoreMessageHandler(new InMemoryStoreService(), users);
     }
 
     public void start() throws IOException {
@@ -90,19 +77,8 @@ public final class ServerApplication implements Closeable {
     }
 
     Message dispatch(Message request) {
-        if (request != null) {
-            if (isCourseMessage(request.getType())) {
-                return courseMessages.handle(request);
-            }
-            if (isStudentMessage(request.getType())) {
-                return studentMessages.handle(request);
-            }
-            if (isLibraryMessage(request.getType())) {
-                return libraryMessages.handle(request);
-            }
-            if (isStoreMessage(request.getType())) {
-                return storeMessages.handle(request);
-            }
+        if (request != null && isCourseMessage(request.getType())) {
+            return courseMessages.handle(request);
         }
         return userMessages.handle(request);
     }
@@ -113,26 +89,7 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.COURSE_DROP
                 || type == MessageType.COURSE_CREATE
                 || type == MessageType.COURSE_UPDATE
-                || type == MessageType.COURSE_DEACTIVATE
-                || type == MessageType.COURSE_GRADE_WRITE;
-    }
-
-    private static boolean isStudentMessage(MessageType type) {
-        return type == MessageType.STUDENT_QUERY
-                || type == MessageType.STUDENT_UPDATE
-                || type == MessageType.STUDENT_REVIEW;
-    }
-
-    private static boolean isLibraryMessage(MessageType type) {
-        return type == MessageType.LIBRARY_QUERY
-                || type == MessageType.LIBRARY_BORROW
-                || type == MessageType.LIBRARY_RETURN;
-    }
-
-    private static boolean isStoreMessage(MessageType type) {
-        return type == MessageType.STORE_QUERY
-                || type == MessageType.STORE_PURCHASE
-                || type == MessageType.STORE_ORDER_QUERY;
+                || type == MessageType.COURSE_DEACTIVATE;
     }
 
     public static void main(String[] args) throws IOException {

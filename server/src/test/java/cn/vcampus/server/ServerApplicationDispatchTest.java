@@ -10,9 +10,6 @@ import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.CourseQueryCommand;
 import cn.vcampus.course.CourseSelectionCommand;
 import cn.vcampus.course.InMemoryCourseSelectionService;
-import cn.vcampus.library.LibraryQueryCommand;
-import cn.vcampus.store.StoreOrderQueryCommand;
-import cn.vcampus.student.StudentReviewCommand;
 import cn.vcampus.user.InMemoryUserManagementService;
 import cn.vcampus.user.Session;
 import cn.vcampus.user.UserCredentials;
@@ -47,32 +44,5 @@ class ServerApplicationDispatchTest {
 
         assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
         assertEquals(0, courses.selectedCourses("20230002").getData().size());
-    }
-
-    @Test
-    void dispatchRoutesStudentLibraryAndStoreMessages() {
-        InMemoryUserManagementService users = new InMemoryUserManagementService();
-        ServerApplication server = new ServerApplication(0, users);
-        Session student = login(users, "20230001", Role.STUDENT);
-
-        Message studentReview = server.dispatch(Message.request(
-                "student-review", MessageType.STUDENT_REVIEW,
-                new StudentReviewCommand(student.getToken(), "20230001", 120)));
-        Message libraryQuery = server.dispatch(Message.request(
-                "library-query", MessageType.LIBRARY_QUERY,
-                new LibraryQueryCommand(student.getToken(), "")));
-        Message storeOrders = server.dispatch(Message.request(
-                "store-orders", MessageType.STORE_ORDER_QUERY,
-                StoreOrderQueryCommand.ownOrders(student.getToken(), "20230001")));
-
-        assertEquals(StatusCode.OK, studentReview.getStatusCode());
-        assertEquals(StatusCode.OK, libraryQuery.getStatusCode());
-        assertEquals(StatusCode.OK, storeOrders.getStatusCode());
-    }
-
-    private static Session login(InMemoryUserManagementService users, String userId, Role role) {
-        UserCredentials credentials = new UserCredentials(userId, "password", userId, role.name());
-        users.register(credentials);
-        return users.login(credentials).getData();
     }
 }
