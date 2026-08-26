@@ -76,6 +76,19 @@ class CourseMessageHandlerTest {
     }
 
     @Test
+    void studentCannotSelectCourseForAnotherStudent() {
+        registerStudent("20230002", "password", "测试学生二");
+        CourseSelectionCommand command = new CourseSelectionCommand(
+                studentSession.getToken(), "20230002", "JAVA101");
+
+        Message response = handler.handle(Message.request(
+                "forged-course-select", MessageType.COURSE_SELECT, command));
+
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
+        assertEquals(0, courses.selectedCourses("20230002").getData().size());
+    }
+
+    @Test
     void courseDropAuthorizesStudentAndCallsService() {
         courses.select("20230001", "JAVA101");
         CourseSelectionCommand command = new CourseSelectionCommand(
@@ -86,6 +99,33 @@ class CourseMessageHandlerTest {
 
         assertEquals(StatusCode.OK, response.getStatusCode());
         assertEquals(0, courses.selectedCourses("20230001").getData().size());
+    }
+
+    @Test
+    void studentCannotDropCourseForAnotherStudent() {
+        registerStudent("20230002", "password", "测试学生二");
+        courses.select("20230002", "JAVA101");
+        CourseSelectionCommand command = new CourseSelectionCommand(
+                studentSession.getToken(), "20230002", "JAVA101");
+
+        Message response = handler.handle(Message.request(
+                "forged-course-drop", MessageType.COURSE_DROP, command));
+
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
+        assertEquals(1, courses.selectedCourses("20230002").getData().size());
+    }
+
+    @Test
+    void studentCannotQuerySelectedCoursesForAnotherStudent() {
+        registerStudent("20230002", "password", "测试学生二");
+        courses.select("20230002", "JAVA101");
+        CourseQueryCommand command = CourseQueryCommand.selectedCourses(
+                studentSession.getToken(), "20230002");
+
+        Message response = handler.handle(Message.request(
+                "forged-selected-courses", MessageType.COURSE_QUERY, command));
+
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
     }
 
     @Test
@@ -130,5 +170,9 @@ class CourseMessageHandlerTest {
                 "unsupported", MessageType.LIBRARY_QUERY, null));
 
         assertEquals(StatusCode.NOT_FOUND, response.getStatusCode());
+    }
+
+    private void registerStudent(String userId, String password, String displayName) {
+        users.register(new UserCredentials(userId, password, displayName, Role.STUDENT.name()));
     }
 }

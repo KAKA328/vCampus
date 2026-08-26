@@ -139,6 +139,11 @@ public final class MainFrame extends JFrame {
     private void showModule(ModuleDescriptor module) {
         selectNav(module.getTitle());
         content.removeAll();
+        if (module.getTitle().contains("选课")) {
+            content.add(new CourseSelectionPanel(host, port, session), BorderLayout.CENTER);
+            refreshContent();
+            return;
+        }
         JPanel panel = new JPanel(new BorderLayout(0, 18));
         panel.setOpaque(false);
         panel.add(sectionTitle(module.getTitle(), module.getSummary()), BorderLayout.NORTH);

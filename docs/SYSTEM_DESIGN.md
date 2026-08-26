@@ -126,14 +126,14 @@ database                 vCampus.accdb、schema.sql、seed.sql
 
 | 功能 | 学生/教师 | 管理员 | 规则 |
 |---|---:|---:|---|
-| 公开注册 | 仅学生 | 否 | 账号唯一；密码 6-16 位；角色固定为 `STUDENT`，管理角色不得由客户端自选 |
+| 公开注册 | 是 | 是 | 账号唯一；密码 6-16 位；实验版允许选择所有已定义角色，便于联调和验收演示 |
 | 登录 | 是 | 是 | 成功创建会话令牌；失败不泄露账号是否存在 |
 | 登出 | 是 | 是 | 令牌失效；重复登出返回未授权 |
 | 注销账号 | 当前账号 | 任意账号 | 当前用户需确认；管理员可注销其他账号；保留审计记录 |
 | 授权检查 | 被动使用 | 管理权限 | 服务器端按角色和权限编码检查 |
 | 用户查询/维护 | 查看本人 | 增删改查 | 管理员可启用/禁用账号、重置密码 |
 
-核心接口：`UserManagementService.register`、`unregister`、`login`、`logout`、`authorize`。
+核心接口：`UserManagementService.register`、`unregister`、`login`、`currentSession`、`logout`、`authorize`。
 
 ### 4.2 学生学籍管理模块
 

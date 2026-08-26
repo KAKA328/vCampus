@@ -32,7 +32,7 @@ java -jar client/target/vCampusClient.jar
 
 ## 初始化系统管理员
 
-公开注册只创建学生账号。首次启动服务器前，在同一个 PowerShell 终端设置初始化管理员；密码只放在当前终端环境变量中，不写入代码或 Git：
+当前实验版公开注册允许选择所有已定义角色，便于五个模块联调和验收演示。若希望固定初始化一个系统管理员，可在首次启动服务器前，在同一个 PowerShell 终端设置以下环境变量；密码只放在当前终端环境变量中，不写入代码或 Git：
 
 ```powershell
 $env:VCAMPUS_BOOTSTRAP_ADMIN_ID="admin001"

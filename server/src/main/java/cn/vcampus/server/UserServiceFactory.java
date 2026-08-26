@@ -59,7 +59,7 @@ final class UserServiceFactory {
         return value == null || value.trim().isEmpty() ? null : value.trim();
     }
 
-    private static Path databasePath(String[] args) {
+    static Path databasePath(String[] args) {
         for (int i = 0; i < args.length - 1; i++) {
             if ("--db".equals(args[i])) {
                 return java.nio.file.Paths.get(args[i + 1]);

@@ -23,9 +23,6 @@ public final class DefaultUserManagementService implements UserManagementService
     @Override public ServiceResult<Void> register(UserCredentials c) {
         Role role = role(c);
         if (role == null) return ServiceResult.failure(StatusCode.BAD_REQUEST, "invalid registration data");
-        if (role != Role.STUDENT) {
-            return ServiceResult.failure(StatusCode.BAD_REQUEST, "role is not available for self-registration");
-        }
         return createAccount(c, role);
     }
 
@@ -79,17 +76,25 @@ public final class DefaultUserManagementService implements UserManagementService
         return ServiceResult.ok(sessions.create(account.getUser()));
     }
 
+    @Override public ServiceResult<Session> currentSession(String token) {
+        Session session = sessions.find(token);
+        if (session == null) return ServiceResult.failure(StatusCode.UNAUTHORIZED, "invalid session");
+        return ServiceResult.ok(session);
+    }
+
     @Override public ServiceResult<Void> logout(String token) {
         if (!sessions.invalidate(token)) return ServiceResult.failure(StatusCode.UNAUTHORIZED, "invalid session");
         return ServiceResult.ok(null);
     }
 
     @Override public ServiceResult<Boolean> authorize(String token, String permission) {
-        Session session = sessions.find(token);
-        if (session == null) return ServiceResult.failure(StatusCode.UNAUTHORIZED, "invalid session");
+        ServiceResult<Session> current = currentSession(token);
+        if (current.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(current.getStatus(), current.getMessage());
+        }
         Permission requestedPermission = Permission.fromCode(permission);
         if (requestedPermission == null) return ServiceResult.failure(StatusCode.BAD_REQUEST, "invalid permission");
-        boolean allowed = permissionPolicy.isAllowed(session.getUser().getRole(), requestedPermission);
+        boolean allowed = permissionPolicy.isAllowed(current.getData().getUser().getRole(), requestedPermission);
         return allowed ? ServiceResult.ok(Boolean.TRUE) : ServiceResult.failure(StatusCode.FORBIDDEN, "permission denied");
     }
 }

@@ -261,9 +261,16 @@ final class CourseMessageHandler {
                     break;
                 case COURSE_SELECT:
                     CourseSelectionCommand select = payload(request, CourseSelectionCommand.class);
-                    ServiceResult<Void> auth = users.authorize(select.getToken(), "COURSE_SELECT");
+                    ServiceResult<Boolean> auth = users.authorize(select.getToken(), "COURSE_SELECT");
                     if (auth.getStatus() != StatusCode.OK) {
                         return Message.response(request, auth.getStatus(), null);
+                    }
+                    ServiceResult<Session> current = users.currentSession(select.getToken());
+                    if (current.getStatus() != StatusCode.OK) {
+                        return Message.response(request, current.getStatus(), null);
+                    }
+                    if (!current.getData().getUser().getUserId().equals(select.getStudentId())) {
+                        return Message.response(request, StatusCode.FORBIDDEN, "student scope denied");
                     }
                     result = service.select(select.getStudentId(), select.getCourseId());
                     break;

@@ -82,15 +82,26 @@ class InMemoryUserManagementServiceTest {
     }
 
     @Test
-    void selfRegistrationCannotClaimPrivilegedRoles() {
+    void registrationAcceptsAllDefinedRoles() {
         for (Role role : Role.values()) {
-            if (role == Role.STUDENT) {
-                continue;
-            }
             UserCredentials credentials = new UserCredentials(
                     "role_" + role.name().toLowerCase(), "role001", role.name(), role.name());
-            assertEquals(StatusCode.BAD_REQUEST, service.register(credentials).getStatus(), role.name());
+            assertEquals(StatusCode.OK, service.register(credentials).getStatus(), role.name());
+            assertNotNull(service.login(credentials).getData(), role.name());
         }
+    }
+
+    @Test
+    void currentSessionReturnsAuthenticatedUserAndRejectsInvalidToken() {
+        UserCredentials credentials = new UserCredentials("u008", "p00800", "Student", Role.STUDENT.name());
+        service.register(credentials);
+        Session session = service.login(credentials).getData();
+
+        ServiceResult<Session> current = service.currentSession(session.getToken());
+
+        assertEquals(StatusCode.OK, current.getStatus());
+        assertEquals("u008", current.getData().getUser().getUserId());
+        assertEquals(StatusCode.UNAUTHORIZED, service.currentSession("missing-token").getStatus());
     }
 
     @Test
