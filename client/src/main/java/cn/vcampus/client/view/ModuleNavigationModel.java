@@ -25,7 +25,14 @@ public final class ModuleNavigationModel {
 
     private static final List<ModuleDescriptor> TEACHER_MODULES = Collections.unmodifiableList(Arrays.asList(
             new ModuleDescriptor("学籍查询", "查看学生基础信息和班级专业信息。", "待接入：等待学籍模块页面"),
-            new ModuleDescriptor("选课系统", "查看课程信息和学生选课情况。", "待接入：等待选课模块页面")
+            new ModuleDescriptor("选课系统", "查看授课课程、选课名单并录入成绩。", "待接入：等待选课模块页面"),
+            new ModuleDescriptor("图书馆", "查询图书、办理借阅归还并查看本人借阅记录。", "待接入：等待图书馆模块页面"),
+            new ModuleDescriptor("商店", "浏览商品、提交购买并查看个人购买记录。", "待接入：等待商店模块页面")
+    ));
+
+    private static final List<ModuleDescriptor> ACADEMIC_ADMIN_MODULES = Collections.unmodifiableList(Arrays.asList(
+            new ModuleDescriptor("学籍管理", "维护学籍信息并执行学业审查。", "待接入：等待学籍模块页面"),
+            new ModuleDescriptor("选课管理", "维护开课信息、课程容量并复核成绩。", "待接入：等待选课模块页面")
     ));
 
     private static final List<ModuleDescriptor> LIBRARY_MODULES = Collections.singletonList(
@@ -48,6 +55,7 @@ public final class ModuleNavigationModel {
         if (role == Role.ADMIN) return ADMIN_MODULES;
         if (role == Role.STUDENT) return STUDENT_MODULES;
         if (role == Role.TEACHER) return TEACHER_MODULES;
+        if (role == Role.ACADEMIC_ADMIN) return ACADEMIC_ADMIN_MODULES;
         if (role == Role.LIBRARIAN) return LIBRARY_MODULES;
         if (role == Role.STORE_MANAGER) return STORE_MODULES;
         return Collections.emptyList();

@@ -30,11 +30,25 @@ java -jar client/target/vCampusClient.jar
 
 当前骨架提供协议、接口、入口和测试数据脚本；用户管理已有内存演示实现，其他业务模块由各分支通过 Pull Request 实现。
 
+## 初始化系统管理员
+
+公开注册只创建学生账号。首次启动服务器前，在同一个 PowerShell 终端设置初始化管理员；密码只放在当前终端环境变量中，不写入代码或 Git：
+
+```powershell
+$env:VCAMPUS_BOOTSTRAP_ADMIN_ID="admin001"
+$env:VCAMPUS_BOOTSTRAP_ADMIN_PASSWORD="Admin123"
+$env:VCAMPUS_BOOTSTRAP_ADMIN_NAME="系统管理员"
+java -cp "common\target\classes;user-management\target\classes;server\target\classes" cn.vcampus.server.ServerApplication --port 19195
+```
+
+服务器启动时会创建 `ADMIN` 账号；登录时使用上面的账号和密码。内存模式下服务器关闭后账号会消失，因此下次启动仍需保留这些环境变量；接入 Access 后账号写入数据库，后续启动不会重置已存在账号的密码。用完可在另一个 PowerShell 中执行 `Remove-Item Env:VCAMPUS_BOOTSTRAP_ADMIN_PASSWORD` 清除当前终端变量。
+
 ## 设计基线
 
 - [项目进度计划报告](docs/PROJECT_PLAN.md)
 - [软件设计说明书草案](docs/SYSTEM_DESIGN.md)
 - [接口基线](docs/INTERFACES.md)
+- [角色权限矩阵](docs/PERMISSIONS.md)
 - [模块对接说明](docs/MODULE_INTEGRATION_GUIDE.md)
 - [验收清单](docs/ACCEPTANCE_CHECKLIST.md)
 

@@ -21,10 +21,26 @@ public final class DefaultUserManagementService implements UserManagementService
     }
 
     @Override public ServiceResult<Void> register(UserCredentials c) {
+        Role role = role(c);
+        if (role == null) return ServiceResult.failure(StatusCode.BAD_REQUEST, "invalid registration data");
+        if (role != Role.STUDENT) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "role is not available for self-registration");
+        }
+        return createAccount(c, role);
+    }
+
+    /** Creates a trusted bootstrap/admin-provisioned account; never expose this method as a public Socket action. */
+    public ServiceResult<Void> provisionAccount(UserCredentials c) {
+        Role role = role(c);
+        if (role == null) return ServiceResult.failure(StatusCode.BAD_REQUEST, "invalid account data");
+        return createAccount(c, role);
+    }
+
+    private ServiceResult<Void> createAccount(UserCredentials c, Role role) {
         final User user;
         try {
-            user = new User(c.getUserId(), c.getDisplayName(), Role.valueOf(c.getRoleCode()));
-        } catch (IllegalArgumentException invalidRole) {
+            user = new User(c.getUserId(), c.getDisplayName(), role);
+        } catch (IllegalArgumentException invalidUser) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "invalid registration data");
         }
         UserAccount account = new UserAccount(user, passwordHasher.hash(c.getPassword()), true);
@@ -32,6 +48,14 @@ public final class DefaultUserManagementService implements UserManagementService
             return ServiceResult.failure(StatusCode.CONFLICT, "user already exists");
         }
         return ServiceResult.ok(null);
+    }
+
+    private static Role role(UserCredentials credentials) {
+        try {
+            return Role.valueOf(credentials.getRoleCode());
+        } catch (IllegalArgumentException invalidRole) {
+            return null;
+        }
     }
 
     @Override public ServiceResult<Void> unregister(String userId, String token) {

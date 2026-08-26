@@ -29,7 +29,7 @@ public final class RegisterDialog extends JDialog {
     private final JTextField userId = new PromptTextField(18, CredentialInputGuidance.USER_ID_HINT);
     private final JTextField displayName = new PromptTextField(18, CredentialInputGuidance.DISPLAY_NAME_HINT);
     private final PromptPasswordField password = new PromptPasswordField(18, CredentialInputGuidance.PASSWORD_HINT);
-    private final JComboBox<Role> role = new JComboBox<Role>(Role.values());
+    private final JComboBox<Role> role = new JComboBox<Role>(new Role[] { Role.STUDENT });
     private final JLabel status = new JLabel("请按输入框提示填写，带提示文字的空框不会作为内容提交");
 
     RegisterDialog(java.awt.Frame owner, String host, int port) {
@@ -60,7 +60,7 @@ public final class RegisterDialog extends JDialog {
         JLabel title = new JLabel("创建 vCampus 用户");
         title.setFont(VCampusTheme.font(Font.BOLD, 21));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        JLabel subtitle = new JLabel("请填写账号信息，并选择对应用户角色。");
+        JLabel subtitle = new JLabel("请填写学生账号信息；管理角色由系统管理员分配。");
         subtitle.setForeground(VCampusTheme.MUTED);
         panel.add(title, BorderLayout.NORTH);
         panel.add(subtitle, BorderLayout.SOUTH);

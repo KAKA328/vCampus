@@ -14,6 +14,7 @@ public final class RolePermissionPolicy {
         matrix.put(Role.ADMIN, EnumSet.allOf(Permission.class));
         matrix.put(Role.STUDENT, EnumSet.of(
                 Permission.USER_SELF_READ,
+                Permission.STUDENT_READ,
                 Permission.COURSE_READ,
                 Permission.COURSE_SELECT,
                 Permission.LIBRARY_READ,
@@ -23,12 +24,25 @@ public final class RolePermissionPolicy {
         matrix.put(Role.TEACHER, EnumSet.of(
                 Permission.USER_SELF_READ,
                 Permission.STUDENT_READ,
-                Permission.COURSE_READ));
+                Permission.COURSE_READ,
+                Permission.GRADE_WRITE,
+                Permission.LIBRARY_READ,
+                Permission.LIBRARY_BORROW,
+                Permission.STORE_READ,
+                Permission.STORE_PURCHASE));
+        matrix.put(Role.ACADEMIC_ADMIN, EnumSet.of(
+                Permission.STUDENT_READ,
+                Permission.STUDENT_WRITE,
+                Permission.COURSE_READ,
+                Permission.COURSE_MANAGE,
+                Permission.ACADEMIC_REVIEW));
         matrix.put(Role.LIBRARIAN, EnumSet.of(
                 Permission.LIBRARY_READ,
+                Permission.LIBRARY_BORROW,
                 Permission.LIBRARY_MANAGE));
         matrix.put(Role.STORE_MANAGER, EnumSet.of(
                 Permission.STORE_READ,
+                Permission.STORE_PURCHASE,
                 Permission.STORE_MANAGE));
     }
 
