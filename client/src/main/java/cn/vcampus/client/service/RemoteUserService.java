@@ -3,6 +3,7 @@ package cn.vcampus.client.service;
 import cn.vcampus.client.transport.SocketMessageClient;
 import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
+import cn.vcampus.user.UserCommand;
 import cn.vcampus.user.UserCredentials;
 import java.io.Closeable;
 import java.io.IOException;
@@ -27,6 +28,10 @@ public final class RemoteUserService implements Closeable {
 
     public Message logout(String token) throws IOException, ClassNotFoundException {
         return send(MessageType.LOGOUT, token);
+    }
+
+    public Message unregister(String userId, String token) throws IOException, ClassNotFoundException {
+        return send(MessageType.UNREGISTER, new UserCommand(userId, token));
     }
 
     private Message send(MessageType type, Object payload) throws IOException, ClassNotFoundException {

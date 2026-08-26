@@ -80,6 +80,17 @@ final class VCampusTheme {
                 padding(9, 18, 9, 18)));
     }
 
+    static void dangerButton(AbstractButton button) {
+        button.setBackground(new Color(252, 238, 238));
+        button.setForeground(DANGER);
+        button.setFocusPainted(false);
+        button.setContentAreaFilled(true);
+        button.setOpaque(true);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(DANGER),
+                padding(9, 18, 9, 18)));
+    }
+
     static void navButton(AbstractButton button, boolean active) {
         button.setHorizontalAlignment(javax.swing.SwingConstants.LEFT);
         button.setFocusPainted(false);

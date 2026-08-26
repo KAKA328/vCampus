@@ -44,4 +44,10 @@ class ModuleNavigationModelTest {
             assertTrue(module.getStatus().contains("待接入") || module.getStatus().contains("可用"));
         }
     }
+
+    @Test
+    void userManagementVisibleActionsIncludeAccountCancellation() {
+        assertTrue(UserManagementActions.SELF_UNREGISTER.contains("注销账号"));
+        assertTrue(UserManagementActions.ADMIN_UNREGISTER.contains("管理员注销"));
+    }
 }

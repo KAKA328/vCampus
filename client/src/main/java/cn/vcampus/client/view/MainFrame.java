@@ -1,6 +1,8 @@
 package cn.vcampus.client.view;
 
 import cn.vcampus.client.service.RemoteUserService;
+import cn.vcampus.common.Message;
+import cn.vcampus.common.StatusCode;
 import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -14,6 +16,7 @@ import java.util.Map;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 
@@ -65,14 +68,23 @@ public final class MainFrame extends JFrame {
         user.setForeground(new Color(223, 236, 248));
         user.setHorizontalAlignment(SwingConstants.RIGHT);
 
+        JButton unregister = new JButton(UserManagementActions.SELF_UNREGISTER);
+        VCampusTheme.dangerButton(unregister);
+        unregister.addActionListener(e -> unregisterSelf());
+
         JButton logout = new JButton("退出登录");
         VCampusTheme.secondaryButton(logout);
         logout.addActionListener(e -> logout());
 
+        JPanel actions = new JPanel(new GridLayout(1, 0, 8, 0));
+        actions.setOpaque(false);
+        actions.add(unregister);
+        actions.add(logout);
+
         JPanel right = new JPanel(new BorderLayout(16, 0));
         right.setOpaque(false);
         right.add(user, BorderLayout.CENTER);
-        right.add(logout, BorderLayout.EAST);
+        right.add(actions, BorderLayout.EAST);
 
         panel.add(title, BorderLayout.WEST);
         panel.add(right, BorderLayout.EAST);
@@ -148,15 +160,19 @@ public final class MainFrame extends JFrame {
         JLabel status = new JLabel(module.getStatus());
         status.setFont(VCampusTheme.font(Font.BOLD, 15));
         status.setForeground(module.getStatus().contains("可用") ? VCampusTheme.SUCCESS : VCampusTheme.MUTED);
-        JLabel placeholder = new JLabel("<html><div style='line-height:1.8;'>"
-                + "这里是模块页面预留区域。后续对应成员只需要提供 JPanel，"
-                + "即可替换当前占位内容并接入主界面。<br/>"
-                + "当前登录用户：" + escapeHtml(session.getUser().getDisplayName())
-                + "，角色：" + session.getUser().getRole()
-                + "</div></html>");
-        placeholder.setForeground(VCampusTheme.TEXT);
         card.add(status, BorderLayout.NORTH);
-        card.add(placeholder, BorderLayout.CENTER);
+        if ("用户管理".equals(module.getTitle())) {
+            card.add(new UserManagementPanel(host, port, session), BorderLayout.CENTER);
+        } else {
+            JLabel placeholder = new JLabel("<html><div style='line-height:1.8;'>"
+                    + "这里是模块页面预留区域。后续对应成员只需要提供 JPanel，"
+                    + "即可替换当前占位内容并接入主界面。<br/>"
+                    + "当前登录用户：" + escapeHtml(session.getUser().getDisplayName())
+                    + "，角色：" + session.getUser().getRole()
+                    + "</div></html>");
+            placeholder.setForeground(VCampusTheme.TEXT);
+            card.add(placeholder, BorderLayout.CENTER);
+        }
         panel.add(card, BorderLayout.CENTER);
         content.add(panel, BorderLayout.CENTER);
         refreshContent();
@@ -192,6 +208,32 @@ public final class MainFrame extends JFrame {
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;")
                 .replace("'", "&#39;");
+    }
+
+    private void unregisterSelf() {
+        int answer = JOptionPane.showConfirmDialog(this,
+                "确认注销当前账号？注销后该账号将不可再登录。",
+                UserManagementActions.SELF_UNREGISTER,
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+        if (answer != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        try (RemoteUserService service = new RemoteUserService(host, port)) {
+            Message response = service.unregister(session.getUser().getUserId(), session.getToken());
+            if (response.getStatusCode() == StatusCode.OK) {
+                JOptionPane.showMessageDialog(this, "账号已注销，请返回登录界面。");
+                dispose();
+                new LoginFrame(host, port).setVisible(true);
+            } else {
+                JOptionPane.showMessageDialog(this, "注销失败：" + response.getStatusCode(),
+                        UserManagementActions.SELF_UNREGISTER, JOptionPane.ERROR_MESSAGE);
+            }
+        } catch (IOException | ClassNotFoundException e) {
+            JOptionPane.showMessageDialog(this, "无法连接服务器，请确认服务器已启动。",
+                    UserManagementActions.SELF_UNREGISTER, JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private void logout() {
