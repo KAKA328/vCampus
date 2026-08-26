@@ -14,8 +14,9 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>io.github.spannm</groupId>
+            <groupId>net.sf.ucanaccess</groupId>
             <artifactId>ucanaccess</artifactId>
+            <version>4.0.4</version>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
