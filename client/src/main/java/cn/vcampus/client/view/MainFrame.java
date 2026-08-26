@@ -151,27 +151,6 @@ public final class MainFrame extends JFrame {
             refreshContent();
             return;
         }
-        String panelKey = integratedPanelKey(session.getUser().getRole(), module);
-        if ("student".equals(panelKey)) {
-            content.add(new StudentProfilePanel(host, port, session), BorderLayout.CENTER);
-            refreshContent();
-            return;
-        }
-        if ("course-management".equals(panelKey)) {
-            content.add(new CourseManagementPanel(host, port, session), BorderLayout.CENTER);
-            refreshContent();
-            return;
-        }
-        if ("library".equals(panelKey)) {
-            content.add(new LibraryPanel(host, port, session), BorderLayout.CENTER);
-            refreshContent();
-            return;
-        }
-        if ("store".equals(panelKey)) {
-            content.add(new StorePanel(host, port, session), BorderLayout.CENTER);
-            refreshContent();
-            return;
-        }
         JPanel panel = new JPanel(new BorderLayout(0, 18));
         panel.setOpaque(false);
         panel.add(sectionTitle(module.getTitle(), module.getSummary()), BorderLayout.NORTH);
@@ -221,26 +200,6 @@ public final class MainFrame extends JFrame {
 
     static boolean useStudentCourseSelectionPanel(Role role, ModuleDescriptor module) {
         return role == Role.STUDENT && module != null && "选课系统".equals(module.getTitle());
-    }
-
-    static String integratedPanelKey(Role role, ModuleDescriptor module) {
-        if (module == null) {
-            return "placeholder";
-        }
-        String title = module.getTitle();
-        if ("学籍信息".equals(title) || "学籍查询".equals(title) || "学籍管理".equals(title)) {
-            return "student";
-        }
-        if ("选课管理".equals(title) || (role == Role.TEACHER && "选课系统".equals(title))) {
-            return "course-management";
-        }
-        if ("图书馆".equals(title) || "图书管理".equals(title)) {
-            return "library";
-        }
-        if ("商店".equals(title) || "商店管理".equals(title)) {
-            return "store";
-        }
-        return "placeholder";
     }
 
     private static String escapeHtml(String value) {
