@@ -66,4 +66,63 @@ class StoreServiceTest {
         ServiceResult<Void> testResult = service.purchase("0120", "00004", toBuy);
         assertEquals(StatusCode.BAD_REQUEST, testResult.getStatus());
     }
+
+    // 测试没有订单的学生查询订单不会报错
+    @Test
+    void testFindOrderByStudentIdEmpty() {
+        ServiceResult<List<Order>> testResult = service.findOrdersByStudentId("9999");
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertNotNull(testResult.getData());
+        assertTrue(testResult.getData().isEmpty());
+    }
+
+    // 测试只要购买了商品，就一定能够查到订单
+    @Test
+    void testFindOrdersByStudentIdWithData() {
+        int currStock = products.findById("00004").getStock();
+        int toBuy = currStock / 2;
+        service.purchase("0110", "00004", toBuy);
+        ServiceResult<List<Order>> testResult = service.findOrdersByStudentId("0110");
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertEquals(toBuy, testResult.getData().get(0).getQuantity());
+        assertEquals("00004", testResult.getData().get(0).getProductId());
+        assertEquals(products.findById("00004").getName(), testResult.getData().get(0).getProductName());
+    }
+
+    // 测试已经有的商品快照中商品单价、名称不会随着商品信息改变而改变
+    @Test
+    void testStabilityOfProductSnapshot() {
+        String formerName = products.findById("00004").getName();
+        double formerPrice = products.findById("00004").getPrice();
+        service.purchase("0111", "00004", products.findById("00004").getStock() - 1);
+        products.save(new Product("00004", "Toy Plane", 10000, 5, "A pastical toy plane", "Toy"));
+        ServiceResult<List<Order>> testResult = service.findOrdersByStudentId("0111");
+        assertEquals(formerName, testResult.getData().get(0).getProductName());
+        assertEquals(formerPrice, testResult.getData().get(0).getUnitPrice());
+    }
+
+    // 测试刚好买光一个商品
+    @Test
+    void testExactlyBuyOut() {
+        int currStock = products.findById("00004").getStock();
+        ServiceResult<Void> testResult = service.purchase("0112", "00004", currStock);
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertEquals(0, products.findById("00004").getStock());
+    }
+
+    // 测试只买1件商品
+    @Test
+    void testBuyOne() {
+        int currStock = products.findById("00004").getStock();
+        ServiceResult<Void> testResult = service.purchase("0113", "00004", 1);
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertEquals(currStock - 1, products.findById("00004").getStock());
+    }
+
+    // 测试购买商品数量为负数
+    @Test
+    void testPurchaseNegativeQuantity() {
+        ServiceResult<Void> testResult = service.purchase("0114", "00004", -1);
+        assertEquals(StatusCode.BAD_REQUEST, testResult.getStatus());
+    }
 }

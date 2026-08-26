@@ -30,6 +30,9 @@ public final class DefaultStoreService implements StoreService {
         // 没有目标商品
         if (toBuy == null)
             return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
+        // 数量不合法
+        else if (quantity <= 0)
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "Quantity must be positive");
         // 商品数量不够
         else if (toBuy.getStock() < quantity)
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "No enough stock");
@@ -41,10 +44,16 @@ public final class DefaultStoreService implements StoreService {
             products.updateStock(productId, toBuy.getStock() - quantity);
             // 创建订单,使用随机订单编号
             Order newOrder = new Order(UUID.randomUUID().toString(), studentId, productId, quantity, totalPrice,
-                    LocalDateTime.now());
+                    LocalDateTime.now(), toBuy.getName(), toBuy.getPrice());
             orders.create(newOrder);
             // 返回成功
             return ServiceResult.ok(null);
         }
+    }
+
+    // 根据学生ID查询订单
+    @Override
+    public final ServiceResult<List<Order>> findOrdersByStudentId(String studentId) {
+        return ServiceResult.ok(orders.findByStudentId(studentId));
     }
 }

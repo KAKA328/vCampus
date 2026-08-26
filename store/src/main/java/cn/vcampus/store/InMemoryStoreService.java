@@ -28,4 +28,8 @@ public final class InMemoryStoreService implements StoreService {
         return delegate.purchase(studentId, productId, quantity);
     }
 
+    @Override
+    public final ServiceResult<List<Order>> findOrdersByStudentId(String studentId) {
+        return delegate.findOrdersByStudentId(studentId);
+    }
 }

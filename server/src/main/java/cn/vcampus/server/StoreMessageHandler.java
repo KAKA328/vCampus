@@ -7,6 +7,7 @@ import cn.vcampus.common.StatusCode;
 import cn.vcampus.store.StorePurchaseCommand;
 import cn.vcampus.store.StoreService;
 import cn.vcampus.user.UserManagementService;
+import cn.vcampus.store.StoreOrderQueryCommand;
 
 class StoreMessageHandler {
     private final StoreService store;
@@ -34,12 +35,22 @@ class StoreMessageHandler {
                 case STORE_PURCHASE:
                     StorePurchaseCommand spc = payload(request, StorePurchaseCommand.class);
                     // 验证权限
-                    ServiceResult<Boolean> auth = users.authorize(spc.getToken(), "STORE_PURCHASE");
-                    if (auth.getStatus() != StatusCode.OK) {
-                        result = auth;
+                    ServiceResult<Boolean> auth1 = users.authorize(spc.getToken(), "STORE_PURCHASE");
+                    if (auth1.getStatus() != StatusCode.OK) {
+                        result = auth1;
                         break;
                     }
                     result = store.purchase(spc.getStudentId(), spc.getProductId(), spc.getQuantity());
+                    break;
+                // 仓库订单查询请求
+                case STORE_ORDER_QUERY:
+                    StoreOrderQueryCommand soqc = payload(request, StoreOrderQueryCommand.class);
+                    ServiceResult<Boolean> auth2 = users.authorize(soqc.getToken(), "STORE_READ");
+                    if (auth2.getStatus() != StatusCode.OK) {
+                        result = auth2;
+                        break;
+                    }
+                    result = store.findOrdersByStudentId(soqc.getStudentId());
                     break;
                 default:
                     result = ServiceResult.failure(StatusCode.NOT_FOUND, "not implemented");

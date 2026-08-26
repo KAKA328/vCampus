@@ -82,8 +82,11 @@ public final class ServerApplication implements Closeable {
                     ObjectOutputStream output = new ObjectOutputStream(client.getOutputStream())) {
                 while (!client.isClosed()) {
                     Message request;
-                    try { request = (Message) input.readObject(); }
-                    catch (EOFException end) { break; }
+                    try {
+                        request = (Message) input.readObject();
+                    } catch (EOFException end) {
+                        break;
+                    }
                     output.writeObject(ServerApplication.this.dispatch(request));
                     output.flush();
                 }
@@ -114,7 +117,7 @@ public final class ServerApplication implements Closeable {
 
     private static boolean isStoreMessage(MessageType type) {
         return type == MessageType.STORE_QUERY
-                || type == MessageType.STORE_PURCHASE;
+                || type == MessageType.STORE_PURCHASE || type == MessageType.STORE_ORDER_QUERY;
     }
 
     public static void main(String[] args) throws IOException {

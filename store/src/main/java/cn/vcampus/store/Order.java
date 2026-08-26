@@ -13,9 +13,11 @@ public final class Order implements Serializable {
     private final int quantity; // 购买数量
     private final double totalPrice; // 订单总价
     private final LocalDateTime orderDate; // 订单日期
+    private final String productName;// 购买时的商品名称
+    private final double unitPrice;// 购买时的商品单价
 
     public Order(String orderId, String studentId, String productId, int quantity, double totalPrice,
-            LocalDateTime orderDate) {
+            LocalDateTime orderDate, String productName, double unitPrice) {
         this.orderId = checkStr(orderId, "orderId");
         this.studentId = checkStr(studentId, "studentId");
         this.productId = checkStr(productId, "productId");
@@ -24,6 +26,10 @@ public final class Order implements Serializable {
         this.quantity = quantity;
         this.totalPrice = totalPrice;
         this.orderDate = orderDate;
+        this.productName = checkStr(productName, "productName");
+        if (unitPrice <= 0)
+            throw new IllegalArgumentException("unitPrice cannot be negative");
+        this.unitPrice = unitPrice;
     }
 
     public String getOrderId() {
@@ -48,6 +54,14 @@ public final class Order implements Serializable {
 
     public LocalDateTime getOrderDate() {
         return orderDate;
+    }
+
+    public String getProductName() {
+        return productName;
+    }
+
+    public double getUnitPrice() {
+        return unitPrice;
     }
 
     // 检查字符串合法性
