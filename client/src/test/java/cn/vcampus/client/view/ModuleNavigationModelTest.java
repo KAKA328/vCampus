@@ -66,6 +66,20 @@ class ModuleNavigationModelTest {
     }
 
     @Test
+    void onlyStudentsUseStudentCourseSelectionPanel() {
+        ModuleNavigationModel model = new ModuleNavigationModel();
+
+        assertTrue(MainFrame.useStudentCourseSelectionPanel(
+                Role.STUDENT, model.findModule(Role.STUDENT, "选课系统")));
+        assertFalse(MainFrame.useStudentCourseSelectionPanel(
+                Role.TEACHER, model.findModule(Role.TEACHER, "选课系统")));
+        assertFalse(MainFrame.useStudentCourseSelectionPanel(
+                Role.ACADEMIC_ADMIN, model.findModule(Role.ACADEMIC_ADMIN, "选课管理")));
+        assertFalse(MainFrame.useStudentCourseSelectionPanel(
+                Role.ADMIN, model.findModule(Role.ADMIN, "选课管理")));
+    }
+
+    @Test
     void studentModuleCardsHaveReadableDescriptions() {
         ModuleNavigationModel model = new ModuleNavigationModel();
 
