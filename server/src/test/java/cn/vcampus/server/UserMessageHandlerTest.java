@@ -15,19 +15,23 @@ import cn.vcampus.user.Session;
 import cn.vcampus.user.SessionManager;
 import cn.vcampus.user.UserManagementService;
 import cn.vcampus.user.UserCredentials;
+import cn.vcampus.user.UserRegistrationCommand;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class UserMessageHandlerTest {
-    private final UserMessageHandler handler = new UserMessageHandler(new InMemoryUserManagementService());
+    private final InMemoryUserManagementService users = new InMemoryUserManagementService();
+    private final UserMessageHandler handler = new UserMessageHandler(users);
 
     @Test
-    void registerAndLoginMapServiceResultsToMessages() {
+    void adminCanRegisterAndNewAccountCanLoginThroughMessages() {
+        Session adminSession = loginAsAdmin();
         UserCredentials credentials = new UserCredentials("srv001", "srv001", "Server User", Role.STUDENT.name());
 
-        Message registerResponse = handler.handle(Message.request("r1", MessageType.REGISTER, credentials));
+        Message registerResponse = handler.handle(Message.request("r1", MessageType.REGISTER,
+                new UserRegistrationCommand(adminSession.getToken(), credentials)));
         Message loginResponse = handler.handle(Message.request("r2", MessageType.LOGIN, credentials));
 
         assertEquals(StatusCode.OK, registerResponse.getStatusCode());
@@ -45,7 +49,7 @@ class UserMessageHandlerTest {
     @Test
     void authorizeDelegatesToUserService() {
         UserCredentials credentials = new UserCredentials("srv002", "srv002", "Server User", Role.STUDENT.name());
-        handler.handle(Message.request("r4", MessageType.REGISTER, credentials));
+        users.register(credentials);
         Message loginResponse = handler.handle(Message.request("r5", MessageType.LOGIN, credentials));
         Session session = (Session) loginResponse.getPayload();
 
@@ -53,6 +57,28 @@ class UserMessageHandlerTest {
                 new AuthorizationRequest(session.getToken(), Permission.COURSE_SELECT.getCode())));
 
         assertEquals(StatusCode.OK, response.getStatusCode());
+    }
+
+    @Test
+    void registerRequiresAdminSession() {
+        UserCredentials student = new UserCredentials("srv003", "srv003", "Student User", Role.STUDENT.name());
+        users.register(student);
+        Message loginResponse = handler.handle(Message.request("r8", MessageType.LOGIN, student));
+        Session session = (Session) loginResponse.getPayload();
+
+        UserCredentials target = new UserCredentials("srv004", "srv004", "Target User", Role.TEACHER.name());
+        Message response = handler.handle(Message.request("r9", MessageType.REGISTER,
+                new UserRegistrationCommand(session.getToken(), target)));
+
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
+    }
+
+    @Test
+    void rawRegisterCredentialsAreRejected() {
+        Message response = handler.handle(Message.request("r10", MessageType.REGISTER,
+                new UserCredentials("raw001", "raw001", "Raw User", Role.STUDENT.name())));
+
+        assertEquals(StatusCode.BAD_REQUEST, response.getStatusCode());
     }
 
     @Test
@@ -86,5 +112,12 @@ class UserMessageHandlerTest {
         Message response = target.handle(Message.request("forged-" + permission, MessageType.AUTHORIZE,
                 new AuthorizationRequest(session.getToken(), permission.getCode())));
         assertEquals(StatusCode.FORBIDDEN, response.getStatusCode(), permission.name());
+    }
+
+    private Session loginAsAdmin() {
+        UserCredentials admin = new UserCredentials("admin01", "admin01", "Admin", Role.ADMIN.name());
+        users.register(admin);
+        Message loginResponse = handler.handle(Message.request("admin-login", MessageType.LOGIN, admin));
+        return (Session) loginResponse.getPayload();
     }
 }
