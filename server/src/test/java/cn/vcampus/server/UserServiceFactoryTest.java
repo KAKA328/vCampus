@@ -33,4 +33,15 @@ class UserServiceFactoryTest {
             System.clearProperty(ADMIN_NAME);
         }
     }
+
+    @Test
+    void memoryModeProvidesDocumentedDemoAdminAccount() {
+        UserManagementService service = UserServiceFactory.create(new String[0]);
+
+        ServiceResult<Session> login = service.login(
+                new UserCredentials("demo_admin", "Demo123", "登录用户", Role.STUDENT.name()));
+
+        assertEquals(StatusCode.OK, login.getStatus());
+        assertEquals(Role.ADMIN, login.getData().getUser().getRole());
+    }
 }

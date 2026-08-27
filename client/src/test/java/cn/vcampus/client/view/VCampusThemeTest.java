@@ -17,6 +17,10 @@ class VCampusThemeTest {
         assertTrue(contrast(button.getBackground(), button.getForeground()) >= 7.0,
                 "primary button text must remain readable");
         assertTrue(button.isOpaque());
+        assertTrue(button.getUI() instanceof VCampusTheme.ReadableButtonUI,
+                "button must use the cross-platform readable renderer");
+        assertTrue(!button.isContentAreaFilled(),
+                "native look and feel must not overwrite the custom background");
     }
 
     @Test

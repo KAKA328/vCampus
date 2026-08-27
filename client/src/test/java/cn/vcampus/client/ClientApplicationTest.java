@@ -15,4 +15,13 @@ class ClientApplicationTest {
         assertEquals(Role.STUDENT.name(), credentials.getRoleCode());
         assertTrue(credentials.getUserId().matches("[A-Za-z0-9_]+"));
     }
+
+    @Test
+    void demoAdminCredentialsMatchTheDocumentedMemoryAccount() {
+        UserCredentials credentials = ClientApplication.demoAdminCredentials();
+
+        assertEquals("demo_admin", credentials.getUserId());
+        assertEquals("Demo123", credentials.getPassword());
+        assertEquals(Role.ADMIN.name(), credentials.getRoleCode());
+    }
 }

@@ -86,10 +86,10 @@ Session.token
 
 | 账号 | 角色 | 用途 |
 |---|---|---|
-| `demo-admin` | `ADMIN` | 系统管理员，测试开户注册、注销、权限管理 |
-| `demo-academic-admin` | `ACADEMIC_ADMIN` | 教务管理员，测试学籍和选课管理 |
-| `demo-librarian` | `LIBRARIAN` | 图书管理员，测试图书管理 |
-| `demo-store-manager` | `STORE_MANAGER` | 商店管理员，测试商品和库存管理 |
-| `demo-student` | `STUDENT` | 学生，测试本人学籍、选课、图书和商店 |
-| `demo-teacher` | `TEACHER` | 教师，测试授课/成绩/学籍查询入口 |
+| `demo_admin` | `ADMIN` | 系统管理员，测试开户注册、注销、权限管理 |
+| `demo_academic_admin` | `ACADEMIC_ADMIN` | 教务管理员，测试学籍和选课管理 |
+| `demo_librarian` | `LIBRARIAN` | 图书管理员，测试图书管理 |
+| `demo_store_manager` | `STORE_MANAGER` | 商店管理员，测试商品和库存管理 |
+| `demo_student` | `STUDENT` | 学生，测试本人学籍、选课、图书和商店 |
+| `demo_teacher` | `TEACHER` | 教师，测试授课/成绩/学籍查询入口 |
 

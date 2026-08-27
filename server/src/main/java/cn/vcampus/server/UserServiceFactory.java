@@ -12,6 +12,8 @@ import cn.vcampus.user.UserCredentials;
 import cn.vcampus.user.UserManagementService;
 import cn.vcampus.user.UserRepository;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
 
 /** Creates the user service for memory demos or Access-backed deployment. */
 final class UserServiceFactory {
@@ -33,8 +35,27 @@ final class UserServiceFactory {
         }
         DefaultUserManagementService service = new DefaultUserManagementService(
                 users, new SessionManager(), auditLog);
+        if (databasePath == null) {
+            provisionMemoryDemoAccounts(service);
+        }
         provisionBootstrapAdmin(service);
         return service;
+    }
+
+    private static void provisionMemoryDemoAccounts(DefaultUserManagementService service) {
+        List<UserCredentials> demos = Arrays.asList(
+                new UserCredentials("demo_admin", "Demo123", "演示系统管理员", Role.ADMIN.name()),
+                new UserCredentials("demo_academic_admin", "Demo123", "演示教务管理员", Role.ACADEMIC_ADMIN.name()),
+                new UserCredentials("demo_librarian", "Demo123", "演示图书管理员", Role.LIBRARIAN.name()),
+                new UserCredentials("demo_store_manager", "Demo123", "演示商店管理员", Role.STORE_MANAGER.name()),
+                new UserCredentials("demo_student", "Demo123", "演示学生", Role.STUDENT.name()),
+                new UserCredentials("demo_teacher", "Demo123", "演示教师", Role.TEACHER.name()));
+        for (UserCredentials credentials : demos) {
+            ServiceResult<Void> result = service.provisionAccount(credentials);
+            if (result.getStatus() != StatusCode.OK && result.getStatus() != StatusCode.CONFLICT) {
+                throw new IllegalStateException("failed to provision memory demo account: " + credentials.getUserId());
+            }
+        }
     }
 
     private static void provisionBootstrapAdmin(DefaultUserManagementService service) {

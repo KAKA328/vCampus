@@ -2,10 +2,14 @@ package cn.vcampus.client.view;
 
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import javax.swing.AbstractButton;
 import javax.swing.BorderFactory;
 import javax.swing.JComponent;
 import javax.swing.UIManager;
+import javax.swing.plaf.basic.BasicButtonUI;
 import javax.swing.border.Border;
 
 /** Shared Swing styling for the vCampus desktop client. */
@@ -102,11 +106,30 @@ final class VCampusTheme {
     }
 
     private static void prepareButton(AbstractButton button) {
+        button.setUI(new ReadableButtonUI());
         button.setFocusPainted(false);
         button.setFocusable(false);
         button.setRequestFocusEnabled(false);
         button.setRolloverEnabled(false);
-        button.setContentAreaFilled(true);
+        button.setContentAreaFilled(false);
         button.setOpaque(true);
+    }
+
+    /** Paints the configured button background instead of letting Windows L&F replace it. */
+    static final class ReadableButtonUI extends BasicButtonUI {
+        @Override
+        public void paint(Graphics graphics, JComponent component) {
+            AbstractButton button = (AbstractButton) component;
+            Graphics2D copy = (Graphics2D) graphics.create();
+            copy.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            Color background = button.isEnabled() ? button.getBackground() : new Color(229, 235, 241);
+            if (button.getModel().isPressed() && button.isEnabled()) {
+                background = background.darker();
+            }
+            copy.setColor(background);
+            copy.fillRoundRect(0, 0, component.getWidth() - 1, component.getHeight() - 1, 8, 8);
+            copy.dispose();
+            super.paint(graphics, component);
+        }
     }
 }
