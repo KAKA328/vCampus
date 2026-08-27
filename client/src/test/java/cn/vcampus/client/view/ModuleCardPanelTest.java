@@ -7,6 +7,7 @@ import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextArea;
+import javax.swing.UIManager;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -63,7 +64,16 @@ class ModuleCardPanelTest {
         VCampusTheme.primaryButton(button);
 
         assertTrue(button.isOpaque());
+        assertFalse(button.isFocusPainted());
+        assertFalse(button.isFocusable());
         assertTrue(button.getFont().getStyle() == Font.BOLD || button.getFont().getSize() >= 15);
         assertTrue(button.getForeground().equals(java.awt.Color.WHITE));
+    }
+
+    @Test
+    void disabledButtonTextRemainsReadable() {
+        VCampusTheme.install();
+
+        assertTrue(UIManager.getColor("Button.disabledText").equals(VCampusTheme.MUTED));
     }
 }

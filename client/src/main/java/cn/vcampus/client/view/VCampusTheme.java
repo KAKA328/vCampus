@@ -35,6 +35,8 @@ final class VCampusTheme {
         UIManager.put("TextField.font", font(Font.PLAIN, 14));
         UIManager.put("PasswordField.font", font(Font.PLAIN, 14));
         UIManager.put("ComboBox.font", font(Font.PLAIN, 14));
+        UIManager.put("Button.disabledText", MUTED);
+        UIManager.put("Button.disabledForeground", MUTED);
     }
 
     static Font font(int style, int size) {
@@ -60,11 +62,7 @@ final class VCampusTheme {
 
     static void primaryButton(AbstractButton button) {
         button.setFont(font(Font.BOLD, 15));
-        button.setBackground(PRIMARY);
-        button.setForeground(Color.WHITE);
-        button.setFocusPainted(false);
-        button.setContentAreaFilled(true);
-        button.setOpaque(true);
+        keepButtonReadable(button, PRIMARY, Color.WHITE);
         button.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(PRIMARY_DARK, 2),
                 padding(10, 24, 10, 24)));
@@ -72,11 +70,7 @@ final class VCampusTheme {
 
     static void secondaryButton(AbstractButton button) {
         button.setFont(font(Font.PLAIN, 14));
-        button.setBackground(new Color(238, 244, 250));
-        button.setForeground(PRIMARY_DARK);
-        button.setFocusPainted(false);
-        button.setContentAreaFilled(true);
-        button.setOpaque(true);
+        keepButtonReadable(button, new Color(238, 244, 250), PRIMARY_DARK);
         button.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(BORDER),
                 padding(9, 18, 9, 18)));
@@ -84,9 +78,34 @@ final class VCampusTheme {
 
     static void navButton(AbstractButton button, boolean active) {
         button.setHorizontalAlignment(javax.swing.SwingConstants.LEFT);
-        button.setFocusPainted(false);
         button.setBorder(padding(10, 14, 10, 14));
+        prepareButton(button);
         button.setBackground(active ? PRIMARY : Color.WHITE);
         button.setForeground(active ? Color.WHITE : PRIMARY_DARK);
+    }
+
+    private static void keepButtonReadable(final AbstractButton button, final Color background,
+            final Color foreground) {
+        button.setBackground(background);
+        button.setForeground(foreground);
+        prepareButton(button);
+        button.getModel().addChangeListener(event -> {
+            if (button.isEnabled()) {
+                button.setBackground(background);
+                button.setForeground(foreground);
+            } else {
+                button.setBackground(new Color(229, 235, 241));
+                button.setForeground(PRIMARY_DARK);
+            }
+        });
+    }
+
+    private static void prepareButton(AbstractButton button) {
+        button.setFocusPainted(false);
+        button.setFocusable(false);
+        button.setRequestFocusEnabled(false);
+        button.setRolloverEnabled(false);
+        button.setContentAreaFilled(true);
+        button.setOpaque(true);
     }
 }

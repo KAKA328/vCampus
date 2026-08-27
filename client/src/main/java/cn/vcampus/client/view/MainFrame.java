@@ -145,8 +145,13 @@ public final class MainFrame extends JFrame {
     private void showModule(ModuleDescriptor module) {
         selectNav(module.getTitle());
         content.removeAll();
-        if (useStudentCourseSelectionPanel(session.getUser().getRole(), module)) {
+        if (useCourseSelectionPanel(session.getUser().getRole(), module)) {
             content.add(new CourseSelectionPanel(host, port, session), BorderLayout.CENTER);
+            refreshContent();
+            return;
+        }
+        if (useStorePanel(session.getUser().getRole(), module)) {
+            content.add(new StorePanel(host, port, session), BorderLayout.CENTER);
             refreshContent();
             return;
         }
@@ -196,8 +201,16 @@ public final class MainFrame extends JFrame {
         content.repaint();
     }
 
-    static boolean useStudentCourseSelectionPanel(Role role, ModuleDescriptor module) {
-        return role == Role.STUDENT && module != null && "选课系统".equals(module.getTitle());
+    static boolean useCourseSelectionPanel(Role role, ModuleDescriptor module) {
+        return (role == Role.STUDENT || role == Role.TEACHER)
+                && module != null
+                && "选课系统".equals(module.getTitle());
+    }
+
+    static boolean useStorePanel(Role role, ModuleDescriptor module) {
+        return (role == Role.STUDENT || role == Role.TEACHER || role == Role.STORE_MANAGER)
+                && module != null
+                && "商店".equals(module.getTitle());
     }
 
     private static String escapeHtml(String value) {
