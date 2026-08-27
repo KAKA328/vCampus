@@ -5,6 +5,7 @@ import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
 import cn.vcampus.store.StoreOrderQueryCommand;
 import cn.vcampus.store.StorePurchaseCommand;
+import cn.vcampus.store.StoreQueryCommand;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -18,21 +19,21 @@ public final class RemoteStoreService implements Closeable {
         this.messages = new SocketMessageClient(host, port);
     }
 
-    /** 查询全部商品。 */
-    public Message listProducts() throws IOException, ClassNotFoundException {
-        return send(MessageType.STORE_QUERY, null);
+    /** 查询全部商品；身份由服务器从 token 解析。 */
+    public Message listProducts(String token) throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_QUERY, new StoreQueryCommand(token));
     }
 
-    /** 使用当前登录用户编号作为购买人编号提交购买请求。 */
-    public Message purchase(String token, String buyerId, String productId, int quantity)
+    /** 提交购买请求；购买人由服务器从 token 解析。 */
+    public Message purchase(String token, String productId, int quantity)
             throws IOException, ClassNotFoundException {
         return send(MessageType.STORE_PURCHASE,
-                new StorePurchaseCommand(token, buyerId, productId, quantity));
+                new StorePurchaseCommand(token, productId, quantity));
     }
 
-    /** 查询当前登录用户的购买记录。 */
-    public Message ordersFor(String token, String buyerId) throws IOException, ClassNotFoundException {
-        return send(MessageType.STORE_ORDER_QUERY, new StoreOrderQueryCommand(token, buyerId));
+    /** 查询当前登录用户的购买记录；用户编号由服务器从 token 解析。 */
+    public Message ordersFor(String token) throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_ORDER_QUERY, new StoreOrderQueryCommand(token));
     }
 
     private Message send(MessageType type, Object payload) throws IOException, ClassNotFoundException {

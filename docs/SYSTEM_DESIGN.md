@@ -261,7 +261,9 @@ database                 vCampus.accdb、schema.sql、seed.sql
 | `COURSE_QUERY/SELECT/DROP` | 课程/选课请求 | `COURSE_READ` 或 `COURSE_SELECT`，并校验本人/授课范围 |
 | `COURSE_CREATE/UPDATE/DEACTIVATE` | 课程维护请求 | `COURSE_MANAGE` |
 | `LIBRARY_QUERY/BORROW/RETURN` | 图书/借还请求 | 按借阅规则 |
-| `STORE_QUERY/PURCHASE` | 商品/购买请求 | 按库存和订单规则 |
+| `STORE_QUERY` | `StoreQueryCommand(token)` | `STORE_READ`，服务端按 token 校验 |
+| `STORE_PURCHASE` | `StorePurchaseCommand(token, productId, quantity)` | `STORE_PURCHASE`，服务端按 token 取得 userId |
+| `STORE_ORDER_QUERY` | `StoreOrderQueryCommand(token)` | `STORE_READ`，仅返回当前用户订单 |
 
 ### 6.3 状态码
 
@@ -318,7 +320,7 @@ User 1 ── N Order ── N OrderItem ── N Product
 | 学籍 | `StudentManagementService` | `findById`、`findByClass`、`save` |
 | 选课 | `CourseSelectionService` | `listCourses`、`select`、`drop`、`selectedCourses` |
 | 图书馆 | `LibraryService` | `search`、`borrow`、`returnBook` |
-| 商店 | `StoreService` | `listProducts`、`purchase` |
+| 商店 | `StoreService` | `listProducts`、`purchase`、`findOrdersByUserId` |
 
 每个接口实现均遵循：输入校验 → 权限检查 → 业务规则 → Repository → `ServiceResult<T>`。客户端通过远程适配器调用，不直接引用数据库实现。
 

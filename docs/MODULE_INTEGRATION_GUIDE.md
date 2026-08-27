@@ -144,7 +144,7 @@ Message response = Message.response(request, StatusCode.OK, data);
 | 学生学籍 | `STUDENT_QUERY`、`STUDENT_UPDATE` |
 | 选课系统 | `COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP`、`COURSE_CREATE`、`COURSE_UPDATE`、`COURSE_DEACTIVATE` |
 | 图书馆 | `LIBRARY_QUERY`、`LIBRARY_BORROW`、`LIBRARY_RETURN` |
-| 商店 | `STORE_QUERY`、`STORE_PURCHASE` |
+| 商店 | `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY` |
 
 如果需要新增消息类型，必须同步修改：
 
@@ -154,7 +154,7 @@ docs/INTERFACES.md
 docs/MODULE_INTEGRATION_GUIDE.md
 ```
 
-新增消息类型不能只改枚举。合并前必须同时确认：请求 payload、响应 payload、服务端 Handler、`ServerApplication` 分发、客户端远程调用、权限校验、接口文档和测试是否一起补齐。例如商店模块若新增订单查询能力，应在该模块分支中加入类似 `STORE_ORDER_QUERY` 的消息类型，并说明它查询的是“当前用户本人订单”还是“商店管理员订单列表”；服务器端必须按 token 和角色判断数据范围，不能只靠客户端隐藏按钮。
+新增消息类型不能只改枚举。合并前必须同时确认：请求 payload、响应 payload、服务端 Handler、`ServerApplication` 分发、客户端远程调用、权限校验、接口文档和测试是否一起补齐。商店订单查询使用 `StoreOrderQueryCommand(token)`，只返回 token 对应用户的本人订单；商品查询使用 `StoreQueryCommand(token)`，不再发送空 payload。服务器端必须按 token 和角色判断数据范围，不能只靠客户端隐藏按钮。
 
 公共角色、权限编码和数据范围见 [`PERMISSIONS.md`](PERMISSIONS.md)。课程新增、修改和停开操作必须先校验 `COURSE_MANAGE`；任课教师录入成绩校验 `GRADE_WRITE`；教务复核校验 `ACADEMIC_REVIEW`。
 

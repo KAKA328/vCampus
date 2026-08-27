@@ -140,7 +140,7 @@ public final class StorePanel extends JPanel {
         runRequest("正在查询商品…", new StoreRequest() {
             @Override
             public Message execute(RemoteStoreService service) throws IOException, ClassNotFoundException {
-                return service.listProducts();
+                return service.listProducts(session.getToken());
             }
         }, new ResponseHandler() {
             @Override
@@ -154,7 +154,7 @@ public final class StorePanel extends JPanel {
         runRequest("正在查询我的订单…", new StoreRequest() {
             @Override
             public Message execute(RemoteStoreService service) throws IOException, ClassNotFoundException {
-                return service.ordersFor(session.getToken(), session.getUser().getUserId());
+                return service.ordersFor(session.getToken());
             }
         }, new ResponseHandler() {
             @Override
@@ -174,7 +174,7 @@ public final class StorePanel extends JPanel {
         runRequest("正在提交购买请求…", new StoreRequest() {
             @Override
             public Message execute(RemoteStoreService service) throws IOException, ClassNotFoundException {
-                return service.purchase(session.getToken(), session.getUser().getUserId(), productId, count);
+                return service.purchase(session.getToken(), productId, count);
             }
         }, new ResponseHandler() {
             @Override
