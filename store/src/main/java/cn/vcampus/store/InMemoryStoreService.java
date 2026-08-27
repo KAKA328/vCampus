@@ -24,12 +24,12 @@ public final class InMemoryStoreService implements StoreService {
     }
 
     @Override
-    public final ServiceResult<Void> purchase(String studentId, String productId, int quantity) {
-        return delegate.purchase(studentId, productId, quantity);
+    public final ServiceResult<Void> purchase(String userId, String productId, int quantity) {
+        return delegate.purchase(userId, productId, quantity);
     }
 
     @Override
-    public final ServiceResult<List<Order>> findOrdersByStudentId(String studentId) {
-        return delegate.findOrdersByStudentId(studentId);
+    public final ServiceResult<List<Order>> findOrdersByUserId(String userId) {
+        return delegate.findOrdersByUserId(userId);
     }
 }

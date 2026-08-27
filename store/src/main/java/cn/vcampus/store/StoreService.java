@@ -7,7 +7,7 @@ import java.util.List;
 public interface StoreService {
     ServiceResult<List<Product>> listProducts();
 
-    ServiceResult<Void> purchase(String studentId, String productId, int quantity);
+    ServiceResult<Void> purchase(String userId, String productId, int quantity);
 
-    ServiceResult<List<Order>> findOrdersByStudentId(String studentId);
+    ServiceResult<List<Order>> findOrdersByUserId(String userId);
 }

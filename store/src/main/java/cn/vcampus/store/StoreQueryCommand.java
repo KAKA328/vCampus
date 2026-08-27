@@ -2,11 +2,11 @@ package cn.vcampus.store;
 
 import java.io.Serializable;
 
-public final class StoreOrderQueryCommand implements Serializable {
+public final class StoreQueryCommand implements Serializable {
     private static final long serialVersionUID = 1L;
     private final String token;
 
-    public StoreOrderQueryCommand(String token) {
+    public StoreQueryCommand(String token) {
         this.token = checkStr(token, "token");
     }
 
