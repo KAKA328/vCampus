@@ -36,12 +36,12 @@
 
 | 账号 | 初始密码 | 身份 | 测试内容 |
 |---|---|---|---|
-| `demo-admin` | `Demo123` | 系统管理员 | 用户开户注册、全部模块入口和权限管理 |
-| `demo-academic-admin` | `Demo123` | 教务管理员 | 学籍管理、选课管理、学业审查 |
-| `demo-librarian` | `Demo123` | 图书管理员 | 图书馆管理 |
-| `demo-store-manager` | `Demo123` | 商店管理员 | 商品、库存和订单管理 |
-| `demo-student` | `Demo123` | 学生 | 本人学籍、选课、图书馆和商店 |
-| `demo-teacher` | `Demo123` | 教师 | 学籍查询、课程和成绩入口 |
+| `demo_admin` | `Demo123` | 系统管理员 | 用户开户注册、全部模块入口和权限管理 |
+| `demo_academic_admin` | `Demo123` | 教务管理员 | 学籍管理、选课管理、学业审查 |
+| `demo_librarian` | `Demo123` | 图书管理员 | 图书馆管理 |
+| `demo_store_manager` | `Demo123` | 商店管理员 | 商品、库存和订单管理 |
+| `demo_student` | `Demo123` | 学生 | 本人学籍、选课、图书馆和商店 |
+| `demo_teacher` | `Demo123` | 教师 | 学籍查询、课程和成绩入口 |
 
 内存模式也可以通过环境变量临时创建管理员：
 
@@ -94,7 +94,7 @@ cd D:\codex\java协作
 java -jar .\client\target\vCampusClient.jar --host 127.0.0.1 --port 19090
 ```
 
-使用 `admin001 / Admin123` 登录后，在“用户管理 → 创建账号”开户注册。登录页不会显示“注册新用户”。
+使用 `admin001 / Admin123` 登录后，在“用户管理 → 创建账号”开户注册。登录页不会显示“注册新用户”。如果没有设置 bootstrap 环境变量，也可以使用内存模式预置的 `demo_admin / Demo123` 登录。
 
 ### 3. Socket 冒烟演示
 

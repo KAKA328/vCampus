@@ -36,8 +36,8 @@ public final class ClientApplication {
              ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream());
              ObjectInputStream input = new ObjectInputStream(socket.getInputStream())) {
             UserCredentials admin = new UserCredentials(
-                    valueAfter(args, "--admin-id", "admin001"),
-                    valueAfter(args, "--admin-password", "Admin123"),
+                    valueAfter(args, "--admin-id", "demo_admin"),
+                    valueAfter(args, "--admin-password", "Demo123"),
                     "Demo Administrator",
                     Role.ADMIN.name());
             UserCredentials demo = demoCredentials(System.currentTimeMillis());
@@ -79,6 +79,10 @@ public final class ClientApplication {
 
     static UserCredentials demoCredentials(long suffix) {
         return new UserCredentials("demo_student_" + suffix, "demo123", "Demo Student", "STUDENT");
+    }
+
+    static UserCredentials demoAdminCredentials() {
+        return new UserCredentials("demo_admin", "Demo123", "Demo Administrator", Role.ADMIN.name());
     }
 
     private static boolean contains(String[] args, String option) {
