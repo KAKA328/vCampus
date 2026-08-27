@@ -126,10 +126,9 @@ public final class MainFrame extends JFrame {
     private JPanel dashboard() {
         JPanel panel = new JPanel(new BorderLayout(0, 18));
         panel.setOpaque(false);
-        panel.add(sectionTitle("工作台", "当前角色可访问的业务入口如下，后续成员模块会接入对应页面。"), BorderLayout.NORTH);
+        panel.add(sectionTitle("工作台", "选择当前账号可访问的业务功能。"), BorderLayout.NORTH);
 
-        JPanel grid = new JPanel(new GridLayout(0, 2, 16, 16));
-        grid.setOpaque(false);
+        ResponsiveModuleGridPanel grid = new ResponsiveModuleGridPanel();
         List<ModuleDescriptor> modules = navigationModel.visibleModuleCards(session.getUser().getRole());
         for (ModuleDescriptor module : modules) {
             grid.add(new ModuleCardPanel(module, e -> showModule(module)));
@@ -161,8 +160,7 @@ public final class MainFrame extends JFrame {
         status.setFont(VCampusTheme.font(Font.BOLD, 15));
         status.setForeground(module.getStatus().contains("可用") ? VCampusTheme.SUCCESS : VCampusTheme.MUTED);
         JLabel placeholder = new JLabel("<html><div style='line-height:1.8;'>"
-                + "这里是模块页面预留区域。后续对应成员只需要提供 JPanel，"
-                + "即可替换当前占位内容并接入主界面。<br/>"
+                + "该模块页面正在接入。完成后可在此办理对应业务。<br/>"
                 + "当前登录用户：" + escapeHtml(session.getUser().getDisplayName())
                 + "，角色：" + session.getUser().getRole()
                 + "</div></html>");

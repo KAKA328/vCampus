@@ -59,17 +59,19 @@ final class VCampusTheme {
     }
 
     static void primaryButton(AbstractButton button) {
-        button.setBackground(new Color(226, 239, 252));
-        button.setForeground(PRIMARY_DARK);
+        button.setFont(font(Font.BOLD, 15));
+        button.setBackground(PRIMARY);
+        button.setForeground(Color.WHITE);
         button.setFocusPainted(false);
         button.setContentAreaFilled(true);
         button.setOpaque(true);
         button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(PRIMARY, 2),
-                padding(9, 20, 9, 20)));
+                BorderFactory.createLineBorder(PRIMARY_DARK, 2),
+                padding(10, 24, 10, 24)));
     }
 
     static void secondaryButton(AbstractButton button) {
+        button.setFont(font(Font.PLAIN, 14));
         button.setBackground(new Color(238, 244, 250));
         button.setForeground(PRIMARY_DARK);
         button.setFocusPainted(false);
