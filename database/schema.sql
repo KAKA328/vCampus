@@ -45,7 +45,8 @@ CREATE INDEX idx_tblCourseSelection_student ON tblCourseSelection(student_id);
 CREATE INDEX idx_tblCourseSelection_course ON tblCourseSelection(course_id);
 
 -- 学籍审查与后续教务管理规划表。
--- 注册只创建登录账号；学生基础信息、历史选课、首修/重修和学分通过情况由教务维护或演示数据导入。
+-- 账号由系统管理员开户注册或由初始化脚本预置；学生/教师账号应同步创建或绑定对应档案。
+-- 学生历史选课、首修/重修和学分通过情况由教务维护或演示数据导入，不由开户注册流程凭空生成。
 CREATE TABLE tblStudent (
     student_id VARCHAR(32) NOT NULL,
     user_id VARCHAR(32),

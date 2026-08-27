@@ -9,7 +9,7 @@
 - Maven 多模块项目结构；
 - 客户端、服务器端、公共协议模块；
 - 用户管理模块基础实现；
-- Swing 登录、注册、主界面总控框架；
+- Swing 登录、主界面总控框架；开户注册入口收敛到管理员用户管理页面；
 - `Message` 消息协议、`ServiceResult` 返回格式和 `StatusCode` 状态码；
 - 学生学籍、选课、图书馆、商店四个模块的基础接口和实体占位类；
 - 选课模块的课程查询、学生选课、退课和本人已选课程查询已接入服务器和学生客户端页面。
@@ -42,7 +42,7 @@ git switch -c feature/store
 
 | 模块 | 主要目录 | 说明 |
 |---|---|---|
-| 用户管理 | `user-management/` | 组长负责，提供注册、登录、登出、注销、授权 |
+| 用户管理 | `user-management/` | 组长负责，提供管理员开户注册、登录、登出、注销、授权 |
 | 学生学籍管理 | `student-management/` | 学生信息实体、业务接口、数据库访问 |
 | 选课系统 | `course-selection/` | 课程信息、选课、退课、已选课程查询 |
 | 图书馆 | `library/` | 图书查询、借阅、归还、借阅记录 |
@@ -167,7 +167,7 @@ docs/MODULE_INTEGRATION_GUIDE.md
 - 查询列表：payload 可以传关键词、学生编号或专门的查询命令；
 - 新增/修改：payload 传实体或保存命令；
 - 涉及登录权限的操作：payload 必须包含 `token`；
-- 不要在 payload 中传明文密码，除登录/注册的 `UserCredentials` 外；
+- 不要在 payload 中传明文密码，除登录和管理员开户注册的 `UserCredentials` 外；
 - 不要把数据库连接、文件路径、Socket 对象放进 payload。
 
 示例：选课命令对象可以这样设计：
@@ -459,7 +459,7 @@ cd D:\codex\java协作
 mvn clean test
 ```
 
-首次需要管理员账号时，在启动服务器的同一个 PowerShell 终端设置：
+数据库演示数据应预置系统管理员、教务管理员、图书管理员、商店管理员、教师和学生账号；所有演示账号的初始密码在 `database/seed.sql` 中说明。若使用内存模式或空数据库首次启动，可在启动服务器的同一个 PowerShell 终端设置：
 
 ```powershell
 $env:VCAMPUS_BOOTSTRAP_ADMIN_ID="admin001"
@@ -467,7 +467,7 @@ $env:VCAMPUS_BOOTSTRAP_ADMIN_PASSWORD="Admin123"
 $env:VCAMPUS_BOOTSTRAP_ADMIN_NAME="系统管理员"
 ```
 
-该账号由服务器进程初始化，不经过客户端公开注册接口。不要把真实密码写入源码、脚本或提交记录。
+该账号由服务器进程初始化，不经过客户端开户注册页面。不要把真实密码写入源码、脚本或提交记录。
 
 启动服务器：
 

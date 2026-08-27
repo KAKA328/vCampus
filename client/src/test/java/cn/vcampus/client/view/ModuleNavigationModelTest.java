@@ -80,6 +80,15 @@ class ModuleNavigationModelTest {
     }
 
     @Test
+    void onlyAdminUsesUserManagementPanel() {
+        ModuleNavigationModel model = new ModuleNavigationModel();
+
+        assertTrue(MainFrame.useUserManagementPanel(Role.ADMIN, model.findModule(Role.ADMIN, "用户管理")));
+        assertFalse(MainFrame.useUserManagementPanel(Role.STUDENT, model.findModule(Role.STUDENT, "用户管理")));
+        assertFalse(MainFrame.useUserManagementPanel(Role.ACADEMIC_ADMIN, model.findModule(Role.ACADEMIC_ADMIN, "用户管理")));
+    }
+
+    @Test
     void buyerRolesUseStorePanel() {
         ModuleNavigationModel model = new ModuleNavigationModel();
 

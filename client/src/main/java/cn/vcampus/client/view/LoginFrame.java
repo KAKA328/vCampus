@@ -99,16 +99,13 @@ public final class LoginFrame extends JFrame {
         addField(card, "密码", password, 3);
 
         JButton login = new JButton("登录系统");
-        JButton register = new JButton("注册新用户");
         VCampusTheme.primaryButton(login);
-        VCampusTheme.secondaryButton(register);
         login.addActionListener(e -> login());
-        register.addActionListener(e -> new RegisterDialog(this, host, port).setVisible(true));
         getRootPane().setDefaultButton(login);
 
         c = base(0, 4);
         c.gridwidth = 2;
-        card.add(buttons(login, register), c);
+        card.add(buttons(login), c);
 
         c = base(0, 5);
         c.gridwidth = 2;
@@ -169,11 +166,10 @@ public final class LoginFrame extends JFrame {
         return c;
     }
 
-    private static JPanel buttons(JButton login, JButton register) {
+    private static JPanel buttons(JButton login) {
         JPanel panel = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 12, 0));
         panel.setOpaque(false);
         panel.add(login);
-        panel.add(register);
         return panel;
     }
 }

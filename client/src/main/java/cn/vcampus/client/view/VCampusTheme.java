@@ -10,9 +10,10 @@ import javax.swing.border.Border;
 
 /** Shared Swing styling for the vCampus desktop client. */
 final class VCampusTheme {
-    static final Color PRIMARY = new Color(33, 99, 154);
-    static final Color PRIMARY_DARK = new Color(24, 67, 112);
-    static final Color ACCENT = new Color(51, 132, 203);
+    // Dark enough to keep white button labels readable on every supported L&F.
+    static final Color PRIMARY = new Color(18, 72, 112);
+    static final Color PRIMARY_DARK = new Color(14, 52, 82);
+    static final Color ACCENT = new Color(24, 104, 158);
     static final Color BACKGROUND = new Color(245, 247, 250);
     static final Color SIDEBAR = new Color(232, 239, 247);
     static final Color PANEL = Color.WHITE;

@@ -5,9 +5,11 @@ import cn.vcampus.common.MessageType;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.user.AuthorizationRequest;
+import cn.vcampus.user.Permission;
 import cn.vcampus.user.UserCommand;
-import cn.vcampus.user.UserCredentials;
 import cn.vcampus.user.UserManagementService;
+import cn.vcampus.user.UserCredentials;
+import cn.vcampus.user.UserRegistrationCommand;
 
 /** Adapts user-management service results to the shared Socket message protocol. */
 final class UserMessageHandler {
@@ -24,7 +26,11 @@ final class UserMessageHandler {
             ServiceResult<?> result;
             switch (request.getType()) {
                 case REGISTER:
-                    result = service.register(payload(request, UserCredentials.class));
+                    UserRegistrationCommand registration = payload(request, UserRegistrationCommand.class);
+                    result = service.authorize(registration.getToken(), Permission.USER_MANAGE.getCode());
+                    if (result.getStatus() == StatusCode.OK) {
+                        result = service.register(registration.getCredentials());
+                    }
                     break;
                 case LOGIN:
                     result = service.login(payload(request, UserCredentials.class));
