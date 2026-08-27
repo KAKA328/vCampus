@@ -32,20 +32,10 @@ public final class StorePanel extends JPanel {
     private final String host;
     private final int port;
     private final Session session;
-    private final DefaultTableModel productTableModel = new DefaultTableModel(
-            new Object[] {"商品号", "名称", "类别", "价格", "库存", "说明"}, 0) {
-        @Override
-        public boolean isCellEditable(int row, int column) {
-            return false;
-        }
-    };
-    private final DefaultTableModel orderTableModel = new DefaultTableModel(
-            new Object[] {"订单号", "商品", "数量", "单价", "总价", "时间"}, 0) {
-        @Override
-        public boolean isCellEditable(int row, int column) {
-            return false;
-        }
-    };
+    private final BatchTableModel productTableModel = new BatchTableModel(
+            new Object[] {"商品号", "名称", "类别", "价格", "库存", "说明"});
+    private final BatchTableModel orderTableModel = new BatchTableModel(
+            new Object[] {"订单号", "商品", "数量", "单价", "总价", "时间"});
     private final JTable productTable = new JTable(productTableModel);
     private final JTable orderTable = new JTable(orderTableModel);
     private final JLabel status = new JLabel("请点击“刷新商品”查询商店商品");
@@ -55,6 +45,7 @@ public final class StorePanel extends JPanel {
     private final JSpinner quantity = new JSpinner(new SpinnerNumberModel(1, 1, 99, 1));
 
     private boolean requestInProgress;
+    private final RequestLifecycle requestLifecycle = new RequestLifecycle();
 
     public StorePanel(String host, int port, Session session) {
         if (host == null || host.trim().isEmpty() || session == null) {
@@ -207,20 +198,20 @@ public final class StorePanel extends JPanel {
             return;
         }
 
-        productTableModel.setRowCount(0);
         List<?> products = (List<?>) response.getPayload();
+        java.util.ArrayList<Object[]> rows = new java.util.ArrayList<Object[]>();
         for (Object item : products) {
             if (!(item instanceof Product)) {
-                productTableModel.setRowCount(0);
                 showStatus("服务器返回的商品数据格式不正确", VCampusTheme.DANGER);
                 return;
             }
             Product product = (Product) item;
-            productTableModel.addRow(new Object[] {
+            rows.add(new Object[] {
                     product.getProductId(), product.getName(), product.getCategory(),
                     product.getPrice(), product.getStock(), product.getDescription()
             });
         }
+        productTableModel.replaceRows(rows);
         showStatus("已显示全部商品，共 " + products.size() + " 个", VCampusTheme.SUCCESS);
     }
 
@@ -234,25 +225,26 @@ public final class StorePanel extends JPanel {
             return;
         }
 
-        orderTableModel.setRowCount(0);
         List<?> orders = (List<?>) response.getPayload();
+        java.util.ArrayList<Object[]> rows = new java.util.ArrayList<Object[]>();
         for (Object item : orders) {
             if (!(item instanceof Order)) {
-                orderTableModel.setRowCount(0);
                 showStatus("服务器返回的订单数据格式不正确", VCampusTheme.DANGER);
                 return;
             }
             Order order = (Order) item;
-            orderTableModel.addRow(new Object[] {
+            rows.add(new Object[] {
                     order.getOrderId(), order.getProductName(), order.getQuantity(),
                     order.getUnitPrice(), order.getTotalPrice(), DATE_TIME.format(order.getOrderDate())
             });
         }
+        orderTableModel.replaceRows(rows);
         showStatus("已显示我的订单，共 " + orders.size() + " 条", VCampusTheme.SUCCESS);
     }
 
     private void runRequest(String loadingMessage, final StoreRequest request,
             final ResponseHandler responseHandler) {
+        final int requestId = requestLifecycle.begin();
         requestInProgress = true;
         updateButtonState();
         showStatus(loadingMessage, VCampusTheme.MUTED);
@@ -267,12 +259,15 @@ public final class StorePanel extends JPanel {
 
             @Override
             protected void done() {
-                requestInProgress = false;
-                updateButtonState();
                 try {
                     responseHandler.handle(get());
                 } catch (Exception failure) {
                     showStatus("无法连接商店服务器，请确认服务器已启动", VCampusTheme.DANGER);
+                } finally {
+                    if (requestLifecycle.isCurrent(requestId)) {
+                        requestInProgress = false;
+                        updateButtonState();
+                    }
                 }
             }
         }.execute();
