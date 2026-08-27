@@ -18,16 +18,16 @@ public final class ModuleNavigationModel {
 
     private static final List<ModuleDescriptor> STUDENT_MODULES = Collections.unmodifiableList(Arrays.asList(
             new ModuleDescriptor("学籍信息", "查看个人学号、班级、专业和基础学籍信息。", "待接入：等待学籍模块页面"),
-            new ModuleDescriptor("选课系统", "查询课程、提交选课、退课并查看已选课程。", "待接入：等待选课模块页面"),
+            new ModuleDescriptor("选课系统", "查询课程、提交选课、退课并查看已选课程。", "可用：课程查询、选课和退课已接入"),
             new ModuleDescriptor("图书馆", "查询图书、办理借阅归还并查看借阅记录。", "待接入：等待图书馆模块页面"),
-            new ModuleDescriptor("商店", "浏览商品、提交购买并查看个人购买记录。", "待接入：等待商店模块页面")
+            new ModuleDescriptor("商店", "浏览商品、提交购买并查看个人购买记录。", "可用：商品查询、购买和订单查询已接入")
     ));
 
     private static final List<ModuleDescriptor> TEACHER_MODULES = Collections.unmodifiableList(Arrays.asList(
             new ModuleDescriptor("学籍查询", "查看学生基础信息和班级专业信息。", "待接入：等待学籍模块页面"),
-            new ModuleDescriptor("选课系统", "查看授课课程、选课名单并录入成绩。", "待接入：等待选课模块页面"),
+            new ModuleDescriptor("选课系统", "查看授课课程、选课名单并录入成绩。", "可用：课程查询已接入，授课名单和成绩录入待选课模块补齐"),
             new ModuleDescriptor("图书馆", "查询图书、办理借阅归还并查看本人借阅记录。", "待接入：等待图书馆模块页面"),
-            new ModuleDescriptor("商店", "浏览商品、提交购买并查看个人购买记录。", "待接入：等待商店模块页面")
+            new ModuleDescriptor("商店", "浏览商品、提交购买并查看个人购买记录。", "可用：商品查询、购买和订单查询已接入")
     ));
 
     private static final List<ModuleDescriptor> ACADEMIC_ADMIN_MODULES = Collections.unmodifiableList(Arrays.asList(
@@ -40,7 +40,7 @@ public final class ModuleNavigationModel {
     );
 
     private static final List<ModuleDescriptor> STORE_MODULES = Collections.singletonList(
-            new ModuleDescriptor("商店", "维护商品资料、库存和购买记录。", "待接入：等待商店模块页面")
+            new ModuleDescriptor("商店", "维护商品资料、库存和购买记录。", "可用：商品查询、购买和订单查询已接入，商品维护待商店模块补齐")
     );
 
     public List<String> visibleModules(Role role) {

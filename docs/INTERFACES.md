@@ -8,7 +8,7 @@
 | 学生学籍 | `StudentManagementService` | `findById`、`findByClass`、`save` |
 | 选课 | `CourseSelectionService` | `listCourses`、`select`、`drop`、`selectedCourses`；课程维护消息见下文 |
 | 图书馆 | `LibraryService` | `search`、`borrow`、`returnBook` |
-| 商店 | `StoreService` | `listProducts`、`purchase` |
+| 商店 | `StoreService` | `listProducts`、`purchase`、`findOrdersByUserId`；商店消息使用 token-only 命令，用户编号由服务器会话解析 |
 
 所有服务方法返回 `ServiceResult<T>`，由服务器统一映射为 `Message` 响应。服务端必须再次校验会话和权限。
 
@@ -25,12 +25,14 @@
 7. 正常、异常、权限拒绝测试；
 8. 本文档中的接口说明。
 
-例如商店模块若新增订单查询，可使用 `STORE_ORDER_QUERY` 一类消息类型，但需要同时明确：
+商店当前使用 `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY`，对应 `StoreQueryCommand(token)`、`StorePurchaseCommand(token, productId, quantity)`、`StoreOrderQueryCommand(token)`。服务端必须从 token 对应会话取得 `userId`，不得相信客户端传入的学生/用户编号。
+
+商店订单查询需要同时明确：
 
 - 学生、教师查询本人订单；
-- 商店管理员查询商店订单列表；
+- 当前 `STORE_ORDER_QUERY` 统一只查询 token 对应用户的本人订单；若后续开放商店管理员全量订单查询，应新增独立的管理查询命令和数据范围说明；
 - 其他无关角色请求时服务器返回 `FORBIDDEN`；
-- 请求中即使伪造用户编号，也必须以 token 对应身份为准。
+- 请求中不携带用户编号，服务端始终以 token 对应身份为准。
 
 ## 权限与课程维护公共契约
 
