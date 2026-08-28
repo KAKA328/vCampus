@@ -29,6 +29,11 @@
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>cn.vcampus</groupId>
+            <artifactId>store</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
 
     <build>

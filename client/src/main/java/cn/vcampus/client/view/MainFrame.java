@@ -151,6 +151,11 @@ public final class MainFrame extends JFrame {
             refreshContent();
             return;
         }
+        if (useStorePanel(module)) {
+            content.add(new StorePanel(host, port, session), BorderLayout.CENTER);
+            refreshContent();
+            return;
+        }
         JPanel panel = new JPanel(new BorderLayout(0, 18));
         panel.setOpaque(false);
         panel.add(sectionTitle(module.getTitle(), module.getSummary()), BorderLayout.NORTH);
@@ -200,6 +205,10 @@ public final class MainFrame extends JFrame {
 
     static boolean useStudentCourseSelectionPanel(Role role, ModuleDescriptor module) {
         return role == Role.STUDENT && module != null && "选课系统".equals(module.getTitle());
+    }
+
+    static boolean useStorePanel(ModuleDescriptor module) {
+        return module != null && "商店".equals(module.getTitle());
     }
 
     private static String escapeHtml(String value) {
