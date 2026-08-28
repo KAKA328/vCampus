@@ -6,13 +6,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
 import cn.vcampus.common.Role;
+import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.Course;
 import cn.vcampus.course.CourseQueryCommand;
 import cn.vcampus.course.CourseSelectionCommand;
 import cn.vcampus.course.InMemoryCourseSelectionService;
-import cn.vcampus.user.InMemoryUserManagementService;
+import cn.vcampus.user.DefaultUserManagementService;
+import cn.vcampus.user.InMemoryAuditLogRepository;
+import cn.vcampus.user.InMemoryUserRepository;
 import cn.vcampus.user.Session;
+import cn.vcampus.user.SessionManager;
 import cn.vcampus.user.UserCredentials;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,14 +24,15 @@ import org.junit.jupiter.api.Test;
 
 class CourseMessageHandlerTest {
     private InMemoryCourseSelectionService courses;
-    private InMemoryUserManagementService users;
+    private DefaultUserManagementService users;
     private CourseMessageHandler handler;
     private Session studentSession;
 
     @BeforeEach
     void setUp() {
         courses = new InMemoryCourseSelectionService();
-        users = new InMemoryUserManagementService();
+        users = new DefaultUserManagementService(
+                new InMemoryUserRepository(), new SessionManager(), new InMemoryAuditLogRepository());
         handler = new CourseMessageHandler(courses, users);
 
         UserCredentials student = new UserCredentials(
@@ -144,8 +149,10 @@ class CourseMessageHandlerTest {
     void userWithoutCourseSelectionPermissionIsRejected() {
         UserCredentials teacher = new UserCredentials(
                 "teacher001", "password", "测试教师", Role.TEACHER.name());
-        users.register(teacher);
-        Session teacherSession = users.login(teacher).getData();
+        assertEquals(StatusCode.OK, users.provisionAccount(teacher).getStatus());
+        ServiceResult<Session> login = users.login(teacher);
+        assertEquals(StatusCode.OK, login.getStatus());
+        Session teacherSession = login.getData();
         CourseSelectionCommand command = new CourseSelectionCommand(
                 teacherSession.getToken(), "20230001", "JAVA101");
 
