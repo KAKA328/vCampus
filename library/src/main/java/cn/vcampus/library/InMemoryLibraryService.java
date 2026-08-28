@@ -5,10 +5,13 @@ import cn.vcampus.common.StatusCode;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Temporary in-memory library service for local demos and unit tests.
@@ -20,6 +23,7 @@ public final class InMemoryLibraryService implements LibraryService {
     private final Map<String, Book> books = new LinkedHashMap<String, Book>();
     private final List<BorrowRecord> records = new ArrayList<BorrowRecord>();
     private long recordSequence = 0;
+    private long orderSequence = 0;
 
     public InMemoryLibraryService() {
         seedCatalog();
@@ -67,23 +71,47 @@ public final class InMemoryLibraryService implements LibraryService {
     }
 
     @Override public synchronized ServiceResult<Void> borrow(String studentId, String bookId) {
+        return borrowBatch(studentId, Collections.singletonList(bookId));
+    }
+
+    @Override public synchronized ServiceResult<Void> borrowBatch(String studentId, List<String> bookIds) {
         if (blank(studentId)) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "studentId must not be blank");
         }
-        Book book = findBook(bookId);
-        if (book == null) {
-            return ServiceResult.failure(StatusCode.NOT_FOUND, "book not found");
+        if (bookIds == null || bookIds.isEmpty()) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "bookIds must not be empty");
         }
-        if (book.getAvailableCopies() <= 0) {
-            return ServiceResult.failure(StatusCode.CONFLICT, "no available copy");
+        String sid = studentId.trim();
+        List<String> ids = new ArrayList<String>();
+        Set<String> seen = new HashSet<String>();
+        for (String raw : bookIds) {
+            if (blank(raw)) {
+                return ServiceResult.failure(StatusCode.BAD_REQUEST, "bookId must not be blank");
+            }
+            String bid = raw.trim();
+            if (!seen.add(bid)) {
+                return ServiceResult.failure(StatusCode.BAD_REQUEST, "duplicate book id: " + bid);
+            }
+            Book book = findBook(bid);
+            if (book == null) {
+                return ServiceResult.failure(StatusCode.NOT_FOUND, "book not found: " + bid);
+            }
+            if (book.getAvailableCopies() <= 0) {
+                return ServiceResult.failure(StatusCode.CONFLICT, "no available copy: " + bid);
+            }
+            if (findActiveRecord(sid, bid) != null) {
+                return ServiceResult.failure(StatusCode.CONFLICT, "book already borrowed by this student: " + bid);
+            }
+            ids.add(bid);
         }
-        if (findActiveRecord(studentId, bookId) != null) {
-            return ServiceResult.failure(StatusCode.CONFLICT, "book already borrowed by this student");
-        }
-        books.put(bookId, book.withAvailableCopies(book.getAvailableCopies() - 1));
+        String orderId = nextOrderId();
         LocalDate today = LocalDate.now();
-        records.add(new BorrowRecord(nextRecordId(), studentId.trim(), bookId,
-                today, today.plusDays(BORROW_DAYS), null, BorrowStatus.BORROWED));
+        for (String bid : ids) {
+            Book book = books.get(bid);
+            books.put(bid, book.withAvailableCopies(book.getAvailableCopies() - 1));
+            records.add(new BorrowRecord(orderId, nextRecordId(), sid, bid,
+                    today, today.plusDays(BORROW_DAYS), null, BorrowStatus.BORROWED));
+        }
         return ServiceResult.ok(null);
     }
 
@@ -136,6 +164,11 @@ public final class InMemoryLibraryService implements LibraryService {
     private String nextRecordId() {
         recordSequence = recordSequence + 1;
         return "BR" + recordSequence;
+    }
+
+    private String nextOrderId() {
+        orderSequence = orderSequence + 1;
+        return "BO" + orderSequence;
     }
 
     private boolean matches(Book book, String key) {

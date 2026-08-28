@@ -17,8 +17,11 @@ public interface LibraryService {
     /** Adds a new book to the catalog (librarian/admin operation). */
     ServiceResult<Void> addBook(Book book);
 
-    /** Borrows one available copy for a student. */
+    /** Borrows one available copy for a student as a single-book order. */
     ServiceResult<Void> borrow(String studentId, String bookId);
+
+    /** Borrows several books at once and groups them under one order id. */
+    ServiceResult<Void> borrowBatch(String studentId, List<String> bookIds);
 
     /** Returns an active borrowed copy. */
     ServiceResult<Void> returnBook(String studentId, String bookId);

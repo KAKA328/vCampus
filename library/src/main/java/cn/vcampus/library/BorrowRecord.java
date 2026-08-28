@@ -8,6 +8,7 @@ import java.util.Objects;
 public final class BorrowRecord implements Serializable {
     private static final long serialVersionUID = 1L;
 
+    private final String orderId;
     private final String recordId;
     private final String studentId;
     private final String bookId;
@@ -16,8 +17,9 @@ public final class BorrowRecord implements Serializable {
     private final LocalDate returnDate;
     private final BorrowStatus status;
 
-    public BorrowRecord(String recordId, String studentId, String bookId,
+    public BorrowRecord(String orderId, String recordId, String studentId, String bookId,
                         LocalDate borrowDate, LocalDate dueDate, LocalDate returnDate, BorrowStatus status) {
+        this.orderId = requireText(orderId, "orderId");
         this.recordId = requireText(recordId, "recordId");
         this.studentId = requireText(studentId, "studentId");
         this.bookId = requireText(bookId, "bookId");
@@ -27,6 +29,7 @@ public final class BorrowRecord implements Serializable {
         this.status = Objects.requireNonNull(status, "status");
     }
 
+    public String getOrderId() { return orderId; }
     public String getRecordId() { return recordId; }
     public String getStudentId() { return studentId; }
     public String getBookId() { return bookId; }
@@ -39,7 +42,7 @@ public final class BorrowRecord implements Serializable {
 
     /** Returns a copy of this record marked as returned on the given date. */
     public BorrowRecord returned(LocalDate date) {
-        return new BorrowRecord(recordId, studentId, bookId, borrowDate, dueDate, date, BorrowStatus.RETURNED);
+        return new BorrowRecord(orderId, recordId, studentId, bookId, borrowDate, dueDate, date, BorrowStatus.RETURNED);
     }
 
     private static String requireText(String value, String field) {
@@ -53,12 +56,12 @@ public final class BorrowRecord implements Serializable {
         if (this == other) return true;
         if (!(other instanceof BorrowRecord)) return false;
         BorrowRecord that = (BorrowRecord) other;
-        return recordId.equals(that.recordId) && studentId.equals(that.studentId) && bookId.equals(that.bookId)
-                && borrowDate.equals(that.borrowDate) && dueDate.equals(that.dueDate)
+        return orderId.equals(that.orderId) && recordId.equals(that.recordId) && studentId.equals(that.studentId)
+                && bookId.equals(that.bookId) && borrowDate.equals(that.borrowDate) && dueDate.equals(that.dueDate)
                 && Objects.equals(returnDate, that.returnDate) && status == that.status;
     }
 
     @Override public int hashCode() {
-        return Objects.hash(recordId, studentId, bookId, borrowDate, dueDate, returnDate, status);
+        return Objects.hash(orderId, recordId, studentId, bookId, borrowDate, dueDate, returnDate, status);
     }
 }

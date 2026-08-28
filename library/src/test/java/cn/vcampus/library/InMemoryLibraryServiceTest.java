@@ -3,6 +3,7 @@ package cn.vcampus.library;
 import cn.vcampus.common.StatusCode;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -85,5 +86,20 @@ class InMemoryLibraryServiceTest {
         assertEquals(2, history.size());
         assertTrue(history.get(0).isReturned());
         assertFalse(history.get(1).isReturned());
+    }
+
+    @Test
+    void borrowBatchCreatesOneOrderWithMultipleRecords() {
+        assertEquals(StatusCode.OK, service.borrowBatch("S001", Arrays.asList("B001", "B003")).getStatus());
+        List<BorrowRecord> history = service.borrowHistory("S001").getData();
+        assertEquals(2, history.size());
+        assertEquals(history.get(0).getOrderId(), history.get(1).getOrderId());
+        assertFalse(history.get(0).getOrderId().isEmpty());
+    }
+
+    @Test
+    void borrowBatchRejectsDuplicateBookIds() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.borrowBatch("S001", Arrays.asList("B001", "B001")).getStatus());
     }
 }
