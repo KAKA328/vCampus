@@ -19,6 +19,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingWorker;
+import javax.swing.Timer;
 import javax.swing.table.DefaultTableModel;
 
 /**
@@ -238,7 +239,11 @@ public final class CourseSelectionPanel extends JPanel {
         final int requestId = requestLifecycle.begin();
         requestInProgress = true;
         updateButtonState();
-        showStatus(loadingMessage, VCampusTheme.MUTED);
+        final Timer loadingStatus = DelayedUiUpdate.once(() -> {
+            if (requestLifecycle.isCurrent(requestId) && requestInProgress) {
+                showStatus(loadingMessage, VCampusTheme.MUTED);
+            }
+        });
 
         new SwingWorker<Message, Void>() {
             @Override
@@ -255,6 +260,7 @@ public final class CourseSelectionPanel extends JPanel {
                 } catch (Exception failure) {
                     showStatus("无法连接选课服务器，请确认服务器已启动", VCampusTheme.DANGER);
                 } finally {
+                    loadingStatus.stop();
                     if (requestLifecycle.isCurrent(requestId)) {
                         requestInProgress = false;
                         updateButtonState();
