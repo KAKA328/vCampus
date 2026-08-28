@@ -23,6 +23,7 @@ import javax.swing.JTable;
 import javax.swing.ListSelectionModel;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingWorker;
+import javax.swing.Timer;
 import javax.swing.table.DefaultTableModel;
 
 /** 商店页面：浏览商品、购买商品并查询当前账号购买记录。 */
@@ -247,7 +248,11 @@ public final class StorePanel extends JPanel {
         final int requestId = requestLifecycle.begin();
         requestInProgress = true;
         updateButtonState();
-        showStatus(loadingMessage, VCampusTheme.MUTED);
+        final Timer loadingStatus = DelayedUiUpdate.once(() -> {
+            if (requestLifecycle.isCurrent(requestId) && requestInProgress) {
+                showStatus(loadingMessage, VCampusTheme.MUTED);
+            }
+        });
 
         new SwingWorker<Message, Void>() {
             @Override
@@ -264,6 +269,7 @@ public final class StorePanel extends JPanel {
                 } catch (Exception failure) {
                     showStatus("无法连接商店服务器，请确认服务器已启动", VCampusTheme.DANGER);
                 } finally {
+                    loadingStatus.stop();
                     if (requestLifecycle.isCurrent(requestId)) {
                         requestInProgress = false;
                         updateButtonState();

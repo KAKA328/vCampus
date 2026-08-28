@@ -2,13 +2,17 @@ package cn.vcampus.client.view;
 
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import javax.swing.AbstractButton;
+import javax.swing.ButtonModel;
 import javax.swing.BorderFactory;
 import javax.swing.JComponent;
 import javax.swing.UIManager;
+import javax.swing.plaf.basic.BasicGraphicsUtils;
 import javax.swing.plaf.basic.BasicButtonUI;
 import javax.swing.border.Border;
 
@@ -94,15 +98,6 @@ final class VCampusTheme {
         button.setBackground(background);
         button.setForeground(foreground);
         prepareButton(button);
-        button.getModel().addChangeListener(event -> {
-            if (button.isEnabled()) {
-                button.setBackground(background);
-                button.setForeground(foreground);
-            } else {
-                button.setBackground(new Color(229, 235, 241));
-                button.setForeground(PRIMARY_DARK);
-            }
-        });
     }
 
     private static void prepareButton(AbstractButton button) {
@@ -122,7 +117,7 @@ final class VCampusTheme {
             AbstractButton button = (AbstractButton) component;
             Graphics2D copy = (Graphics2D) graphics.create();
             copy.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            Color background = button.isEnabled() ? button.getBackground() : new Color(229, 235, 241);
+            Color background = button.getBackground();
             if (button.getModel().isPressed() && button.isEnabled()) {
                 background = background.darker();
             }
@@ -130,6 +125,18 @@ final class VCampusTheme {
             copy.fillRoundRect(0, 0, component.getWidth() - 1, component.getHeight() - 1, 8, 8);
             copy.dispose();
             super.paint(graphics, component);
+        }
+
+        @Override
+        protected void paintText(Graphics graphics, JComponent component, Rectangle textRect, String text) {
+            AbstractButton button = (AbstractButton) component;
+            ButtonModel model = button.getModel();
+            FontMetrics metrics = graphics.getFontMetrics();
+            int shift = model.isPressed() && model.isArmed() ? getTextShiftOffset() : 0;
+            graphics.setColor(button.getForeground());
+            BasicGraphicsUtils.drawStringUnderlineCharAt(graphics, text,
+                    button.getDisplayedMnemonicIndex(),
+                    textRect.x + shift, textRect.y + metrics.getAscent() + shift);
         }
     }
 }

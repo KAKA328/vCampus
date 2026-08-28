@@ -5,11 +5,8 @@ import javax.swing.table.DefaultTableModel;
 
 /** Table model that publishes one repaint notification for a complete response. */
 final class BatchTableModel extends DefaultTableModel {
-    private final Object[] columns;
-
     BatchTableModel(Object[] columns) {
         super(columns, 0);
-        this.columns = columns.clone();
     }
 
     @Override
@@ -18,7 +15,10 @@ final class BatchTableModel extends DefaultTableModel {
     }
 
     void replaceRows(List<Object[]> rows) {
-        Object[][] tableRows = rows.toArray(new Object[rows.size()][]);
-        setDataVector(tableRows, columns);
+        dataVector.clear();
+        for (Object[] row : rows) {
+            dataVector.add(convertToVector(row));
+        }
+        fireTableDataChanged();
     }
 }
