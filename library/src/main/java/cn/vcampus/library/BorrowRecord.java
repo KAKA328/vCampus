@@ -4,24 +4,24 @@ import java.io.Serializable;
 import java.time.LocalDate;
 import java.util.Objects;
 
-/** One borrowing record of a book by a student. */
+/** One borrowing record of a book by a user. */
 public final class BorrowRecord implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private final String orderId;
     private final String recordId;
-    private final String studentId;
+    private final String userId;
     private final String bookId;
     private final LocalDate borrowDate;
     private final LocalDate dueDate;
     private final LocalDate returnDate;
     private final BorrowStatus status;
 
-    public BorrowRecord(String orderId, String recordId, String studentId, String bookId,
+    public BorrowRecord(String orderId, String recordId, String userId, String bookId,
                         LocalDate borrowDate, LocalDate dueDate, LocalDate returnDate, BorrowStatus status) {
         this.orderId = requireText(orderId, "orderId");
         this.recordId = requireText(recordId, "recordId");
-        this.studentId = requireText(studentId, "studentId");
+        this.userId = requireText(userId, "userId");
         this.bookId = requireText(bookId, "bookId");
         this.borrowDate = Objects.requireNonNull(borrowDate, "borrowDate");
         this.dueDate = Objects.requireNonNull(dueDate, "dueDate");
@@ -31,7 +31,7 @@ public final class BorrowRecord implements Serializable {
 
     public String getOrderId() { return orderId; }
     public String getRecordId() { return recordId; }
-    public String getStudentId() { return studentId; }
+    public String getUserId() { return userId; }
     public String getBookId() { return bookId; }
     public LocalDate getBorrowDate() { return borrowDate; }
     public LocalDate getDueDate() { return dueDate; }
@@ -42,7 +42,7 @@ public final class BorrowRecord implements Serializable {
 
     /** Returns a copy of this record marked as returned on the given date. */
     public BorrowRecord returned(LocalDate date) {
-        return new BorrowRecord(orderId, recordId, studentId, bookId, borrowDate, dueDate, date, BorrowStatus.RETURNED);
+        return new BorrowRecord(orderId, recordId, userId, bookId, borrowDate, dueDate, date, BorrowStatus.RETURNED);
     }
 
     private static String requireText(String value, String field) {
@@ -56,12 +56,12 @@ public final class BorrowRecord implements Serializable {
         if (this == other) return true;
         if (!(other instanceof BorrowRecord)) return false;
         BorrowRecord that = (BorrowRecord) other;
-        return orderId.equals(that.orderId) && recordId.equals(that.recordId) && studentId.equals(that.studentId)
+        return orderId.equals(that.orderId) && recordId.equals(that.recordId) && userId.equals(that.userId)
                 && bookId.equals(that.bookId) && borrowDate.equals(that.borrowDate) && dueDate.equals(that.dueDate)
                 && Objects.equals(returnDate, that.returnDate) && status == that.status;
     }
 
     @Override public int hashCode() {
-        return Objects.hash(orderId, recordId, studentId, bookId, borrowDate, dueDate, returnDate, status);
+        return Objects.hash(orderId, recordId, userId, bookId, borrowDate, dueDate, returnDate, status);
     }
 }

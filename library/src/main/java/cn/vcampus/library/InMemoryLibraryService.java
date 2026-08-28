@@ -70,18 +70,18 @@ public final class InMemoryLibraryService implements LibraryService {
         return ServiceResult.ok(null);
     }
 
-    @Override public synchronized ServiceResult<Void> borrow(String studentId, String bookId) {
-        return borrowBatch(studentId, Collections.singletonList(bookId));
+    @Override public synchronized ServiceResult<Void> borrow(String userId, String bookId) {
+        return borrowBatch(userId, Collections.singletonList(bookId));
     }
 
-    @Override public synchronized ServiceResult<Void> borrowBatch(String studentId, List<String> bookIds) {
-        if (blank(studentId)) {
-            return ServiceResult.failure(StatusCode.BAD_REQUEST, "studentId must not be blank");
+    @Override public synchronized ServiceResult<Void> borrowBatch(String userId, List<String> bookIds) {
+        if (blank(userId)) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId must not be blank");
         }
         if (bookIds == null || bookIds.isEmpty()) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "bookIds must not be empty");
         }
-        String sid = studentId.trim();
+        String uid = userId.trim();
         List<String> ids = new ArrayList<String>();
         Set<String> seen = new HashSet<String>();
         for (String raw : bookIds) {
@@ -99,8 +99,8 @@ public final class InMemoryLibraryService implements LibraryService {
             if (book.getAvailableCopies() <= 0) {
                 return ServiceResult.failure(StatusCode.CONFLICT, "no available copy: " + bid);
             }
-            if (findActiveRecord(sid, bid) != null) {
-                return ServiceResult.failure(StatusCode.CONFLICT, "book already borrowed by this student: " + bid);
+            if (findActiveRecord(uid, bid) != null) {
+                return ServiceResult.failure(StatusCode.CONFLICT, "book already borrowed by this user: " + bid);
             }
             ids.add(bid);
         }
@@ -109,17 +109,17 @@ public final class InMemoryLibraryService implements LibraryService {
         for (String bid : ids) {
             Book book = books.get(bid);
             books.put(bid, book.withAvailableCopies(book.getAvailableCopies() - 1));
-            records.add(new BorrowRecord(orderId, nextRecordId(), sid, bid,
+            records.add(new BorrowRecord(orderId, nextRecordId(), uid, bid,
                     today, today.plusDays(BORROW_DAYS), null, BorrowStatus.BORROWED));
         }
         return ServiceResult.ok(null);
     }
 
-    @Override public synchronized ServiceResult<Void> returnBook(String studentId, String bookId) {
-        if (blank(studentId)) {
-            return ServiceResult.failure(StatusCode.BAD_REQUEST, "studentId must not be blank");
+    @Override public synchronized ServiceResult<Void> returnBook(String userId, String bookId) {
+        if (blank(userId)) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId must not be blank");
         }
-        BorrowRecord active = findActiveRecord(studentId, bookId);
+        BorrowRecord active = findActiveRecord(userId, bookId);
         if (active == null) {
             return ServiceResult.failure(StatusCode.NOT_FOUND, "no active borrowing record");
         }
@@ -133,11 +133,11 @@ public final class InMemoryLibraryService implements LibraryService {
         return ServiceResult.ok(null);
     }
 
-    @Override public synchronized ServiceResult<List<BorrowRecord>> borrowHistory(String studentId) {
-        String key = studentId == null ? "" : studentId.trim();
+    @Override public synchronized ServiceResult<List<BorrowRecord>> borrowHistory(String userId) {
+        String key = userId == null ? "" : userId.trim();
         List<BorrowRecord> history = new ArrayList<BorrowRecord>();
         for (BorrowRecord record : records) {
-            if (record.getStudentId().equals(key)) {
+            if (record.getUserId().equals(key)) {
                 history.add(record);
             }
         }
@@ -148,12 +148,12 @@ public final class InMemoryLibraryService implements LibraryService {
         return bookId == null ? null : books.get(bookId.trim());
     }
 
-    private BorrowRecord findActiveRecord(String studentId, String bookId) {
-        String sid = studentId.trim();
+    private BorrowRecord findActiveRecord(String userId, String bookId) {
+        String uid = userId.trim();
         String bid = bookId.trim();
         for (BorrowRecord record : records) {
             if (record.getStatus() == BorrowStatus.BORROWED
-                    && record.getStudentId().equals(sid)
+                    && record.getUserId().equals(uid)
                     && record.getBookId().equals(bid)) {
                 return record;
             }

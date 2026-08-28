@@ -17,15 +17,15 @@ public interface LibraryService {
     /** Adds a new book to the catalog (librarian/admin operation). */
     ServiceResult<Void> addBook(Book book);
 
-    /** Borrows one available copy for a student as a single-book order. */
-    ServiceResult<Void> borrow(String studentId, String bookId);
+    /** Borrows one available copy for a user as a single-book order. */
+    ServiceResult<Void> borrow(String userId, String bookId);
 
     /** Borrows several books at once and groups them under one order id. */
-    ServiceResult<Void> borrowBatch(String studentId, List<String> bookIds);
+    ServiceResult<Void> borrowBatch(String userId, List<String> bookIds);
 
     /** Returns an active borrowed copy. */
-    ServiceResult<Void> returnBook(String studentId, String bookId);
+    ServiceResult<Void> returnBook(String userId, String bookId);
 
-    /** Returns the full borrowing history of a student. */
-    ServiceResult<List<BorrowRecord>> borrowHistory(String studentId);
+    /** Returns the full borrowing history of a user. */
+    ServiceResult<List<BorrowRecord>> borrowHistory(String userId);
 }

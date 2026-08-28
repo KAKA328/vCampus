@@ -38,11 +38,11 @@ final class LibraryMessageHandler {
                     break;
                 case LIBRARY_BORROW:
                     BorrowRequest borrow = payload(request, BorrowRequest.class);
-                    result = service.borrow(borrow.getStudentId(), borrow.getBookId());
+                    result = service.borrow(borrow.getUserId(), borrow.getBookId());
                     break;
                 case LIBRARY_RETURN:
                     BorrowRequest returnRequest = payload(request, BorrowRequest.class);
-                    result = service.returnBook(returnRequest.getStudentId(), returnRequest.getBookId());
+                    result = service.returnBook(returnRequest.getUserId(), returnRequest.getBookId());
                     break;
                 case LIBRARY_HISTORY:
                     result = service.borrowHistory(payload(request, String.class));

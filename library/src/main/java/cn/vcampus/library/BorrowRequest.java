@@ -6,15 +6,15 @@ import java.io.Serializable;
 public final class BorrowRequest implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    private final String studentId;
+    private final String userId;
     private final String bookId;
 
-    public BorrowRequest(String studentId, String bookId) {
-        this.studentId = requireText(studentId, "studentId");
+    public BorrowRequest(String userId, String bookId) {
+        this.userId = requireText(userId, "userId");
         this.bookId = requireText(bookId, "bookId");
     }
 
-    public String getStudentId() { return studentId; }
+    public String getUserId() { return userId; }
     public String getBookId() { return bookId; }
 
     private static String requireText(String value, String field) {
