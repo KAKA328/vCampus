@@ -42,7 +42,7 @@ git switch -c feature/store
 
 | 模块 | 主要目录 | 说明 |
 |---|---|---|
-| 用户管理 | `user-management/` | 组长负责，提供管理员开户注册、登录、登出、注销、授权 |
+| 用户管理 | `user-management/` | 组长负责，提供管理员开户注册、批量导入、登录、登出、注销、授权 |
 | 学生学籍管理 | `student-management/` | 学生信息实体、业务接口、数据库访问 |
 | 选课系统 | `course-selection/` | 课程信息、选课、退课、已选课程查询 |
 | 图书馆 | `library/` | 图书查询、借阅、归还、借阅记录 |
@@ -140,7 +140,7 @@ Message response = Message.response(request, StatusCode.OK, data);
 
 | 模块 | MessageType |
 |---|---|
-| 用户管理 | `REGISTER`、`UNREGISTER`、`LOGIN`、`LOGOUT`、`AUTHORIZE` |
+| 用户管理 | `REGISTER`、`USER_IMPORT`、`UNREGISTER`、`LOGIN`、`LOGOUT`、`AUTHORIZE` |
 | 学生学籍 | `STUDENT_QUERY`、`STUDENT_UPDATE` |
 | 选课系统 | `COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP`、`COURSE_CREATE`、`COURSE_UPDATE`、`COURSE_DEACTIVATE` |
 | 图书馆 | `LIBRARY_QUERY`、`LIBRARY_BORROW`、`LIBRARY_RETURN` |
@@ -168,6 +168,7 @@ docs/MODULE_INTEGRATION_GUIDE.md
 - 新增/修改：payload 传实体或保存命令；
 - 涉及登录权限的操作：payload 必须包含 `token`；
 - 不要在 payload 中传明文密码，除登录和管理员开户注册的 `UserCredentials` 外；
+- 用户批量导入例外：`USER_IMPORT` 请求使用 `UserImportCommand(token, rows)`，每行是 `UserImportRow(userId, password, displayName, roleCode)`；只允许管理员端发起，服务端写入 `created_by`、`created_at`、`import_batch_id` 并返回 `UserImportResult`；
 - 不要把数据库连接、文件路径、Socket 对象放进 payload。
 
 示例：选课命令对象可以这样设计：
@@ -306,6 +307,7 @@ final class CourseMessageHandler {
 private Message dispatch(Message request) {
     switch (request.getType()) {
         case REGISTER:
+        case USER_IMPORT:
         case UNREGISTER:
         case LOGIN:
         case LOGOUT:

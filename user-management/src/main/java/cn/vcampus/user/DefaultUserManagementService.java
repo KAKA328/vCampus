@@ -5,6 +5,9 @@ import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.common.User;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 
 /** Repository-backed user service shared by memory and Access deployments. */
 public final class DefaultUserManagementService implements UserManagementService {
@@ -33,18 +36,75 @@ public final class DefaultUserManagementService implements UserManagementService
         return createAccount(c, role);
     }
 
+    @Override public ServiceResult<UserImportResult> importUsers(String token, List<UserImportRow> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "import rows are required");
+        }
+        ServiceResult<Session> current = currentSession(token);
+        if (current.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(current.getStatus(), current.getMessage());
+        }
+        User actor = current.getData().getUser();
+        if (!permissionPolicy.isAllowed(actor.getRole(), Permission.USER_MANAGE)) {
+            return ServiceResult.failure(StatusCode.FORBIDDEN, "permission denied");
+        }
+
+        String batchId = UUID.randomUUID().toString();
+        Instant importedAt = Instant.now();
+        List<UserImportFailure> failures = new ArrayList<UserImportFailure>();
+        int successCount = 0;
+        for (int index = 0; index < rows.size(); index++) {
+            UserImportRow row = rows.get(index);
+            ImportFailure failure = importOne(actor.getUserId(), row, batchId, importedAt);
+            if (failure == null) {
+                successCount++;
+            } else {
+                failures.add(new UserImportFailure(index + 1, failure.userId, failure.message));
+            }
+        }
+        return ServiceResult.ok(new UserImportResult(batchId, rows.size(), successCount, failures));
+    }
+
     private ServiceResult<Void> createAccount(UserCredentials c, Role role) {
+        return createAccount(c, role, null, null, null);
+    }
+
+    private ServiceResult<Void> createAccount(UserCredentials c, Role role,
+                                              String createdBy, Instant createdAt, String importBatchId) {
         final User user;
         try {
             user = new User(c.getUserId(), c.getDisplayName(), role);
         } catch (IllegalArgumentException invalidUser) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "invalid registration data");
         }
-        UserAccount account = new UserAccount(user, passwordHasher.hash(c.getPassword()), true);
+        UserAccount account = new UserAccount(user, passwordHasher.hash(c.getPassword()),
+                true, createdBy, createdAt, importBatchId);
         if (!users.create(account)) {
             return ServiceResult.failure(StatusCode.CONFLICT, "user already exists");
         }
         return ServiceResult.ok(null);
+    }
+
+    private ImportFailure importOne(String actorUserId, UserImportRow row, String batchId, Instant importedAt) {
+        if (row == null) {
+            return new ImportFailure("", "row is invalid");
+        }
+        try {
+            UserCredentials credentials = new UserCredentials(
+                    row.getUserId(), row.getPassword(), row.getDisplayName(), row.getRoleCode());
+            Role role = role(credentials);
+            if (role == null) {
+                return new ImportFailure(row.getUserId(), "invalid role");
+            }
+            ServiceResult<Void> created = createAccount(credentials, role, actorUserId, importedAt, batchId);
+            if (created.getStatus() != StatusCode.OK) {
+                return new ImportFailure(row.getUserId(), created.getMessage());
+            }
+            auditLog.record(new AuditEvent(actorUserId, "IMPORT_USER", "USER", credentials.getUserId(), importedAt));
+            return null;
+        } catch (IllegalArgumentException invalidRow) {
+            return new ImportFailure(row.getUserId(), "invalid import row");
+        }
     }
 
     private static Role role(UserCredentials credentials) {
@@ -100,5 +160,15 @@ public final class DefaultUserManagementService implements UserManagementService
         if (requestedPermission == null) return ServiceResult.failure(StatusCode.BAD_REQUEST, "invalid permission");
         boolean allowed = permissionPolicy.isAllowed(current.getData().getUser().getRole(), requestedPermission);
         return allowed ? ServiceResult.ok(Boolean.TRUE) : ServiceResult.failure(StatusCode.FORBIDDEN, "permission denied");
+    }
+
+    private static final class ImportFailure {
+        private final String userId;
+        private final String message;
+
+        private ImportFailure(String userId, String message) {
+            this.userId = userId;
+            this.message = message;
+        }
     }
 }

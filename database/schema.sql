@@ -5,10 +5,15 @@ CREATE TABLE tblUser (
     display_name VARCHAR(64) NOT NULL,
     role_code VARCHAR(16) NOT NULL,
     active BIT NOT NULL,
+    created_by VARCHAR(32),
+    created_at DATETIME,
+    import_batch_id VARCHAR(36),
     PRIMARY KEY (user_id)
 );
 
 CREATE UNIQUE INDEX uk_tblUser_display_name ON tblUser(display_name);
+CREATE INDEX idx_tblUser_created_by ON tblUser(created_by);
+CREATE INDEX idx_tblUser_import_batch ON tblUser(import_batch_id);
 
 CREATE TABLE tblAuditLog (
     log_id VARCHAR(36) NOT NULL,
