@@ -67,6 +67,13 @@ public final class SelectionRound implements Serializable {
     }
 
     /**
+     * 返回状态更新后的新轮次对象，原对象保持不变，便于服务层安全地替换记录。
+     */
+    public SelectionRound withStatus(SelectionRoundStatus newStatus) {
+        return new SelectionRound(roundId, term, type, startsAt, endsAt, newStatus);
+    }
+
+    /**
      * 判断指定时刻能否接受选课请求。
      *
      * <p>状态必须为开放，且时刻位于开始和结束时间之间（包含两个端点）。</p>
