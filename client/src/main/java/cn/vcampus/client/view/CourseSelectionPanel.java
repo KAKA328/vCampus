@@ -19,7 +19,6 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingWorker;
-import javax.swing.table.DefaultTableModel;
 
 /**
  * 学生选课页面，提供课程查询、选课、退选和已选课程查询功能。
