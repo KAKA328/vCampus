@@ -61,7 +61,7 @@
 
 同一账号同一时间只允许一个活动会话，重复登录由服务器返回 `CONFLICT`。客户端隐藏无权限入口仅作为界面优化，不能替代服务器端授权。
 
-账号注册只解决“能否登录系统”的问题，不直接生成完整学籍档案和历史成绩。学生的学号、班级、专业、联系方式等基础信息保存在学籍表中；首修、重修、成绩、是否通过和获得学分保存在课程结果表中；学业审查根据这些历史记录统计生成。自注册学生如果尚未关联学籍档案，学籍页面应提示“暂无学籍档案，请联系教务管理员维护”。
+系统不提供面向未登录用户的公开自助注册入口。学生、教师和各类管理员账号由系统管理员在用户管理模块中创建或由数据库初始化脚本预置，并发放初始密码。创建学生账号时同步建立 `tblStudent` 学籍档案；创建教师账号时同步建立 `tblTeacher` 教师档案。账号只解决“能否登录系统”的问题，学籍档案、历史成绩和学业审查数据仍由学籍/教务模块维护或由演示数据导入。首修、重修、成绩、是否通过和获得学分保存在课程结果表中；学业审查根据这些历史记录统计生成。若账号尚未关联学籍或教师档案，相关页面应提示联系管理员维护。
 
 ## 3. 系统总体结构
 
@@ -72,7 +72,7 @@ vCampus
 ├── common                  # Message、状态码、角色、共享实体/载荷
 ├── client                  # Swing 界面、客户端控制器、Socket 客户端
 ├── server                  # ServerSocket、线程池、会话、请求分发
-├── user-management         # 用户注册/注销/登录/登出/授权
+├── user-management         # 管理员开户注册/注销/登录/登出/授权
 ├── student-management      # 学生、院系、班级和学籍
 ├── course-selection        # 课程、开课、选课、退选、成绩
 ├── library                 # 图书、库存、借阅、归还
@@ -130,14 +130,14 @@ database                 vCampus.accdb、schema.sql、seed.sql
 
 | 功能 | 学生/教师 | 管理员 | 规则 |
 |---|---:|---:|---|
-| 公开注册 | 是 | 是 | 账号唯一；密码 6-16 位；实验版允许选择所有已定义角色，便于联调和验收演示 |
+| 开立账号 | 否 | 是 | 账号唯一；密码 6-16 位；由管理员创建学生、教师或管理账号，并同步维护对应档案 |
 | 登录 | 是 | 是 | 成功创建会话令牌；失败不泄露账号是否存在 |
 | 登出 | 是 | 是 | 令牌失效；重复登出返回未授权 |
 | 注销账号 | 当前账号 | 任意账号 | 当前用户需确认；管理员可注销其他账号；保留审计记录 |
 | 授权检查 | 被动使用 | 管理权限 | 服务器端按角色和权限编码检查 |
 | 用户查询/维护 | 查看本人 | 增删改查 | 管理员可启用/禁用账号、重置密码 |
 
-核心接口：`UserManagementService.register`、`unregister`、`login`、`currentSession`、`logout`、`authorize`。
+核心接口：`UserManagementService.register`、`unregister`、`login`、`currentSession`、`logout`、`authorize`。其中 `register` 表示管理员端开户注册能力，不作为登录页公开自助入口。
 
 ### 4.2 学生学籍管理模块
 
@@ -252,7 +252,7 @@ database                 vCampus.accdb、schema.sql、seed.sql
 
 | 类型 | 载荷 | 权限 |
 |---|---|---|
-| `REGISTER` | `UserCredentials` | 未登录 |
+| `REGISTER` | `UserCredentials` 或管理员开户注册命令 | 管理员 |
 | `UNREGISTER` | `UserCommand` | 当前用户/管理员 |
 | `LOGIN` | `UserCredentials` | 未登录 |
 | `LOGOUT` | `String token` | 已登录 |
@@ -261,7 +261,9 @@ database                 vCampus.accdb、schema.sql、seed.sql
 | `COURSE_QUERY/SELECT/DROP` | 课程/选课请求 | `COURSE_READ` 或 `COURSE_SELECT`，并校验本人/授课范围 |
 | `COURSE_CREATE/UPDATE/DEACTIVATE` | 课程维护请求 | `COURSE_MANAGE` |
 | `LIBRARY_QUERY/BORROW/RETURN` | 图书/借还请求 | 按借阅规则 |
-| `STORE_QUERY/PURCHASE` | 商品/购买请求 | 按库存和订单规则 |
+| `STORE_QUERY` | `StoreQueryCommand(token)` | `STORE_READ`，服务端按 token 校验 |
+| `STORE_PURCHASE` | `StorePurchaseCommand(token, productId, quantity)` | `STORE_PURCHASE`，服务端按 token 取得 userId |
+| `STORE_ORDER_QUERY` | `StoreOrderQueryCommand(token)` | `STORE_READ`，仅返回当前用户订单 |
 
 ### 6.3 状态码
 
@@ -318,7 +320,7 @@ User 1 ── N Order ── N OrderItem ── N Product
 | 学籍 | `StudentManagementService` | `findById`、`findByClass`、`save` |
 | 选课 | `CourseSelectionService` | `listCourses`、`select`、`drop`、`selectedCourses` |
 | 图书馆 | `LibraryService` | `search`、`borrow`、`returnBook` |
-| 商店 | `StoreService` | `listProducts`、`purchase` |
+| 商店 | `StoreService` | `listProducts`、`purchase`、`findOrdersByUserId` |
 
 每个接口实现均遵循：输入校验 → 权限检查 → 业务规则 → Repository → `ServiceResult<T>`。客户端通过远程适配器调用，不直接引用数据库实现。
 
@@ -340,9 +342,9 @@ LoginFrame
 
 | 页面 | 必须包含 |
 |---|---|
-| 登录页 | 用户编号、密码、登录、注册、错误提示 |
+| 登录页 | 用户编号、密码、登录、忘记密码/联系管理员、错误提示 |
 | 主界面 | 当前用户、角色、退出、模块导航、连接状态 |
-| 用户管理 | 注册/注销、登录状态、权限反馈；管理员显示账号维护 |
+| 用户管理 | 创建账号、注销、重置密码、登录状态、权限反馈；管理员显示账号维护 |
 | 学籍页 | 学号、姓名、院系、班级、状态、联系方式、查询/保存 |
 | 选课页 | 课程筛选、容量、时间、选课/退选、已选课程和成绩 |
 | 图书馆页 | 关键词查询、库存、借阅、归还、借阅记录和应还日期 |
@@ -362,7 +364,7 @@ LoginFrame
 
 | 编号 | 用例 | 预期 |
 |---|---|---|
-| U01 | 新账号注册 | 成功；重复账号返回 `CONFLICT` |
+| U01 | 管理员创建新账号 | 成功；重复账号返回 `CONFLICT`；学生/教师账号创建后可查到对应档案 |
 | U02 | 错误密码登录 | `UNAUTHORIZED`，不泄露敏感信息 |
 | U03 | 登出后访问业务 | `UNAUTHORIZED` |
 | U04 | 学生调用管理员接口 | `FORBIDDEN` |

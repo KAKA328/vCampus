@@ -2,12 +2,14 @@ package cn.vcampus.client;
 
 import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
+import cn.vcampus.common.Role;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.client.view.LoginFrame;
 import cn.vcampus.user.AuthorizationRequest;
 import cn.vcampus.user.Permission;
 import cn.vcampus.user.Session;
 import cn.vcampus.user.UserCredentials;
+import cn.vcampus.user.UserRegistrationCommand;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -23,21 +25,36 @@ public final class ClientApplication {
         String host = valueAfter(args, "--host", "127.0.0.1");
         int port = Integer.parseInt(valueAfter(args, "--port", "19090"));
         if (contains(args, "--demo")) {
-            runDemo(host, port);
+            runDemo(host, port, args);
             return;
         }
         SwingUtilities.invokeLater(() -> new LoginFrame(host, port).setVisible(true));
     }
 
-    private static void runDemo(String host, int port) throws IOException, ClassNotFoundException {
+    private static void runDemo(String host, int port, String[] args) throws IOException, ClassNotFoundException {
         try (Socket socket = new Socket(host, port);
              ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream());
              ObjectInputStream input = new ObjectInputStream(socket.getInputStream())) {
+            UserCredentials admin = new UserCredentials(
+                    valueAfter(args, "--admin-id", "demo_admin"),
+                    valueAfter(args, "--admin-password", "Demo123"),
+                    "Demo Administrator",
+                    Role.ADMIN.name());
             UserCredentials demo = demoCredentials(System.currentTimeMillis());
 
+            Message adminLoginResponse = exchange(output, input,
+                    Message.request("demo-admin-login", MessageType.LOGIN, admin));
+            printResult(adminLoginResponse, "LOGIN ADMIN", StatusCode.OK);
+            Session adminSession = requireSession(adminLoginResponse);
+
             Message registerResponse = exchange(output, input,
-                    Message.request("demo-register", MessageType.REGISTER, demo));
+                    Message.request("demo-admin-register", MessageType.REGISTER,
+                            new UserRegistrationCommand(adminSession.getToken(), demo)));
             printResult(registerResponse, "REGISTER", StatusCode.OK);
+
+            Message adminLogoutResponse = exchange(output, input,
+                    Message.request("demo-admin-logout", MessageType.LOGOUT, adminSession.getToken()));
+            printResult(adminLogoutResponse, "LOGOUT ADMIN", StatusCode.OK);
 
             Message loginResponse = exchange(output, input,
                     Message.request("demo-login", MessageType.LOGIN, demo));
@@ -62,6 +79,10 @@ public final class ClientApplication {
 
     static UserCredentials demoCredentials(long suffix) {
         return new UserCredentials("demo_student_" + suffix, "demo123", "Demo Student", "STUDENT");
+    }
+
+    static UserCredentials demoAdminCredentials() {
+        return new UserCredentials("demo_admin", "Demo123", "Demo Administrator", Role.ADMIN.name());
     }
 
     private static boolean contains(String[] args, String option) {

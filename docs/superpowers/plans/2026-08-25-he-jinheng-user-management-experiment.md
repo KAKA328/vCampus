@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> 设计口径更新：本文件是 2026-08-25 的阶段实施计划，保留当时“注册”一词的历史语境。当前主线设计已调整为“登录页不提供公开自助注册；账号由系统管理员开户注册或由初始化脚本预置”，详见 `docs/EXTERNAL_VCAMPUS_RESEARCH.md`、`docs/SYSTEM_DESIGN.md` 和 `docs/PERMISSIONS.md`。
+
 **Goal:** 先在今晚完成用户注册、登录、授权、登出和注销的可测试 Socket 闭环，再按后续实验接入 Access、Swing 界面和全系统集成。
 
 **Architecture:** 客户端只构造 `Message` 并显示结果，服务器统一完成载荷校验、会话校验、权限判定和业务调用。用户业务依赖 `UserRepository`、`SessionManager` 和 `PermissionPolicy`，先使用内存实现保证联调，再替换为 Access 持久化，不改变客户端协议。
@@ -372,7 +374,7 @@ Expected: GitHub 上出现 `feature/user-management`，但今晚不直接向 `ma
 
 | 设计说明书要求 | 实验对应 |
 |---|---|
-| 用户注册/注销、登录/登出、授权 | E1 + E2 + E3 |
+| 用户开户注册/注销、登录/登出、授权 | E1 + E2 + E3 |
 | 客户端/服务器端逻辑分层 | E1 抽取权限，E2 抽取 Repository/SessionManager |
 | `Message` 通信协议 | E1 处理器测试和 Socket 五步演示 |
 | 实体类和数据库表结构 | E2 `UserRepository`、`tblUser`、`tblAuditLog` |

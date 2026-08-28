@@ -2,17 +2,26 @@ package cn.vcampus.client.view;
 
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import javax.swing.AbstractButton;
+import javax.swing.ButtonModel;
 import javax.swing.BorderFactory;
 import javax.swing.JComponent;
 import javax.swing.UIManager;
+import javax.swing.plaf.basic.BasicGraphicsUtils;
+import javax.swing.plaf.basic.BasicButtonUI;
 import javax.swing.border.Border;
 
 /** Shared Swing styling for the vCampus desktop client. */
 final class VCampusTheme {
-    static final Color PRIMARY = new Color(33, 99, 154);
-    static final Color PRIMARY_DARK = new Color(24, 67, 112);
-    static final Color ACCENT = new Color(51, 132, 203);
+    // Dark enough to keep white button labels readable on every supported L&F.
+    static final Color PRIMARY = new Color(18, 72, 112);
+    static final Color PRIMARY_DARK = new Color(14, 52, 82);
+    static final Color ACCENT = new Color(24, 104, 158);
     static final Color BACKGROUND = new Color(245, 247, 250);
     static final Color SIDEBAR = new Color(232, 239, 247);
     static final Color PANEL = Color.WHITE;
@@ -35,6 +44,8 @@ final class VCampusTheme {
         UIManager.put("TextField.font", font(Font.PLAIN, 14));
         UIManager.put("PasswordField.font", font(Font.PLAIN, 14));
         UIManager.put("ComboBox.font", font(Font.PLAIN, 14));
+        UIManager.put("Button.disabledText", MUTED);
+        UIManager.put("Button.disabledForeground", MUTED);
     }
 
     static Font font(int style, int size) {
@@ -59,22 +70,16 @@ final class VCampusTheme {
     }
 
     static void primaryButton(AbstractButton button) {
-        button.setBackground(new Color(226, 239, 252));
-        button.setForeground(PRIMARY_DARK);
-        button.setFocusPainted(false);
-        button.setContentAreaFilled(true);
-        button.setOpaque(true);
+        button.setFont(font(Font.BOLD, 15));
+        keepButtonReadable(button, PRIMARY, Color.WHITE);
         button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(PRIMARY, 2),
-                padding(9, 20, 9, 20)));
+                BorderFactory.createLineBorder(PRIMARY_DARK, 2),
+                padding(10, 24, 10, 24)));
     }
 
     static void secondaryButton(AbstractButton button) {
-        button.setBackground(new Color(238, 244, 250));
-        button.setForeground(PRIMARY_DARK);
-        button.setFocusPainted(false);
-        button.setContentAreaFilled(true);
-        button.setOpaque(true);
+        button.setFont(font(Font.PLAIN, 14));
+        keepButtonReadable(button, new Color(238, 244, 250), PRIMARY_DARK);
         button.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(BORDER),
                 padding(9, 18, 9, 18)));
@@ -82,9 +87,56 @@ final class VCampusTheme {
 
     static void navButton(AbstractButton button, boolean active) {
         button.setHorizontalAlignment(javax.swing.SwingConstants.LEFT);
-        button.setFocusPainted(false);
         button.setBorder(padding(10, 14, 10, 14));
+        prepareButton(button);
         button.setBackground(active ? PRIMARY : Color.WHITE);
         button.setForeground(active ? Color.WHITE : PRIMARY_DARK);
+    }
+
+    private static void keepButtonReadable(final AbstractButton button, final Color background,
+            final Color foreground) {
+        button.setBackground(background);
+        button.setForeground(foreground);
+        prepareButton(button);
+    }
+
+    private static void prepareButton(AbstractButton button) {
+        button.setUI(new ReadableButtonUI());
+        button.setFocusPainted(false);
+        button.setFocusable(false);
+        button.setRequestFocusEnabled(false);
+        button.setRolloverEnabled(false);
+        button.setContentAreaFilled(false);
+        button.setOpaque(true);
+    }
+
+    /** Paints the configured button background instead of letting Windows L&F replace it. */
+    static final class ReadableButtonUI extends BasicButtonUI {
+        @Override
+        public void paint(Graphics graphics, JComponent component) {
+            AbstractButton button = (AbstractButton) component;
+            Graphics2D copy = (Graphics2D) graphics.create();
+            copy.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            Color background = button.getBackground();
+            if (button.getModel().isPressed() && button.isEnabled()) {
+                background = background.darker();
+            }
+            copy.setColor(background);
+            copy.fillRoundRect(0, 0, component.getWidth() - 1, component.getHeight() - 1, 8, 8);
+            copy.dispose();
+            super.paint(graphics, component);
+        }
+
+        @Override
+        protected void paintText(Graphics graphics, JComponent component, Rectangle textRect, String text) {
+            AbstractButton button = (AbstractButton) component;
+            ButtonModel model = button.getModel();
+            FontMetrics metrics = graphics.getFontMetrics();
+            int shift = model.isPressed() && model.isArmed() ? getTextShiftOffset() : 0;
+            graphics.setColor(button.getForeground());
+            BasicGraphicsUtils.drawStringUnderlineCharAt(graphics, text,
+                    button.getDisplayedMnemonicIndex(),
+                    textRect.x + shift, textRect.y + metrics.getAscent() + shift);
+        }
     }
 }

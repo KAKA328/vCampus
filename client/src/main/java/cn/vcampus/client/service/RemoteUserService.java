@@ -4,6 +4,7 @@ import cn.vcampus.client.transport.SocketMessageClient;
 import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
 import cn.vcampus.user.UserCredentials;
+import cn.vcampus.user.UserRegistrationCommand;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -17,8 +18,8 @@ public final class RemoteUserService implements Closeable {
         this.messages = new SocketMessageClient(host, port);
     }
 
-    public Message register(UserCredentials credentials) throws IOException, ClassNotFoundException {
-        return send(MessageType.REGISTER, credentials);
+    public Message register(String token, UserCredentials credentials) throws IOException, ClassNotFoundException {
+        return send(MessageType.REGISTER, new UserRegistrationCommand(token, credentials));
     }
 
     public Message login(UserCredentials credentials) throws IOException, ClassNotFoundException {

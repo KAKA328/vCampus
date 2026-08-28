@@ -5,10 +5,15 @@ CREATE TABLE tblUser (
     display_name VARCHAR(64) NOT NULL,
     role_code VARCHAR(16) NOT NULL,
     active BIT NOT NULL,
+    created_by VARCHAR(32),
+    created_at DATETIME,
+    import_batch_id VARCHAR(36),
     PRIMARY KEY (user_id)
 );
 
 CREATE UNIQUE INDEX uk_tblUser_display_name ON tblUser(display_name);
+CREATE INDEX idx_tblUser_created_by ON tblUser(created_by);
+CREATE INDEX idx_tblUser_import_batch ON tblUser(import_batch_id);
 
 CREATE TABLE tblAuditLog (
     log_id VARCHAR(36) NOT NULL,
@@ -45,7 +50,8 @@ CREATE INDEX idx_tblCourseSelection_student ON tblCourseSelection(student_id);
 CREATE INDEX idx_tblCourseSelection_course ON tblCourseSelection(course_id);
 
 -- 学籍审查与后续教务管理规划表。
--- 注册只创建登录账号；学生基础信息、历史选课、首修/重修和学分通过情况由教务维护或演示数据导入。
+-- 账号由系统管理员开户注册或由初始化脚本预置；学生/教师账号应同步创建或绑定对应档案。
+-- 学生历史选课、首修/重修和学分通过情况由教务维护或演示数据导入，不由开户注册流程凭空生成。
 CREATE TABLE tblStudent (
     student_id VARCHAR(32) NOT NULL,
     user_id VARCHAR(32),

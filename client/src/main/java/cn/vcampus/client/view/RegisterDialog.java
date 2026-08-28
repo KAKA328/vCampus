@@ -4,6 +4,7 @@ import cn.vcampus.client.service.RemoteUserService;
 import cn.vcampus.common.Message;
 import cn.vcampus.common.Role;
 import cn.vcampus.common.StatusCode;
+import cn.vcampus.user.Session;
 import cn.vcampus.user.UserCredentials;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -26,16 +27,18 @@ import javax.swing.JTextField;
 public final class RegisterDialog extends JDialog {
     private final String host;
     private final int port;
+    private final Session session;
     private final JTextField userId = new PromptTextField(18, CredentialInputGuidance.USER_ID_HINT);
     private final JTextField displayName = new PromptTextField(18, CredentialInputGuidance.DISPLAY_NAME_HINT);
     private final PromptPasswordField password = new PromptPasswordField(18, CredentialInputGuidance.PASSWORD_HINT);
     private final JComboBox<Role> role = new JComboBox<Role>(Role.values());
     private final JLabel status = new JLabel("请按输入框提示填写，带提示文字的空框不会作为内容提交");
 
-    RegisterDialog(java.awt.Frame owner, String host, int port) {
-        super(owner, "注册用户", true);
+    RegisterDialog(java.awt.Frame owner, String host, int port, Session session) {
+        super(owner, "开户注册", true);
         this.host = host;
         this.port = port;
+        this.session = session;
         build();
     }
 
@@ -60,7 +63,7 @@ public final class RegisterDialog extends JDialog {
         JLabel title = new JLabel("创建 vCampus 用户");
         title.setFont(VCampusTheme.font(Font.BOLD, 21));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        JLabel subtitle = new JLabel("请填写账号信息，并选择本次实验需要使用的角色。");
+        JLabel subtitle = new JLabel("仅系统管理员可创建账号；学生和教师账号创建后需同步维护对应档案。");
         subtitle.setForeground(VCampusTheme.MUTED);
         panel.add(title, BorderLayout.NORTH);
         panel.add(subtitle, BorderLayout.SOUTH);
@@ -89,7 +92,7 @@ public final class RegisterDialog extends JDialog {
     private JPanel buttonPanel() {
         JPanel buttons = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.RIGHT, 12, 0));
         buttons.setOpaque(false);
-        JButton submit = new JButton("提交注册");
+        JButton submit = new JButton("创建账号");
         JButton cancel = new JButton("取消");
         VCampusTheme.primaryButton(submit);
         VCampusTheme.secondaryButton(cancel);
@@ -107,17 +110,17 @@ public final class RegisterDialog extends JDialog {
         try (RemoteUserService service = new RemoteUserService(host, port)) {
             UserCredentials credentials = new UserCredentials(
                     userId.getText().trim(), new String(secret), displayName.getText().trim(), selectedRole.name());
-            Message response = service.register(credentials);
+            Message response = service.register(session.getToken(), credentials);
             if (response.getStatusCode() == StatusCode.OK) {
-                JOptionPane.showMessageDialog(this, "注册成功，请返回登录");
+                JOptionPane.showMessageDialog(this, "账号创建成功，请继续维护对应档案并发放初始密码");
                 dispose();
             } else {
-                showStatus("注册失败：" + response.getStatusCode(), VCampusTheme.DANGER);
+                showStatus("创建失败：" + response.getStatusCode(), VCampusTheme.DANGER);
             }
         } catch (IllegalArgumentException invalidInput) {
             showStatus(invalidInput.getMessage(), VCampusTheme.DANGER);
         } catch (IOException | ClassNotFoundException failure) {
-            showStatus("注册失败，请检查输入和服务器连接", VCampusTheme.DANGER);
+            showStatus("创建失败，请检查输入和服务器连接", VCampusTheme.DANGER);
         } finally {
             Arrays.fill(secret, '\0');
         }

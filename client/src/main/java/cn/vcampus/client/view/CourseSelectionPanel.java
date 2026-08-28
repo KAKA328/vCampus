@@ -19,7 +19,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingWorker;
-import javax.swing.table.DefaultTableModel;
+import javax.swing.Timer;
 
 /**
  * 学生选课页面，提供课程查询、选课、退选和已选课程查询功能。
@@ -31,13 +31,8 @@ public final class CourseSelectionPanel extends JPanel {
     private final int port;
     private final Session session;
     private final boolean canSelectCourses;
-    private final DefaultTableModel courseTableModel = new DefaultTableModel(
-            new Object[] {"课程号", "课程名称", "学分", "课程容量"}, 0) {
-        @Override
-        public boolean isCellEditable(int row, int column) {
-            return false;
-        }
-    };
+    private final BatchTableModel courseTableModel = new BatchTableModel(
+            new Object[] {"课程号", "课程名称", "学分", "课程容量"});
     private final JTable courseTable = new JTable(courseTableModel);
     private final JLabel status = new JLabel("请点击“刷新课程”查询课程信息");
     private final JButton refreshButton = new JButton("刷新课程");
@@ -46,6 +41,7 @@ public final class CourseSelectionPanel extends JPanel {
     private final JButton dropButton = new JButton("退选");
 
     private boolean requestInProgress;
+    private final RequestLifecycle requestLifecycle = new RequestLifecycle();
 
     public CourseSelectionPanel(String host, int port, Session session) {
         if (host == null || host.trim().isEmpty() || session == null) {
@@ -221,27 +217,32 @@ public final class CourseSelectionPanel extends JPanel {
             return;
         }
 
-        courseTableModel.setRowCount(0);
         List<?> courses = (List<?>) response.getPayload();
+        java.util.ArrayList<Object[]> rows = new java.util.ArrayList<Object[]>();
         for (Object item : courses) {
             if (!(item instanceof Course)) {
                 showStatus("服务器返回的课程数据格式不正确", VCampusTheme.DANGER);
-                courseTableModel.setRowCount(0);
                 return;
             }
             Course course = (Course) item;
-            courseTableModel.addRow(new Object[] {
+            rows.add(new Object[] {
                     course.getCourseId(), course.getName(), course.getCredits(), course.getCapacity()
             });
         }
+        courseTableModel.replaceRows(rows);
         showStatus(successMessage + "，共 " + courses.size() + " 门", VCampusTheme.SUCCESS);
     }
 
     private void runRequest(String loadingMessage, final CourseRequest request,
             final ResponseHandler responseHandler) {
+        final int requestId = requestLifecycle.begin();
         requestInProgress = true;
         updateButtonState();
-        showStatus(loadingMessage, VCampusTheme.MUTED);
+        final Timer loadingStatus = DelayedUiUpdate.once(() -> {
+            if (requestLifecycle.isCurrent(requestId) && requestInProgress) {
+                showStatus(loadingMessage, VCampusTheme.MUTED);
+            }
+        });
 
         new SwingWorker<Message, Void>() {
             @Override
@@ -253,12 +254,16 @@ public final class CourseSelectionPanel extends JPanel {
 
             @Override
             protected void done() {
-                requestInProgress = false;
-                updateButtonState();
                 try {
                     responseHandler.handle(get());
                 } catch (Exception failure) {
                     showStatus("无法连接选课服务器，请确认服务器已启动", VCampusTheme.DANGER);
+                } finally {
+                    loadingStatus.stop();
+                    if (requestLifecycle.isCurrent(requestId)) {
+                        requestInProgress = false;
+                        updateButtonState();
+                    }
                 }
             }
         }.execute();

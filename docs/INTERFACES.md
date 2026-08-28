@@ -4,11 +4,11 @@
 
 | 模块 | 核心接口 | 初始操作 |
 |---|---|---|
-| 用户管理 | `UserManagementService` | `register`、`unregister`、`login`、`currentSession`、`logout`、`authorize`；载荷见 `UserCredentials`、`UserCommand`、`AuthorizationRequest` |
+| 用户管理 | `UserManagementService` | `register`、`importUsers`、`unregister`、`login`、`currentSession`、`logout`、`authorize`；`register` 作为管理员端开户注册能力，批量导入使用 `USER_IMPORT`，载荷见 `UserCredentials`、`UserImportCommand`、`UserCommand`、`AuthorizationRequest` |
 | 学生学籍 | `StudentManagementService` | `findById`、`findByClass`、`save` |
 | 选课 | `CourseSelectionService` | `listCourses`、`select`、`drop`、`selectedCourses`；课程维护消息见下文 |
 | 图书馆 | `LibraryService` | `search`、`borrow`、`returnBook` |
-| 商店 | `StoreService` | `listProducts`、`purchase` |
+| 商店 | `StoreService` | `listProducts`、`purchase`、`findOrdersByUserId`；商店消息使用 token-only 命令，用户编号由服务器会话解析 |
 
 所有服务方法返回 `ServiceResult<T>`，由服务器统一映射为 `Message` 响应。服务端必须再次校验会话和权限。
 
@@ -25,18 +25,22 @@
 7. 正常、异常、权限拒绝测试；
 8. 本文档中的接口说明。
 
-例如商店模块若新增订单查询，可使用 `STORE_ORDER_QUERY` 一类消息类型，但需要同时明确：
+商店当前使用 `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY`，对应 `StoreQueryCommand(token)`、`StorePurchaseCommand(token, productId, quantity)`、`StoreOrderQueryCommand(token)`。服务端必须从 token 对应会话取得 `userId`，不得相信客户端传入的学生/用户编号。
+
+用户批量导入使用 `USER_IMPORT`。请求 payload 为 `UserImportCommand(token, rows)`，其中 `rows` 是 `UserImportRow(userId, password, displayName, roleCode)` 列表；响应 payload 为 `UserImportResult(importBatchId, totalCount, successCount, failures)`，失败明细为 `UserImportFailure(rowNumber, userId, message)`。该能力要求 `USER_MANAGE`，服务端会记录导入管理员、导入时间、导入批次，并为每个成功创建的账号写入 `IMPORT_USER` 审计记录。单行失败不会影响同批次其它有效账号。
+
+商店订单查询需要同时明确：
 
 - 学生、教师查询本人订单；
-- 商店管理员查询商店订单列表；
+- 当前 `STORE_ORDER_QUERY` 统一只查询 token 对应用户的本人订单；若后续开放商店管理员全量订单查询，应新增独立的管理查询命令和数据范围说明；
 - 其他无关角色请求时服务器返回 `FORBIDDEN`；
-- 请求中即使伪造用户编号，也必须以 token 对应身份为准。
+- 请求中不携带用户编号，服务端始终以 token 对应身份为准。
 
 ## 权限与课程维护公共契约
 
 - 角色新增 `ACADEMIC_ADMIN`；完整角色权限和数据范围以 [`PERMISSIONS.md`](PERMISSIONS.md) 为准。
-- 当前实验版公开 `REGISTER` 按 `UserCredentials.roleCode` 创建所有已定义角色账号，便于成员联调；各业务操作仍必须在服务器端按 token、角色权限和数据范围再次校验。
-- `REGISTER` 只创建登录账号，不自动生成学生学籍档案、历史成绩或学业审查记录；这些数据由学籍/教务模块维护或由演示数据导入。
+- 系统不提供面向未登录用户的公开自助注册。`REGISTER` 表示管理员端开户注册能力，必须由已登录管理员发起或由初始化脚本预置测试账号；各业务操作仍必须在服务器端按 token、角色权限和数据范围再次校验。
+- 创建学生账号时应同步创建或绑定 `tblStudent` 学籍档案；创建教师账号时应同步创建或绑定 `tblTeacher` 教师档案。历史成绩和学业审查记录不由账号创建自动生成，而由学籍/教务模块维护或由演示数据导入。
 - `LOGIN` 成功后返回 `Session`；同一账号已有活动会话时再次登录返回 `CONFLICT`，登出或注销后可重新登录。
 - 首个系统管理员由服务器读取 `VCAMPUS_BOOTSTRAP_ADMIN_ID`、`VCAMPUS_BOOTSTRAP_ADMIN_PASSWORD`、`VCAMPUS_BOOTSTRAP_ADMIN_NAME` 后在进程内初始化，不通过 Socket 暴露管理员注册接口。
 - 权限新增 `COURSE_MANAGE`、`GRADE_WRITE`、`ACADEMIC_REVIEW`。

@@ -9,7 +9,7 @@
 - Maven 多模块项目结构；
 - 客户端、服务器端、公共协议模块；
 - 用户管理模块基础实现；
-- Swing 登录、注册、主界面总控框架；
+- Swing 登录、主界面总控框架；开户注册入口收敛到管理员用户管理页面；
 - `Message` 消息协议、`ServiceResult` 返回格式和 `StatusCode` 状态码；
 - 学生学籍、选课、图书馆、商店四个模块的基础接口和实体占位类；
 - 选课模块的课程查询、学生选课、退课和本人已选课程查询已接入服务器和学生客户端页面。
@@ -42,7 +42,7 @@ git switch -c feature/store
 
 | 模块 | 主要目录 | 说明 |
 |---|---|---|
-| 用户管理 | `user-management/` | 组长负责，提供注册、登录、登出、注销、授权 |
+| 用户管理 | `user-management/` | 组长负责，提供管理员开户注册、批量导入、登录、登出、注销、授权 |
 | 学生学籍管理 | `student-management/` | 学生信息实体、业务接口、数据库访问 |
 | 选课系统 | `course-selection/` | 课程信息、选课、退课、已选课程查询 |
 | 图书馆 | `library/` | 图书查询、借阅、归还、借阅记录 |
@@ -140,11 +140,11 @@ Message response = Message.response(request, StatusCode.OK, data);
 
 | 模块 | MessageType |
 |---|---|
-| 用户管理 | `REGISTER`、`UNREGISTER`、`LOGIN`、`LOGOUT`、`AUTHORIZE` |
+| 用户管理 | `REGISTER`、`USER_IMPORT`、`UNREGISTER`、`LOGIN`、`LOGOUT`、`AUTHORIZE` |
 | 学生学籍 | `STUDENT_QUERY`、`STUDENT_UPDATE` |
 | 选课系统 | `COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP`、`COURSE_CREATE`、`COURSE_UPDATE`、`COURSE_DEACTIVATE` |
 | 图书馆 | `LIBRARY_QUERY`、`LIBRARY_BORROW`、`LIBRARY_RETURN` |
-| 商店 | `STORE_QUERY`、`STORE_PURCHASE` |
+| 商店 | `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY` |
 
 如果需要新增消息类型，必须同步修改：
 
@@ -154,7 +154,7 @@ docs/INTERFACES.md
 docs/MODULE_INTEGRATION_GUIDE.md
 ```
 
-新增消息类型不能只改枚举。合并前必须同时确认：请求 payload、响应 payload、服务端 Handler、`ServerApplication` 分发、客户端远程调用、权限校验、接口文档和测试是否一起补齐。例如商店模块若新增订单查询能力，应在该模块分支中加入类似 `STORE_ORDER_QUERY` 的消息类型，并说明它查询的是“当前用户本人订单”还是“商店管理员订单列表”；服务器端必须按 token 和角色判断数据范围，不能只靠客户端隐藏按钮。
+新增消息类型不能只改枚举。合并前必须同时确认：请求 payload、响应 payload、服务端 Handler、`ServerApplication` 分发、客户端远程调用、权限校验、接口文档和测试是否一起补齐。商店订单查询使用 `StoreOrderQueryCommand(token)`，只返回 token 对应用户的本人订单；商品查询使用 `StoreQueryCommand(token)`，不再发送空 payload。服务器端必须按 token 和角色判断数据范围，不能只靠客户端隐藏按钮。
 
 公共角色、权限编码和数据范围见 [`PERMISSIONS.md`](PERMISSIONS.md)。课程新增、修改和停开操作必须先校验 `COURSE_MANAGE`；任课教师录入成绩校验 `GRADE_WRITE`；教务复核校验 `ACADEMIC_REVIEW`。
 
@@ -167,7 +167,8 @@ docs/MODULE_INTEGRATION_GUIDE.md
 - 查询列表：payload 可以传关键词、学生编号或专门的查询命令；
 - 新增/修改：payload 传实体或保存命令；
 - 涉及登录权限的操作：payload 必须包含 `token`；
-- 不要在 payload 中传明文密码，除登录/注册的 `UserCredentials` 外；
+- 不要在 payload 中传明文密码，除登录和管理员开户注册的 `UserCredentials` 外；
+- 用户批量导入例外：`USER_IMPORT` 请求使用 `UserImportCommand(token, rows)`，每行是 `UserImportRow(userId, password, displayName, roleCode)`；只允许管理员端发起，服务端写入 `created_by`、`created_at`、`import_batch_id` 并返回 `UserImportResult`；
 - 不要把数据库连接、文件路径、Socket 对象放进 payload。
 
 示例：选课命令对象可以这样设计：
@@ -306,6 +307,7 @@ final class CourseMessageHandler {
 private Message dispatch(Message request) {
     switch (request.getType()) {
         case REGISTER:
+        case USER_IMPORT:
         case UNREGISTER:
         case LOGIN:
         case LOGOUT:
@@ -459,7 +461,7 @@ cd D:\codex\java协作
 mvn clean test
 ```
 
-首次需要管理员账号时，在启动服务器的同一个 PowerShell 终端设置：
+数据库演示数据应预置系统管理员、教务管理员、图书管理员、商店管理员、教师和学生账号；所有演示账号的初始密码在 `database/seed.sql` 中说明。若使用内存模式或空数据库首次启动，可在启动服务器的同一个 PowerShell 终端设置：
 
 ```powershell
 $env:VCAMPUS_BOOTSTRAP_ADMIN_ID="admin001"
@@ -467,7 +469,7 @@ $env:VCAMPUS_BOOTSTRAP_ADMIN_PASSWORD="Admin123"
 $env:VCAMPUS_BOOTSTRAP_ADMIN_NAME="系统管理员"
 ```
 
-该账号由服务器进程初始化，不经过客户端公开注册接口。不要把真实密码写入源码、脚本或提交记录。
+该账号由服务器进程初始化，不经过客户端开户注册页面。不要把真实密码写入源码、脚本或提交记录。
 
 启动服务器：
 
