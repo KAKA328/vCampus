@@ -178,3 +178,38 @@ mvn clean test
 | E3 | 启动服务器后运行客户端 GUI，人工检查登录、注册、角色菜单、退出登录体验 |
 | E4 | 打包可运行程序，补充用户使用说明书、最终测试截图和验收清单 |
 | 集成 | 等其他组员模块完成后，把学籍、选课、图书馆、商店页面替换到主界面占位面板中 |
+
+## 11. E3.5 补充实验：用户批量导入后端闭环
+
+根据老师意见中“用户管理增加批量导入用户功能，增加导入人字段”的要求，本次补充实验只推进后端和对接契约，不改客户端页面，避免影响后续子系统 PR 合并。
+
+| 项目 | 完成内容 |
+|---|---|
+| 服务接口 | `UserManagementService` 新增 `importUsers(token, rows)` |
+| 消息类型 | `MessageType` 新增 `USER_IMPORT` |
+| 请求对象 | `UserImportCommand(token, rows)`，每行使用 `UserImportRow(userId, password, displayName, roleCode)` |
+| 响应对象 | `UserImportResult(importBatchId, totalCount, successCount, failures)` |
+| 失败明细 | `UserImportFailure(rowNumber, userId, message)` |
+| 权限控制 | 服务端校验 `USER_MANAGE`，非管理员导入返回 `FORBIDDEN` |
+| 导入追踪 | `tblUser` 新增 `created_by`、`created_at`、`import_batch_id` |
+| 审计记录 | 每个成功导入账号写入 `IMPORT_USER`，记录导入管理员和目标账号 |
+| 数据库迁移 | 新增 `003_user_import_metadata.up.sql` / `003_user_import_metadata.down.sql` |
+
+新增自动化测试覆盖：
+
+| 测试项 | 结果 |
+|---|---|
+| 管理员可批量导入学生/教师账号，导入后可登录 | 通过 |
+| 成功导入账号记录导入人、导入批次和创建时间 | 通过 |
+| 批量导入中某一行重复时，不影响其它有效行 | 通过 |
+| 普通学生不能导入账号，且不会创建任何账号 | 通过 |
+| 空导入列表返回 `BAD_REQUEST` | 通过 |
+| `USER_IMPORT` 消息可通过服务器用户 Handler 调用 | 通过 |
+
+已执行全量测试：
+
+```powershell
+mvn test
+```
+
+结果：全部模块测试通过。

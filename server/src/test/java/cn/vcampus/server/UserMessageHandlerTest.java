@@ -15,7 +15,11 @@ import cn.vcampus.user.Session;
 import cn.vcampus.user.SessionManager;
 import cn.vcampus.user.UserManagementService;
 import cn.vcampus.user.UserCredentials;
+import cn.vcampus.user.UserImportCommand;
+import cn.vcampus.user.UserImportResult;
+import cn.vcampus.user.UserImportRow;
 import cn.vcampus.user.UserRegistrationCommand;
+import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -71,6 +75,22 @@ class UserMessageHandlerTest {
                 new UserRegistrationCommand(session.getToken(), target)));
 
         assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
+    }
+
+    @Test
+    void adminCanImportUsersThroughMessages() {
+        Session adminSession = loginAsAdmin();
+
+        Message response = handler.handle(Message.request("r11", MessageType.USER_IMPORT,
+                new UserImportCommand(adminSession.getToken(), Arrays.asList(
+                        new UserImportRow("srv_imp001", "Demo123", "Imported User", Role.STUDENT.name())))));
+        Message loginResponse = handler.handle(Message.request("r12", MessageType.LOGIN,
+                new UserCredentials("srv_imp001", "Demo123", "Imported User", Role.STUDENT.name())));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertTrue(response.getPayload() instanceof UserImportResult);
+        assertEquals(1, ((UserImportResult) response.getPayload()).getSuccessCount());
+        assertEquals(StatusCode.OK, loginResponse.getStatusCode());
     }
 
     @Test

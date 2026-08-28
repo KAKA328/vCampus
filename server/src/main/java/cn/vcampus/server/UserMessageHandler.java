@@ -9,6 +9,7 @@ import cn.vcampus.user.Permission;
 import cn.vcampus.user.UserCommand;
 import cn.vcampus.user.UserManagementService;
 import cn.vcampus.user.UserCredentials;
+import cn.vcampus.user.UserImportCommand;
 import cn.vcampus.user.UserRegistrationCommand;
 
 /** Adapts user-management service results to the shared Socket message protocol. */
@@ -34,6 +35,10 @@ final class UserMessageHandler {
                     break;
                 case LOGIN:
                     result = service.login(payload(request, UserCredentials.class));
+                    break;
+                case USER_IMPORT:
+                    UserImportCommand importCommand = payload(request, UserImportCommand.class);
+                    result = service.importUsers(importCommand.getToken(), importCommand.getRows());
                     break;
                 case UNREGISTER:
                     UserCommand unregister = payload(request, UserCommand.class);

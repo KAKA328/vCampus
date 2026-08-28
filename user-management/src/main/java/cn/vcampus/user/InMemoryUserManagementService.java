@@ -1,6 +1,7 @@
 package cn.vcampus.user;
 
 import cn.vcampus.common.ServiceResult;
+import java.util.List;
 
 /** In-memory service for local protocol demos and early integration tests. */
 public final class InMemoryUserManagementService implements UserManagementService {
@@ -16,6 +17,10 @@ public final class InMemoryUserManagementService implements UserManagementServic
 
     @Override public ServiceResult<Void> register(UserCredentials c) {
         return delegate.register(c);
+    }
+
+    @Override public ServiceResult<UserImportResult> importUsers(String token, List<UserImportRow> rows) {
+        return delegate.importUsers(token, rows);
     }
 
     @Override public ServiceResult<Void> unregister(String userId, String token) {

@@ -4,7 +4,7 @@
 
 | 模块 | 核心接口 | 初始操作 |
 |---|---|---|
-| 用户管理 | `UserManagementService` | `register`、`unregister`、`login`、`currentSession`、`logout`、`authorize`；`register` 作为管理员端开户注册能力，载荷见 `UserCredentials`、`UserCommand`、`AuthorizationRequest` |
+| 用户管理 | `UserManagementService` | `register`、`importUsers`、`unregister`、`login`、`currentSession`、`logout`、`authorize`；`register` 作为管理员端开户注册能力，批量导入使用 `USER_IMPORT`，载荷见 `UserCredentials`、`UserImportCommand`、`UserCommand`、`AuthorizationRequest` |
 | 学生学籍 | `StudentManagementService` | `findById`、`findByClass`、`save` |
 | 选课 | `CourseSelectionService` | `listCourses`、`select`、`drop`、`selectedCourses`；课程维护消息见下文 |
 | 图书馆 | `LibraryService` | `search`、`borrow`、`returnBook` |
@@ -26,6 +26,8 @@
 8. 本文档中的接口说明。
 
 商店当前使用 `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY`，对应 `StoreQueryCommand(token)`、`StorePurchaseCommand(token, productId, quantity)`、`StoreOrderQueryCommand(token)`。服务端必须从 token 对应会话取得 `userId`，不得相信客户端传入的学生/用户编号。
+
+用户批量导入使用 `USER_IMPORT`。请求 payload 为 `UserImportCommand(token, rows)`，其中 `rows` 是 `UserImportRow(userId, password, displayName, roleCode)` 列表；响应 payload 为 `UserImportResult(importBatchId, totalCount, successCount, failures)`，失败明细为 `UserImportFailure(rowNumber, userId, message)`。该能力要求 `USER_MANAGE`，服务端会记录导入管理员、导入时间、导入批次，并为每个成功创建的账号写入 `IMPORT_USER` 审计记录。单行失败不会影响同批次其它有效账号。
 
 商店订单查询需要同时明确：
 
