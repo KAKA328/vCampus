@@ -4,9 +4,12 @@ import cn.vcampus.client.transport.SocketMessageClient;
 import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
 import cn.vcampus.user.UserCredentials;
+import cn.vcampus.user.UserImportCommand;
+import cn.vcampus.user.UserImportRow;
 import cn.vcampus.user.UserRegistrationCommand;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** Client-side adapter for user-management messages. */
@@ -20,6 +23,10 @@ public final class RemoteUserService implements Closeable {
 
     public Message register(String token, UserCredentials credentials) throws IOException, ClassNotFoundException {
         return send(MessageType.REGISTER, new UserRegistrationCommand(token, credentials));
+    }
+
+    public Message importUsers(String token, List<UserImportRow> rows) throws IOException, ClassNotFoundException {
+        return send(MessageType.USER_IMPORT, new UserImportCommand(token, rows));
     }
 
     public Message login(UserCredentials credentials) throws IOException, ClassNotFoundException {

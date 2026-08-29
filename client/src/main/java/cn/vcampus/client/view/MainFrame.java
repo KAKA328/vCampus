@@ -183,24 +183,7 @@ public final class MainFrame extends JFrame {
     }
 
     private JPanel userManagementPanel() {
-        JPanel panel = new JPanel(new BorderLayout(0, 18));
-        panel.setOpaque(false);
-        panel.add(sectionTitle("用户管理", "创建账号、发放初始密码，并按角色维护系统入口。"), BorderLayout.NORTH);
-
-        JPanel card = new JPanel(new BorderLayout(0, 12));
-        VCampusTheme.panel(card);
-        JLabel summary = new JLabel("<html><div style='line-height:1.8;'>"
-                + "开户注册仅限系统管理员。创建学生账号后请在学籍管理中补齐学籍档案；"
-                + "创建教师账号后请维护教师档案。"
-                + "</div></html>");
-        summary.setForeground(VCampusTheme.TEXT);
-        JButton create = new JButton("创建账号");
-        VCampusTheme.primaryButton(create);
-        create.addActionListener(e -> new RegisterDialog(this, host, port, session).setVisible(true));
-        card.add(summary, BorderLayout.CENTER);
-        card.add(create, BorderLayout.SOUTH);
-        panel.add(card, BorderLayout.NORTH);
-        return panel;
+        return new UserManagementPanel(this, host, port, session);
     }
 
     private JPanel sectionTitle(String titleText, String subtitleText) {
