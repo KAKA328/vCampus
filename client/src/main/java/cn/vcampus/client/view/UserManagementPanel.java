@@ -14,10 +14,10 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Frame;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
-import javax.swing.DefaultCellEditor;
 import javax.swing.JButton;
-import javax.swing.JComboBox;
+import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -25,6 +25,7 @@ import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingWorker;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 /** Administrator user-management page with single-account and batch-import actions. */
 final class UserManagementPanel extends JPanel {
@@ -34,11 +35,12 @@ final class UserManagementPanel extends JPanel {
     private final Session session;
     private final UserImportTableModel importTableModel = new UserImportTableModel();
     private final JTable importTable = new JTable(importTableModel);
-    private final JLabel status = new JLabel("可直接在表格中填写多行账号，再一次性导入。");
+    private final JLabel selectedFile = new JLabel("尚未选择导入文件");
+    private final JLabel status = new JLabel("请选择 Excel 或 CSV 文件，系统会先预览账号，再写入 Access 数据库。");
     private final JButton createButton = new JButton("创建单个账号");
-    private final JButton addRowButton = new JButton("添加一行");
-    private final JButton removeRowButton = new JButton("删除选中行");
-    private final JButton importButton = new JButton("导入账号");
+    private final JButton chooseFileButton = new JButton("选择Excel/CSV文件");
+    private final JButton importButton = new JButton("导入文件账号");
+    private final UserImportFileReader fileReader = new UserImportFileReader();
     private boolean requestInProgress;
 
     UserManagementPanel(Frame owner, String host, int port, Session session) {
@@ -59,10 +61,9 @@ final class UserManagementPanel extends JPanel {
         add(body(), BorderLayout.CENTER);
 
         createButton.addActionListener(event -> new RegisterDialog(owner, host, port, session).setVisible(true));
-        addRowButton.addActionListener(event -> importTableModel.addBlankRow());
-        removeRowButton.addActionListener(event ->
-                importTableModel.removeSelectedRows(importTable.getSelectedRows(), importTable));
+        chooseFileButton.addActionListener(event -> chooseImportFile());
         importButton.addActionListener(event -> importUsers());
+        updateButtonState();
     }
 
     private JPanel header() {
@@ -71,7 +72,7 @@ final class UserManagementPanel extends JPanel {
         JLabel title = new JLabel("用户管理");
         title.setFont(VCampusTheme.font(Font.BOLD, 24));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        JLabel subtitle = new JLabel("创建账号、批量发放初始密码，并留下导入人和审计记录。");
+        JLabel subtitle = new JLabel("创建账号、从文件批量导入账号，并留下导入人和审计记录。");
         subtitle.setForeground(VCampusTheme.MUTED);
         panel.add(title, BorderLayout.NORTH);
         panel.add(subtitle, BorderLayout.SOUTH);
@@ -116,7 +117,7 @@ final class UserManagementPanel extends JPanel {
         JLabel title = new JLabel("批量导入账号");
         title.setFont(VCampusTheme.font(Font.BOLD, 18));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        JLabel hint = new JLabel("账号支持字母、数字、下划线；密码 6-16 位；角色可在单元格中选择。");
+        JLabel hint = new JLabel("支持 .xlsx、.csv、.tsv；导入源是表格文件，最终数据仍保存到 Access。");
         hint.setForeground(VCampusTheme.MUTED);
         titlePanel.add(title, BorderLayout.NORTH);
         titlePanel.add(hint, BorderLayout.SOUTH);
@@ -133,21 +134,14 @@ final class UserManagementPanel extends JPanel {
 
     private void configureTable() {
         importTable.setRowHeight(30);
-        importTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        importTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         importTable.getTableHeader().setReorderingAllowed(false);
         importTable.setGridColor(VCampusTheme.BORDER);
         importTable.setShowVerticalLines(false);
         importTable.getColumnModel().getColumn(0).setPreferredWidth(120);
-        importTable.getColumnModel().getColumn(1).setPreferredWidth(120);
+        importTable.getColumnModel().getColumn(1).setPreferredWidth(160);
         importTable.getColumnModel().getColumn(2).setPreferredWidth(120);
-        importTable.getColumnModel().getColumn(3).setPreferredWidth(120);
-        importTable.getColumnModel().getColumn(4).setPreferredWidth(180);
-
-        JComboBox<String> roles = new JComboBox<String>();
-        for (Role role : Role.values()) {
-            roles.addItem(role.name());
-        }
-        importTable.getColumnModel().getColumn(3).setCellEditor(new DefaultCellEditor(roles));
+        importTable.getColumnModel().getColumn(3).setPreferredWidth(220);
     }
 
     private JPanel importFooter() {
@@ -156,24 +150,50 @@ final class UserManagementPanel extends JPanel {
 
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         actions.setOpaque(false);
-        VCampusTheme.secondaryButton(addRowButton);
-        VCampusTheme.secondaryButton(removeRowButton);
+        VCampusTheme.secondaryButton(chooseFileButton);
         VCampusTheme.primaryButton(importButton);
-        actions.add(addRowButton);
-        actions.add(removeRowButton);
+        actions.add(chooseFileButton);
         actions.add(importButton);
 
+        selectedFile.setForeground(VCampusTheme.MUTED);
         status.setForeground(VCampusTheme.MUTED);
         panel.add(actions, BorderLayout.NORTH);
+        panel.add(selectedFile, BorderLayout.CENTER);
         panel.add(status, BorderLayout.SOUTH);
         return panel;
     }
 
+    private void chooseImportFile() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("选择用户导入文件");
+        chooser.setFileFilter(new FileNameExtensionFilter("Excel/CSV 文件 (*.xlsx, *.csv, *.tsv)",
+                "xlsx", "csv", "tsv"));
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        loadImportFile(chooser.getSelectedFile().toPath());
+    }
+
+    void loadImportFile(Path file) {
+        try {
+            List<UserImportRow> rows = fileReader.read(file);
+            importTableModel.replaceImportRows(rows);
+            selectedFile.setText(file.getFileName() + "，共读取 " + rows.size() + " 行");
+            showStatus(rows.isEmpty() ? "文件中没有可导入账号" : "文件读取成功，请确认预览后导入",
+                    rows.isEmpty() ? VCampusTheme.DANGER : VCampusTheme.SUCCESS);
+            updateButtonState();
+        } catch (IllegalArgumentException | IOException failure) {
+            importTableModel.replaceImportRows(java.util.Collections.<UserImportRow>emptyList());
+            selectedFile.setText("尚未选择导入文件");
+            showStatus(failure.getMessage(), VCampusTheme.DANGER);
+            updateButtonState();
+        }
+    }
+
     private void importUsers() {
-        importTableModel.commitActiveEditor(importTable);
         final List<UserImportRow> rows = importTableModel.toImportRows();
         if (rows.isEmpty()) {
-            showStatus("请至少填写一行账号信息", VCampusTheme.DANGER);
+            showStatus("请先选择包含账号数据的 Excel 或 CSV 文件", VCampusTheme.DANGER);
             return;
         }
         requestInProgress = true;
@@ -220,9 +240,8 @@ final class UserManagementPanel extends JPanel {
 
     private void updateButtonState() {
         createButton.setEnabled(!requestInProgress);
-        addRowButton.setEnabled(!requestInProgress);
-        removeRowButton.setEnabled(!requestInProgress);
-        importButton.setEnabled(!requestInProgress);
+        chooseFileButton.setEnabled(!requestInProgress);
+        importButton.setEnabled(!requestInProgress && !importTableModel.toImportRows().isEmpty());
         importTable.setEnabled(!requestInProgress);
     }
 
