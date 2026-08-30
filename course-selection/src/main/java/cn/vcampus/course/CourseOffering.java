@@ -110,6 +110,25 @@ public final class CourseOffering implements Serializable {
         return status;
     }
 
+    /**
+     * 返回状态更新后的新教学班对象，原对象保持不变。
+     */
+    public CourseOffering withStatus(CourseOfferingStatus newStatus) {
+        return new CourseOffering(offeringId, courseId, term, teacherId, schedule, location,
+                requiredCapacity, electiveCapacity, crossMajorCapacity, newStatus);
+    }
+
+    /**
+     * 返回容量更新后的新教学班对象。
+     *
+     * <p>后续接入实际选课记录后，服务层还需要确保新容量不低于已经选中的人数。</p>
+     */
+    public CourseOffering withCapacities(int newRequiredCapacity, int newElectiveCapacity,
+            int newCrossMajorCapacity) {
+        return new CourseOffering(offeringId, courseId, term, teacherId, schedule, location,
+                newRequiredCapacity, newElectiveCapacity, newCrossMajorCapacity, status);
+    }
+
     private static String requireText(String value, String fieldName) {
         if (value == null || value.trim().isEmpty()) {
             throw new IllegalArgumentException(fieldName + " must not be blank");
