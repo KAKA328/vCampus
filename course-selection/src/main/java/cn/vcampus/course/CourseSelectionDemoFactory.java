@@ -13,6 +13,11 @@ public final class CourseSelectionDemoFactory {
     }
 
     public static CourseSelectionService createService() {
+        return createModule().getSelectionService();
+    }
+
+    /** 创建一组共享课程目录、教学班和选课记录的本地演示服务。 */
+    public static CourseSelectionModule createModule() {
         InMemoryCourseCatalogService catalog = new InMemoryCourseCatalogService();
         catalog.create(new Course("JAVA101", "Java 程序设计", 3));
         catalog.create(new Course("DB101", "数据库原理", 3));
@@ -33,7 +38,8 @@ public final class CourseSelectionDemoFactory {
                         now.minusDays(1), now.plusDays(30), SelectionRoundStatus.OPEN),
                 new SelectionRound("ROUND-RETAKE", DEMO_TERM, SelectionRoundType.RETAKE,
                         now.minusDays(1), now.plusDays(30), SelectionRoundStatus.OPEN)));
-        InMemoryCourseOfferingService offerings = new InMemoryCourseOfferingService(catalog);
+        InMemoryCourseSelectionRecordService records = new InMemoryCourseSelectionRecordService();
+        InMemoryCourseOfferingService offerings = new InMemoryCourseOfferingService(catalog, records);
         offerings.create(offering("OFFER-JAVA-01", "JAVA101", "教师001", "周一 1-2 节", "A201",
                 DayOfWeek.MONDAY, 1, 2, 40, 20, 10));
         offerings.create(offering("OFFER-DB-01", "DB101", "教师002", "周二 3-4 节", "A202",
@@ -41,10 +47,10 @@ public final class CourseSelectionDemoFactory {
         offerings.create(offering("OFFER-GE-01", "GE101", "教师003", "周三 5-6 节", "A203",
                 DayOfWeek.WEDNESDAY, 5, 6, 0, 10, 20));
 
-        InMemoryCourseSelectionRecordService records = new InMemoryCourseSelectionRecordService();
-        return new DefaultCourseSelectionService(catalog, plans, rounds, offerings, records,
-                new DefaultCourseOfferingCapacityService(offerings, records),
+        CourseSelectionService selectionService = new DefaultCourseSelectionService(catalog, plans,
+                rounds, offerings, records, new DefaultCourseOfferingCapacityService(offerings, records),
                 new ScheduleConflictDetector());
+        return new CourseSelectionModule(selectionService, catalog, offerings);
     }
 
     public static StudentSelectionProfileProvider createProfileProvider() {

@@ -17,31 +17,44 @@ import java.util.Map;
 public final class InMemoryCourseOfferingService implements CourseOfferingService {
     private final Map<String, CourseOffering> offeringsById;
     private final CourseCatalogService courseCatalog;
+    private final CourseSelectionRecordService selectionRecords;
 
     public InMemoryCourseOfferingService() {
-        this(Collections.<CourseOffering>emptyList(), null);
+        this(Collections.<CourseOffering>emptyList(), null, null);
     }
 
     /**
      * 使用已有教学班创建服务，便于测试或加载演示数据。
      */
     public InMemoryCourseOfferingService(List<CourseOffering> offerings) {
-        this(offerings, null);
+        this(offerings, null, null);
     }
 
     /**
      * 使用课程目录创建教学班服务。传入目录后，新建教学班会校验课程是否存在且已启用。
      */
     public InMemoryCourseOfferingService(CourseCatalogService courseCatalog) {
-        this(Collections.<CourseOffering>emptyList(), courseCatalog);
+        this(Collections.<CourseOffering>emptyList(), courseCatalog, null);
+    }
+
+    /** 使用选课记录服务创建教学班管理服务，以便安全地调整容量。 */
+    public InMemoryCourseOfferingService(CourseCatalogService courseCatalog,
+            CourseSelectionRecordService selectionRecords) {
+        this(Collections.<CourseOffering>emptyList(), courseCatalog, selectionRecords);
     }
 
     public InMemoryCourseOfferingService(List<CourseOffering> offerings,
             CourseCatalogService courseCatalog) {
+        this(offerings, courseCatalog, null);
+    }
+
+    public InMemoryCourseOfferingService(List<CourseOffering> offerings,
+            CourseCatalogService courseCatalog, CourseSelectionRecordService selectionRecords) {
         if (offerings == null) {
             throw new IllegalArgumentException("offerings must not be null");
         }
         this.courseCatalog = courseCatalog;
+        this.selectionRecords = selectionRecords;
         this.offeringsById = new LinkedHashMap<String, CourseOffering>();
         for (CourseOffering offering : offerings) {
             if (offering == null) {
@@ -139,6 +152,11 @@ public final class InMemoryCourseOfferingService implements CourseOfferingServic
             return ServiceResult.failure(StatusCode.NOT_FOUND, "course offering not found");
         }
         try {
+            ServiceResult<Void> capacityResult = verifyCapacityNotBelowActiveSelections(existing,
+                    requiredCapacity, electiveCapacity, crossMajorCapacity);
+            if (capacityResult.getStatus() != StatusCode.OK) {
+                return ServiceResult.failure(capacityResult.getStatus(), capacityResult.getMessage());
+            }
             CourseOffering changed = existing.withCapacities(requiredCapacity, electiveCapacity,
                     crossMajorCapacity);
             offeringsById.put(normalizedOfferingId, changed);
@@ -183,5 +201,34 @@ public final class InMemoryCourseOfferingService implements CourseOfferingServic
         return courseResult.getStatus() == StatusCode.OK
                 ? ServiceResult.ok(null)
                 : ServiceResult.<Void>failure(courseResult.getStatus(), courseResult.getMessage());
+    }
+
+    private ServiceResult<Void> verifyCapacityNotBelowActiveSelections(CourseOffering offering,
+            int requiredCapacity, int electiveCapacity, int crossMajorCapacity) {
+        if (selectionRecords == null) {
+            return ServiceResult.ok(null);
+        }
+        ServiceResult<List<CourseSelectionRecord>> recordsResult = selectionRecords
+                .listActiveByOffering(offering.getOfferingId());
+        if (recordsResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(recordsResult.getStatus(), recordsResult.getMessage());
+        }
+        int requiredUsed = 0;
+        int electiveUsed = 0;
+        int crossMajorUsed = 0;
+        for (CourseSelectionRecord record : recordsResult.getData()) {
+            switch (record.getSelectionType().getCapacityBucket()) {
+                case REQUIRED: requiredUsed++; break;
+                case ELECTIVE: electiveUsed++; break;
+                case CROSS_MAJOR: crossMajorUsed++; break;
+                default: throw new IllegalStateException("unsupported capacity bucket");
+            }
+        }
+        if (requiredCapacity < requiredUsed || electiveCapacity < electiveUsed
+                || crossMajorCapacity < crossMajorUsed) {
+            return ServiceResult.failure(StatusCode.CONFLICT,
+                    "capacity must not be lower than active selection count");
+        }
+        return ServiceResult.ok(null);
     }
 }

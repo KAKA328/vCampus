@@ -3,7 +3,10 @@ package cn.vcampus.server;
 import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
 import cn.vcampus.course.CourseSelectionDemoFactory;
+import cn.vcampus.course.CourseSelectionModule;
 import cn.vcampus.course.CourseSelectionService;
+import cn.vcampus.course.CourseCatalogService;
+import cn.vcampus.course.CourseOfferingService;
 import cn.vcampus.course.StudentSelectionProfileProvider;
 import cn.vcampus.store.StoreService;
 import cn.vcampus.store.InMemoryStoreService;
@@ -35,20 +38,27 @@ public final class ServerApplication implements Closeable {
     private ServerSocket serverSocket;
 
     public ServerApplication(int port, UserManagementService users) {
-        this(port, users, CourseSelectionDemoFactory.createService(),
+        this(port, users, CourseSelectionDemoFactory.createModule(),
                 CourseSelectionDemoFactory.createProfileProvider(), new InMemoryStoreService());
+    }
+
+    private ServerApplication(int port, UserManagementService users, CourseSelectionModule module,
+            StudentSelectionProfileProvider profiles, StoreService store) {
+        this(port, users, module.getSelectionService(), module.getCatalogService(),
+                module.getOfferingService(), profiles, store);
     }
 
     public ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
             StudentSelectionProfileProvider profiles) {
-        this(port, users, courses, profiles, new InMemoryStoreService());
+        this(port, users, courses, null, null, profiles, new InMemoryStoreService());
     }
 
     ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
+            CourseCatalogService catalog, CourseOfferingService offerings,
             StudentSelectionProfileProvider profiles, StoreService store) {
         this.port = port;
         this.userMessages = new UserMessageHandler(users);
-        this.courseMessages = new CourseMessageHandler(courses, profiles, users);
+        this.courseMessages = new CourseMessageHandler(courses, catalog, offerings, profiles, users);
         this.storeMessages = new StoreMessageHandler(store, users);
     }
 
@@ -116,7 +126,8 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.COURSE_DROP
                 || type == MessageType.COURSE_CREATE
                 || type == MessageType.COURSE_UPDATE
-                || type == MessageType.COURSE_DEACTIVATE;
+                || type == MessageType.COURSE_DEACTIVATE
+                || type == MessageType.COURSE_MANAGE;
     }
 
     private static boolean isStoreMessage(MessageType type) {

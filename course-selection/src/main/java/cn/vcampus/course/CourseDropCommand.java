@@ -4,7 +4,8 @@ import java.io.Serializable;
 
 /** 学生退选一条已选教学班记录的网络请求。 */
 public final class CourseDropCommand implements Serializable {
-    private static final long serialVersionUID = 1L;
+    /** 新选课协议按选课记录退选，与早期课程级协议不兼容。 */
+    private static final long serialVersionUID = 2L;
     private final String token;
     private final String recordId;
 

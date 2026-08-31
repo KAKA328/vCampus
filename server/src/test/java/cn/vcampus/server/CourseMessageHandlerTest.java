@@ -8,6 +8,11 @@ import cn.vcampus.common.MessageType;
 import cn.vcampus.common.Role;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.CourseQueryCommand;
+import cn.vcampus.course.Course;
+import cn.vcampus.course.CourseManagementCommand;
+import cn.vcampus.course.CourseOffering;
+import cn.vcampus.course.CourseOfferingStatus;
+import cn.vcampus.course.CourseSelectionModule;
 import cn.vcampus.course.CourseSelectionCommand;
 import cn.vcampus.course.CourseSelectionDemoFactory;
 import cn.vcampus.course.InMemoryStudentSelectionProfileProvider;
@@ -57,5 +62,39 @@ class CourseMessageHandlerTest {
     void invalidPayloadReturnsBadRequest() {
         Message response = handler.handle(Message.request("invalid", MessageType.COURSE_SELECT, "bad"));
         assertEquals(StatusCode.BAD_REQUEST, response.getStatusCode());
+    }
+
+    @Test
+    void academicAdminCanManageCatalogAndOfferings() {
+        DefaultUserManagementService users = new DefaultUserManagementService(new InMemoryUserRepository(),
+                new SessionManager(), new InMemoryAuditLogRepository());
+        UserCredentials academicAdmin = new UserCredentials("academic_001", "password", "教务老师",
+                Role.ACADEMIC_ADMIN.name());
+        users.register(academicAdmin);
+        Session academicSession = users.login(academicAdmin).getData();
+        CourseSelectionModule module = CourseSelectionDemoFactory.createModule();
+        CourseMessageHandler managementHandler = new CourseMessageHandler(
+                module.getSelectionService(), module.getCatalogService(), module.getOfferingService(),
+                new InMemoryStudentSelectionProfileProvider(Collections.<StudentSelectionProfile>emptyList()),
+                users);
+
+        Message createCourse = managementHandler.handle(Message.request("create-course",
+                MessageType.COURSE_MANAGE, CourseManagementCommand.createCourse(
+                        academicSession.getToken(), new Course("CS201", "算法设计", 3))));
+        assertEquals(StatusCode.OK, createCourse.getStatusCode());
+
+        Message createOffering = managementHandler.handle(Message.request("create-offering",
+                MessageType.COURSE_MANAGE, CourseManagementCommand.createOffering(
+                        academicSession.getToken(), new CourseOffering("OFFER-CS201-01", "CS201",
+                                CourseSelectionDemoFactory.DEMO_TERM, "教师004", "周四 1-2 节", "A204",
+                                30, 10, 5, CourseOfferingStatus.DRAFT))));
+        assertEquals(StatusCode.OK, createOffering.getStatusCode());
+    }
+
+    @Test
+    void studentCannotCallCourseManagementMessage() {
+        Message response = handler.handle(Message.request("manage", MessageType.COURSE_MANAGE,
+                CourseManagementCommand.listCourses(session.getToken())));
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
     }
 }

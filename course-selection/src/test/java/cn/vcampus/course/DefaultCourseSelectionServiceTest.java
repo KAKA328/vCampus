@@ -37,7 +37,7 @@ class DefaultCourseSelectionServiceTest {
                 round("ROUND-INITIAL", SelectionRoundType.INITIAL),
                 round("ROUND-RETAKE", SelectionRoundType.RETAKE)));
         InMemoryCourseOfferingService offerings = new InMemoryCourseOfferingService(catalog);
-        offerings.create(offering("OFFER-CS101-A", "CS101", DayOfWeek.MONDAY, 1, 2, 1, 2, 1));
+        offerings.create(offering("OFFER-CS101-A", "CS101", DayOfWeek.MONDAY, 1, 2, 2, 2, 1));
         offerings.create(offering("OFFER-CS101-B", "CS101", DayOfWeek.TUESDAY, 1, 2, 1, 2, 1));
         offerings.create(offering("OFFER-CS102", "CS102", DayOfWeek.MONDAY, 2, 3, 1, 2, 1));
         offerings.create(offering("OFFER-GE101", "GE101", DayOfWeek.WEDNESDAY, 1, 2, 0, 1, 2));
@@ -97,6 +97,31 @@ class DefaultCourseSelectionServiceTest {
         assertEquals(StatusCode.FORBIDDEN, service.drop(retakeStudent, record.getRecordId(), NOW).getStatus());
         assertEquals(StatusCode.OK, service.drop(student, record.getRecordId(), NOW).getStatus());
         assertEquals(0, service.listSelectedOfferings(student).getData().size());
+    }
+
+    @Test
+    void selectionAndDropAreRejectedAfterRoundCloses() {
+        LocalDateTime afterRoundClosed = NOW.plusDays(2);
+        assertEquals(StatusCode.FORBIDDEN, service.select(student, "ROUND-INITIAL",
+                "OFFER-CS101-A", afterRoundClosed).getStatus());
+
+        CourseSelectionRecord record = service.select(student, "ROUND-INITIAL", "OFFER-CS101-A", NOW)
+                .getData();
+        assertEquals(StatusCode.FORBIDDEN,
+                service.drop(student, record.getRecordId(), afterRoundClosed).getStatus());
+    }
+
+    @Test
+    void retakeAndInitialSelectionsShareTheRequiredCapacityPool() {
+        StudentSelectionProfile anotherRetakeStudent = profile("user-003", "STU-003",
+                Collections.singleton("CS101"));
+
+        assertEquals(StatusCode.OK, service.select(student, "ROUND-INITIAL", "OFFER-CS101-A", NOW)
+                .getStatus());
+        assertEquals(StatusCode.OK, service.select(retakeStudent, "ROUND-RETAKE", "OFFER-CS101-A", NOW)
+                .getStatus());
+        assertEquals(StatusCode.CONFLICT,
+                service.select(anotherRetakeStudent, "ROUND-RETAKE", "OFFER-CS101-A", NOW).getStatus());
     }
 
     private static SelectionRound round(String id, SelectionRoundType type) {

@@ -6,6 +6,9 @@ import cn.vcampus.common.Role;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.CourseDropCommand;
+import cn.vcampus.course.CourseCatalogService;
+import cn.vcampus.course.CourseManagementCommand;
+import cn.vcampus.course.CourseOfferingService;
 import cn.vcampus.course.CourseQueryCommand;
 import cn.vcampus.course.CourseSelectionCommand;
 import cn.vcampus.course.CourseSelectionService;
@@ -19,15 +22,25 @@ import java.time.LocalDateTime;
 /** 将当前选课流程转换为 Socket 消息；学生资料仅由服务器按 token 查询。 */
 final class CourseMessageHandler {
     private final CourseSelectionService courses;
+    private final CourseCatalogService catalog;
+    private final CourseOfferingService offerings;
     private final StudentSelectionProfileProvider profiles;
     private final UserManagementService users;
 
     CourseMessageHandler(CourseSelectionService courses, StudentSelectionProfileProvider profiles,
             UserManagementService users) {
+        this(courses, null, null, profiles, users);
+    }
+
+    CourseMessageHandler(CourseSelectionService courses, CourseCatalogService catalog,
+            CourseOfferingService offerings, StudentSelectionProfileProvider profiles,
+            UserManagementService users) {
         if (courses == null || profiles == null || users == null) {
             throw new IllegalArgumentException("course handler dependencies must not be null");
         }
         this.courses = courses;
+        this.catalog = catalog;
+        this.offerings = offerings;
         this.profiles = profiles;
         this.users = users;
     }
@@ -49,6 +62,9 @@ final class CourseMessageHandler {
                     break;
                 case COURSE_DROP:
                     result = drop(payload(request, CourseDropCommand.class));
+                    break;
+                case COURSE_MANAGE:
+                    result = manage(payload(request, CourseManagementCommand.class));
                     break;
                 default:
                     return Message.response(request, StatusCode.NOT_FOUND,
@@ -86,6 +102,41 @@ final class CourseMessageHandler {
                 ? courses.drop(profile.getData(), command.getRecordId(), LocalDateTime.now()) : profile;
     }
 
+    /** 课程目录和教学班管理仅允许拥有 COURSE_MANAGE 权限的教务人员使用。 */
+    private ServiceResult<?> manage(CourseManagementCommand command) {
+        ServiceResult<Void> authorization = authorizeCourseManager(command.getToken());
+        if (authorization.getStatus() != StatusCode.OK) {
+            return authorization;
+        }
+        if (catalog == null || offerings == null) {
+            return ServiceResult.failure(StatusCode.NOT_FOUND,
+                    "course management services are not configured");
+        }
+        switch (command.getOperation()) {
+            case LIST_COURSES:
+                return catalog.listAll();
+            case LIST_OFFERINGS_BY_TERM:
+                return offerings.listByTerm(command.getTerm());
+            case CREATE_COURSE:
+                return catalog.create(command.getCourse());
+            case UPDATE_COURSE_DETAILS:
+                return catalog.updateDetails(command.getTargetId(), command.getName(),
+                        command.getCredits());
+            case CHANGE_COURSE_STATUS:
+                return catalog.changeStatus(command.getTargetId(), command.getCourseStatus());
+            case CREATE_OFFERING:
+                return offerings.create(command.getOffering());
+            case CHANGE_OFFERING_STATUS:
+                return offerings.changeStatus(command.getTargetId(), command.getOfferingStatus());
+            case CHANGE_OFFERING_CAPACITIES:
+                return offerings.changeCapacities(command.getTargetId(),
+                        command.getRequiredCapacity(), command.getElectiveCapacity(),
+                        command.getCrossMajorCapacity());
+            default:
+                return ServiceResult.failure(StatusCode.BAD_REQUEST, "unsupported management operation");
+        }
+    }
+
     private ServiceResult<StudentSelectionProfile> profile(String token, Permission permission) {
         ServiceResult<Boolean> authorized = users.authorize(token, permission.getCode());
         if (authorized.getStatus() != StatusCode.OK) return ServiceResult.failure(authorized.getStatus(), authorized.getMessage());
@@ -95,6 +146,18 @@ final class CourseMessageHandler {
             return ServiceResult.failure(StatusCode.FORBIDDEN, "only student can use student course selection");
         }
         return profiles.findByUserId(session.getData().getUser().getUserId());
+    }
+
+    private ServiceResult<Void> authorizeCourseManager(String token) {
+        ServiceResult<Boolean> authorized = users.authorize(token, Permission.COURSE_MANAGE.getCode());
+        if (authorized.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(authorized.getStatus(), authorized.getMessage());
+        }
+        ServiceResult<Session> session = users.currentSession(token);
+        if (session.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(session.getStatus(), session.getMessage());
+        }
+        return ServiceResult.ok(null);
     }
 
     private static <T> T payload(Message request, Class<T> type) {

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -104,6 +105,39 @@ class InMemoryCourseOfferingServiceTest {
         catalog.changeStatus("CS101", CourseStatus.DISABLED);
         assertEquals(StatusCode.CONFLICT, service.create(offering("OFFER-003", "CS101",
                 CourseOfferingStatus.DRAFT, 50, 20, 10)).getStatus());
+    }
+
+    @Test
+    void rejectsCapacityLowerThanExistingActiveSelections() {
+        CourseOffering offering = offering("OFFER-001", "CS101", CourseOfferingStatus.OPEN,
+                2, 1, 1);
+        InMemoryCourseSelectionRecordService records = new InMemoryCourseSelectionRecordService(
+                Arrays.asList(new CourseSelectionRecord("RECORD-001", "STU-001", "OFFER-001",
+                        "ROUND-001", SelectionType.RETAKE, LocalDateTime.of(2026, 9, 1, 8, 0))));
+        InMemoryCourseOfferingService service = new InMemoryCourseOfferingService(
+                Arrays.asList(offering), null, records);
+
+        assertEquals(StatusCode.CONFLICT,
+                service.changeCapacities("OFFER-001", 0, 1, 1).getStatus());
+        assertEquals(StatusCode.OK,
+                service.changeCapacities("OFFER-001", 1, 1, 1).getStatus());
+    }
+
+    @Test
+    void allowsCapacityReductionAfterSelectionIsDropped() {
+        InMemoryCourseSelectionRecordService records = new InMemoryCourseSelectionRecordService(
+                Arrays.asList(new CourseSelectionRecord("RECORD-001", "STU-001", "OFFER-001",
+                        "ROUND-001", SelectionType.REQUIRED,
+                        LocalDateTime.of(2026, 9, 1, 8, 0))));
+        InMemoryCourseOfferingService service = new InMemoryCourseOfferingService(Arrays.asList(
+                offering("OFFER-001", "CS101", CourseOfferingStatus.OPEN, 1, 1, 1)), null, records);
+
+        assertEquals(StatusCode.CONFLICT,
+                service.changeCapacities("OFFER-001", 0, 1, 1).getStatus());
+        assertEquals(StatusCode.OK, records.markDropped("RECORD-001",
+                LocalDateTime.of(2026, 9, 2, 8, 0)).getStatus());
+        assertEquals(StatusCode.OK,
+                service.changeCapacities("OFFER-001", 0, 1, 1).getStatus());
     }
 
     private static CourseOffering offering(String offeringId, String courseId,

@@ -20,7 +20,6 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.SwingWorker;
-import javax.swing.table.DefaultTableModel;
 
 /**
  * 学生选课界面：先选择轮次，再查看可选教学班并选课；“我的已选”中可退选。
@@ -33,13 +32,19 @@ public final class CourseSelectionPanel extends JPanel {
     private final List<SelectionRound> rounds = new ArrayList<SelectionRound>();
     private final List<String> offeringIds = new ArrayList<String>();
     private final List<String> recordIds = new ArrayList<String>();
-    private final DefaultTableModel tableModel = new DefaultTableModel(
-            new Object[] { "类别", "课程编号", "课程名称", "学分", "教学班", "教师", "时间", "地点", "剩余名额" }, 0) {
-        @Override public boolean isCellEditable(int row, int column) { return false; }
-    };
+    private final BatchTableModel tableModel = new BatchTableModel(
+            new Object[] { "类别", "课程编号", "课程名称", "学分", "教学班", "教师", "时间", "地点", "剩余名额" });
     private final JTable table = new JTable(tableModel);
     private final JLabel status = new JLabel("请先加载选课轮次");
+    private final JButton loadRoundsButton = new JButton("加载选课轮次");
+    private final JButton loadOfferingsButton = new JButton("查看本轮可选教学班");
+    private final JButton selectedButton = new JButton("我的已选课程");
+    private final JButton selectButton = new JButton("选择教学班");
+    private final JButton dropButton = new JButton("退选所选记录");
     private boolean showingSelected;
+    /** 当前网络请求尚未结束时，禁止再次提交选课相关操作。 */
+    private boolean requestInProgress;
+    private final RequestLifecycle requestLifecycle = new RequestLifecycle();
 
     public CourseSelectionPanel(String host, int port, Session session) {
         if (host == null || host.trim().isEmpty() || session == null) throw new IllegalArgumentException("host and session must not be null");
@@ -50,20 +55,15 @@ public final class CourseSelectionPanel extends JPanel {
     private void build() {
         setLayout(new BorderLayout(8, 8));
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JButton loadRounds = new JButton("加载选课轮次");
-        JButton loadOfferings = new JButton("查看本轮可选教学班");
-        JButton selected = new JButton("我的已选课程");
-        JButton select = new JButton("选择教学班");
-        JButton drop = new JButton("退选所选记录");
-        top.add(loadRounds); top.add(roundBox); top.add(loadOfferings); top.add(selected); top.add(select); top.add(drop);
+        top.add(loadRoundsButton); top.add(roundBox); top.add(loadOfferingsButton);
+        top.add(selectedButton); top.add(selectButton); top.add(dropButton);
         add(top, BorderLayout.NORTH); add(new JScrollPane(table), BorderLayout.CENTER); add(status, BorderLayout.SOUTH);
-        boolean student = session.getUser().getRole() == Role.STUDENT;
-        loadRounds.setEnabled(student); loadOfferings.setEnabled(student); selected.setEnabled(student); select.setEnabled(student); drop.setEnabled(student);
-        loadRounds.addActionListener(e -> loadRounds());
-        loadOfferings.addActionListener(e -> loadOfferings());
-        selected.addActionListener(e -> loadSelected());
-        select.addActionListener(e -> select());
-        drop.addActionListener(e -> drop());
+        loadRoundsButton.addActionListener(e -> loadRounds());
+        loadOfferingsButton.addActionListener(e -> loadOfferings());
+        selectedButton.addActionListener(e -> loadSelected());
+        selectButton.addActionListener(e -> select());
+        dropButton.addActionListener(e -> drop());
+        updateInteractiveState();
     }
 
     private void loadRounds() {
@@ -84,12 +84,14 @@ public final class CourseSelectionPanel extends JPanel {
         final String roundId = rounds.get(index).getRoundId();
         request(service -> service.availableOfferings(session.getToken(), roundId), response -> {
             if (!ok(response) || !(response.getPayload() instanceof List<?>)) return;
-            showingSelected = false; offeringIds.clear(); recordIds.clear(); tableModel.setRowCount(0);
+            showingSelected = false; offeringIds.clear(); recordIds.clear();
+            List<Object[]> rows = new ArrayList<Object[]>();
             for (Object item : (List<?>) response.getPayload()) if (item instanceof SelectableCourseOffering) {
                 SelectableCourseOffering value = (SelectableCourseOffering) item;
                 offeringIds.add(value.getOffering().getOfferingId());
-                tableModel.addRow(new Object[] { value.getSelectionType().getDisplayName(), value.getCourse().getCourseId(), value.getCourse().getName(), value.getCourse().getCredits(), value.getOffering().getOfferingId(), value.getOffering().getTeacherId(), value.getOffering().getSchedule(), value.getOffering().getLocation(), value.getCapacityUsage().getRemainingCapacity() });
+                rows.add(new Object[] { value.getSelectionType().getDisplayName(), value.getCourse().getCourseId(), value.getCourse().getName(), value.getCourse().getCredits(), value.getOffering().getOfferingId(), value.getOffering().getTeacherId(), value.getOffering().getSchedule(), value.getOffering().getLocation(), value.getCapacityUsage().getRemainingCapacity() });
             }
+            tableModel.replaceRows(rows);
             status.setText("已显示可选教学班");
         });
     }
@@ -97,12 +99,14 @@ public final class CourseSelectionPanel extends JPanel {
     private void loadSelected() {
         request(service -> service.selectedOfferings(session.getToken()), response -> {
             if (!ok(response) || !(response.getPayload() instanceof List<?>)) return;
-            showingSelected = true; offeringIds.clear(); recordIds.clear(); tableModel.setRowCount(0);
+            showingSelected = true; offeringIds.clear(); recordIds.clear();
+            List<Object[]> rows = new ArrayList<Object[]>();
             for (Object item : (List<?>) response.getPayload()) if (item instanceof SelectedCourseOffering) {
                 SelectedCourseOffering value = (SelectedCourseOffering) item;
                 recordIds.add(value.getRecord().getRecordId());
-                tableModel.addRow(new Object[] { value.getRecord().getSelectionType().getDisplayName(), value.getCourse().getCourseId(), value.getCourse().getName(), value.getCourse().getCredits(), value.getOffering().getOfferingId(), value.getOffering().getTeacherId(), value.getOffering().getSchedule(), value.getOffering().getLocation(), "-" });
+                rows.add(new Object[] { value.getRecord().getSelectionType().getDisplayName(), value.getCourse().getCourseId(), value.getCourse().getName(), value.getCourse().getCredits(), value.getOffering().getOfferingId(), value.getOffering().getTeacherId(), value.getOffering().getSchedule(), value.getOffering().getLocation(), "-" });
             }
+            tableModel.replaceRows(rows);
             status.setText("已显示当前有效选课记录");
         });
     }
@@ -130,10 +134,39 @@ public final class CourseSelectionPanel extends JPanel {
     }
 
     private void request(Request request, Response response) {
+        if (requestInProgress) {
+            return;
+        }
+        final int requestId = requestLifecycle.begin();
+        requestInProgress = true;
+        updateInteractiveState();
+        status.setText("正在请求服务器，请稍候…");
         new SwingWorker<Message, Void>() {
             @Override protected Message doInBackground() throws Exception { try (RemoteCourseService service = new RemoteCourseService(host, port)) { return request.run(service); } }
-            @Override protected void done() { try { response.handle(get()); } catch (Exception failure) { status.setText("无法连接选课服务器"); } }
+            @Override protected void done() {
+                if (!requestLifecycle.isCurrent(requestId)) return;
+                try {
+                    response.handle(get());
+                } catch (Exception failure) {
+                    status.setText("无法连接选课服务器");
+                } finally {
+                    requestInProgress = false;
+                    updateInteractiveState();
+                }
+            }
         }.execute();
+    }
+
+    /** 根据登录角色与请求状态统一控制界面，避免重复提交或错选行。 */
+    private void updateInteractiveState() {
+        boolean interactive = session.getUser().getRole() == Role.STUDENT && !requestInProgress;
+        loadRoundsButton.setEnabled(interactive);
+        loadOfferingsButton.setEnabled(interactive);
+        selectedButton.setEnabled(interactive);
+        selectButton.setEnabled(interactive);
+        dropButton.setEnabled(interactive);
+        roundBox.setEnabled(interactive);
+        table.setEnabled(interactive);
     }
 
     private interface Request { Message run(RemoteCourseService service) throws IOException, ClassNotFoundException; }

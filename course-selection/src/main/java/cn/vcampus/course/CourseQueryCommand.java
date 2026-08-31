@@ -6,7 +6,8 @@ import java.io.Serializable;
  * 课程查询请求。学生身份由服务端 token 推导，客户端不再提交 studentId。
  */
 public final class CourseQueryCommand implements Serializable {
-    private static final long serialVersionUID = 1L;
+    /** 新选课协议使用教学班和选课轮次字段，与早期课程级协议不兼容。 */
+    private static final long serialVersionUID = 2L;
 
     /** 当前请求要查询的课程范围。 */
     public enum QueryType {
