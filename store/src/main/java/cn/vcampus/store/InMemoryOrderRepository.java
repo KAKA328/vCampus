@@ -1,9 +1,13 @@
 package cn.vcampus.store;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public final class InMemoryOrderRepository implements OrderRepository {
     private final Map<String, Order> orders = new ConcurrentHashMap<String, Order>();// 根据订单ID存储订单
@@ -35,15 +39,28 @@ public final class InMemoryOrderRepository implements OrderRepository {
         return result != null ? result : new ArrayList<Order>();// 如果用户没有订单，返回空列表
     }
 
-    // 占位实现，Day 2 完成
+    // 管理员查找所有订单
     @Override
     public final List<Order> findAll() {
-        return new ArrayList<Order>();
+        return new ArrayList<Order>(orders.values());
     }
 
-    // 占位实现，Day 2 完成
+    // 管理员查看热门商品
     @Override
-    public final List<Object[]> findSalesVolume() {
-        return new ArrayList<Object[]>();
+    public final List<Map.Entry<String, Integer>> findSalesVolume() {
+        Map<String, Integer> productSales = new HashMap<String, Integer>();
+        for (Order order : orders.values()) {
+            String currId = order.getProductId();
+            if (productSales.containsKey(currId)) {
+                productSales.replace(currId, productSales.get(currId) + order.getQuantity());
+            } else {
+                productSales.put(currId, order.getQuantity());
+            }
+        }
+        List<Map.Entry<String, Integer>> sortedList = productSales.entrySet().stream()
+                .sorted(Map.Entry.<String, Integer>comparingByValue(Comparator.reverseOrder()))
+                .map(entry -> new AbstractMap.SimpleImmutableEntry<String, Integer>(entry.getKey(), entry.getValue()))
+                .collect(Collectors.toList());
+        return sortedList;
     }
 }

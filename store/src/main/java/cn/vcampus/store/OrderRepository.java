@@ -1,6 +1,7 @@
 package cn.vcampus.store;
 
 import java.util.List;
+import java.util.Map;
 
 public interface OrderRepository {
     boolean create(Order order);// 创建订单
@@ -9,5 +10,5 @@ public interface OrderRepository {
 
     List<Order> findAll();// 查询所有订单
 
-    List<Object[]> findSalesVolume(); // 查询销量， 返回[商品编号， 销量]
+    List<Map.Entry<String, Integer>> findSalesVolume(); // 查询销量， 返回[商品编号， 销量]
 }

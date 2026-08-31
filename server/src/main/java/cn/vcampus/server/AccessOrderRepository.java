@@ -11,6 +11,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /** Access-backed order repository using parameterized JDBC statements. */
 public final class AccessOrderRepository implements OrderRepository {
@@ -71,8 +72,8 @@ public final class AccessOrderRepository implements OrderRepository {
 
     // 占位实现，Day 2 完成真实 JDBC 逻辑
     @Override
-    public List<Object[]> findSalesVolume() {
-        return new ArrayList<Object[]>();
+    public List<Map.Entry<String, Integer>> findSalesVolume() {
+        return new ArrayList<Map.Entry<String, Integer>>();
     }
 
     private boolean exists(String orderId) {

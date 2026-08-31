@@ -27,8 +27,7 @@ public final class InMemoryProductRepository implements ProductRepository {
 
     @Override
     public final boolean updateStock(String productId, int newStock) {
-        // 如果商品存在，改动存储数量，
-        // 如果不存在，返回false
+        // 如果商品存在，改动存储数量，如果不存在，返回false
         if (this.findById(productId) != null) {
             Product oldPro = this.findById(productId);
             Product newPro = new Product(oldPro.getProductId(), oldPro.getName(), newStock, oldPro.getPrice(),
@@ -40,22 +39,35 @@ public final class InMemoryProductRepository implements ProductRepository {
         return false;
     }
 
-    // 占位实现，Day 2 完成
+    // 增加库存，商品存在则替换为新对象，不存在返回 false
     @Override
     public final boolean addStock(String productId, int amount) {
-        return false;
+        Product oldPro = this.findById(productId);
+        if (oldPro == null)
+            return false;
+        Product newPro = new Product(oldPro.getProductId(), oldPro.getName(), oldPro.getStock() + amount,
+                oldPro.getPrice(), oldPro.getDescription(), oldPro.getCategory(), oldPro.isActive());
+        this.products.replace(productId, newPro);
+        return true;
     }
 
-    // 占位实现，Day 2 完成
+    // 更新商品非库存字段，商品存在则替换，不存在返回 false
     @Override
     public final boolean updateProduct(Product product) {
-        return false;
+        Product oldPro = this.findById(product.getProductId());
+        if (oldPro == null)
+            return false;
+        Product updatedPro = new Product(oldPro.getProductId(), product.getName(), oldPro.getStock(),
+                product.getPrice(),
+                product.getDescription(), product.getCategory(), product.isActive());
+        this.products.replace(product.getProductId(), updatedPro);
+        return true;
     }
 
-    // 占位实现，Day 2 完成
+    // 按Id删除商品
     @Override
     public final boolean deleteById(String productId) {
-        return false;
+        return this.products.remove(productId) != null;
     }
 
 }

@@ -3,6 +3,7 @@ package cn.vcampus.store;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -20,7 +21,14 @@ public final class DefaultStoreService implements StoreService {
     // 列出所有商品，使用serviceresult类的ok方法打包返回
     @Override
     public final ServiceResult<List<Product>> listProducts() {
-        return ServiceResult.ok(products.findAll());
+        List<Product> productsList = products.findAll();
+        List<Product> activatedProducts = new ArrayList<Product>();
+        for (Product product : productsList) {
+            if (product.isActive()) {
+                activatedProducts.add(product);
+            }
+        }
+        return ServiceResult.ok(activatedProducts);
     }
 
     // 购买方法
@@ -60,27 +68,70 @@ public final class DefaultStoreService implements StoreService {
     // 补货
     @Override
     public final ServiceResult<Void> restock(String userId, String productId, int additionalStock) {
-        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+        // 无效货物数量
+        if (additionalStock <= 0)
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "Additional stock must be positive");
+        else if (!products.addStock(productId, additionalStock))
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
+        else
+            return ServiceResult.ok(null);
     }
 
     // 新增商品
     @Override
     public final ServiceResult<Product> addProduct(String name, double price, int stock, String description,
             String category) {
-        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+        // 检查参数合法性
+        if (name == null || name.trim().isEmpty() || price < 0 || stock < 0 || description == null
+                || description.trim().isEmpty() || category == null
+                || category.trim().isEmpty()) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "Invalid product parameters, please check the name, price, stock, description, and category");
+        } else {
+            Product newProduct = new Product(UUID.randomUUID().toString(), name, stock, price, description, category);
+            products.save(newProduct);
+            return ServiceResult.ok(newProduct);
+        }
     }
 
     // 更新商品非库存字段
     @Override
     public final ServiceResult<Product> updateProduct(String productId, String name, double price,
             String description, String category) {
-        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+        Product product = products.findById(productId);
+        // 检查参数合法性
+        if (name == null || name.trim().isEmpty() || price < 0 || description == null || description.trim().isEmpty()
+                || category == null
+                || category.trim().isEmpty()) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "Invalid product parameters, please check the name, price, description, and category");
+        }
+        // 如果商品不存在
+        else if (product == null) {
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
+        } else {
+
+            Product updatedProduct = new Product(productId, name, product.getStock(), price, description, category,
+                    product.isActive());
+            products.updateProduct(updatedProduct);
+            return ServiceResult.ok(updatedProduct);
+        }
     }
 
     // 下架商品
     @Override
     public final ServiceResult<Void> deactivateProduct(String userId, String productId) {
-        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+        Product product = products.findById(productId);
+        if (product == null) {
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
+        } else if (!product.isActive())
+            return ServiceResult.ok(null);
+        else {
+            Product updatedProduct = new Product(productId, product.getName(), product.getStock(), product.getPrice(),
+                    product.getDescription(), product.getCategory(), false);
+            products.updateProduct(updatedProduct);
+            return ServiceResult.ok(null);
+        }
     }
 
     // 加入购物车
