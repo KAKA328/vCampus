@@ -6,24 +6,23 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.Test;
 
 class CourseSelectionCommandTest {
-
     @Test
-    void storesTrimmedRequestFields() {
+    void storesTrimmedRoundAndOfferingWithoutStudentId() {
         CourseSelectionCommand command = new CourseSelectionCommand(
-                " token-001 ", " 20230001 ", " JAVA101 ");
+                " token-001 ", " ROUND-INITIAL ", " OFFER-JAVA-01 ");
 
         assertEquals("token-001", command.getToken());
-        assertEquals("20230001", command.getStudentId());
-        assertEquals("JAVA101", command.getCourseId());
+        assertEquals("ROUND-INITIAL", command.getRoundId());
+        assertEquals("OFFER-JAVA-01", command.getOfferingId());
     }
 
     @Test
     void rejectsBlankRequestFields() {
         assertThrows(IllegalArgumentException.class,
-                () -> new CourseSelectionCommand("", "20230001", "JAVA101"));
+                () -> new CourseSelectionCommand("", "ROUND-INITIAL", "OFFER-JAVA-01"));
         assertThrows(IllegalArgumentException.class,
-                () -> new CourseSelectionCommand("token-001", " ", "JAVA101"));
+                () -> new CourseSelectionCommand("token-001", " ", "OFFER-JAVA-01"));
         assertThrows(IllegalArgumentException.class,
-                () -> new CourseSelectionCommand("token-001", "20230001", null));
+                () -> new CourseSelectionCommand("token-001", "ROUND-INITIAL", null));
     }
 }

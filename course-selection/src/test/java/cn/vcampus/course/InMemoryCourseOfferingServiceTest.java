@@ -91,6 +91,21 @@ class InMemoryCourseOfferingServiceTest {
                 service.changeStatus("UNKNOWN", CourseOfferingStatus.OPEN).getStatus());
     }
 
+    @Test
+    void validatesNewOfferingAgainstInjectedCourseCatalog() {
+        InMemoryCourseCatalogService catalog = new InMemoryCourseCatalogService();
+        catalog.create(new Course("CS101", "程序设计基础", 3));
+        InMemoryCourseOfferingService service = new InMemoryCourseOfferingService(catalog);
+
+        assertEquals(StatusCode.OK, service.create(offering("OFFER-001", "CS101",
+                CourseOfferingStatus.DRAFT, 50, 20, 10)).getStatus());
+        assertEquals(StatusCode.NOT_FOUND, service.create(offering("OFFER-002", "UNKNOWN",
+                CourseOfferingStatus.DRAFT, 50, 20, 10)).getStatus());
+        catalog.changeStatus("CS101", CourseStatus.DISABLED);
+        assertEquals(StatusCode.CONFLICT, service.create(offering("OFFER-003", "CS101",
+                CourseOfferingStatus.DRAFT, 50, 20, 10)).getStatus());
+    }
+
     private static CourseOffering offering(String offeringId, String courseId,
             CourseOfferingStatus status, int requiredCapacity, int electiveCapacity,
             int crossMajorCapacity) {

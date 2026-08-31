@@ -3,36 +3,39 @@ package cn.vcampus.course;
 import java.io.Serializable;
 
 /**
- * 课程查询请求，用于区分查询全部课程和查询某学生已选课程。
+ * 课程查询请求。学生身份由服务端 token 推导，客户端不再提交 studentId。
  */
 public final class CourseQueryCommand implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /** 当前请求要查询的课程范围。 */
     public enum QueryType {
-        ALL_COURSES,
-        SELECTED_COURSES
+        AVAILABLE_ROUNDS,
+        AVAILABLE_OFFERINGS,
+        SELECTED_OFFERINGS
     }
 
     private final QueryType queryType;
     private final String token;
-    private final String studentId;
+    private final String roundId;
 
-    private CourseQueryCommand(QueryType queryType, String token, String studentId) {
+    private CourseQueryCommand(QueryType queryType, String token, String roundId) {
         this.queryType = queryType;
-        this.token = token;
-        this.studentId = studentId;
+        this.token = requireText(token, "token");
+        this.roundId = roundId;
     }
 
-    /** 创建查询全部课程的请求；该查询不需要携带学生身份。 */
-    public static CourseQueryCommand allCourses() {
-        return new CourseQueryCommand(QueryType.ALL_COURSES, null, null);
+    public static CourseQueryCommand availableRounds(String token) {
+        return new CourseQueryCommand(QueryType.AVAILABLE_ROUNDS, token, null);
     }
 
-    /** 创建查询某学生已选课程的请求，需要登录凭证和学生学号。 */
-    public static CourseQueryCommand selectedCourses(String token, String studentId) {
-        return new CourseQueryCommand(QueryType.SELECTED_COURSES,
-                requireText(token, "token"), requireText(studentId, "studentId"));
+    public static CourseQueryCommand availableOfferings(String token, String roundId) {
+        return new CourseQueryCommand(QueryType.AVAILABLE_OFFERINGS, token,
+                requireText(roundId, "roundId"));
+    }
+
+    public static CourseQueryCommand selectedOfferings(String token) {
+        return new CourseQueryCommand(QueryType.SELECTED_OFFERINGS, token, null);
     }
 
     public QueryType getQueryType() {
@@ -43,8 +46,8 @@ public final class CourseQueryCommand implements Serializable {
         return token;
     }
 
-    public String getStudentId() {
-        return studentId;
+    public String getRoundId() {
+        return roundId;
     }
 
     private static String requireText(String value, String fieldName) {

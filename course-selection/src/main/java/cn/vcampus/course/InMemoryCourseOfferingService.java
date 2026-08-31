@@ -16,18 +16,32 @@ import java.util.Map;
  */
 public final class InMemoryCourseOfferingService implements CourseOfferingService {
     private final Map<String, CourseOffering> offeringsById;
+    private final CourseCatalogService courseCatalog;
 
     public InMemoryCourseOfferingService() {
-        this(Collections.<CourseOffering>emptyList());
+        this(Collections.<CourseOffering>emptyList(), null);
     }
 
     /**
      * 使用已有教学班创建服务，便于测试或加载演示数据。
      */
     public InMemoryCourseOfferingService(List<CourseOffering> offerings) {
+        this(offerings, null);
+    }
+
+    /**
+     * 使用课程目录创建教学班服务。传入目录后，新建教学班会校验课程是否存在且已启用。
+     */
+    public InMemoryCourseOfferingService(CourseCatalogService courseCatalog) {
+        this(Collections.<CourseOffering>emptyList(), courseCatalog);
+    }
+
+    public InMemoryCourseOfferingService(List<CourseOffering> offerings,
+            CourseCatalogService courseCatalog) {
         if (offerings == null) {
             throw new IllegalArgumentException("offerings must not be null");
         }
+        this.courseCatalog = courseCatalog;
         this.offeringsById = new LinkedHashMap<String, CourseOffering>();
         for (CourseOffering offering : offerings) {
             if (offering == null) {
@@ -44,6 +58,10 @@ public final class InMemoryCourseOfferingService implements CourseOfferingServic
     public synchronized ServiceResult<CourseOffering> create(CourseOffering offering) {
         if (offering == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "offering must not be null");
+        }
+        ServiceResult<Void> courseResult = requireActiveCourse(offering.getCourseId());
+        if (courseResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(courseResult.getStatus(), courseResult.getMessage());
         }
         if (offeringsById.containsKey(offering.getOfferingId())) {
             return ServiceResult.failure(StatusCode.CONFLICT, "course offering already exists");
@@ -155,5 +173,15 @@ public final class InMemoryCourseOfferingService implements CourseOfferingServic
         }
         String normalized = value.trim();
         return normalized.isEmpty() ? null : normalized;
+    }
+
+    private ServiceResult<Void> requireActiveCourse(String courseId) {
+        if (courseCatalog == null) {
+            return ServiceResult.ok(null);
+        }
+        ServiceResult<Course> courseResult = courseCatalog.findActiveById(courseId);
+        return courseResult.getStatus() == StatusCode.OK
+                ? ServiceResult.ok(null)
+                : ServiceResult.<Void>failure(courseResult.getStatus(), courseResult.getMessage());
     }
 }
