@@ -63,14 +63,18 @@ public final class DefaultStoreService implements StoreService {
             if (!products.updateStock(productId, toBuy.getStock() - quantity))
                 return ServiceResult.failure(StatusCode.CONFLICT, "Product stock changed; retry purchase");
             // 创建订单,使用随机订单编号
-            Order newOrder = new Order(UUID.randomUUID().toString(), userId, productId, quantity, totalPrice,
-                    LocalDateTime.now(), toBuy.getName(), toBuy.getPrice());
-            if (!orders.create(newOrder)) {
+            try {
+                Order newOrder = new Order(UUID.randomUUID().toString(), userId, productId, quantity, totalPrice,
+                        LocalDateTime.now(), toBuy.getName(), toBuy.getPrice());
+                if (!orders.create(newOrder)) {
+                    products.updateStock(productId, toBuy.getStock());
+                    return ServiceResult.failure(StatusCode.CONFLICT, "Could not create order");
+                }
+                return ServiceResult.ok(null);
+            } catch (RuntimeException failure) {
                 products.updateStock(productId, toBuy.getStock());
                 return ServiceResult.failure(StatusCode.CONFLICT, "Could not create order");
             }
-            // 返回成功
-            return ServiceResult.ok(null);
         }
     }
 
@@ -96,7 +100,7 @@ public final class DefaultStoreService implements StoreService {
         if (!validPrice(price) || stock < 0)
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "price must be a finite positive number and stock must not be negative");
         try {
-            Product product = new Product("P-" + UUID.randomUUID(), name, stock, price, description, category);
+            Product product = new Product(newProductId(), name, stock, price, description, category);
             products.save(product);
             return ServiceResult.ok(product);
         } catch (IllegalArgumentException invalid) {
@@ -182,14 +186,22 @@ public final class DefaultStoreService implements StoreService {
                 return ServiceResult.failure(StatusCode.CONFLICT, "Product stock changed; checkout rolled back");
             }
             reserved.add(product);
-            Order order = new Order(UUID.randomUUID().toString(), userId, product.getProductId(), item.getQuantity(),
-                    product.getPrice() * item.getQuantity(), LocalDateTime.now(), product.getName(), product.getPrice());
-            if (!orders.create(order)) {
+            Order order;
+            try {
+                order = new Order(UUID.randomUUID().toString(), userId, product.getProductId(), item.getQuantity(),
+                        product.getPrice() * item.getQuantity(), LocalDateTime.now(), product.getName(), product.getPrice());
+                if (orders.create(order)) {
+                    created.add(order);
+                    continue;
+                }
+            } catch (RuntimeException failure) {
                 rollbackCheckout(created, reserved);
                 products.updateStock(product.getProductId(), product.getStock());
                 return ServiceResult.failure(StatusCode.CONFLICT, "Could not create order; checkout rolled back");
             }
-            created.add(order);
+            rollbackCheckout(created, reserved);
+            products.updateStock(product.getProductId(), product.getStock());
+            return ServiceResult.failure(StatusCode.CONFLICT, "Could not create order; checkout rolled back");
         }
         cart.clearByUserId(userId);
         return ServiceResult.ok(null);
@@ -233,5 +245,9 @@ public final class DefaultStoreService implements StoreService {
 
     private static boolean validPrice(double price) {
         return Double.isFinite(price) && price > 0;
+    }
+
+    private static String newProductId() {
+        return "P-" + UUID.randomUUID().toString().replace("-", "").substring(0, 30);
     }
 }

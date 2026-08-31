@@ -146,6 +146,27 @@ class StoreServiceTest {
     }
 
     @Test
+    void generatedProductIdFitsDatabaseColumn() {
+        Product product = service.addProduct("Generated", 1.0, 1, "", "test").getData();
+        assertNotNull(product);
+        assertEquals(32, product.getProductId().length());
+    }
+
+    @Test
+    void purchaseRestoresStockWhenOrderRepositoryThrows() {
+        InMemoryProductRepository purchaseProducts = new InMemoryProductRepository();
+        purchaseProducts.save(new Product("P", "P", 2, 2.0, "", "test"));
+        FailingOrderRepository throwingOrders = new FailingOrderRepository(true);
+        DefaultStoreService purchase = new DefaultStoreService(purchaseProducts, throwingOrders);
+
+        ServiceResult<Void> result = purchase.purchase("u", "P", 1);
+
+        assertEquals(StatusCode.CONFLICT, result.getStatus());
+        assertEquals(2, purchaseProducts.findById("P").getStock());
+        assertTrue(throwingOrders.findByUserId("u").isEmpty());
+    }
+
+    @Test
     void inventoryUpdatesPreserveInactiveProductState() {
         Product inactive = new Product("00005", "下架商品", 8, 3.0, "不可购买", "测试", false);
         products.save(inactive);
@@ -205,9 +226,19 @@ class StoreServiceTest {
     private static final class FailingOrderRepository implements OrderRepository {
         private final InMemoryOrderRepository delegate = new InMemoryOrderRepository();
         private int createCount;
+        private final boolean throwOnCreate;
+
+        private FailingOrderRepository() {
+            this(false);
+        }
+
+        private FailingOrderRepository(boolean throwOnCreate) {
+            this.throwOnCreate = throwOnCreate;
+        }
 
         @Override
         public boolean create(Order order) {
+            if (throwOnCreate) throw new IllegalStateException("database unavailable");
             createCount++;
             return createCount == 2 ? false : delegate.create(order);
         }
