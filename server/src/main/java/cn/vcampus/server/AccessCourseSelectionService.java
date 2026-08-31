@@ -3,7 +3,10 @@ package cn.vcampus.server;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.Course;
+import cn.vcampus.course.CourseOffering;
+import cn.vcampus.course.CourseSelectionRecord;
 import cn.vcampus.course.CourseSelectionService;
+import cn.vcampus.course.SelectionRound;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -124,6 +127,36 @@ public final class AccessCourseSelectionService implements CourseSelectionServic
         } catch (SQLException | IllegalArgumentException failure) {
             return ServiceResult.failure(StatusCode.SERVER_ERROR, "failed to read selected courses");
         }
+    }
+
+    @Override
+    public ServiceResult<List<SelectionRound>> listRounds(String term) {
+        return ServiceResult.failure(StatusCode.SERVER_ERROR,
+                "course protocol v2 is not available in Access mode yet");
+    }
+
+    @Override
+    public ServiceResult<List<CourseOffering>> listOfferings(String roundId, String courseId) {
+        return ServiceResult.failure(StatusCode.SERVER_ERROR,
+                "course protocol v2 is not available in Access mode yet");
+    }
+
+    @Override
+    public ServiceResult<CourseSelectionRecord> selectOffering(String studentId, String roundId, String offeringId) {
+        return ServiceResult.failure(StatusCode.SERVER_ERROR,
+                "course protocol v2 is not available in Access mode yet");
+    }
+
+    @Override
+    public ServiceResult<Void> dropRecord(String studentId, String recordId) {
+        return ServiceResult.failure(StatusCode.SERVER_ERROR,
+                "course protocol v2 is not available in Access mode yet");
+    }
+
+    @Override
+    public ServiceResult<List<CourseSelectionRecord>> selectedRecords(String studentId, String term) {
+        return ServiceResult.failure(StatusCode.SERVER_ERROR,
+                "course protocol v2 is not available in Access mode yet");
     }
 
     private static List<Course> readCourses(ResultSet results) throws SQLException {

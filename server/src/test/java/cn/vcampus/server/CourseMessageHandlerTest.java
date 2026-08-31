@@ -9,9 +9,17 @@ import cn.vcampus.common.Role;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.Course;
+import cn.vcampus.course.CourseOffering;
+import cn.vcampus.course.CourseOfferingQueryCommand;
+import cn.vcampus.course.CourseOfferingSelectionCommand;
 import cn.vcampus.course.CourseQueryCommand;
+import cn.vcampus.course.CourseRoundQueryCommand;
 import cn.vcampus.course.CourseSelectionCommand;
+import cn.vcampus.course.CourseSelectionRecord;
+import cn.vcampus.course.CourseSelectionRecordDropCommand;
+import cn.vcampus.course.CourseSelectionRecordQueryCommand;
 import cn.vcampus.course.InMemoryCourseSelectionService;
+import cn.vcampus.course.SelectionRound;
 import cn.vcampus.user.DefaultUserManagementService;
 import cn.vcampus.user.InMemoryAuditLogRepository;
 import cn.vcampus.user.InMemoryUserRepository;
@@ -78,6 +86,35 @@ class CourseMessageHandlerTest {
 
         assertEquals(StatusCode.OK, response.getStatusCode());
         assertEquals(1, courses.selectedCourses("20230001").getData().size());
+    }
+
+    @Test
+    void v2ProtocolQueriesRoundsOfferingsAndDropsByRecordId() {
+        Message rounds = handler.handle(Message.request("v2-rounds", MessageType.COURSE_ROUND_QUERY,
+                new CourseRoundQueryCommand(studentSession.getToken(), "2026-2027-1")));
+        Message offerings = handler.handle(Message.request("v2-offerings", MessageType.COURSE_OFFERING_QUERY,
+                new CourseOfferingQueryCommand(studentSession.getToken(), "ROUND-INITIAL", "JAVA101")));
+        Message selected = handler.handle(Message.request("v2-select", MessageType.COURSE_OFFERING_SELECT,
+                new CourseOfferingSelectionCommand(studentSession.getToken(), "20230001",
+                        "ROUND-INITIAL", "OFFER-JAVA101-01")));
+        CourseSelectionRecord record = (CourseSelectionRecord) selected.getPayload();
+        Message selectedRecords = handler.handle(Message.request("v2-records", MessageType.COURSE_RECORD_QUERY,
+                new CourseSelectionRecordQueryCommand(studentSession.getToken(), "20230001", "2026-2027-1")));
+        Message dropped = handler.handle(Message.request("v2-drop", MessageType.COURSE_RECORD_DROP,
+                new CourseSelectionRecordDropCommand(studentSession.getToken(), "20230001", record.getRecordId())));
+
+        assertEquals(StatusCode.OK, rounds.getStatusCode());
+        assertTrue(((List<?>) rounds.getPayload()).get(0) instanceof SelectionRound);
+        assertEquals(StatusCode.OK, offerings.getStatusCode());
+        assertTrue(((List<?>) offerings.getPayload()).get(0) instanceof CourseOffering);
+        assertEquals(StatusCode.OK, selected.getStatusCode());
+        assertEquals("ROUND-INITIAL", record.getRoundId());
+        assertEquals("OFFER-JAVA101-01", record.getOfferingId());
+        assertEquals("JAVA101", record.getCourseId());
+        assertEquals(StatusCode.OK, selectedRecords.getStatusCode());
+        assertEquals(1, ((List<?>) selectedRecords.getPayload()).size());
+        assertEquals(StatusCode.OK, dropped.getStatusCode());
+        assertEquals(0, courses.selectedRecords("20230001", "2026-2027-1").getData().size());
     }
 
     @Test

@@ -26,5 +26,9 @@ class MessageTest {
         assertEquals("COURSE_CREATE", MessageType.valueOf("COURSE_CREATE").name());
         assertEquals("COURSE_UPDATE", MessageType.valueOf("COURSE_UPDATE").name());
         assertEquals("COURSE_DEACTIVATE", MessageType.valueOf("COURSE_DEACTIVATE").name());
+        assertEquals("COURSE_ROUND_QUERY", MessageType.valueOf("COURSE_ROUND_QUERY").name());
+        assertEquals("COURSE_OFFERING_QUERY", MessageType.valueOf("COURSE_OFFERING_QUERY").name());
+        assertEquals("COURSE_OFFERING_SELECT", MessageType.valueOf("COURSE_OFFERING_SELECT").name());
+        assertEquals("COURSE_RECORD_DROP", MessageType.valueOf("COURSE_RECORD_DROP").name());
     }
 }

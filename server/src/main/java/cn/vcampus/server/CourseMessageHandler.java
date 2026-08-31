@@ -5,8 +5,13 @@ import cn.vcampus.common.MessageType;
 import cn.vcampus.common.Role;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
+import cn.vcampus.course.CourseOfferingQueryCommand;
+import cn.vcampus.course.CourseOfferingSelectionCommand;
 import cn.vcampus.course.CourseQueryCommand;
+import cn.vcampus.course.CourseRoundQueryCommand;
 import cn.vcampus.course.CourseSelectionCommand;
+import cn.vcampus.course.CourseSelectionRecordDropCommand;
+import cn.vcampus.course.CourseSelectionRecordQueryCommand;
 import cn.vcampus.course.CourseSelectionService;
 import cn.vcampus.user.Permission;
 import cn.vcampus.user.Session;
@@ -50,6 +55,21 @@ final class CourseMessageHandler {
                     CourseSelectionCommand drop = payload(request, CourseSelectionCommand.class);
                     result = drop(drop);
                     break;
+                case COURSE_ROUND_QUERY:
+                    result = queryRounds(payload(request, CourseRoundQueryCommand.class));
+                    break;
+                case COURSE_OFFERING_QUERY:
+                    result = queryOfferings(payload(request, CourseOfferingQueryCommand.class));
+                    break;
+                case COURSE_RECORD_QUERY:
+                    result = queryRecords(payload(request, CourseSelectionRecordQueryCommand.class));
+                    break;
+                case COURSE_OFFERING_SELECT:
+                    result = selectOffering(payload(request, CourseOfferingSelectionCommand.class));
+                    break;
+                case COURSE_RECORD_DROP:
+                    result = dropRecord(payload(request, CourseSelectionRecordDropCommand.class));
+                    break;
                 default:
                     return Message.response(request, StatusCode.NOT_FOUND,
                             "course handler does not support this message");
@@ -67,6 +87,49 @@ final class CourseMessageHandler {
             return ServiceResult.failure(scope.getStatus(), scope.getMessage());
         }
         return courses.select(command.getStudentId(), command.getCourseId());
+    }
+
+    private ServiceResult<?> queryRounds(CourseRoundQueryCommand command) {
+        ServiceResult<Boolean> authorization = users.authorize(command.getToken(), Permission.COURSE_READ.getCode());
+        if (authorization.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(authorization.getStatus(), authorization.getMessage());
+        }
+        return courses.listRounds(command.getTerm());
+    }
+
+    private ServiceResult<?> queryOfferings(CourseOfferingQueryCommand command) {
+        ServiceResult<Boolean> authorization = users.authorize(command.getToken(), Permission.COURSE_READ.getCode());
+        if (authorization.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(authorization.getStatus(), authorization.getMessage());
+        }
+        return courses.listOfferings(command.getRoundId(), command.getCourseId());
+    }
+
+    private ServiceResult<?> queryRecords(CourseSelectionRecordQueryCommand command) {
+        ServiceResult<Session> scope = authorizeStudentScope(
+                command.getToken(), command.getStudentId(), Permission.COURSE_READ);
+        if (scope.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(scope.getStatus(), scope.getMessage());
+        }
+        return courses.selectedRecords(command.getStudentId(), command.getTerm());
+    }
+
+    private ServiceResult<?> selectOffering(CourseOfferingSelectionCommand command) {
+        ServiceResult<Session> scope = authorizeStudentScope(
+                command.getToken(), command.getStudentId(), Permission.COURSE_SELECT);
+        if (scope.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(scope.getStatus(), scope.getMessage());
+        }
+        return courses.selectOffering(command.getStudentId(), command.getRoundId(), command.getOfferingId());
+    }
+
+    private ServiceResult<Void> dropRecord(CourseSelectionRecordDropCommand command) {
+        ServiceResult<Session> scope = authorizeStudentScope(
+                command.getToken(), command.getStudentId(), Permission.COURSE_SELECT);
+        if (scope.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(scope.getStatus(), scope.getMessage());
+        }
+        return courses.dropRecord(command.getStudentId(), command.getRecordId());
     }
 
     private ServiceResult<?> query(Message request) {

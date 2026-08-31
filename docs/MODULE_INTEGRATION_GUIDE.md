@@ -144,7 +144,7 @@ Message response = Message.response(request, StatusCode.OK, data);
 |---|---|
 | 用户管理 | `REGISTER`、`USER_IMPORT`、`UNREGISTER`、`LOGIN`、`LOGOUT`、`AUTHORIZE` |
 | 学生学籍 | `STUDENT_QUERY`、`STUDENT_UPDATE` |
-| 选课系统 | `COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP`、`COURSE_CREATE`、`COURSE_UPDATE`、`COURSE_DEACTIVATE` |
+| 选课系统 | 旧协议：`COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP`；V2：`COURSE_ROUND_QUERY`、`COURSE_OFFERING_QUERY`、`COURSE_RECORD_QUERY`、`COURSE_OFFERING_SELECT`、`COURSE_RECORD_DROP`；课程维护：`COURSE_CREATE`、`COURSE_UPDATE`、`COURSE_DEACTIVATE` |
 | 图书馆 | `LIBRARY_QUERY`、`LIBRARY_BORROW`、`LIBRARY_RETURN` |
 | 商店 | `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY` |
 
@@ -157,6 +157,16 @@ docs/MODULE_INTEGRATION_GUIDE.md
 ```
 
 新增消息类型不能只改枚举。合并前必须同时确认：请求 payload、响应 payload、服务端 Handler、`ServerApplication` 分发、客户端远程调用、权限校验、接口文档和测试是否一起补齐。商店订单查询使用 `StoreOrderQueryCommand(token)`，只返回 token 对应用户的本人订单；商品查询使用 `StoreQueryCommand(token)`，不再发送空 payload。服务器端必须按 token 和角色判断数据范围，不能只靠客户端隐藏按钮。
+
+完整选课需求已经超出旧 Socket 协议能力，应使用 V2 消息对象：
+
+- `CourseRoundQueryCommand(token, term)` 查询首修/重修轮次；
+- `CourseOfferingQueryCommand(token, roundId, courseId)` 查询具体教学班；
+- `CourseOfferingSelectionCommand(token, studentId, roundId, offeringId)` 选择教学班；
+- `CourseSelectionRecordQueryCommand(token, studentId, term)` 查询选课记录；
+- `CourseSelectionRecordDropCommand(token, studentId, recordId)` 按记录退选。
+
+旧 `CourseSelectionCommand(token, studentId, courseId)` 保留给旧客户端简化流程，不再扩展 V2 字段。若未来放弃旧客户端，应新增迁移说明并让旧请求返回清晰错误。
 
 公共角色、权限编码和数据范围见 [`PERMISSIONS.md`](PERMISSIONS.md)。课程新增、修改和停开操作必须先校验 `COURSE_MANAGE`；任课教师录入成绩校验 `GRADE_WRITE`；教务复核校验 `ACADEMIC_REVIEW`。
 

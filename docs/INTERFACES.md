@@ -6,7 +6,7 @@
 |---|---|---|
 | 用户管理 | `UserManagementService` | `register`、`importUsers`、`unregister`、`login`、`currentSession`、`logout`、`authorize`；`register` 作为管理员端开户注册能力，批量导入使用 `USER_IMPORT`，载荷见 `UserCredentials`、`UserImportCommand`、`UserCommand`、`AuthorizationRequest` |
 | 学生学籍 | `StudentManagementService` | `findById`、`findByClass`、`save` |
-| 选课 | `CourseSelectionService` | `listCourses`、`select`、`drop`、`selectedCourses`；课程维护消息见下文 |
+| 选课 | `CourseSelectionService` | 旧协议保留 `listCourses`、`select`、`drop`、`selectedCourses`；完整选课 V2 使用 `listRounds`、`listOfferings`、`selectOffering`、`dropRecord`、`selectedRecords`；课程维护消息见下文 |
 | 图书馆 | `LibraryService` | `search`、`borrow`、`returnBook` |
 | 商店 | `StoreService` | `listProducts`、`purchase`、`findOrdersByUserId`；商店消息使用 token-only 命令，用户编号由服务器会话解析 |
 
@@ -34,6 +34,23 @@
 8. 本文档中的接口说明。
 
 商店当前使用 `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY`，对应 `StoreQueryCommand(token)`、`StorePurchaseCommand(token, productId, quantity)`、`StoreOrderQueryCommand(token)`。服务端必须从 token 对应会话取得 `userId`，不得相信客户端传入的学生/用户编号。
+
+选课公共协议正式分为两层：
+
+| 协议 | 消息类型 | 请求载荷 | 响应载荷 | 用途 |
+|---|---|---|---|---|
+| 旧协议 | `COURSE_QUERY` | `CourseQueryCommand` 或空 payload | `List<Course>` | 查询全部课程或某学生已选课程，适配旧客户端简化流程 |
+| 旧协议 | `COURSE_SELECT` | `CourseSelectionCommand(token, studentId, courseId)` | 空 | 按课程编号选课，无法表达具体教学班 |
+| 旧协议 | `COURSE_DROP` | `CourseSelectionCommand(token, studentId, courseId)` | 空 | 按课程编号退选，无法区分同课程多教学班 |
+| V2 新协议 | `COURSE_ROUND_QUERY` | `CourseRoundQueryCommand(token, term)` | `List<SelectionRound>` | 查询某学期可进入的首修/重修轮次 |
+| V2 新协议 | `COURSE_OFFERING_QUERY` | `CourseOfferingQueryCommand(token, roundId, courseId)` | `List<CourseOffering>` | 查询某轮次下可选的具体教学班；`courseId` 可为空表示全部 |
+| V2 新协议 | `COURSE_OFFERING_SELECT` | `CourseOfferingSelectionCommand(token, studentId, roundId, offeringId)` | `CourseSelectionRecord` | 学生在指定轮次中选择具体教学班 |
+| V2 新协议 | `COURSE_RECORD_QUERY` | `CourseSelectionRecordQueryCommand(token, studentId, term)` | `List<CourseSelectionRecord>` | 查询学生某学期选课记录 |
+| V2 新协议 | `COURSE_RECORD_DROP` | `CourseSelectionRecordDropCommand(token, studentId, recordId)` | 空 | 按选课记录编号退选 |
+
+V2 协议对象的 `serialVersionUID` 使用 `2L`，旧 `CourseQueryCommand` / `CourseSelectionCommand` 继续保持 `1L`。不要在旧类里直接替换字段并假装兼容，否则旧客户端和新服务端混跑时可能出现反序列化失败或空字段脏数据。若后续决定不再支持旧客户端，应保留清晰错误响应或迁移说明，而不是悄悄改变旧消息语义。
+
+当前代码中内存版选课服务已支持 V2 消息链路，Access 模式的 V2 轮次/教学班/记录落库仍需后续补表结构和仓库实现；在完成前，`--db` 模式不应宣称支持完整 V2 选课闭环。
 
 用户批量导入使用 `USER_IMPORT`。请求 payload 为 `UserImportCommand(token, rows)`，其中 `rows` 是 `UserImportRow(userId, password, displayName, roleCode)` 列表；响应 payload 为 `UserImportResult(importBatchId, totalCount, successCount, failures)`，失败明细为 `UserImportFailure(rowNumber, userId, message)`。客户端用户管理页可从 `.xlsx`、`.csv`、`.tsv` 外部表格读取账号清单并转为 `rows`；这些表格只是导入源文件，不替代 Access 运行数据库。该能力要求 `USER_MANAGE`，服务端会记录导入管理员、导入时间、导入批次，并为每个成功创建的账号写入 `IMPORT_USER` 审计记录。单行失败不会影响同批次其它有效账号。
 

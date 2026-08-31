@@ -110,6 +110,11 @@ public final class ServerApplication implements Closeable {
         return type == MessageType.COURSE_QUERY
                 || type == MessageType.COURSE_SELECT
                 || type == MessageType.COURSE_DROP
+                || type == MessageType.COURSE_ROUND_QUERY
+                || type == MessageType.COURSE_OFFERING_QUERY
+                || type == MessageType.COURSE_RECORD_QUERY
+                || type == MessageType.COURSE_OFFERING_SELECT
+                || type == MessageType.COURSE_RECORD_DROP
                 || type == MessageType.COURSE_CREATE
                 || type == MessageType.COURSE_UPDATE
                 || type == MessageType.COURSE_DEACTIVATE;

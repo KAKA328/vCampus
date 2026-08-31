@@ -37,6 +37,14 @@
 
 | `MessageType` | 要求权限 | 用途 |
 |---|---|---|
+| `COURSE_QUERY` | `COURSE_READ` / 查询全部课程可放宽 | 旧协议课程查询 |
+| `COURSE_SELECT` | `COURSE_SELECT` | 旧协议按课程编号选课 |
+| `COURSE_DROP` | `COURSE_SELECT` | 旧协议按课程编号退课 |
+| `COURSE_ROUND_QUERY` | `COURSE_READ` | V2 查询选课轮次 |
+| `COURSE_OFFERING_QUERY` | `COURSE_READ` | V2 查询具体教学班 |
+| `COURSE_RECORD_QUERY` | `COURSE_READ` | V2 查询学生选课记录，必须校验学生范围 |
+| `COURSE_OFFERING_SELECT` | `COURSE_SELECT` | V2 在轮次内选择具体教学班，必须校验学生范围 |
+| `COURSE_RECORD_DROP` | `COURSE_SELECT` | V2 按选课记录编号退课，必须校验学生范围 |
 | `COURSE_CREATE` | `COURSE_MANAGE` | 创建课程或开课记录 |
 | `COURSE_UPDATE` | `COURSE_MANAGE` | 修改课程信息、容量或开课状态 |
 | `COURSE_DEACTIVATE` | `COURSE_MANAGE` | 停开课程；存在选课或历史记录时不得直接物理删除 |
@@ -51,3 +59,4 @@
 4. 权限编码只表示操作能力，数据范围必须再次检查。服务器不能直接信任 payload 中的 `studentId`、`teacherId` 或 `userId`。
 5. `ADMIN` 保留全部权限，用于系统维护和验收。系统不提供公开自助注册；学生、教师和管理账号由系统管理员创建、批量导入或由数据库初始化脚本预置，创建后发放初始密码。学生/教师档案通过 `student_id` / `teacher_id` 绑定 `user_id`，绑定前必须校验账号角色和档案是否已被占用。
 6. 同一账号同一时间只允许存在一个活动会话。已登录账号再次登录时服务器返回 `CONFLICT`；正常登出、账号注销或服务器重启后可重新登录。
+7. 完整选课流程使用 V2 消息：先查轮次，再查教学班，选课返回 `recordId`，退课按 `recordId` 执行。旧 `COURSE_SELECT/COURSE_DROP` 只能表示简化课程选退，不得塞入 V2 字段冒充兼容。
