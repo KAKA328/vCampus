@@ -1,0 +1,246 @@
+@startuml store-module-class-diagram
+
+skinparam classAttributeIconSize 0
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontSize 12
+
+package "store 模块" {
+    interface StoreService {
+        + listProducts(): ServiceResult<List<Product>>
+        + purchase(userId: String, productId: String, quantity: int): ServiceResult<Void>
+        + findOrdersByUserId(userId: String): ServiceResult<List<Order>>
+        + restock(userId, productId, additionalStock): ServiceResult<Void>
+        + addProduct(name, price, stock, description, category): ServiceResult<Product>
+        + updateProduct(productId, name, price, description, category): ServiceResult<Product>
+        + deactivateProduct(userId, productId): ServiceResult<Void>
+        + addToCart(userId, productId, quantity): ServiceResult<Void>
+        + removeFromCart(userId, cartItemId): ServiceResult<Void>
+        + getCart(userId): ServiceResult<List<CartItem>>
+        + checkout(userId): ServiceResult<Void>
+        + findAllOrders(): ServiceResult<List<Order>>
+        + listHotProducts(limit): ServiceResult<List<Product>>
+        + listProducts(category): ServiceResult<List<Product>>
+    }
+
+    class DefaultStoreService {
+        - products: ProductRepository
+        - orders: OrderRepository
+        + listProducts(): ServiceResult<List<Product>>
+        + purchase(userId, productId, quantity): ServiceResult<Void>
+        + findOrdersByUserId(userId): ServiceResult<List<Order>>
+        + restock / addProduct / updateProduct / deactivateProduct
+        + addToCart / removeFromCart / getCart / checkout
+        + findAllOrders / listHotProducts / listProducts(category)
+    }
+    note bottom of DefaultStoreService
+        第二轮新增方法目前为占位实现（返回 failure），
+        Day 2 起逐个替换为真实业务逻辑
+    end note
+
+    class InMemoryStoreService {
+        - delegate: StoreService
+        + 全部 StoreService 方法（原样转发给 delegate）
+    }
+
+    interface ProductRepository {
+        + findAll(): List<Product>
+        + findById(id: String): Product
+        + save(product: Product): void
+        + updateStock(productId: String, newStock: int): boolean
+        + addStock(productId: String, amount: int): boolean
+        + updateProduct(product: Product): boolean
+        + deleteById(productId: String): boolean
+    }
+
+    interface OrderRepository {
+        + create(order: Order): boolean
+        + findByUserId(userId: String): List<Order>
+        + findAll(): List<Order>
+        + findSalesVolume(): List<Object[]>
+    }
+
+    interface CartRepository {
+        + findByUserId(userId: String): List<CartItem>
+        + addItem(item: CartItem): boolean
+        + removeItem(cartItemId: String): boolean
+        + updateQuantity(cartItemId: String, newQuantity: int): boolean
+        + clearByUserId(userId: String): void
+    }
+
+    class InMemoryProductRepository {
+        - products: ConcurrentHashMap<String, Product>
+        + findAll(): List<Product>
+        + findById(id): Product
+        + save(product): void
+        + updateStock(productId, newStock): boolean
+        + addStock / updateProduct / deleteById（占位）
+    }
+
+    class InMemoryOrderRepository {
+        - orders: ConcurrentHashMap<String, Order>
+        - userIdMap: ConcurrentHashMap<String, List<Order>>
+        + create(order): boolean
+        + findByUserId(userId): List<Order>
+        + findAll / findSalesVolume（占位）
+    }
+
+    class Product <<Value Object>> {
+        - productId: String
+        - name: String
+        - stock: int
+        - price: double
+        - description: String
+        - category: String
+        - active: boolean
+    }
+
+    class Order <<Value Object>> {
+        - orderId: String
+        - userId: String
+        - productId: String
+        - quantity: int
+        - totalPrice: double
+        - orderDate: LocalDateTime
+        - productName: String <<snapshot>>
+        - unitPrice: double <<snapshot>>
+    }
+
+    class StoreQueryCommand <<Command>> {
+        - token: String
+        - category: String <<null 表示查全部分类>>
+        + getToken(): String
+        + getCategory(): String
+    }
+
+    class StorePurchaseCommand <<Command>> {
+        - token: String
+        - productId: String
+        - quantity: int
+        + getToken(): String
+        + getProductId(): String
+        + getQuantity(): int
+    }
+
+    class StoreOrderQueryCommand <<Command>> {
+        - token: String
+        + getToken(): String
+    }
+
+    class StoreRestockCommand <<Command>> {
+        - token: String
+        - productId: String
+        - additionalStock: int
+    }
+
+    class StoreProductAddCommand <<Command>> {
+        - token: String
+        - name: String
+        - price: double
+        - stock: int
+        - description: String
+        - category: String
+    }
+
+    class StoreProductUpdateCommand <<Command>> {
+        - token: String
+        - productId: String
+        - name: String
+        - price: double
+        - description: String
+        - category: String
+    }
+
+    class StoreProductDeactivateCommand <<Command>> {
+        - token: String
+        - productId: String
+    }
+
+    class CartAddCommand <<Command>> {
+        - token: String
+        - productId: String
+        - quantity: int
+    }
+
+    class CartRemoveCommand <<Command>> {
+        - token: String
+        - cartItemId: String
+    }
+
+    class CartQueryCommand <<Command>> {
+        - token: String
+    }
+
+    class CartCheckoutCommand <<Command>> {
+        - token: String
+    }
+
+    class StoreOrderListAllCommand <<Command>> {
+        - token: String
+    }
+
+    class StoreHotProductsCommand <<Command>> {
+        - token: String
+        - limit: int
+    }
+
+    class CartItem <<Value Object>> {
+        - cartItemId: String
+        - userId: String
+        - productId: String
+        - quantity: int
+        - addedAt: LocalDateTime
+    }
+}
+
+package "server 模块" {
+    class StoreMessageHandler {
+        - store: StoreService
+        - users: UserManagementService
+        + handle(request: Message): Message
+    }
+    note right of StoreMessageHandler
+        三种消息处理:
+        STORE_QUERY → authorize(STORE_READ)
+        STORE_PURCHASE → authorize(STORE_PURCHASE)
+          + token→Session→userId
+        STORE_ORDER_QUERY → authorize(STORE_READ)
+          + token→Session→userId
+    end note
+}
+
+package "client 模块" {
+    class RemoteStoreService {
+        - messages: SocketMessageClient
+        - sequence: AtomicLong
+        + listProducts(token): Message
+        + purchase(token, productId, quantity): Message
+        + ordersFor(token): Message
+        + close(): void
+    }
+
+    class StorePanel <<Swing UI>> {
+        商品列表 + 购买 + 订单查询
+    }
+}
+
+StoreService <|.. DefaultStoreService
+StoreService <|.. InMemoryStoreService
+InMemoryStoreService *-- DefaultStoreService : delegates
+
+ProductRepository <|.. InMemoryProductRepository
+OrderRepository <|.. InMemoryOrderRepository
+
+CartRepository ..> CartItem : stores
+
+DefaultStoreService --> ProductRepository
+DefaultStoreService --> OrderRepository
+
+StoreMessageHandler --> StoreService
+StoreMessageHandler --> UserManagementService
+
+RemoteStoreService ..> StoreQueryCommand : creates
+RemoteStoreService ..> StorePurchaseCommand : creates
+RemoteStoreService ..> StoreOrderQueryCommand : creates
+
+@enduml

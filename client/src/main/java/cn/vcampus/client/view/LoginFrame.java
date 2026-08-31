@@ -16,9 +16,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JPasswordField;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 
@@ -103,9 +105,13 @@ public final class LoginFrame extends JFrame {
         login.addActionListener(e -> login());
         getRootPane().setDefaultButton(login);
 
+        JButton resetPassword = new JButton("申请重置密码");
+        VCampusTheme.secondaryButton(resetPassword);
+        resetPassword.addActionListener(e -> showPasswordResetDialog());
+
         c = base(0, 4);
         c.gridwidth = 2;
-        card.add(buttons(login), c);
+        card.add(buttons(login, resetPassword), c);
 
         c = base(0, 5);
         c.gridwidth = 2;
@@ -115,6 +121,68 @@ public final class LoginFrame extends JFrame {
 
         wrapper.add(card, BorderLayout.CENTER);
         return wrapper;
+    }
+
+    private void showPasswordResetDialog() {
+        JDialog dialog = new JDialog(this, "申请重置密码", true);
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBorder(VCampusTheme.padding(18, 22, 18, 22));
+        panel.setBackground(VCampusTheme.PANEL);
+
+        JTextField resetUserId = new PromptTextField(20, CredentialInputGuidance.USER_ID_HINT);
+        JPasswordField newPassword = new PromptPasswordField(20, CredentialInputGuidance.PASSWORD_HINT);
+        JLabel resetStatus = new JLabel("提交后等待管理员审批");
+        resetStatus.setForeground(VCampusTheme.MUTED);
+        VCampusTheme.field(resetUserId);
+        VCampusTheme.field(newPassword);
+
+        addField(panel, "账号", resetUserId, 0);
+        addField(panel, "新密码", newPassword, 1);
+        GridBagConstraints c = base(0, 2);
+        c.gridwidth = 2;
+        panel.add(resetStatus, c);
+
+        JButton submit = new JButton("提交申请");
+        JButton close = new JButton("关闭");
+        VCampusTheme.primaryButton(submit);
+        VCampusTheme.secondaryButton(close);
+        submit.addActionListener(event -> submitPasswordReset(resetUserId, newPassword, resetStatus, submit));
+        close.addActionListener(event -> dialog.dispose());
+        JPanel actions = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 12, 0));
+        actions.setOpaque(false);
+        actions.add(submit);
+        actions.add(close);
+        c = base(0, 3);
+        c.gridwidth = 2;
+        panel.add(actions, c);
+
+        dialog.setContentPane(panel);
+        dialog.pack();
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
+    }
+
+    private void submitPasswordReset(JTextField resetUserId, JPasswordField newPassword,
+                                     JLabel resetStatus, JButton submit) {
+        char[] secret = newPassword.getPassword();
+        submit.setEnabled(false);
+        try (RemoteUserService service = new RemoteUserService(host, port)) {
+            Message response = service.requestPasswordReset(resetUserId.getText().trim(), new String(secret));
+            if (response.getStatusCode() == StatusCode.OK) {
+                resetStatus.setText("申请已提交，请等待管理员审批");
+                resetStatus.setForeground(VCampusTheme.SUCCESS);
+                newPassword.setText("");
+            } else {
+                resetStatus.setText("提交失败：" + response.getStatusCode());
+                resetStatus.setForeground(VCampusTheme.DANGER);
+            }
+        } catch (RuntimeException | IOException | ClassNotFoundException failure) {
+            resetStatus.setText("无法提交，请检查账号格式或服务器连接");
+            resetStatus.setForeground(VCampusTheme.DANGER);
+        } finally {
+            Arrays.fill(secret, '\0');
+            submit.setEnabled(true);
+        }
     }
 
     private void login() {
@@ -166,10 +234,11 @@ public final class LoginFrame extends JFrame {
         return c;
     }
 
-    private static JPanel buttons(JButton login) {
+    private static JPanel buttons(JButton login, JButton resetPassword) {
         JPanel panel = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 12, 0));
         panel.setOpaque(false);
         panel.add(login);
+        panel.add(resetPassword);
         return panel;
     }
 }

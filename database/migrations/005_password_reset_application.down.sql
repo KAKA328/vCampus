@@ -1,0 +1,3 @@
+DROP INDEX idx_tblPasswordResetApplication_submitted ON tblPasswordResetApplication;
+DROP INDEX idx_tblPasswordResetApplication_status ON tblPasswordResetApplication;
+DROP TABLE tblPasswordResetApplication;
