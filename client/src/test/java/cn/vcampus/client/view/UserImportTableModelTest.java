@@ -20,7 +20,8 @@ class UserImportTableModelTest {
         assertEquals("账号", model.getColumnName(0));
         assertEquals("姓名", model.getColumnName(1));
         assertEquals("角色", model.getColumnName(2));
-        assertEquals("导入结果", model.getColumnName(3));
+        assertEquals("档案编号", model.getColumnName(3));
+        assertEquals("导入结果", model.getColumnName(4));
     }
 
     @Test
@@ -28,13 +29,14 @@ class UserImportTableModelTest {
         UserImportTableModel model = new UserImportTableModel();
 
         model.replaceImportRows(Arrays.asList(
-                new UserImportRow("stu1001", "Secret123", "张三", Role.STUDENT.name())));
+                new UserImportRow("stu1001", "Secret123", "张三", Role.STUDENT.name(), "20240001")));
 
         assertEquals(1, model.getRowCount());
         assertEquals("stu1001", model.getValueAt(0, 0));
         assertEquals("张三", model.getValueAt(0, 1));
         assertEquals(Role.STUDENT.name(), model.getValueAt(0, 2));
-        assertEquals("", model.getValueAt(0, 3));
+        assertEquals("20240001", model.getValueAt(0, 3));
+        assertEquals("", model.getValueAt(0, 4));
         assertFalse(model.isCellEditable(0, 0));
     }
 
@@ -48,6 +50,7 @@ class UserImportTableModelTest {
         assertEquals(2, model.toImportRows().size());
         assertEquals("Secret123", model.toImportRows().get(0).getPassword());
         assertEquals("tea1001", model.toImportRows().get(1).getUserId());
+        assertEquals("", model.toImportRows().get(1).getProfileId());
     }
 
     @Test
@@ -60,8 +63,8 @@ class UserImportTableModelTest {
         model.applyResult(new UserImportResult("batch-1", 2, 1, Arrays.asList(
                 new UserImportFailure(2, "stu1003", "user already exists"))));
 
-        assertEquals("成功", model.getValueAt(0, 3));
-        assertTrue(String.valueOf(model.getValueAt(1, 3)).contains("user already exists"));
+        assertEquals("成功", model.getValueAt(0, 4));
+        assertTrue(String.valueOf(model.getValueAt(1, 4)).contains("user already exists"));
     }
 
     @Test
@@ -75,6 +78,6 @@ class UserImportTableModelTest {
         model.clearResults();
 
         assertEquals("stu1004", model.getValueAt(0, 0));
-        assertEquals("", model.getValueAt(0, 3));
+        assertEquals("", model.getValueAt(0, 4));
     }
 }

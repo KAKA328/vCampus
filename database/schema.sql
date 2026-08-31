@@ -5,6 +5,7 @@ CREATE TABLE tblUser (
     display_name VARCHAR(64) NOT NULL,
     role_code VARCHAR(16) NOT NULL,
     active BIT NOT NULL,
+    force_password_change BIT NOT NULL,
     created_by VARCHAR(32),
     created_at DATETIME,
     import_batch_id VARCHAR(36),
@@ -27,6 +28,21 @@ CREATE TABLE tblAuditLog (
 
 CREATE INDEX idx_tblAuditLog_actor ON tblAuditLog(actor_user_id);
 CREATE INDEX idx_tblAuditLog_target ON tblAuditLog(target_type, target_id);
+
+CREATE TABLE tblPasswordResetApplication (
+    user_id VARCHAR(32) NOT NULL,
+    requested_password_hash VARCHAR(255) NOT NULL,
+    reset_reason VARCHAR(120),
+    contact_info VARCHAR(120),
+    submitted_at DATETIME NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    reviewed_by VARCHAR(32),
+    reviewed_at DATETIME,
+    PRIMARY KEY (user_id)
+);
+
+CREATE INDEX idx_tblPasswordResetApplication_status ON tblPasswordResetApplication(status);
+CREATE INDEX idx_tblPasswordResetApplication_submitted ON tblPasswordResetApplication(submitted_at);
 
 CREATE TABLE tblCourse (
     course_id VARCHAR(32) NOT NULL,

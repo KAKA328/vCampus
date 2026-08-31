@@ -22,4 +22,5 @@ public final class UserImportFailure implements Serializable {
     public int getRowNumber() { return rowNumber; }
     public String getUserId() { return userId; }
     public String getMessage() { return message; }
+    public String getReason() { return message; }
 }

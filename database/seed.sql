@@ -1,21 +1,21 @@
 -- Demo-only accounts. Initial password for all demo accounts: Demo123.
-INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active)
-VALUES ('demo_admin', 'zOeizxrgRZic/JFPuVpBUg==:xWXvxTlDz+TMHc7vtlTIA5co9c9CGtcym4aYtr2LK7M=', 'Demo Administrator', 'ADMIN', 1);
+INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
+VALUES ('demo_admin', 'zOeizxrgRZic/JFPuVpBUg==:xWXvxTlDz+TMHc7vtlTIA5co9c9CGtcym4aYtr2LK7M=', 'Demo Administrator', 'ADMIN', 1, 0);
 
-INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active)
-VALUES ('demo_academic_admin', '2URhsAIut9zD4Wpa2LitDg==:hqrBro/Sc1nex0VjnlgVqlFs+1hSpS0g/RfTZAnot2g=', 'Demo Academic Administrator', 'ACADEMIC_ADMIN', 1);
+INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
+VALUES ('demo_academic_admin', '2URhsAIut9zD4Wpa2LitDg==:hqrBro/Sc1nex0VjnlgVqlFs+1hSpS0g/RfTZAnot2g=', 'Demo Academic Administrator', 'ACADEMIC_ADMIN', 1, 0);
 
-INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active)
-VALUES ('demo_librarian', 'CyUGA2zztjSKYZHTcuFFVw==:P3kwUfUVmXevVzORB4/2AO72BYFFLnpKXD4k+Vs/6XE=', 'Demo Librarian', 'LIBRARIAN', 1);
+INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
+VALUES ('demo_librarian', 'CyUGA2zztjSKYZHTcuFFVw==:P3kwUfUVmXevVzORB4/2AO72BYFFLnpKXD4k+Vs/6XE=', 'Demo Librarian', 'LIBRARIAN', 1, 0);
 
-INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active)
-VALUES ('demo_store_manager', 'MlmQfJs4JPqfyzrOS2vWSA==:60rRuqawBtN2BIANRJmd3X++VrG/WgO0npwd09JfU4Y=', 'Demo Store Manager', 'STORE_MANAGER', 1);
+INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
+VALUES ('demo_store_manager', 'MlmQfJs4JPqfyzrOS2vWSA==:60rRuqawBtN2BIANRJmd3X++VrG/WgO0npwd09JfU4Y=', 'Demo Store Manager', 'STORE_MANAGER', 1, 0);
 
-INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active)
-VALUES ('demo_student', 'IZBIc+YD2QyDs5+HFIF4yQ==:jZiW3CFhJ854HF2PQsi2QVG0VRdz+SdW59ig/fMh1MY=', 'Demo Student', 'STUDENT', 1);
+INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
+VALUES ('demo_student', 'IZBIc+YD2QyDs5+HFIF4yQ==:jZiW3CFhJ854HF2PQsi2QVG0VRdz+SdW59ig/fMh1MY=', 'Demo Student', 'STUDENT', 1, 0);
 
-INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active)
-VALUES ('demo_teacher', 'cSoOs3pVGxBnmJO0OZy1Rg==:qmNTtyQn+Lprr8EEzSRs/ZNxtQKgSEzVy3WOSl7VYdQ=', 'Demo Teacher', 'TEACHER', 1);
+INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
+VALUES ('demo_teacher', 'cSoOs3pVGxBnmJO0OZy1Rg==:qmNTtyQn+Lprr8EEzSRs/ZNxtQKgSEzVy3WOSl7VYdQ=', 'Demo Teacher', 'TEACHER', 1, 0);
 
 -- 选课模块演示课程。
 INSERT INTO tblCourse(course_id, course_name, credits, capacity)

@@ -6,7 +6,10 @@ import cn.vcampus.common.StatusCode;
 import cn.vcampus.user.DefaultUserManagementService;
 import cn.vcampus.user.AuditLogRepository;
 import cn.vcampus.user.InMemoryAuditLogRepository;
+import cn.vcampus.user.InMemoryPasswordResetApplicationRepository;
 import cn.vcampus.user.InMemoryUserRepository;
+import cn.vcampus.user.PasswordResetApplicationRepository;
+import cn.vcampus.user.ProfileBindingRepository;
 import cn.vcampus.user.SessionManager;
 import cn.vcampus.user.UserCredentials;
 import cn.vcampus.user.UserManagementService;
@@ -26,15 +29,21 @@ final class UserServiceFactory {
         Path databasePath = databasePath(args);
         UserRepository users;
         AuditLogRepository auditLog;
+        PasswordResetApplicationRepository passwordResets;
+        ProfileBindingRepository profileBindings;
         if (databasePath == null) {
             users = new InMemoryUserRepository();
             auditLog = new InMemoryAuditLogRepository();
+            passwordResets = new InMemoryPasswordResetApplicationRepository();
+            profileBindings = null;
         } else {
             users = new AccessUserRepository(databasePath);
             auditLog = new AccessAuditLogRepository(databasePath);
+            passwordResets = new AccessPasswordResetApplicationRepository(databasePath);
+            profileBindings = new AccessProfileBindingRepository(databasePath);
         }
         DefaultUserManagementService service = new DefaultUserManagementService(
-                users, new SessionManager(), auditLog);
+                users, new SessionManager(), auditLog, passwordResets, profileBindings);
         if (databasePath == null) {
             provisionMemoryDemoAccounts(service);
         }
