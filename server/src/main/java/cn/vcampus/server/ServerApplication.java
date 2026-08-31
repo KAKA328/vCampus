@@ -6,6 +6,9 @@ import cn.vcampus.course.CourseSelectionService;
 import cn.vcampus.course.InMemoryCourseSelectionService;
 import cn.vcampus.store.StoreService;
 import cn.vcampus.store.InMemoryStoreService;
+import cn.vcampus.student.DefaultStudentManagementService;
+import cn.vcampus.student.InMemoryStudentRepository;
+import cn.vcampus.student.StudentManagementService;
 import cn.vcampus.user.UserManagementService;
 
 import java.io.Closeable;
@@ -30,22 +33,32 @@ public final class ServerApplication implements Closeable {
     private final UserMessageHandler userMessages;
     private final CourseMessageHandler courseMessages;
     private final StoreMessageHandler storeMessages;
+    private final StudentMessageHandler studentMessages;
     private final ExecutorService clients = Executors.newCachedThreadPool();
     private ServerSocket serverSocket;
 
     public ServerApplication(int port, UserManagementService users) {
-        this(port, users, new InMemoryCourseSelectionService(), new InMemoryStoreService());
+        this(port, users, new InMemoryCourseSelectionService(), new InMemoryStoreService(),
+                new DefaultStudentManagementService(new InMemoryStudentRepository()));
     }
 
     public ServerApplication(int port, UserManagementService users, CourseSelectionService courses) {
-        this(port, users, courses, new InMemoryStoreService());
+        this(port, users, courses, new InMemoryStoreService(),
+                new DefaultStudentManagementService(new InMemoryStudentRepository()));
     }
 
     ServerApplication(int port, UserManagementService users, CourseSelectionService courses, StoreService store) {
+        this(port, users, courses, store,
+                new DefaultStudentManagementService(new InMemoryStudentRepository()));
+    }
+
+    ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
+            StoreService store, StudentManagementService students) {
         this.port = port;
         this.userMessages = new UserMessageHandler(users);
         this.courseMessages = new CourseMessageHandler(courses, users);
         this.storeMessages = new StoreMessageHandler(store, users);
+        this.studentMessages = new StudentMessageHandler(students, users);
     }
 
     public void start() throws IOException {
@@ -103,6 +116,9 @@ public final class ServerApplication implements Closeable {
         if (request != null && isStoreMessage(request.getType())) {
             return storeMessages.handle(request);
         }
+        if (request != null && isStudentMessage(request.getType())) {
+            return studentMessages.handle(request);
+        }
         return userMessages.handle(request);
     }
 
@@ -120,13 +136,21 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.STORE_PURCHASE || type == MessageType.STORE_ORDER_QUERY;
     }
 
+    private static boolean isStudentMessage(MessageType type) {
+        return type == MessageType.STUDENT_QUERY || type == MessageType.STUDENT_UPDATE;
+    }
+
     public static void main(String[] args) throws IOException {
         int port = parsePort(args);
         Path databasePath = UserServiceFactory.databasePath(args);
         CourseSelectionService courses = databasePath == null
                 ? new InMemoryCourseSelectionService()
                 : new AccessCourseSelectionService(databasePath);
-        new ServerApplication(port, UserServiceFactory.create(args), courses).start();
+        StudentManagementService students = databasePath == null
+                ? new DefaultStudentManagementService(new InMemoryStudentRepository())
+                : new DefaultStudentManagementService(new AccessStudentRepository(databasePath));
+        new ServerApplication(port, UserServiceFactory.create(args), courses,
+                new InMemoryStoreService(), students).start();
     }
 
     private static int parsePort(String[] args) {

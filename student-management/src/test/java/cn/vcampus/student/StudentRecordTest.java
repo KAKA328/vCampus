@@ -21,6 +21,7 @@ public class StudentRecordTest {
         );
 
         assertEquals("S001", record.getStudentId());
+        assertEquals(null, record.getUserId());
         assertEquals("何锦恒", record.getName());
         assertEquals("男", record.getGender());
         assertEquals("计算机学院", record.getDepartmentName());
