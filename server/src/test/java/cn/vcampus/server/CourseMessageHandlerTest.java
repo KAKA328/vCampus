@@ -14,6 +14,8 @@ import cn.vcampus.course.CourseOffering;
 import cn.vcampus.course.CourseOfferingStatus;
 import cn.vcampus.course.CourseSelectionModule;
 import cn.vcampus.course.CourseSelectionCommand;
+import cn.vcampus.course.CourseSelectOfferingV2Command;
+import cn.vcampus.course.CourseSelectionQueryV2Command;
 import cn.vcampus.course.CourseSelectionDemoFactory;
 import cn.vcampus.course.InMemoryStudentSelectionProfileProvider;
 import cn.vcampus.course.StudentSelectionProfile;
@@ -45,23 +47,36 @@ class CourseMessageHandlerTest {
 
     @Test
     void queryUsesTokenToReturnStudentRounds() {
-        Message response = handler.handle(Message.request("rounds", MessageType.COURSE_QUERY,
-                CourseQueryCommand.availableRounds(session.getToken())));
+        Message response = handler.handle(Message.request("rounds",
+                MessageType.COURSE_SELECTION_QUERY_V2,
+                CourseSelectionQueryV2Command.availableRounds(session.getToken())));
         assertEquals(StatusCode.OK, response.getStatusCode());
         assertTrue(response.getPayload() instanceof List<?>);
     }
 
     @Test
     void selectionRequestDoesNotContainStudentId() {
-        Message response = handler.handle(Message.request("select", MessageType.COURSE_SELECT,
-                new CourseSelectionCommand(session.getToken(), "ROUND-INITIAL", "OFFER-JAVA-01")));
+        Message response = handler.handle(Message.request("select",
+                MessageType.COURSE_SELECT_OFFERING_V2,
+                new CourseSelectOfferingV2Command(session.getToken(), "ROUND-INITIAL",
+                        "OFFER-JAVA-01")));
         assertEquals(StatusCode.OK, response.getStatusCode());
     }
 
     @Test
     void invalidPayloadReturnsBadRequest() {
-        Message response = handler.handle(Message.request("invalid", MessageType.COURSE_SELECT, "bad"));
+        Message response = handler.handle(Message.request("invalid",
+                MessageType.COURSE_SELECT_OFFERING_V2, "bad"));
         assertEquals(StatusCode.BAD_REQUEST, response.getStatusCode());
+    }
+
+    @Test
+    void legacyCourseSelectionMessageReturnsClearUpgradeError() {
+        Message response = handler.handle(Message.request("legacy", MessageType.COURSE_SELECT,
+                new CourseSelectionCommand("STU-001", "C001")));
+
+        assertEquals(StatusCode.BAD_REQUEST, response.getStatusCode());
+        assertTrue(String.valueOf(response.getPayload()).contains("V2"));
     }
 
     @Test

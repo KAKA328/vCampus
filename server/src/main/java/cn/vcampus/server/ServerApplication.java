@@ -127,7 +127,10 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.COURSE_CREATE
                 || type == MessageType.COURSE_UPDATE
                 || type == MessageType.COURSE_DEACTIVATE
-                || type == MessageType.COURSE_MANAGE;
+                || type == MessageType.COURSE_MANAGE
+                || type == MessageType.COURSE_SELECTION_QUERY_V2
+                || type == MessageType.COURSE_SELECT_OFFERING_V2
+                || type == MessageType.COURSE_DROP_RECORD_V2;
     }
 
     private static boolean isStoreMessage(MessageType type) {

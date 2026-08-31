@@ -12,7 +12,7 @@
 - Swing 登录、主界面总控框架；开户注册入口收敛到管理员用户管理页面；
 - `Message` 消息协议、`ServiceResult` 返回格式和 `StatusCode` 状态码；
 - 学生学籍、选课、图书馆、商店四个模块的基础接口和实体占位类；
-- 选课模块的课程查询、学生选课、退课和本人已选课程查询已接入服务器和学生客户端页面。
+- 选课模块的轮次查询、教学班查询、学生选课、退选和本人已选教学班查询已接入服务器和学生客户端页面，完整流程使用显式 V2 协议。
 
 当前学生学籍、图书馆、商店还没有完整接入服务器分发和客户端页面；选课模块仍需补充教务开课/改课/停课、教师成绩录入和教务复核等管理功能。
 
@@ -119,7 +119,7 @@ common/src/main/java/cn/vcampus/common/ServiceResult.java
 | 字段 | 含义 |
 |---|---|
 | `requestId` | 请求编号，用于区分一次请求 |
-| `type` | 消息类型，例如 `COURSE_QUERY`、`LIBRARY_BORROW` |
+| `type` | 消息类型，例如 `COURSE_SELECTION_QUERY_V2`、`LIBRARY_BORROW` |
 | `statusCode` | 响应状态，成功为 `OK` |
 | `sender` | 发送方，可选 |
 | `payload` | 请求或响应数据，必须可序列化 |
@@ -127,7 +127,7 @@ common/src/main/java/cn/vcampus/common/ServiceResult.java
 创建请求示例：
 
 ```java
-Message request = Message.request("course-001", MessageType.COURSE_QUERY, payload);
+Message request = Message.request("course-001", MessageType.COURSE_SELECTION_QUERY_V2, payload);
 ```
 
 创建响应通常由服务器处理器完成：
@@ -144,7 +144,7 @@ Message response = Message.response(request, StatusCode.OK, data);
 |---|---|
 | 用户管理 | `REGISTER`、`USER_IMPORT`、`UNREGISTER`、`LOGIN`、`LOGOUT`、`AUTHORIZE` |
 | 学生学籍 | `STUDENT_QUERY`、`STUDENT_UPDATE` |
-| 选课系统 | `COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP`、`COURSE_CREATE`、`COURSE_UPDATE`、`COURSE_DEACTIVATE` |
+| 选课系统 | 旧协议保留：`COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP`；完整选课 V2：`COURSE_SELECTION_QUERY_V2`、`COURSE_SELECT_OFFERING_V2`、`COURSE_DROP_RECORD_V2`；课程维护：`COURSE_MANAGE` |
 | 图书馆 | `LIBRARY_QUERY`、`LIBRARY_BORROW`、`LIBRARY_RETURN` |
 | 商店 | `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY` |
 
@@ -157,6 +157,14 @@ docs/MODULE_INTEGRATION_GUIDE.md
 ```
 
 新增消息类型不能只改枚举。合并前必须同时确认：请求 payload、响应 payload、服务端 Handler、`ServerApplication` 分发、客户端远程调用、权限校验、接口文档和测试是否一起补齐。商店订单查询使用 `StoreOrderQueryCommand(token)`，只返回 token 对应用户的本人订单；商品查询使用 `StoreQueryCommand(token)`，不再发送空 payload。服务器端必须按 token 和角色判断数据范围，不能只靠客户端隐藏按钮。
+
+完整选课流程现在已升级为显式 V2 Socket 协议。旧 `COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP` 只作为早期课程级协议保留，不再承载轮次、教学班和选课记录流程。新客户端必须使用：
+
+- `COURSE_SELECTION_QUERY_V2` + `CourseSelectionQueryV2Command(token, roundId?)`
+- `COURSE_SELECT_OFFERING_V2` + `CourseSelectOfferingV2Command(token, roundId, offeringId)`
+- `COURSE_DROP_RECORD_V2` + `CourseDropRecordV2Command(token, recordId)`
+
+客户端不再提交 `studentId` 作为本人身份，服务器必须根据 `token -> user_id -> student_id` 推导学生档案。
 
 公共角色、权限编码和数据范围见 [`PERMISSIONS.md`](PERMISSIONS.md)。课程新增、修改和停开操作必须先校验 `COURSE_MANAGE`；任课教师录入成绩校验 `GRADE_WRITE`；教务复核校验 `ACADEMIC_REVIEW`。
 
@@ -174,26 +182,29 @@ docs/MODULE_INTEGRATION_GUIDE.md
 - 学生本人、教师本人相关操作应优先只传 `token` 和业务对象编号，服务器根据 `token -> user_id -> student_id/teacher_id` 推导真实业务身份；过渡期如命令对象仍带 `studentId` 或 `teacherId`，服务器必须做一致性校验，不能直接信任客户端传值；
 - 不要把数据库连接、文件路径、Socket 对象放进 payload。
 
-示例：学生本人选课命令对象建议只携带 token 和课程或教学班编号：
+示例：学生本人选课命令对象应使用 V2 协议，只携带 token 和轮次/教学班编号：
 
 ```java
-public final class CourseSelectionCommand implements Serializable {
+public final class CourseSelectOfferingV2Command implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private final String token;
-    private final String courseId;
+    private final String roundId;
+    private final String offeringId;
 
-    public CourseSelectionCommand(String token, String courseId) {
+    public CourseSelectOfferingV2Command(String token, String roundId, String offeringId) {
         this.token = token;
-        this.courseId = courseId;
+        this.roundId = roundId;
+        this.offeringId = offeringId;
     }
 
     public String getToken() { return token; }
-    public String getCourseId() { return courseId; }
+    public String getRoundId() { return roundId; }
+    public String getOfferingId() { return offeringId; }
 }
 ```
 
-如果当前代码为了兼容旧页面暂时保留 `studentId` 字段，也应由服务器通过 token 查到当前 `user_id`，再查询绑定的 `student_id` 后比对；不一致时返回 `FORBIDDEN`。
+退选使用 `CourseDropRecordV2Command(token, recordId)`。如果当前代码为了兼容旧页面暂时保留旧课程级命令，也应由服务器通过 token 查到当前 `user_id`，再查询绑定的 `student_id` 后比对；不一致时返回 `FORBIDDEN`。
 
 ## 7. ServiceResult 返回规范
 
@@ -315,12 +326,15 @@ private Message dispatch(Message request) {
         case LOGOUT:
         case AUTHORIZE:
             return userMessages.handle(request);
+        case COURSE_SELECTION_QUERY_V2:
+        case COURSE_SELECT_OFFERING_V2:
+        case COURSE_DROP_RECORD_V2:
+        case COURSE_MANAGE:
+            return courseMessages.handle(request);
         case COURSE_QUERY:
         case COURSE_SELECT:
         case COURSE_DROP:
-        case COURSE_CREATE:
-        case COURSE_UPDATE:
-        case COURSE_DEACTIVATE:
+            // 早期课程级协议只返回 V2 升级提示，不承载完整选课流程。
             return courseMessages.handle(request);
         case LIBRARY_QUERY:
         case LIBRARY_BORROW:
@@ -385,7 +399,8 @@ client/src/main/java/cn/vcampus/client/transport/SocketMessageClient.java
 
 ```java
 try (SocketMessageClient client = new SocketMessageClient(host, port)) {
-    Message request = Message.request("course-query-001", MessageType.COURSE_QUERY, null);
+    Message request = Message.request("course-query-001", MessageType.COURSE_SELECTION_QUERY_V2,
+            CourseSelectionQueryV2Command.availableRounds(token));
     Message response = client.send(request);
 }
 ```

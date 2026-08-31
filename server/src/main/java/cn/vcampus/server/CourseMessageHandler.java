@@ -5,12 +5,12 @@ import cn.vcampus.common.MessageType;
 import cn.vcampus.common.Role;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
-import cn.vcampus.course.CourseDropCommand;
+import cn.vcampus.course.CourseDropRecordV2Command;
 import cn.vcampus.course.CourseCatalogService;
 import cn.vcampus.course.CourseManagementCommand;
 import cn.vcampus.course.CourseOfferingService;
-import cn.vcampus.course.CourseQueryCommand;
-import cn.vcampus.course.CourseSelectionCommand;
+import cn.vcampus.course.CourseSelectionQueryV2Command;
+import cn.vcampus.course.CourseSelectOfferingV2Command;
 import cn.vcampus.course.CourseSelectionService;
 import cn.vcampus.course.StudentSelectionProfile;
 import cn.vcampus.course.StudentSelectionProfileProvider;
@@ -53,19 +53,25 @@ final class CourseMessageHandler {
         try {
             ServiceResult<?> result;
             switch (request.getType()) {
-                case COURSE_QUERY:
-                    result = query(payload(request, CourseQueryCommand.class));
+                case COURSE_SELECTION_QUERY_V2:
+                    result = query(payload(request, CourseSelectionQueryV2Command.class));
                     break;
-                case COURSE_SELECT:
-                    CourseSelectionCommand select = payload(request, CourseSelectionCommand.class);
+                case COURSE_SELECT_OFFERING_V2:
+                    CourseSelectOfferingV2Command select =
+                            payload(request, CourseSelectOfferingV2Command.class);
                     result = select(select);
                     break;
-                case COURSE_DROP:
-                    result = drop(payload(request, CourseDropCommand.class));
+                case COURSE_DROP_RECORD_V2:
+                    result = drop(payload(request, CourseDropRecordV2Command.class));
                     break;
                 case COURSE_MANAGE:
                     result = manage(payload(request, CourseManagementCommand.class));
                     break;
+                case COURSE_QUERY:
+                case COURSE_SELECT:
+                case COURSE_DROP:
+                    return Message.response(request, StatusCode.BAD_REQUEST,
+                            "course selection protocol upgraded to V2; use explicit V2 message types");
                 default:
                     return Message.response(request, StatusCode.NOT_FOUND,
                             "course handler does not support this message");
@@ -76,27 +82,27 @@ final class CourseMessageHandler {
         }
     }
 
-    private ServiceResult<?> query(CourseQueryCommand command) {
+    private ServiceResult<?> query(CourseSelectionQueryV2Command command) {
         ServiceResult<StudentSelectionProfile> profile = profile(command.getToken(), Permission.COURSE_READ);
         if (profile.getStatus() != StatusCode.OK) return profile;
-        if (command.getQueryType() == CourseQueryCommand.QueryType.AVAILABLE_ROUNDS) {
+        if (command.getQueryType() == CourseSelectionQueryV2Command.QueryType.AVAILABLE_ROUNDS) {
             return courses.listAvailableRounds(profile.getData(), LocalDateTime.now());
         }
-        if (command.getQueryType() == CourseQueryCommand.QueryType.AVAILABLE_OFFERINGS) {
+        if (command.getQueryType() == CourseSelectionQueryV2Command.QueryType.AVAILABLE_OFFERINGS) {
             return courses.listAvailableOfferings(profile.getData(), command.getRoundId(),
                     LocalDateTime.now());
         }
         return courses.listSelectedOfferings(profile.getData());
     }
 
-    private ServiceResult<?> select(CourseSelectionCommand command) {
+    private ServiceResult<?> select(CourseSelectOfferingV2Command command) {
         ServiceResult<StudentSelectionProfile> profile = profile(command.getToken(), Permission.COURSE_SELECT);
         return profile.getStatus() == StatusCode.OK
                 ? courses.select(profile.getData(), command.getRoundId(), command.getOfferingId(),
                         LocalDateTime.now()) : profile;
     }
 
-    private ServiceResult<?> drop(CourseDropCommand command) {
+    private ServiceResult<?> drop(CourseDropRecordV2Command command) {
         ServiceResult<StudentSelectionProfile> profile = profile(command.getToken(), Permission.COURSE_SELECT);
         return profile.getStatus() == StatusCode.OK
                 ? courses.drop(profile.getData(), command.getRecordId(), LocalDateTime.now()) : profile;
