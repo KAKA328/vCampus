@@ -10,7 +10,7 @@
 - 已审查 PR24：PR `#24`（标题“升级选课Socket公共协议为V2”）仍为 `OPEN`，GitHub 状态为 `CONFLICTING` / `DIRTY`；CI `Java CI / build` 当前成功，但没有审查意见，不能直接合并。
 - 已在分支 `codex/course-protocol-contract-cleanup`（基于 `origin/main` 的 `d438aa2`）整理显式 V2 选课协议。旧 `COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP` 恢复为旧课程级语义并标记弃用；完整流程改用查询轮次/教学班/已选记录、按教学班选课、按记录退选的三类 V2 消息。
 - 已同步 `docs/SYSTEM_DESIGN.md`、`docs/MODULE_INTEGRATION_GUIDE.md` 和 `docs/whole-vCampus.puml`：旧协议、V2 协议和 `COURSE_MANAGE` 的边界、分发路由及客户端命令关系已统一；V2 客户端示例使用真实的 token 命令载荷。
-- 已提交 `8155ef1` 并推送 `codex/course-protocol-contract-cleanup`，创建替代 PR `#25`（“整理选课 Socket 协议版本边界”）；后续商店修复提交为 `ed2d64c`、`4629b65`、`50105c7`。PR25 当前 `MERGEABLE`，CI 已通过，仅因等待审查而为 `BLOCKED`。
+- 已提交 `8155ef1` 并推送 `codex/course-protocol-contract-cleanup`，创建替代 PR `#25`（“整理选课 Socket 协议版本边界”）；后续商店修复提交为 `ed2d64c`、`4629b65`、`50105c7`、`ac338ef`。PR25 当前 `MERGEABLE`，CI 已通过，仅因等待审查而为 `BLOCKED`。
 - 已检查商店模块：商品查询/分类、购买、本人订单、购物车、商品维护、全量订单和热销排行均已补齐服务接口、内存实现、服务端分发与权限校验；Access 商品/订单仓储已覆盖 `active`、全量订单和销量统计。历史上存在商店相关无 PR 直接提交（如 `83980dd`），但当前规则已对后续主线更新形成约束。
 - 已审查各业务模块：用户管理和选课已有服务器/客户端主流程；学生学籍和图书馆仍只有基础接口/实体与部分内存实现，缺少完整 Handler、Access 仓储和客户端页面；选课真实 Access 闭环、档案绑定和教务管理仍未完成。服务器选课仍使用演示内存实现；使用 `--db` 时商店商品与订单改由 Access 仓储提供，购物车仍为进程内实现。
 - 已检查 Swing 主题：`VCampusTheme` 已覆盖登录、主界面、用户管理、商店、选课页面；本次为 `CourseSelectionPanel` 和 `CourseManagementPanel` 统一按钮、表格、字体、边框和状态色，并增加主题回归测试。学生学籍/图书馆页面尚不存在，暂无主题接入点。
@@ -31,7 +31,7 @@
 ## 已验证内容
 
 - 在 `D:\codex\vcampus-protocol-cleanup` 执行：`mvn -q -pl common,course-selection,server,client -am test`，退出码为 `0`。
-- 在 `D:\codex\vcampus-protocol-cleanup` 执行：`mvn clean test`，9 个模块全部成功，测试总数 211，失败/错误为 `0`。
+- 在 `D:\codex\vcampus-protocol-cleanup` 执行：`mvn clean test`，9 个模块全部成功，测试总数 213，失败/错误为 `0`。
 - 执行 `git diff --check`，未发现空白错误。
 - GitHub PR24 的 `Java CI / build` 检查为 `SUCCESS`，但 PR 仍为 `CONFLICTING` / `DIRTY` 而不可合并；PR25 最新 `Java CI / build` 也为 `SUCCESS`。
 
@@ -40,7 +40,7 @@
 - PR25 尚未获得至少一名成员审查，当前 `OPEN`、`MERGEABLE`、`BLOCKED`；PR24 仍保持 `OPEN`、`CONFLICTING`、`DIRTY`，不应强制合并。
 - `docs/MODULE_INTEGRATION_GUIDE.md` 的旧协议处理器示例已明确标注为升级提示路径；`docs/SYSTEM_DESIGN.md` 和 `docs/whole-vCampus.puml` 已同步 V2 命名。
 - 选课 V2 的真实 Access 数据联调、非演示学生档案绑定、并发选课及客户端页面刷新竞态仍需在整体验收前验证。
-- 商店服务和服务端管理命令已实现并有内存/Access/Handler 测试；`RemoteStoreService` 和 `StorePanel` 目前只暴露查询、购买和本人订单，管理员维护、购物车客户端页面以及 Access 购物车持久化仍需补齐。`--db` 模式下商品和订单已持久化，但购物车结账跨多个 JDBC 连接，当前仍不能视为跨进程原子事务。
+- 商店服务和服务端管理命令已实现并有内存/Access/Handler 测试；商品 ID 已限制为数据库 `VARCHAR(32)` 可容纳的长度，订单写入异常会触发库存补偿。`RemoteStoreService` 和 `StorePanel` 目前只暴露查询、购买和本人订单，管理员维护、购物车客户端页面以及 Access 购物车持久化仍需补齐。`--db` 模式下商品和订单已持久化，但购物车结账跨多个 JDBC 连接，当前仍不能视为跨进程原子事务。
 - 数据库迁移已修正为：全新数据库由 `schema.sql` 创建 `active`，旧商店库使用 `007_store_product_active.up.sql`；不要同时在 `004_store.up.sql` 和 `007` 重复添加字段。
 - 根工作区 `D:\codex\java协作` 当前在分支 `codex/course-protocol-v2`，仅有未跟踪目录 `vcampus\`；该目录是本地项目副本，不应在本次协议 PR 中误加入。
 
