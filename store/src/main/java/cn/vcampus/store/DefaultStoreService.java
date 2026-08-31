@@ -93,7 +93,8 @@ public final class DefaultStoreService implements StoreService {
     @Override
     public final ServiceResult<Product> addProduct(String name, double price, int stock, String description,
             String category) {
-        if (price < 0 || stock < 0) return ServiceResult.failure(StatusCode.BAD_REQUEST, "price and stock must not be negative");
+        if (!validPrice(price) || stock < 0)
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "price must be a finite positive number and stock must not be negative");
         try {
             Product product = new Product("P-" + UUID.randomUUID(), name, stock, price, description, category);
             products.save(product);
@@ -228,5 +229,9 @@ public final class DefaultStoreService implements StoreService {
             if (product.isActive() && category.trim().equals(product.getCategory())) result.add(product);
         }
         return ServiceResult.ok(Collections.unmodifiableList(result));
+    }
+
+    private static boolean validPrice(double price) {
+        return Double.isFinite(price) && price > 0;
     }
 }

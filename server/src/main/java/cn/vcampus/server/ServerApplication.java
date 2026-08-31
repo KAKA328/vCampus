@@ -24,8 +24,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Minimal multi-client server entry point; replace the in-memory service with
- * Access-backed services.
+ * Minimal multi-client server entry point.
  */
 public final class ServerApplication implements Closeable {
     public static final int DEFAULT_PORT = 19090;
@@ -145,7 +144,13 @@ public final class ServerApplication implements Closeable {
 
     public static void main(String[] args) throws IOException {
         int port = parsePort(args);
-        new ServerApplication(port, UserServiceFactory.create(args)).start();
+        new ServerApplication(port, UserServiceFactory.create(args),
+                StoreServiceFactory.create(args)).start();
+    }
+
+    private ServerApplication(int port, UserManagementService users, StoreService store) {
+        this(port, users, CourseSelectionDemoFactory.createModule(),
+                CourseSelectionDemoFactory.createProfileProvider(), store);
     }
 
     private static int parsePort(String[] args) {

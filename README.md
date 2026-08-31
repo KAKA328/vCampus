@@ -55,7 +55,7 @@ $env:VCAMPUS_BOOTSTRAP_ADMIN_NAME="系统管理员"
 
 - JDK 8 或更高版本（源码按 Java 8 兼容目标编译）
 - Maven 3.8 或更高版本
-- Access 持久化需要 `.accdb` 文件；不指定数据库时使用内存演示数据
+- Access 持久化需要 `.accdb` 文件；不指定数据库时使用内存演示数据。指定 `--db` 后用户、商品和订单使用 Access，选课仍为演示内存实现，购物车暂不持久化。
 
 ## 构建与测试
 

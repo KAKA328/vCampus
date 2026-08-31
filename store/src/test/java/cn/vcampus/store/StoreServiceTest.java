@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 // 商店服务测试
 class StoreServiceTest {
@@ -125,6 +126,23 @@ class StoreServiceTest {
     void testPurchaseNegativeQuantity() {
         ServiceResult<Void> testResult = service.purchase("0114", "00004", -1);
         assertEquals(StatusCode.BAD_REQUEST, testResult.getStatus());
+    }
+
+    @Test
+    void productPriceMustBeFiniteAndPositive() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new Product("bad-zero", "Bad", 1, 0.0, "", "test"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new Product("bad-nan", "Bad", 1, Double.NaN, "", "test"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new Product("bad-infinity", "Bad", 1, Double.POSITIVE_INFINITY, "", "test"));
+    }
+
+    @Test
+    void serviceRejectsNonFiniteOrNonPositiveProductPrices() {
+        assertEquals(StatusCode.BAD_REQUEST, service.addProduct("Zero", 0.0, 1, "", "test").getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.addProduct("NaN", Double.NaN, 1, "", "test").getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.addProduct("Infinity", Double.POSITIVE_INFINITY, 1, "", "test").getStatus());
     }
 
     @Test
