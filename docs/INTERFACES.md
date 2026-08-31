@@ -12,6 +12,14 @@
 
 所有服务方法返回 `ServiceResult<T>`，由服务器统一映射为 `Message` 响应。服务端必须再次校验会话和权限。
 
+## 账号与档案绑定公共契约
+
+账号、学生档案和教师档案的身份字段必须分开使用：`user_id` 是登录身份，`student_id` 是学生学号，`teacher_id` 是教师工号。推荐流程为：先由学籍/教师信息模块建立学生或教师档案，再由管理员创建或批量导入账号，最后通过 `student_id` / `teacher_id` 把档案绑定到 `user_id`。
+
+学生、教师本人操作时，客户端只携带 `token` 和具体业务参数，服务器根据 `token -> user_id` 查出当前账号，再通过 `tblStudent.user_id` 或 `tblTeacher.user_id` 转换为业务档案编号。选课、成绩录入、学籍查询等模块不得直接信任客户端传入的 `studentId`、`teacherId` 或 `userId`。商店订单和图书借阅继续以 `user_id` 作为当前用户身份。
+
+详细对接规范见 [`ACCOUNT_PROFILE_INTEGRATION.md`](ACCOUNT_PROFILE_INTEGRATION.md)。
+
 ## 公共消息类型变更规则
 
 `MessageType` 是客户端和服务器共同依赖的公共契约。任何子系统新增能力时，如果需要新增消息类型，不能只修改 `common` 里的枚举，还必须同步补齐：
@@ -27,7 +35,7 @@
 
 商店当前使用 `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY`，对应 `StoreQueryCommand(token)`、`StorePurchaseCommand(token, productId, quantity)`、`StoreOrderQueryCommand(token)`。服务端必须从 token 对应会话取得 `userId`，不得相信客户端传入的学生/用户编号。
 
-用户批量导入使用 `USER_IMPORT`。请求 payload 为 `UserImportCommand(token, rows)`，其中 `rows` 是 `UserImportRow(userId, password, displayName, roleCode)` 列表；响应 payload 为 `UserImportResult(importBatchId, totalCount, successCount, failures)`，失败明细为 `UserImportFailure(rowNumber, userId, message)`。该能力要求 `USER_MANAGE`，服务端会记录导入管理员、导入时间、导入批次，并为每个成功创建的账号写入 `IMPORT_USER` 审计记录。单行失败不会影响同批次其它有效账号。
+用户批量导入使用 `USER_IMPORT`。请求 payload 为 `UserImportCommand(token, rows)`，其中 `rows` 是 `UserImportRow(userId, password, displayName, roleCode)` 列表；响应 payload 为 `UserImportResult(importBatchId, totalCount, successCount, failures)`，失败明细为 `UserImportFailure(rowNumber, userId, message)`。客户端用户管理页可从 `.xlsx`、`.csv`、`.tsv` 外部表格读取账号清单并转为 `rows`；这些表格只是导入源文件，不替代 Access 运行数据库。该能力要求 `USER_MANAGE`，服务端会记录导入管理员、导入时间、导入批次，并为每个成功创建的账号写入 `IMPORT_USER` 审计记录。单行失败不会影响同批次其它有效账号。
 
 商店订单查询需要同时明确：
 
@@ -40,7 +48,7 @@
 
 - 角色新增 `ACADEMIC_ADMIN`；完整角色权限和数据范围以 [`PERMISSIONS.md`](PERMISSIONS.md) 为准。
 - 系统不提供面向未登录用户的公开自助注册。`REGISTER` 表示管理员端开户注册能力，必须由已登录管理员发起或由初始化脚本预置测试账号；各业务操作仍必须在服务器端按 token、角色权限和数据范围再次校验。
-- 创建学生账号时应同步创建或绑定 `tblStudent` 学籍档案；创建教师账号时应同步创建或绑定 `tblTeacher` 教师档案。历史成绩和学业审查记录不由账号创建自动生成，而由学籍/教务模块维护或由演示数据导入。
+- 创建学生账号后应通过 `student_id` 绑定已有或新建的 `tblStudent` 学籍档案；创建教师账号后应通过 `teacher_id` 绑定已有或新建的 `tblTeacher` 教师档案。历史成绩、学业审查记录和教师授课关系不由账号创建自动生成，而由学籍/教务模块维护或由演示数据导入。
 - `LOGIN` 成功后返回 `Session`；同一账号已有活动会话时再次登录返回 `CONFLICT`，登出或注销后可重新登录。
 - 首个系统管理员由服务器读取 `VCAMPUS_BOOTSTRAP_ADMIN_ID`、`VCAMPUS_BOOTSTRAP_ADMIN_PASSWORD`、`VCAMPUS_BOOTSTRAP_ADMIN_NAME` 后在进程内初始化，不通过 Socket 暴露管理员注册接口。
 - 权限新增 `COURSE_MANAGE`、`GRADE_WRITE`、`ACADEMIC_REVIEW`。
