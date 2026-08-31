@@ -1,0 +1,145 @@
+@startuml store-module-class-diagram
+
+skinparam classAttributeIconSize 0
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontSize 12
+
+package "store 模块" {
+    interface StoreService {
+        + listProducts(): ServiceResult<List<Product>>
+        + purchase(userId: String, productId: String, quantity: int): ServiceResult<Void>
+        + findOrdersByUserId(userId: String): ServiceResult<List<Order>>
+    }
+
+    class DefaultStoreService {
+        - products: ProductRepository
+        - orders: OrderRepository
+        + listProducts(): ServiceResult<List<Product>>
+        + purchase(userId, productId, quantity): ServiceResult<Void>
+        + findOrdersByUserId(userId): ServiceResult<List<Order>>
+    }
+
+    class InMemoryStoreService {
+        - delegate: StoreService
+        + listProducts(): ServiceResult<List<Product>>
+        + purchase(userId, productId, quantity): ServiceResult<Void>
+        + findOrdersByUserId(userId): ServiceResult<List<Order>>
+    }
+
+    interface ProductRepository {
+        + findAll(): List<Product>
+        + findById(id: String): Product
+        + save(product: Product): void
+        + updateStock(productId: String, newStock: int): boolean
+    }
+
+    interface OrderRepository {
+        + create(order: Order): boolean
+        + findByUserId(userId: String): List<Order>
+    }
+
+    class InMemoryProductRepository {
+        - products: ConcurrentHashMap<String, Product>
+        + findAll(): List<Product>
+        + findById(id): Product
+        + save(product): void
+        + updateStock(productId, newStock): boolean
+    }
+
+    class InMemoryOrderRepository {
+        - orders: ConcurrentHashMap<String, Order>
+        - userIdMap: ConcurrentHashMap<String, List<Order>>
+        + create(order): boolean
+        + findByUserId(userId): List<Order>
+    }
+
+    class Product <<Value Object>> {
+        - productId: String
+        - name: String
+        - stock: int
+        - price: double
+        - description: String
+        - category: String
+    }
+
+    class Order <<Value Object>> {
+        - orderId: String
+        - userId: String
+        - productId: String
+        - quantity: int
+        - totalPrice: double
+        - orderDate: LocalDateTime
+        - productName: String <<snapshot>>
+        - unitPrice: double <<snapshot>>
+    }
+
+    class StoreQueryCommand <<Command>> {
+        - token: String
+        + getToken(): String
+    }
+
+    class StorePurchaseCommand <<Command>> {
+        - token: String
+        - productId: String
+        - quantity: int
+        + getToken(): String
+        + getProductId(): String
+        + getQuantity(): int
+    }
+
+    class StoreOrderQueryCommand <<Command>> {
+        - token: String
+        + getToken(): String
+    }
+}
+
+package "server 模块" {
+    class StoreMessageHandler {
+        - store: StoreService
+        - users: UserManagementService
+        + handle(request: Message): Message
+    }
+    note right of StoreMessageHandler
+        三种消息处理:
+        STORE_QUERY → authorize(STORE_READ)
+        STORE_PURCHASE → authorize(STORE_PURCHASE)
+          + token→Session→userId
+        STORE_ORDER_QUERY → authorize(STORE_READ)
+          + token→Session→userId
+    end note
+}
+
+package "client 模块" {
+    class RemoteStoreService {
+        - messages: SocketMessageClient
+        - sequence: AtomicLong
+        + listProducts(token): Message
+        + purchase(token, productId, quantity): Message
+        + ordersFor(token): Message
+        + close(): void
+    }
+
+    class StorePanel <<Swing UI>> {
+        商品列表 + 购买 + 订单查询
+    }
+}
+
+StoreService <|.. DefaultStoreService
+StoreService <|.. InMemoryStoreService
+InMemoryStoreService *-- DefaultStoreService : delegates
+
+ProductRepository <|.. InMemoryProductRepository
+OrderRepository <|.. InMemoryOrderRepository
+
+DefaultStoreService --> ProductRepository
+DefaultStoreService --> OrderRepository
+
+StoreMessageHandler --> StoreService
+StoreMessageHandler --> UserManagementService
+
+RemoteStoreService ..> StoreQueryCommand : creates
+RemoteStoreService ..> StorePurchaseCommand : creates
+RemoteStoreService ..> StoreOrderQueryCommand : creates
+
+@enduml
