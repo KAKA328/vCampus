@@ -9,6 +9,7 @@ import java.awt.Container;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.JButton;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
@@ -40,9 +41,9 @@ class UserManagementPanelTest {
                 "127.0.0.1", 19090, new Session("token", new User("admin", "管理员", Role.ADMIN)));
 
         assertTrue(buttonTexts(panel).contains("创建单个账号"));
-        assertTrue(buttonTexts(panel).contains("添加一行"));
-        assertTrue(buttonTexts(panel).contains("删除选中行"));
-        assertTrue(buttonTexts(panel).contains("导入账号"));
+        assertTrue(buttonTexts(panel).contains("选择Excel/CSV文件"));
+        assertTrue(buttonTexts(panel).contains("导入文件账号"));
+        assertTrue(labels(panel).contains("尚未选择导入文件"));
         assertTrue(components(panel, JTable.class).size() >= 1);
         assertTrue(components(panel, JScrollPane.class).size() >= 1);
     }
@@ -51,6 +52,14 @@ class UserManagementPanelTest {
         List<String> texts = new ArrayList<String>();
         for (JButton button : components(root, JButton.class)) {
             texts.add(button.getText());
+        }
+        return texts;
+    }
+
+    private static List<String> labels(Container root) {
+        List<String> texts = new ArrayList<String>();
+        for (JLabel label : components(root, JLabel.class)) {
+            texts.add(label.getText());
         }
         return texts;
     }

@@ -5,9 +5,6 @@ import cn.vcampus.user.UserImportFailure;
 import cn.vcampus.user.UserImportResult;
 import cn.vcampus.user.UserImportRow;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import javax.swing.JTable;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -16,75 +13,68 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class UserImportTableModelTest {
     @Test
-    void newModelStartsWithOneStudentRowForConvenientEntry() {
+    void newModelStartsEmptyForFilePreview() {
         UserImportTableModel model = new UserImportTableModel();
+
+        assertEquals(0, model.getRowCount());
+        assertEquals("账号", model.getColumnName(0));
+        assertEquals("姓名", model.getColumnName(1));
+        assertEquals("角色", model.getColumnName(2));
+        assertEquals("导入结果", model.getColumnName(3));
+    }
+
+    @Test
+    void previewRowsHideInitialPasswordsAndAreNotEditable() {
+        UserImportTableModel model = new UserImportTableModel();
+
+        model.replaceImportRows(Arrays.asList(
+                new UserImportRow("stu1001", "Secret123", "张三", Role.STUDENT.name())));
 
         assertEquals(1, model.getRowCount());
-        assertEquals(Role.STUDENT.name(), model.getValueAt(0, 3));
-        assertEquals("", model.getValueAt(0, 4));
-        assertFalse(model.isCellEditable(0, 4), "result column should be controlled by import response");
+        assertEquals("stu1001", model.getValueAt(0, 0));
+        assertEquals("张三", model.getValueAt(0, 1));
+        assertEquals(Role.STUDENT.name(), model.getValueAt(0, 2));
+        assertEquals("", model.getValueAt(0, 3));
+        assertFalse(model.isCellEditable(0, 0));
     }
 
     @Test
-    void importRowsSkipBlankRowsAndPreserveVisibleOrder() {
+    void importRowsComeFromLoadedFileRows() {
         UserImportTableModel model = new UserImportTableModel();
-        fill(model, 0, " stu1001 ", " 初始密码 ", " 张三 ", Role.STUDENT.name());
-        model.addBlankRow();
-        model.addBlankRow();
-        fill(model, 2, "tea1001", "Teacher1", "李老师", Role.TEACHER.name());
+        model.replaceImportRows(Arrays.asList(
+                new UserImportRow("stu1001", "Secret123", "张三", Role.STUDENT.name()),
+                new UserImportRow("tea1001", "Teacher1", "李老师", Role.TEACHER.name())));
 
-        List<UserImportRow> rows = model.toImportRows();
-
-        assertEquals(2, rows.size());
-        assertEquals("stu1001", rows.get(0).getUserId());
-        assertEquals("张三", rows.get(0).getDisplayName());
-        assertEquals("tea1001", rows.get(1).getUserId());
+        assertEquals(2, model.toImportRows().size());
+        assertEquals("Secret123", model.toImportRows().get(0).getPassword());
+        assertEquals("tea1001", model.toImportRows().get(1).getUserId());
     }
 
     @Test
-    void importResultMarksSuccessAndFailureRowsByImportOrder() {
+    void importResultMarksSuccessAndFailureRowsByFileOrder() {
         UserImportTableModel model = new UserImportTableModel();
-        fill(model, 0, "stu1002", "Demo123", "学生甲", Role.STUDENT.name());
-        model.addBlankRow();
-        fill(model, 1, "stu1003", "Demo123", "学生乙", Role.STUDENT.name());
+        model.replaceImportRows(Arrays.asList(
+                new UserImportRow("stu1002", "Demo123", "学生甲", Role.STUDENT.name()),
+                new UserImportRow("stu1003", "Demo123", "学生乙", Role.STUDENT.name())));
 
         model.applyResult(new UserImportResult("batch-1", 2, 1, Arrays.asList(
                 new UserImportFailure(2, "stu1003", "user already exists"))));
 
-        assertEquals("成功", model.getValueAt(0, 4));
-        assertTrue(String.valueOf(model.getValueAt(1, 4)).contains("user already exists"));
+        assertEquals("成功", model.getValueAt(0, 3));
+        assertTrue(String.valueOf(model.getValueAt(1, 3)).contains("user already exists"));
     }
 
     @Test
     void clearResultsOnlyTouchesResultColumn() {
         UserImportTableModel model = new UserImportTableModel();
-        fill(model, 0, "stu1004", "Demo123", "学生丙", Role.STUDENT.name());
-        model.applyResult(new UserImportResult("batch-2", 1, 1, Collections.<UserImportFailure>emptyList()));
+        model.replaceImportRows(Arrays.asList(
+                new UserImportRow("stu1004", "Demo123", "学生丙", Role.STUDENT.name())));
+        model.applyResult(new UserImportResult("batch-2", 1, 1,
+                java.util.Collections.<UserImportFailure>emptyList()));
 
         model.clearResults();
 
         assertEquals("stu1004", model.getValueAt(0, 0));
-        assertEquals("", model.getValueAt(0, 4));
-    }
-
-    @Test
-    void commitActiveEditorBeforeImportKeepsLastEditedCell() {
-        UserImportTableModel model = new UserImportTableModel();
-        JTable table = new JTable(model);
-        table.editCellAt(0, 0);
-        table.getEditorComponent();
-        ((javax.swing.JTextField) table.getEditorComponent()).setText("stu1005");
-
-        model.commitActiveEditor(table);
-
-        assertEquals("stu1005", model.toImportRows().get(0).getUserId());
-    }
-
-    private static void fill(UserImportTableModel model, int row,
-            String userId, String password, String displayName, String role) {
-        model.setValueAt(userId, row, 0);
-        model.setValueAt(displayName, row, 1);
-        model.setValueAt(password, row, 2);
-        model.setValueAt(role, row, 3);
+        assertEquals("", model.getValueAt(0, 3));
     }
 }
