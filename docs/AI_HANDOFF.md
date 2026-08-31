@@ -29,7 +29,7 @@
 ## 已验证内容
 
 - 在 `D:\codex\vcampus-protocol-cleanup` 执行：`mvn -q -pl common,course-selection,server,client -am test`，退出码为 `0`。
-- 在 `D:\codex\vcampus-protocol-cleanup` 执行：`mvn clean test`，9 个模块全部成功，测试总数 205，失败/错误为 `0`。
+- 在 `D:\codex\vcampus-protocol-cleanup` 执行：`mvn clean test`，9 个模块全部成功，测试总数 199，失败/错误为 `0`。
 - 执行 `git diff --check`，未发现空白错误。
 - GitHub PR24 的 `Java CI / build` 检查为 `SUCCESS`，但 PR 仍因与最新 `main` 冲突而不可合并。
 
