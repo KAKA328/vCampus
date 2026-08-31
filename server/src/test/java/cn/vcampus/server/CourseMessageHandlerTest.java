@@ -89,6 +89,15 @@ class CourseMessageHandlerTest {
                                 CourseSelectionDemoFactory.DEMO_TERM, "教师004", "周四 1-2 节", "A204",
                                 30, 10, 5, CourseOfferingStatus.DRAFT))));
         assertEquals(StatusCode.OK, createOffering.getStatusCode());
+
+        Message updateTeachingInfo = managementHandler.handle(Message.request("update-teaching-info",
+                MessageType.COURSE_MANAGE, CourseManagementCommand.updateOfferingTeachingInfo(
+                        academicSession.getToken(), "OFFER-CS201-01", "教师005", "B301")));
+        assertEquals(StatusCode.OK, updateTeachingInfo.getStatusCode());
+        CourseOffering updatedOffering = (CourseOffering) updateTeachingInfo.getPayload();
+        assertEquals("教师005", updatedOffering.getTeacherId());
+        assertEquals("B301", updatedOffering.getLocation());
+        assertEquals("周四 1-2 节", updatedOffering.getSchedule());
     }
 
     @Test

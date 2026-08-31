@@ -17,4 +17,8 @@ public interface CourseOfferingService {
     ServiceResult<CourseOffering> changeStatus(String offeringId, CourseOfferingStatus status);
     ServiceResult<CourseOffering> changeCapacities(String offeringId, int requiredCapacity,
             int electiveCapacity, int crossMajorCapacity);
+
+    /** 仅修改任课老师和上课地点，不修改既有的上课时间。 */
+    ServiceResult<CourseOffering> updateTeachingInfo(String offeringId, String teacherId,
+            String location);
 }

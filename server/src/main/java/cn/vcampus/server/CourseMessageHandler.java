@@ -132,6 +132,9 @@ final class CourseMessageHandler {
                 return offerings.changeCapacities(command.getTargetId(),
                         command.getRequiredCapacity(), command.getElectiveCapacity(),
                         command.getCrossMajorCapacity());
+            case UPDATE_OFFERING_TEACHING_INFO:
+                return offerings.updateTeachingInfo(command.getTargetId(), command.getTeacherId(),
+                        command.getLocation());
             default:
                 return ServiceResult.failure(StatusCode.BAD_REQUEST, "unsupported management operation");
         }
