@@ -5,6 +5,8 @@ import java.util.List;
 public interface OrderRepository {
     boolean create(Order order);// 创建订单
 
+    boolean deleteById(String orderId);// 回滚订单或删除订单
+
     List<Order> findByUserId(String userId);// 根据用户编号查询订单
 
     List<Order> findAll();// 查询所有订单

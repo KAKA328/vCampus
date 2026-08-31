@@ -163,4 +163,55 @@ class StoreServiceTest {
         assertEquals("00001", sales.get(0)[0]);
         assertEquals(5, sales.get(0)[1]);
     }
+
+    @Test
+    void checkoutRollsBackEarlierItemsWhenAnOrderFails() {
+        InMemoryProductRepository checkoutProducts = new InMemoryProductRepository();
+        checkoutProducts.save(new Product("A", "A", 3, 2.0, "", "test"));
+        checkoutProducts.save(new Product("B", "B", 3, 3.0, "", "test"));
+        FailingOrderRepository failingOrders = new FailingOrderRepository();
+        InMemoryCartRepository checkoutCart = new InMemoryCartRepository();
+        checkoutCart.addItem(new CartItem("cart-a", "u", "A", 1, java.time.LocalDateTime.now()));
+        checkoutCart.addItem(new CartItem("cart-b", "u", "B", 1, java.time.LocalDateTime.now()));
+
+        DefaultStoreService checkout = new DefaultStoreService(checkoutProducts, failingOrders, checkoutCart);
+        ServiceResult<Void> result = checkout.checkout("u");
+
+        assertEquals(StatusCode.CONFLICT, result.getStatus());
+        assertEquals(3, checkoutProducts.findById("A").getStock());
+        assertEquals(3, checkoutProducts.findById("B").getStock());
+        assertTrue(failingOrders.findByUserId("u").isEmpty());
+        assertEquals(2, checkoutCart.findByUserId("u").size());
+    }
+
+    private static final class FailingOrderRepository implements OrderRepository {
+        private final InMemoryOrderRepository delegate = new InMemoryOrderRepository();
+        private int createCount;
+
+        @Override
+        public boolean create(Order order) {
+            createCount++;
+            return createCount == 2 ? false : delegate.create(order);
+        }
+
+        @Override
+        public boolean deleteById(String orderId) {
+            return delegate.deleteById(orderId);
+        }
+
+        @Override
+        public List<Order> findByUserId(String userId) {
+            return delegate.findByUserId(userId);
+        }
+
+        @Override
+        public List<Order> findAll() {
+            return delegate.findAll();
+        }
+
+        @Override
+        public List<Object[]> findSalesVolume() {
+            return delegate.findSalesVolume();
+        }
+    }
 }

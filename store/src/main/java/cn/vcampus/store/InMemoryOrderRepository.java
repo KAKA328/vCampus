@@ -36,6 +36,18 @@ public final class InMemoryOrderRepository implements OrderRepository {
     }
 
     @Override
+    public synchronized final boolean deleteById(String orderId) {
+        Order removed = orders.remove(orderId);
+        if (removed == null) return false;
+        List<Order> userOrders = userIdMap.get(removed.getUserId());
+        if (userOrders != null) {
+            userOrders.removeIf(order -> order.getOrderId().equals(orderId));
+            if (userOrders.isEmpty()) userIdMap.remove(removed.getUserId());
+        }
+        return true;
+    }
+
+    @Override
     public synchronized final List<Order> findAll() {
         return new ArrayList<Order>(orders.values());
     }

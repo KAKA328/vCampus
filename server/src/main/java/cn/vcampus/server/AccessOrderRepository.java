@@ -79,6 +79,18 @@ public final class AccessOrderRepository implements OrderRepository {
     }
 
     @Override
+    public boolean deleteById(String orderId) {
+        String sql = "DELETE FROM tblOrder WHERE order_id=?";
+        try (Connection connection = open();
+                PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, orderId);
+            return statement.executeUpdate() > 0;
+        } catch (SQLException failure) {
+            throw new IllegalStateException("failed to delete order", failure);
+        }
+    }
+
+    @Override
     public List<Object[]> findSalesVolume() {
         String sql = "SELECT product_id,SUM(quantity) AS total_quantity FROM tblOrder "
                 + "GROUP BY product_id ORDER BY SUM(quantity) DESC, product_id";

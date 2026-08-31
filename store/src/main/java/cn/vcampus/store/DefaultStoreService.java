@@ -169,12 +169,34 @@ public final class DefaultStoreService implements StoreService {
             if (product == null || !product.isActive() || product.getStock() < item.getQuantity())
                 return ServiceResult.failure(StatusCode.BAD_REQUEST, "Cart contains unavailable stock");
         }
+        List<Order> created = new ArrayList<Order>();
+        List<Product> reserved = new ArrayList<Product>();
         for (CartItem item : items) {
-            ServiceResult<Void> result = purchase(userId, item.getProductId(), item.getQuantity());
-            if (result.getStatus() != StatusCode.OK) return result;
+            Product product = products.findById(item.getProductId());
+            Product reservedProduct = new Product(product.getProductId(), product.getName(),
+                    product.getStock() - item.getQuantity(), product.getPrice(), product.getDescription(),
+                    product.getCategory(), product.isActive());
+            if (!products.updateStock(product.getProductId(), reservedProduct.getStock())) {
+                rollbackCheckout(created, reserved);
+                return ServiceResult.failure(StatusCode.CONFLICT, "Product stock changed; checkout rolled back");
+            }
+            reserved.add(product);
+            Order order = new Order(UUID.randomUUID().toString(), userId, product.getProductId(), item.getQuantity(),
+                    product.getPrice() * item.getQuantity(), LocalDateTime.now(), product.getName(), product.getPrice());
+            if (!orders.create(order)) {
+                rollbackCheckout(created, reserved);
+                products.updateStock(product.getProductId(), product.getStock());
+                return ServiceResult.failure(StatusCode.CONFLICT, "Could not create order; checkout rolled back");
+            }
+            created.add(order);
         }
         cart.clearByUserId(userId);
         return ServiceResult.ok(null);
+    }
+
+    private void rollbackCheckout(List<Order> created, List<Product> reserved) {
+        for (Order order : created) orders.deleteById(order.getOrderId());
+        for (Product product : reserved) products.updateStock(product.getProductId(), product.getStock());
     }
 
     // 查询所有订单
