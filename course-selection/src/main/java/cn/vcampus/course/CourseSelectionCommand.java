@@ -3,31 +3,34 @@ package cn.vcampus.course;
 import java.io.Serializable;
 
 /**
- * 学生选择某个教学班的网络请求。学生身份由服务器 token 推导，客户端不再提交 studentId。
+ * A request to select or drop a course for an authenticated student.
+ *
+ * <p>This object is serializable so a client can place it in a message payload
+ * and send it to the server.</p>
  */
 public final class CourseSelectionCommand implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private final String token;
-    private final String roundId;
-    private final String offeringId;
+    private final String studentId;
+    private final String courseId;
 
-    public CourseSelectionCommand(String token, String roundId, String offeringId) {
+    public CourseSelectionCommand(String token, String studentId, String courseId) {
         this.token = requireText(token, "token");
-        this.roundId = requireText(roundId, "roundId");
-        this.offeringId = requireText(offeringId, "offeringId");
+        this.studentId = requireText(studentId, "studentId");
+        this.courseId = requireText(courseId, "courseId");
     }
 
     public String getToken() {
         return token;
     }
 
-    public String getRoundId() {
-        return roundId;
+    public String getStudentId() {
+        return studentId;
     }
 
-    public String getOfferingId() {
-        return offeringId;
+    public String getCourseId() {
+        return courseId;
     }
 
     private static String requireText(String value, String fieldName) {

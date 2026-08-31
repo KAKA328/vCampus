@@ -3,8 +3,6 @@ package cn.vcampus.course;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import java.time.DayOfWeek;
-import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
 class CourseOfferingTest {
@@ -37,23 +35,6 @@ class CourseOfferingTest {
         assertEquals(60, offering.getRequiredCapacity());
         assertEquals(0, offering.getElectiveCapacity());
         assertEquals(0, offering.getCrossMajorCapacity());
-    }
-
-    @Test
-    void keepsStructuredMeetingScheduleWhenUpdatingTeachingClass() {
-        CourseOffering offering = new CourseOffering("OFFER-2026-001", "CS101", "2026-2027-1",
-                "TEACHER-001", "周一 1-2 节", "教学楼 A201", 50, 20, 10,
-                CourseOfferingStatus.OPEN);
-        CourseSchedule meetingSchedule = new CourseSchedule(Arrays.asList(
-                new CourseMeeting(DayOfWeek.MONDAY, 1, 2, "教学楼 A201")));
-
-        CourseOffering updated = offering.withMeetingSchedule(meetingSchedule)
-                .withStatus(CourseOfferingStatus.CLOSED);
-
-        assertEquals(1, updated.getMeetingSchedule().getMeetings().size());
-        assertEquals(DayOfWeek.MONDAY,
-                updated.getMeetingSchedule().getMeetings().get(0).getDayOfWeek());
-        assertEquals(CourseOfferingStatus.CLOSED, updated.getStatus());
     }
 
     @Test

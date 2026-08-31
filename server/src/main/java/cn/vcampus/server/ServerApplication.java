@@ -2,9 +2,8 @@ package cn.vcampus.server;
 
 import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
-import cn.vcampus.course.CourseSelectionDemoFactory;
 import cn.vcampus.course.CourseSelectionService;
-import cn.vcampus.course.StudentSelectionProfileProvider;
+import cn.vcampus.course.InMemoryCourseSelectionService;
 import cn.vcampus.store.StoreService;
 import cn.vcampus.store.InMemoryStoreService;
 import cn.vcampus.user.UserManagementService;
@@ -35,20 +34,17 @@ public final class ServerApplication implements Closeable {
     private ServerSocket serverSocket;
 
     public ServerApplication(int port, UserManagementService users) {
-        this(port, users, CourseSelectionDemoFactory.createService(),
-                CourseSelectionDemoFactory.createProfileProvider(), new InMemoryStoreService());
+        this(port, users, new InMemoryCourseSelectionService(), new InMemoryStoreService());
     }
 
-    public ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
-            StudentSelectionProfileProvider profiles) {
-        this(port, users, courses, profiles, new InMemoryStoreService());
+    public ServerApplication(int port, UserManagementService users, CourseSelectionService courses) {
+        this(port, users, courses, new InMemoryStoreService());
     }
 
-    ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
-            StudentSelectionProfileProvider profiles, StoreService store) {
+    ServerApplication(int port, UserManagementService users, CourseSelectionService courses, StoreService store) {
         this.port = port;
         this.userMessages = new UserMessageHandler(users);
-        this.courseMessages = new CourseMessageHandler(courses, profiles, users);
+        this.courseMessages = new CourseMessageHandler(courses, users);
         this.storeMessages = new StoreMessageHandler(store, users);
     }
 
@@ -126,7 +122,11 @@ public final class ServerApplication implements Closeable {
 
     public static void main(String[] args) throws IOException {
         int port = parsePort(args);
-        new ServerApplication(port, UserServiceFactory.create(args)).start();
+        Path databasePath = UserServiceFactory.databasePath(args);
+        CourseSelectionService courses = databasePath == null
+                ? new InMemoryCourseSelectionService()
+                : new AccessCourseSelectionService(databasePath);
+        new ServerApplication(port, UserServiceFactory.create(args), courses).start();
     }
 
     private static int parsePort(String[] args) {
