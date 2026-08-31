@@ -24,8 +24,8 @@ public final class AccessProductRepository implements ProductRepository {
         String sql = "SELECT product_id,name,stock,price,description,category "
                 + "FROM tblProduct ORDER BY product_id";
         try (Connection connection = open();
-             PreparedStatement statement = connection.prepareStatement(sql);
-             ResultSet results = statement.executeQuery()) {
+                PreparedStatement statement = connection.prepareStatement(sql);
+                ResultSet results = statement.executeQuery()) {
             List<Product> products = new ArrayList<Product>();
             while (results.next()) {
                 products.add(readProduct(results));
@@ -41,10 +41,11 @@ public final class AccessProductRepository implements ProductRepository {
         String sql = "SELECT product_id,name,stock,price,description,category "
                 + "FROM tblProduct WHERE product_id=?";
         try (Connection connection = open();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+                PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, id);
             try (ResultSet results = statement.executeQuery()) {
-                if (!results.next()) return null;
+                if (!results.next())
+                    return null;
                 return readProduct(results);
             }
         } catch (SQLException failure) {
@@ -66,7 +67,7 @@ public final class AccessProductRepository implements ProductRepository {
     public boolean updateStock(String productId, int newStock) {
         String sql = "UPDATE tblProduct SET stock=? WHERE product_id=?";
         try (Connection connection = open();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+                PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setInt(1, newStock);
             statement.setString(2, productId);
             return statement.executeUpdate() > 0;
@@ -75,11 +76,29 @@ public final class AccessProductRepository implements ProductRepository {
         }
     }
 
+    // 占位实现，Day 2 完成真实 JDBC 逻辑
+    @Override
+    public boolean addStock(String productId, int amount) {
+        return false;
+    }
+
+    // 占位实现，Day 2 完成真实 JDBC 逻辑
+    @Override
+    public boolean updateProduct(Product product) {
+        return false;
+    }
+
+    // 占位实现，Day 2 完成真实 JDBC 逻辑
+    @Override
+    public boolean deleteById(String productId) {
+        return false;
+    }
+
     private void insert(Product product) {
         String sql = "INSERT INTO tblProduct(product_id,name,stock,price,description,category) "
                 + "VALUES(?,?,?,?,?,?)";
         try (Connection connection = open();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+                PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, product.getProductId());
             statement.setString(2, product.getName());
             statement.setInt(3, product.getStock());
@@ -96,7 +115,7 @@ public final class AccessProductRepository implements ProductRepository {
         String sql = "UPDATE tblProduct SET name=?,stock=?,price=?,description=?,category=? "
                 + "WHERE product_id=?";
         try (Connection connection = open();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+                PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, product.getName());
             statement.setInt(2, product.getStock());
             statement.setDouble(3, product.getPrice());

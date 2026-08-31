@@ -56,4 +56,72 @@ public final class DefaultStoreService implements StoreService {
     public final ServiceResult<List<Order>> findOrdersByUserId(String userId) {
         return ServiceResult.ok(orders.findByUserId(userId));
     }
+
+    // 补货
+    @Override
+    public final ServiceResult<Void> restock(String userId, String productId, int additionalStock) {
+        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+    }
+
+    // 新增商品
+    @Override
+    public final ServiceResult<Product> addProduct(String name, double price, int stock, String description,
+            String category) {
+        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+    }
+
+    // 更新商品非库存字段
+    @Override
+    public final ServiceResult<Product> updateProduct(String productId, String name, double price,
+            String description, String category) {
+        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+    }
+
+    // 下架商品
+    @Override
+    public final ServiceResult<Void> deactivateProduct(String userId, String productId) {
+        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+    }
+
+    // 加入购物车
+    @Override
+    public final ServiceResult<Void> addToCart(String userId, String productId, int quantity) {
+        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+    }
+
+    // 删除购物车条目
+    @Override
+    public final ServiceResult<Void> removeFromCart(String userId, String cartItemId) {
+        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+    }
+
+    // 查询购物车
+    @Override
+    public final ServiceResult<List<CartItem>> getCart(String userId) {
+        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+    }
+
+    // 购物车结账
+    @Override
+    public final ServiceResult<Void> checkout(String userId) {
+        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+    }
+
+    // 查询所有订单
+    @Override
+    public final ServiceResult<List<Order>> findAllOrders() {
+        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+    }
+
+    // 热销商品排行
+    @Override
+    public final ServiceResult<List<Product>> listHotProducts(int limit) {
+        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+    }
+
+    // 按分类列出商品
+    @Override
+    public final ServiceResult<List<Product>> listProducts(String category) {
+        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+    }
 }

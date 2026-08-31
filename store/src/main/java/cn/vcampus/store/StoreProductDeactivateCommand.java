@@ -2,26 +2,22 @@ package cn.vcampus.store;
 
 import java.io.Serializable;
 
-public final class StoreQueryCommand implements Serializable {
-    private static final long serialVersionUID = 1L;
+public final class StoreProductDeactivateCommand implements Serializable {
+    private static final long serialVersionUID = 1L;// 序列化版本号
     private final String token;// 用户令牌
-    private final String category;// 商品类别
+    private final String productId;// 商品ID
 
-    public StoreQueryCommand(String token, String category) {
+    public StoreProductDeactivateCommand(String token, String productId) {
         this.token = checkStr(token, "token");
-        this.category = category; // 不能检查字符串合法性，用于委托构造
-    }
-
-    public StoreQueryCommand(String token) {
-        this(token, null);
+        this.productId = checkStr(productId, "productId");
     }
 
     public String getToken() {
         return token;
     }
 
-    public String getCategory() {
-        return category;
+    public String getProductId() {
+        return productId;
     }
 
     // 检查字符串合法性

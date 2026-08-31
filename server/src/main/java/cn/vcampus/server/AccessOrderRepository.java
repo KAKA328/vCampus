@@ -22,11 +22,12 @@ public final class AccessOrderRepository implements OrderRepository {
 
     @Override
     public boolean create(Order order) {
-        if (exists(order.getOrderId())) return false;
+        if (exists(order.getOrderId()))
+            return false;
         String sql = "INSERT INTO tblOrder(order_id,user_id,product_id,quantity,"
                 + "total_price,order_date,product_name,unit_price) VALUES(?,?,?,?,?,?,?,?)";
         try (Connection connection = open();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+                PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, order.getOrderId());
             statement.setString(2, order.getUserId());
             statement.setString(3, order.getProductId());
@@ -48,7 +49,7 @@ public final class AccessOrderRepository implements OrderRepository {
                 + "total_price,order_date,product_name,unit_price "
                 + "FROM tblOrder WHERE user_id=? ORDER BY order_date";
         try (Connection connection = open();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+                PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, userId);
             try (ResultSet results = statement.executeQuery()) {
                 List<Order> orders = new ArrayList<Order>();
@@ -62,10 +63,22 @@ public final class AccessOrderRepository implements OrderRepository {
         }
     }
 
+    // 占位实现，Day 2 完成真实 JDBC 逻辑
+    @Override
+    public List<Order> findAll() {
+        return new ArrayList<Order>();
+    }
+
+    // 占位实现，Day 2 完成真实 JDBC 逻辑
+    @Override
+    public List<Object[]> findSalesVolume() {
+        return new ArrayList<Object[]>();
+    }
+
     private boolean exists(String orderId) {
         String sql = "SELECT order_id FROM tblOrder WHERE order_id=?";
         try (Connection connection = open();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+                PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, orderId);
             try (ResultSet results = statement.executeQuery()) {
                 return results.next();

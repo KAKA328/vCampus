@@ -32,4 +32,61 @@ public final class InMemoryStoreService implements StoreService {
     public final ServiceResult<List<Order>> findOrdersByUserId(String userId) {
         return delegate.findOrdersByUserId(userId);
     }
+
+    @Override
+    public final ServiceResult<Void> restock(String userId, String productId, int additionalStock) {
+        return delegate.restock(userId, productId, additionalStock);
+    }
+
+    @Override
+    public final ServiceResult<Product> addProduct(String name, double price, int stock, String description,
+            String category) {
+        return delegate.addProduct(name, price, stock, description, category);
+    }
+
+    @Override
+    public final ServiceResult<Product> updateProduct(String productId, String name, double price,
+            String description, String category) {
+        return delegate.updateProduct(productId, name, price, description, category);
+    }
+
+    @Override
+    public final ServiceResult<Void> deactivateProduct(String userId, String productId) {
+        return delegate.deactivateProduct(userId, productId);
+    }
+
+    @Override
+    public final ServiceResult<Void> addToCart(String userId, String productId, int quantity) {
+        return delegate.addToCart(userId, productId, quantity);
+    }
+
+    @Override
+    public final ServiceResult<Void> removeFromCart(String userId, String cartItemId) {
+        return delegate.removeFromCart(userId, cartItemId);
+    }
+
+    @Override
+    public final ServiceResult<List<CartItem>> getCart(String userId) {
+        return delegate.getCart(userId);
+    }
+
+    @Override
+    public final ServiceResult<Void> checkout(String userId) {
+        return delegate.checkout(userId);
+    }
+
+    @Override
+    public final ServiceResult<List<Order>> findAllOrders() {
+        return delegate.findAllOrders();
+    }
+
+    @Override
+    public final ServiceResult<List<Product>> listHotProducts(int limit) {
+        return delegate.listHotProducts(limit);
+    }
+
+    @Override
+    public final ServiceResult<List<Product>> listProducts(String category) {
+        return delegate.listProducts(category);
+    }
 }
