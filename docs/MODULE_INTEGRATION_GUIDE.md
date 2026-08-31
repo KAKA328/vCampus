@@ -11,10 +11,10 @@
 - 用户管理模块基础实现；
 - Swing 登录、主界面总控框架；开户注册入口收敛到管理员用户管理页面；
 - `Message` 消息协议、`ServiceResult` 返回格式和 `StatusCode` 状态码；
-- 学生学籍、选课、图书馆、商店四个模块的基础接口和实体占位类；
+- 学生学籍、选课、图书馆、商店四个模块的基础接口和实体；商店服务已补齐内存业务、Access 商品/订单仓储及管理/购物车协议处理；
 - 选课模块的轮次查询、教学班查询、学生选课、退选和本人已选教学班查询已接入服务器和学生客户端页面，完整流程使用显式 V2 协议。
 
-当前学生学籍、图书馆、商店还没有完整接入服务器分发和客户端页面；选课模块仍需补充教务开课/改课/停课、教师成绩录入和教务复核等管理功能。
+当前学生学籍、图书馆仍没有完整接入服务器分发和客户端页面；商店服务器分发已覆盖查询、购买、购物车、商品维护、订单管理和热销排行，但客户端暂有商品查询、购买和本人订单页面，管理员维护与购物车页面仍待补齐；选课模块仍需补充真实 Access 数据、教务开课/改课/停课、教师成绩录入和教务复核等管理功能。
 
 ## 2. 队友开始开发前要做什么
 
@@ -146,7 +146,7 @@ Message response = Message.response(request, StatusCode.OK, data);
 | 学生学籍 | `STUDENT_QUERY`、`STUDENT_UPDATE` |
 | 选课系统 | 旧协议保留：`COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP`；完整选课 V2：`COURSE_SELECTION_QUERY_V2`、`COURSE_SELECT_OFFERING_V2`、`COURSE_DROP_RECORD_V2`；课程维护：`COURSE_MANAGE` |
 | 图书馆 | `LIBRARY_QUERY`、`LIBRARY_BORROW`、`LIBRARY_RETURN` |
-| 商店 | `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY` |
+| 商店 | `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY`、`STORE_RESTOCK`、`STORE_PRODUCT_ADD`、`STORE_PRODUCT_UPDATE`、`STORE_PRODUCT_DEACTIVATE`、`STORE_CART_ADD`、`STORE_CART_REMOVE`、`STORE_CART_QUERY`、`STORE_CART_CHECKOUT`、`STORE_ORDER_LIST_ALL`、`STORE_HOT_PRODUCTS` |
 
 如果需要新增消息类型，必须同步修改：
 
@@ -156,7 +156,7 @@ docs/INTERFACES.md
 docs/MODULE_INTEGRATION_GUIDE.md
 ```
 
-新增消息类型不能只改枚举。合并前必须同时确认：请求 payload、响应 payload、服务端 Handler、`ServerApplication` 分发、客户端远程调用、权限校验、接口文档和测试是否一起补齐。商店订单查询使用 `StoreOrderQueryCommand(token)`，只返回 token 对应用户的本人订单；商品查询使用 `StoreQueryCommand(token)`，不再发送空 payload。服务器端必须按 token 和角色判断数据范围，不能只靠客户端隐藏按钮。
+新增消息类型不能只改枚举。合并前必须同时确认：请求 payload、响应 payload、服务端 Handler、`ServerApplication` 分发、客户端远程调用、权限校验、接口文档和测试是否一起补齐。商店命令均携带 token；服务器端必须按 token 和角色判断数据范围，不能只靠客户端隐藏按钮。`STORE_ORDER_QUERY` 只返回本人订单，`STORE_ORDER_LIST_ALL` 才允许商店管理员查看全量订单。
 
 完整选课流程现在已升级为显式 V2 Socket 协议。旧 `COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP` 只作为早期课程级协议保留，不再承载轮次、教学班和选课记录流程。新客户端必须使用：
 
@@ -342,6 +342,17 @@ private Message dispatch(Message request) {
             return libraryMessages.handle(request);
         case STORE_QUERY:
         case STORE_PURCHASE:
+        case STORE_ORDER_QUERY:
+        case STORE_RESTOCK:
+        case STORE_PRODUCT_ADD:
+        case STORE_PRODUCT_UPDATE:
+        case STORE_PRODUCT_DEACTIVATE:
+        case STORE_CART_ADD:
+        case STORE_CART_REMOVE:
+        case STORE_CART_QUERY:
+        case STORE_CART_CHECKOUT:
+        case STORE_ORDER_LIST_ALL:
+        case STORE_HOT_PRODUCTS:
             return storeMessages.handle(request);
         case STUDENT_QUERY:
         case STUDENT_UPDATE:

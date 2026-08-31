@@ -135,7 +135,12 @@ public final class ServerApplication implements Closeable {
 
     private static boolean isStoreMessage(MessageType type) {
         return type == MessageType.STORE_QUERY
-                || type == MessageType.STORE_PURCHASE || type == MessageType.STORE_ORDER_QUERY;
+                || type == MessageType.STORE_PURCHASE || type == MessageType.STORE_ORDER_QUERY
+                || type == MessageType.STORE_RESTOCK || type == MessageType.STORE_PRODUCT_ADD
+                || type == MessageType.STORE_PRODUCT_UPDATE || type == MessageType.STORE_PRODUCT_DEACTIVATE
+                || type == MessageType.STORE_CART_ADD || type == MessageType.STORE_CART_REMOVE
+                || type == MessageType.STORE_CART_QUERY || type == MessageType.STORE_CART_CHECKOUT
+                || type == MessageType.STORE_ORDER_LIST_ALL || type == MessageType.STORE_HOT_PRODUCTS;
     }
 
     public static void main(String[] args) throws IOException {

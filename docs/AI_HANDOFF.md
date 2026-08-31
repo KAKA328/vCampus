@@ -11,7 +11,9 @@
 - 已在分支 `codex/course-protocol-contract-cleanup`（基于 `origin/main` 的 `d438aa2`）整理显式 V2 选课协议。旧 `COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP` 恢复为旧课程级语义并标记弃用；完整流程改用查询轮次/教学班/已选记录、按教学班选课、按记录退选的三类 V2 消息。
 - 已同步 `docs/SYSTEM_DESIGN.md`、`docs/MODULE_INTEGRATION_GUIDE.md` 和 `docs/whole-vCampus.puml`：旧协议、V2 协议和 `COURSE_MANAGE` 的边界、分发路由及客户端命令关系已统一；V2 客户端示例使用真实的 token 命令载荷。
 - 已提交 `8155ef1` 并推送 `codex/course-protocol-contract-cleanup`，创建替代 PR `#25`（“整理选课 Socket 协议版本边界”）。PR25 当前 `MERGEABLE`，CI 已通过，仅因等待审查而为 `BLOCKED`。
-- 已检查商店模块：当前 `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY` 使用 token-only 命令，服务端按会话解析 `userId`，未发现与选课相同的协议破坏点。历史上存在商店相关无 PR 直接提交（如 `83980dd`），但当前规则已对后续主线更新形成约束。
+- 已检查商店模块：商品查询/分类、购买、本人订单、购物车、商品维护、全量订单和热销排行均已补齐服务接口、内存实现、服务端分发与权限校验；Access 商品/订单仓储已覆盖 `active`、全量订单和销量统计。历史上存在商店相关无 PR 直接提交（如 `83980dd`），但当前规则已对后续主线更新形成约束。
+- 已审查各业务模块：用户管理和选课已有服务器/客户端主流程；学生学籍和图书馆仍只有基础接口/实体与部分内存实现，缺少完整 Handler、Access 仓储和客户端页面；选课真实 Access 闭环、档案绑定和教务管理仍未完成。服务器当前默认使用演示内存选课/商店工厂，Access 仓储尚未接入默认启动路径。
+- 已检查 Swing 主题：`VCampusTheme` 已覆盖登录、主界面、用户管理、商店、选课页面；本次为 `CourseSelectionPanel` 和 `CourseManagementPanel` 统一按钮、表格、字体、边框和状态色，并增加主题回归测试。学生学籍/图书馆页面尚不存在，暂无主题接入点。
 - 已新增本项目长期协作规范 `AGENTS.md`，约束主线保护、公共协议版本化、跨模块对接和验证要求。
 
 ## 已修改文件
@@ -24,7 +26,7 @@
 - 测试：`common/src/test/java/cn/vcampus/common/MessageTest.java`；`course-selection/src/test/java/cn/vcampus/course/CourseQueryCommandTest.java`、`CourseSelectionCommandTest.java`、`CourseDropCommandTest.java`；`server/src/test/java/cn/vcampus/server/CourseMessageHandlerTest.java`、`ServerApplicationDispatchTest.java`。
 - 文档：`docs/INTERFACES.md`、`docs/MODULE_INTEGRATION_GUIDE.md`、`docs/SYSTEM_DESIGN.md`、`docs/whole-vCampus.puml`、本文件和根目录 `AGENTS.md`。
 
-上述文件中的协议整理改动尚未提交到分支；不要将它们误认为已进入 `main` 或 PR24。
+协议整理已在 `8155ef1` 提交并推送到 PR25；本次商店、数据库、主题和测试改动仍在当前工作树，尚未进入 `main` 或 PR25。
 
 ## 已验证内容
 
@@ -38,7 +40,8 @@
 - PR25 尚未获得至少一名成员审查；PR24 仍保持 `OPEN`、`CONFLICTING`、`DIRTY`，待 PR25 审查通过后关闭或替代。
 - `docs/MODULE_INTEGRATION_GUIDE.md` 的旧协议处理器示例已明确标注为升级提示路径；`docs/SYSTEM_DESIGN.md` 和 `docs/whole-vCampus.puml` 已同步 V2 命名。
 - 选课 V2 的真实 Access 数据联调、非演示学生档案绑定、并发选课及客户端页面刷新竞态仍需在整体验收前验证。
-- 商店模块目前主要完成查询、购买和本人订单查询；管理员商品/库存维护及跨表事务的完整验收仍需由商店负责人补充证据。
+- 商店服务和服务端管理命令已实现并有内存/Access/Handler 测试；`RemoteStoreService` 和 `StorePanel` 目前只暴露查询、购买和本人订单，管理员维护、购物车客户端页面以及 Access 购物车持久化仍需补齐。购物车结账当前按服务内存仓库执行，不能视为跨进程持久化事务。
+- 数据库迁移已修正为：全新数据库由 `schema.sql` 创建 `active`，旧商店库使用 `007_store_product_active.up.sql`；不要同时在 `004_store.up.sql` 和 `007` 重复添加字段。
 - 根工作区 `D:\codex\java协作` 当前在分支 `codex/course-protocol-v2`，仅有未跟踪目录 `vcampus\`；该目录是本地项目副本，不应在本次协议 PR 中误加入。
 
 ## PR24 当前判断
@@ -47,6 +50,7 @@
 
 ## 下一步建议
 
-1. 等待 PR25 CI 完成并获得至少一名成员审查；确认仍与最新 `main` 无冲突后，再关闭或替代 PR24。
-2. PR25 合并后做选课、商店及用户会话的主线联调。
-3. 后续独立处理选课 V2 的真实 Access 数据联调、非演示学生档案绑定、并发选课与客户端刷新竞态，以及商店管理员库存维护验收。
+1. 提交并推送当前商店、数据库、主题及文档改动，确认 `mvn clean test` 和 `git diff --check` 通过。
+2. 更新 PR25 描述并等待至少一名成员审查；PR25 保持 `MERGEABLE` 后再通过 Pull Request 合并，不能强制合并 PR24。
+3. PR25 合并后做选课、商店及用户会话的主线联调；确认 PR24 仍冲突后再关闭旧 PR24。
+4. 后续独立处理选课 V2 的真实 Access 数据联调、非演示学生档案绑定、并发选课与客户端刷新竞态，学生学籍/图书馆完整接入，以及商店管理员/购物车客户端和 Access 持久化。

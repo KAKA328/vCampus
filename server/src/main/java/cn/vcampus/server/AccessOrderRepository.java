@@ -63,16 +63,34 @@ public final class AccessOrderRepository implements OrderRepository {
         }
     }
 
-    // 占位实现，Day 2 完成真实 JDBC 逻辑
     @Override
     public List<Order> findAll() {
-        return new ArrayList<Order>();
+        String sql = "SELECT order_id,user_id,product_id,quantity,total_price,order_date,product_name,unit_price "
+                + "FROM tblOrder ORDER BY order_date";
+        try (Connection connection = open();
+                PreparedStatement statement = connection.prepareStatement(sql);
+                ResultSet results = statement.executeQuery()) {
+            List<Order> orders = new ArrayList<Order>();
+            while (results.next()) orders.add(readOrder(results));
+            return orders;
+        } catch (SQLException failure) {
+            throw new IllegalStateException("failed to list orders", failure);
+        }
     }
 
-    // 占位实现，Day 2 完成真实 JDBC 逻辑
     @Override
     public List<Object[]> findSalesVolume() {
-        return new ArrayList<Object[]>();
+        String sql = "SELECT product_id,SUM(quantity) AS total_quantity FROM tblOrder "
+                + "GROUP BY product_id ORDER BY SUM(quantity) DESC, product_id";
+        try (Connection connection = open();
+                PreparedStatement statement = connection.prepareStatement(sql);
+                ResultSet results = statement.executeQuery()) {
+            List<Object[]> sales = new ArrayList<Object[]>();
+            while (results.next()) sales.add(new Object[] { results.getString("product_id"), results.getInt("total_quantity") });
+            return sales;
+        } catch (SQLException failure) {
+            throw new IllegalStateException("failed to list sales volume", failure);
+        }
     }
 
     private boolean exists(String orderId) {

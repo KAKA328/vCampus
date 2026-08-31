@@ -8,10 +8,10 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class InMemoryOrderRepository implements OrderRepository {
     private final Map<String, Order> orders = new ConcurrentHashMap<String, Order>();// 根据订单ID存储订单
 
-    private Map<String, List<Order>> userIdMap = new ConcurrentHashMap<String, List<Order>>();// 根据用户ID存储订单
+    private final Map<String, List<Order>> userIdMap = new ConcurrentHashMap<String, List<Order>>();// 根据用户ID存储订单
 
     @Override
-    public final boolean create(Order order) {
+    public synchronized final boolean create(Order order) {
         // 如果商品已经存在，返回false
         if (orders.containsKey(order.getOrderId()))
             return false;
@@ -30,20 +30,31 @@ public final class InMemoryOrderRepository implements OrderRepository {
 
     // 根据用户ID查找订单
     @Override
-    public final List<Order> findByUserId(String userId) {
+    public synchronized final List<Order> findByUserId(String userId) {
         List<Order> result = userIdMap.get(userId);
-        return result != null ? result : new ArrayList<Order>();// 如果用户没有订单，返回空列表
+        return result != null ? new ArrayList<Order>(result) : new ArrayList<Order>();// 如果用户没有订单，返回空列表
     }
 
-    // 占位实现，Day 2 完成
     @Override
-    public final List<Order> findAll() {
-        return new ArrayList<Order>();
+    public synchronized final List<Order> findAll() {
+        return new ArrayList<Order>(orders.values());
     }
 
-    // 占位实现，Day 2 完成
     @Override
-    public final List<Object[]> findSalesVolume() {
-        return new ArrayList<Object[]>();
+    public synchronized final List<Object[]> findSalesVolume() {
+        Map<String, Integer> volumeByProduct = new ConcurrentHashMap<String, Integer>();
+        for (Order order : orders.values()) {
+            Integer current = volumeByProduct.get(order.getProductId());
+            volumeByProduct.put(order.getProductId(), (current == null ? 0 : current) + order.getQuantity());
+        }
+        List<Object[]> result = new ArrayList<Object[]>();
+        for (Map.Entry<String, Integer> entry : volumeByProduct.entrySet()) {
+            result.add(new Object[] { entry.getKey(), entry.getValue() });
+        }
+        java.util.Collections.sort(result, (left, right) -> {
+            int byVolume = Integer.compare((Integer) right[1], (Integer) left[1]);
+            return byVolume != 0 ? byVolume : String.valueOf(left[0]).compareTo(String.valueOf(right[0]));
+        });
+        return result;
     }
 }

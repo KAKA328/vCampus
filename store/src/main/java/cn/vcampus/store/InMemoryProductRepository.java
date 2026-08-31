@@ -26,36 +26,37 @@ public final class InMemoryProductRepository implements ProductRepository {
     }
 
     @Override
-    public final boolean updateStock(String productId, int newStock) {
+    public synchronized final boolean updateStock(String productId, int newStock) {
         // 如果商品存在，改动存储数量，
         // 如果不存在，返回false
         if (this.findById(productId) != null) {
             Product oldPro = this.findById(productId);
+            if (newStock < 0) return false;
             Product newPro = new Product(oldPro.getProductId(), oldPro.getName(), newStock, oldPro.getPrice(),
-                    oldPro.getDescription(),
-                    oldPro.getCategory());
+                    oldPro.getDescription(), oldPro.getCategory(), oldPro.isActive());
             this.products.replace(productId, newPro);
             return true;
         }
         return false;
     }
 
-    // 占位实现，Day 2 完成
     @Override
-    public final boolean addStock(String productId, int amount) {
-        return false;
+    public synchronized final boolean addStock(String productId, int amount) {
+        if (amount <= 0) return false;
+        Product product = products.get(productId);
+        return product != null && updateStock(productId, product.getStock() + amount);
     }
 
-    // 占位实现，Day 2 完成
     @Override
-    public final boolean updateProduct(Product product) {
-        return false;
+    public synchronized final boolean updateProduct(Product product) {
+        if (product == null || !products.containsKey(product.getProductId())) return false;
+        products.put(product.getProductId(), product);
+        return true;
     }
 
-    // 占位实现，Day 2 完成
     @Override
-    public final boolean deleteById(String productId) {
-        return false;
+    public synchronized final boolean deleteById(String productId) {
+        return products.remove(productId) != null;
     }
 
 }

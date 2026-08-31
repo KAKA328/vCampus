@@ -8,7 +8,7 @@
 | 学生学籍 | `StudentManagementService` | `findById`、`findByClass`、`save` |
 | 选课 | `CourseSelectionService` | 完整选课流程使用 V2 消息：查询轮次/教学班/已选记录、按教学班选课、按选课记录退选；课程维护消息见下文 |
 | 图书馆 | `LibraryService` | `search`、`borrow`、`returnBook` |
-| 商店 | `StoreService` | `listProducts`、`purchase`、`findOrdersByUserId`；商店消息使用 token-only 命令，用户编号由服务器会话解析 |
+| 商店 | `StoreService` | 商品查询/分类、购买、购物车、本人/全量订单、热销排行和商品维护；商店消息使用 token-only 命令，用户编号由服务器会话解析 |
 
 所有服务方法返回 `ServiceResult<T>`，由服务器统一映射为 `Message` 响应。服务端必须再次校验会话和权限。
 
@@ -41,7 +41,15 @@
 
 这次变更是公共协议升级。客户端不再提交 `studentId` 作为本人身份，服务端必须根据 `token -> user_id -> student_id` 推导学生档案；退选也不再使用 `courseId`，而是使用已选记录的 `recordId`。如果后续需要兼容旧客户端，应由组内另行实现旧消息的简化流程，不能再把旧消息类型偷偷改成 V2 字段。
 
-商店当前使用 `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY`，对应 `StoreQueryCommand(token)`、`StorePurchaseCommand(token, productId, quantity)`、`StoreOrderQueryCommand(token)`。服务端必须从 token 对应会话取得 `userId`，不得相信客户端传入的学生/用户编号。
+商店当前使用以下 token-only 命令，服务端必须从 token 对应会话取得 `userId`，不得相信客户端传入的学生/用户编号：
+
+- `STORE_QUERY` + `StoreQueryCommand(token, category?)`：查询在售商品，可按类别过滤；要求 `STORE_READ`。
+- `STORE_PURCHASE` + `StorePurchaseCommand(token, productId, quantity)`：直接购买；要求 `STORE_PURCHASE`。
+- `STORE_ORDER_QUERY` + `StoreOrderQueryCommand(token)`：查询本人订单；要求 `STORE_READ`。
+- `STORE_CART_ADD` / `STORE_CART_REMOVE` / `STORE_CART_QUERY` / `STORE_CART_CHECKOUT`：购物车增删查和结账，分别使用对应 `Cart*Command`；增删/结账要求 `STORE_PURCHASE`，查询要求 `STORE_READ`。
+- `STORE_RESTOCK`、`STORE_PRODUCT_ADD`、`STORE_PRODUCT_UPDATE`、`STORE_PRODUCT_DEACTIVATE`：商品和库存维护，使用对应 `Store*Command`；均要求 `STORE_MANAGE`。
+- `STORE_ORDER_LIST_ALL` + `StoreOrderListAllCommand(token)`：管理员全量订单；要求 `STORE_MANAGE`。
+- `STORE_HOT_PRODUCTS` + `StoreHotProductsCommand(token, limit)`：热销商品排行；要求 `STORE_READ`。
 
 用户批量导入使用 `USER_IMPORT`。请求 payload 为 `UserImportCommand(token, rows)`，其中 `rows` 是 `UserImportRow(userId, password, displayName, roleCode)` 列表；响应 payload 为 `UserImportResult(importBatchId, totalCount, successCount, failures)`，失败明细为 `UserImportFailure(rowNumber, userId, message)`。客户端用户管理页可从 `.xlsx`、`.csv`、`.tsv` 外部表格读取账号清单并转为 `rows`；这些表格只是导入源文件，不替代 Access 运行数据库。该能力要求 `USER_MANAGE`，服务端会记录导入管理员、导入时间、导入批次，并为每个成功创建的账号写入 `IMPORT_USER` 审计记录。单行失败不会影响同批次其它有效账号。
 
@@ -51,6 +59,7 @@
 - 当前 `STORE_ORDER_QUERY` 统一只查询 token 对应用户的本人订单；若后续开放商店管理员全量订单查询，应新增独立的管理查询命令和数据范围说明；
 - 其他无关角色请求时服务器返回 `FORBIDDEN`；
 - 请求中不携带用户编号，服务端始终以 token 对应身份为准。
+- 管理员命令必须在调用 `StoreService` 前完成权限校验，拒绝时返回 `FORBIDDEN`，不能依赖客户端隐藏按钮。
 
 ## 权限与课程维护公共契约
 

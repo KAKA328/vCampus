@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 // 商店服务测试
 class StoreServiceTest {
@@ -124,5 +125,42 @@ class StoreServiceTest {
     void testPurchaseNegativeQuantity() {
         ServiceResult<Void> testResult = service.purchase("0114", "00004", -1);
         assertEquals(StatusCode.BAD_REQUEST, testResult.getStatus());
+    }
+
+    @Test
+    void inventoryUpdatesPreserveInactiveProductState() {
+        Product inactive = new Product("00005", "下架商品", 8, 3.0, "不可购买", "测试", false);
+        products.save(inactive);
+
+        assertTrue(products.updateStock("00005", 5));
+        assertFalse(products.findById("00005").isActive());
+    }
+
+    @Test
+    void productRepositorySupportsInventoryAndCatalogOperations() {
+        assertTrue(products.addStock("00001", 7));
+        assertEquals(107, products.findById("00001").getStock());
+
+        Product changed = new Product("00001", "Apple Plus", 107, 3.0, "Updated", "Fruit", true);
+        assertTrue(products.updateProduct(changed));
+        assertEquals("Apple Plus", products.findById("00001").getName());
+        assertEquals(3.0, products.findById("00001").getPrice(), 0.001);
+
+        assertTrue(products.deleteById("00001"));
+        assertEquals(null, products.findById("00001"));
+        assertFalse(products.deleteById("00001"));
+    }
+
+    @Test
+    void orderRepositoryListsAllOrdersAndSalesVolume() {
+        service.purchase("0115", "00001", 2);
+        service.purchase("0116", "00001", 3);
+        service.purchase("0115", "00002", 1);
+
+        assertEquals(3, orders.findAll().size());
+        List<Object[]> sales = orders.findSalesVolume();
+        assertEquals(2, sales.size());
+        assertEquals("00001", sales.get(0)[0]);
+        assertEquals(5, sales.get(0)[1]);
     }
 }

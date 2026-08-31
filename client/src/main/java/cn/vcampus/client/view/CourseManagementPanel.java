@@ -11,6 +11,7 @@ import cn.vcampus.course.CourseStatus;
 import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
+import java.awt.Color;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -65,13 +66,16 @@ public final class CourseManagementPanel extends JPanel {
 
     private void build() {
         setLayout(new BorderLayout(8, 8));
+        setOpaque(false);
         JTabbedPane tabs = new JTabbedPane();
+        tabs.setFont(VCampusTheme.font(java.awt.Font.PLAIN, 14));
         tabs.addTab("课程目录", catalogPanel());
         tabs.addTab("教学班", offeringPanel());
         add(tabs, BorderLayout.CENTER);
         add(status, BorderLayout.SOUTH);
         configureTable(courseTable);
         configureTable(offeringTable);
+        status.setForeground(VCampusTheme.MUTED);
     }
 
     private JPanel catalogPanel() {
@@ -114,6 +118,7 @@ public final class CourseManagementPanel extends JPanel {
 
     private JButton actionButton(String text, java.awt.event.ActionListener listener) {
         JButton button = new JButton(text);
+        VCampusTheme.secondaryButton(button);
         button.addActionListener(listener);
         actions.add(button);
         return button;
@@ -123,6 +128,7 @@ public final class CourseManagementPanel extends JPanel {
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         table.setRowHeight(25);
         table.getTableHeader().setReorderingAllowed(false);
+        table.setGridColor(VCampusTheme.BORDER);
     }
 
     private void loadCourses() {

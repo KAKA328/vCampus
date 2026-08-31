@@ -9,6 +9,16 @@ import cn.vcampus.store.StorePurchaseCommand;
 import cn.vcampus.store.StoreService;
 import cn.vcampus.user.UserManagementService;
 import cn.vcampus.store.StoreOrderQueryCommand;
+import cn.vcampus.store.StoreRestockCommand;
+import cn.vcampus.store.StoreProductAddCommand;
+import cn.vcampus.store.StoreProductUpdateCommand;
+import cn.vcampus.store.StoreProductDeactivateCommand;
+import cn.vcampus.store.CartAddCommand;
+import cn.vcampus.store.CartRemoveCommand;
+import cn.vcampus.store.CartQueryCommand;
+import cn.vcampus.store.CartCheckoutCommand;
+import cn.vcampus.store.StoreOrderListAllCommand;
+import cn.vcampus.store.StoreHotProductsCommand;
 import cn.vcampus.user.Session;
 
 class StoreMessageHandler {
@@ -37,7 +47,8 @@ class StoreMessageHandler {
                         result = auth0;
                         break;
                     }
-                    result = store.listProducts();
+                    result = payload.getCategory() == null || payload.getCategory().trim().isEmpty()
+                            ? store.listProducts() : store.listProducts(payload.getCategory());
                     break;
                 // 仓库购买请求
                 case STORE_PURCHASE:
@@ -78,6 +89,65 @@ class StoreMessageHandler {
                     String userId2 = sessionResult2.getData().getUser().getUserId();
                     result = store.findOrdersByUserId(userId2);
                     break;
+                case STORE_RESTOCK:
+                    StoreRestockCommand restock = payload(request, StoreRestockCommand.class);
+                    ServiceResult<Void> restockAuth = requirePermission(restock.getToken(), "STORE_MANAGE");
+                    result = restockAuth.getStatus() != StatusCode.OK ? restockAuth
+                            : store.restock(requireUserId(restock.getToken()), restock.getProductId(), restock.getAdditionalStock());
+                    break;
+                case STORE_PRODUCT_ADD:
+                    StoreProductAddCommand add = payload(request, StoreProductAddCommand.class);
+                    ServiceResult<Void> addAuth = requirePermission(add.getToken(), "STORE_MANAGE");
+                    result = addAuth.getStatus() != StatusCode.OK ? addAuth
+                            : store.addProduct(add.getName(), add.getPrice(), add.getStock(), add.getDescription(), add.getCategory());
+                    break;
+                case STORE_PRODUCT_UPDATE:
+                    StoreProductUpdateCommand update = payload(request, StoreProductUpdateCommand.class);
+                    ServiceResult<Void> updateAuth = requirePermission(update.getToken(), "STORE_MANAGE");
+                    result = updateAuth.getStatus() != StatusCode.OK ? updateAuth
+                            : store.updateProduct(update.getProductId(), update.getName(), update.getPrice(),
+                                    update.getDescription(), update.getCategory());
+                    break;
+                case STORE_PRODUCT_DEACTIVATE:
+                    StoreProductDeactivateCommand deactivate = payload(request, StoreProductDeactivateCommand.class);
+                    ServiceResult<Void> deactivateAuth = requirePermission(deactivate.getToken(), "STORE_MANAGE");
+                    result = deactivateAuth.getStatus() != StatusCode.OK ? deactivateAuth
+                            : store.deactivateProduct(requireUserId(deactivate.getToken()), deactivate.getProductId());
+                    break;
+                case STORE_CART_ADD:
+                    CartAddCommand cartAdd = payload(request, CartAddCommand.class);
+                    ServiceResult<Void> cartAddAuth = requirePermission(cartAdd.getToken(), "STORE_PURCHASE");
+                    result = cartAddAuth.getStatus() != StatusCode.OK ? cartAddAuth
+                            : store.addToCart(requireUserId(cartAdd.getToken()), cartAdd.getProductId(), cartAdd.getQuantity());
+                    break;
+                case STORE_CART_REMOVE:
+                    CartRemoveCommand cartRemove = payload(request, CartRemoveCommand.class);
+                    ServiceResult<Void> cartRemoveAuth = requirePermission(cartRemove.getToken(), "STORE_PURCHASE");
+                    result = cartRemoveAuth.getStatus() != StatusCode.OK ? cartRemoveAuth
+                            : store.removeFromCart(requireUserId(cartRemove.getToken()), cartRemove.getCartItemId());
+                    break;
+                case STORE_CART_QUERY:
+                    CartQueryCommand cartQuery = payload(request, CartQueryCommand.class);
+                    ServiceResult<Void> cartQueryAuth = requirePermission(cartQuery.getToken(), "STORE_READ");
+                    result = cartQueryAuth.getStatus() != StatusCode.OK ? cartQueryAuth
+                            : store.getCart(requireUserId(cartQuery.getToken()));
+                    break;
+                case STORE_CART_CHECKOUT:
+                    CartCheckoutCommand checkout = payload(request, CartCheckoutCommand.class);
+                    ServiceResult<Void> checkoutAuth = requirePermission(checkout.getToken(), "STORE_PURCHASE");
+                    result = checkoutAuth.getStatus() != StatusCode.OK ? checkoutAuth
+                            : store.checkout(requireUserId(checkout.getToken()));
+                    break;
+                case STORE_ORDER_LIST_ALL:
+                    StoreOrderListAllCommand all = payload(request, StoreOrderListAllCommand.class);
+                    ServiceResult<Void> allAuth = requirePermission(all.getToken(), "STORE_MANAGE");
+                    result = allAuth.getStatus() != StatusCode.OK ? allAuth : store.findAllOrders();
+                    break;
+                case STORE_HOT_PRODUCTS:
+                    StoreHotProductsCommand hot = payload(request, StoreHotProductsCommand.class);
+                    ServiceResult<Void> hotAuth = requirePermission(hot.getToken(), "STORE_READ");
+                    result = hotAuth.getStatus() != StatusCode.OK ? hotAuth : store.listHotProducts(hot.getLimit());
+                    break;
                 default:
                     result = ServiceResult.failure(StatusCode.NOT_FOUND, "not implemented");
             }
@@ -85,6 +155,18 @@ class StoreMessageHandler {
         } catch (IllegalArgumentException invalidPayload) {
             return Message.response(request, StatusCode.BAD_REQUEST, "request payload is invalid");
         }
+    }
+
+    private ServiceResult<Void> requirePermission(String token, String permission) {
+        ServiceResult<Boolean> auth = users.authorize(token, permission);
+        return auth.getStatus() == StatusCode.OK ? ServiceResult.ok(null)
+                : ServiceResult.failure(auth.getStatus(), auth.getMessage());
+    }
+
+    private String requireUserId(String token) {
+        ServiceResult<Session> session = users.currentSession(token);
+        if (session.getStatus() != StatusCode.OK) throw new IllegalArgumentException("invalid session");
+        return session.getData().getUser().getUserId();
     }
 
     // 取出请求的 payload 并进行类型检查
