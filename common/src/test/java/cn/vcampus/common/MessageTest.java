@@ -27,4 +27,14 @@ class MessageTest {
         assertEquals("COURSE_UPDATE", MessageType.valueOf("COURSE_UPDATE").name());
         assertEquals("COURSE_DEACTIVATE", MessageType.valueOf("COURSE_DEACTIVATE").name());
     }
+
+    @Test
+    void messageTypesExposeExplicitCourseSelectionV2Contract() {
+        assertEquals("COURSE_SELECTION_QUERY_V2",
+                MessageType.valueOf("COURSE_SELECTION_QUERY_V2").name());
+        assertEquals("COURSE_SELECT_OFFERING_V2",
+                MessageType.valueOf("COURSE_SELECT_OFFERING_V2").name());
+        assertEquals("COURSE_DROP_RECORD_V2",
+                MessageType.valueOf("COURSE_DROP_RECORD_V2").name());
+    }
 }

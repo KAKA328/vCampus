@@ -6,6 +6,16 @@ import cn.vcampus.common.MessageType;
 import cn.vcampus.store.StoreOrderQueryCommand;
 import cn.vcampus.store.StorePurchaseCommand;
 import cn.vcampus.store.StoreQueryCommand;
+import cn.vcampus.store.StoreRestockCommand;
+import cn.vcampus.store.StoreProductAddCommand;
+import cn.vcampus.store.StoreProductUpdateCommand;
+import cn.vcampus.store.StoreProductDeactivateCommand;
+import cn.vcampus.store.CartAddCommand;
+import cn.vcampus.store.CartRemoveCommand;
+import cn.vcampus.store.CartQueryCommand;
+import cn.vcampus.store.CartCheckoutCommand;
+import cn.vcampus.store.StoreOrderListAllCommand;
+import cn.vcampus.store.StoreHotProductsCommand;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -34,6 +44,70 @@ public final class RemoteStoreService implements Closeable {
     /** 查询当前登录用户的购买记录；用户编号由服务器从 token 解析。 */
     public Message ordersFor(String token) throws IOException, ClassNotFoundException {
         return send(MessageType.STORE_ORDER_QUERY, new StoreOrderQueryCommand(token));
+    }
+
+    /** 按类别查询在售商品。 */
+    public Message listProducts(String token, String category) throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_QUERY, new StoreQueryCommand(token, category));
+    }
+
+    /** 管理员补充库存。 */
+    public Message restock(String token, String productId, int additionalStock)
+            throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_RESTOCK, new StoreRestockCommand(token, productId, additionalStock));
+    }
+
+    /** 管理员新增商品。 */
+    public Message addProduct(String token, String name, double price, int stock, String description,
+            String category) throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_PRODUCT_ADD,
+                new StoreProductAddCommand(token, name, price, stock, description, category));
+    }
+
+    /** 管理员更新商品。 */
+    public Message updateProduct(String token, String productId, String name, double price, String description,
+            String category) throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_PRODUCT_UPDATE,
+                new StoreProductUpdateCommand(token, productId, name, price, description, category));
+    }
+
+    /** 管理员下架商品。 */
+    public Message deactivateProduct(String token, String productId)
+            throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_PRODUCT_DEACTIVATE,
+                new StoreProductDeactivateCommand(token, productId));
+    }
+
+    /** 将商品加入当前用户购物车。 */
+    public Message addToCart(String token, String productId, int quantity)
+            throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_CART_ADD, new CartAddCommand(token, productId, quantity));
+    }
+
+    /** 删除当前用户购物车条目。 */
+    public Message removeFromCart(String token, String cartItemId)
+            throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_CART_REMOVE, new CartRemoveCommand(token, cartItemId));
+    }
+
+    /** 查询当前用户购物车。 */
+    public Message cart(String token) throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_CART_QUERY, new CartQueryCommand(token));
+    }
+
+    /** 结算当前用户购物车。 */
+    public Message checkout(String token) throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_CART_CHECKOUT, new CartCheckoutCommand(token));
+    }
+
+    /** 管理员查询全部订单。 */
+    public Message allOrders(String token) throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_ORDER_LIST_ALL, new StoreOrderListAllCommand(token));
+    }
+
+    /** 查询热销商品。 */
+    public Message hotProducts(String token, int limit) throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_HOT_PRODUCTS, new StoreHotProductsCommand(token, limit));
     }
 
     private Message send(MessageType type, Object payload) throws IOException, ClassNotFoundException {

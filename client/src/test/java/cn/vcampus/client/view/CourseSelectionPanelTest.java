@@ -46,6 +46,16 @@ class CourseSelectionPanelTest {
         assertTrue(button(panel, "selectButton").isEnabled());
     }
 
+    @Test
+    void appliesSharedThemeToCourseActions() throws Exception {
+        CourseSelectionPanel panel = new CourseSelectionPanel("localhost", 19090,
+                new Session("token", new User("student-001", "测试学生", Role.STUDENT)));
+        assertTrue(button(panel, "loadRoundsButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+        assertTrue(button(panel, "loadOfferingsButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+        assertTrue(button(panel, "selectButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+        assertTrue(button(panel, "dropButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+    }
+
     private static JButton button(CourseSelectionPanel panel, String fieldName) throws Exception {
         Field field = CourseSelectionPanel.class.getDeclaredField(fieldName);
         field.setAccessible(true);

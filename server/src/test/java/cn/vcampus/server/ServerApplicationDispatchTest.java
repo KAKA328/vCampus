@@ -6,7 +6,7 @@ import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
 import cn.vcampus.common.Role;
 import cn.vcampus.common.StatusCode;
-import cn.vcampus.course.CourseQueryCommand;
+import cn.vcampus.course.CourseSelectionQueryV2Command;
 import cn.vcampus.course.CourseSelectionDemoFactory;
 import cn.vcampus.course.InMemoryStudentSelectionProfileProvider;
 import cn.vcampus.course.StudentSelectionProfile;
@@ -26,8 +26,9 @@ class ServerApplicationDispatchTest {
                 Collections.singletonList(new StudentSelectionProfile("20260001", "STU-001", "计算机科学与技术", 2026, "在读", CourseSelectionDemoFactory.DEMO_TERM, 1, Collections.<String>emptySet())));
         ServerApplication server = new ServerApplication(0, users, CourseSelectionDemoFactory.createService(), profiles);
 
-        Message response = server.dispatch(Message.request("rounds", MessageType.COURSE_QUERY,
-                CourseQueryCommand.availableRounds(session.getToken())));
+        Message response = server.dispatch(Message.request("rounds",
+                MessageType.COURSE_SELECTION_QUERY_V2,
+                CourseSelectionQueryV2Command.availableRounds(session.getToken())));
         assertEquals(StatusCode.OK, response.getStatusCode());
     }
 }

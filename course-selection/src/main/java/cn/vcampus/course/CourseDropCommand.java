@@ -2,20 +2,24 @@ package cn.vcampus.course;
 
 import java.io.Serializable;
 
-/** 学生退选一条已选教学班记录的网络请求。 */
+/**
+ * 早期课程级退选请求。
+ *
+ * <p>完整选课流程已经升级为 V2 协议，请使用 {@link CourseDropRecordV2Command}。
+ */
+@Deprecated
 public final class CourseDropCommand implements Serializable {
-    /** 新选课协议按选课记录退选，与早期课程级协议不兼容。 */
-    private static final long serialVersionUID = 2L;
-    private final String token;
-    private final String recordId;
+    private static final long serialVersionUID = 1L;
+    private final String studentId;
+    private final String courseId;
 
-    public CourseDropCommand(String token, String recordId) {
-        this.token = requireText(token, "token");
-        this.recordId = requireText(recordId, "recordId");
+    public CourseDropCommand(String studentId, String courseId) {
+        this.studentId = requireText(studentId, "studentId");
+        this.courseId = requireText(courseId, "courseId");
     }
 
-    public String getToken() { return token; }
-    public String getRecordId() { return recordId; }
+    public String getStudentId() { return studentId; }
+    public String getCourseId() { return courseId; }
 
     private static String requireText(String value, String fieldName) {
         if (value == null || value.trim().isEmpty()) {

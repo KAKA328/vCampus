@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 // 商店服务测试
 class StoreServiceTest {
@@ -124,5 +126,141 @@ class StoreServiceTest {
     void testPurchaseNegativeQuantity() {
         ServiceResult<Void> testResult = service.purchase("0114", "00004", -1);
         assertEquals(StatusCode.BAD_REQUEST, testResult.getStatus());
+    }
+
+    @Test
+    void productPriceMustBeFiniteAndPositive() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new Product("bad-zero", "Bad", 1, 0.0, "", "test"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new Product("bad-nan", "Bad", 1, Double.NaN, "", "test"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new Product("bad-infinity", "Bad", 1, Double.POSITIVE_INFINITY, "", "test"));
+    }
+
+    @Test
+    void serviceRejectsNonFiniteOrNonPositiveProductPrices() {
+        assertEquals(StatusCode.BAD_REQUEST, service.addProduct("Zero", 0.0, 1, "", "test").getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.addProduct("NaN", Double.NaN, 1, "", "test").getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.addProduct("Infinity", Double.POSITIVE_INFINITY, 1, "", "test").getStatus());
+    }
+
+    @Test
+    void generatedProductIdFitsDatabaseColumn() {
+        Product product = service.addProduct("Generated", 1.0, 1, "", "test").getData();
+        assertNotNull(product);
+        assertEquals(32, product.getProductId().length());
+    }
+
+    @Test
+    void purchaseRestoresStockWhenOrderRepositoryThrows() {
+        InMemoryProductRepository purchaseProducts = new InMemoryProductRepository();
+        purchaseProducts.save(new Product("P", "P", 2, 2.0, "", "test"));
+        FailingOrderRepository throwingOrders = new FailingOrderRepository(true);
+        DefaultStoreService purchase = new DefaultStoreService(purchaseProducts, throwingOrders);
+
+        ServiceResult<Void> result = purchase.purchase("u", "P", 1);
+
+        assertEquals(StatusCode.CONFLICT, result.getStatus());
+        assertEquals(2, purchaseProducts.findById("P").getStock());
+        assertTrue(throwingOrders.findByUserId("u").isEmpty());
+    }
+
+    @Test
+    void inventoryUpdatesPreserveInactiveProductState() {
+        Product inactive = new Product("00005", "下架商品", 8, 3.0, "不可购买", "测试", false);
+        products.save(inactive);
+
+        assertTrue(products.updateStock("00005", 5));
+        assertFalse(products.findById("00005").isActive());
+    }
+
+    @Test
+    void productRepositorySupportsInventoryAndCatalogOperations() {
+        assertTrue(products.addStock("00001", 7));
+        assertEquals(107, products.findById("00001").getStock());
+
+        Product changed = new Product("00001", "Apple Plus", 107, 3.0, "Updated", "Fruit", true);
+        assertTrue(products.updateProduct(changed));
+        assertEquals("Apple Plus", products.findById("00001").getName());
+        assertEquals(3.0, products.findById("00001").getPrice(), 0.001);
+
+        assertTrue(products.deleteById("00001"));
+        assertEquals(null, products.findById("00001"));
+        assertFalse(products.deleteById("00001"));
+    }
+
+    @Test
+    void orderRepositoryListsAllOrdersAndSalesVolume() {
+        service.purchase("0115", "00001", 2);
+        service.purchase("0116", "00001", 3);
+        service.purchase("0115", "00002", 1);
+
+        assertEquals(3, orders.findAll().size());
+        List<Object[]> sales = orders.findSalesVolume();
+        assertEquals(2, sales.size());
+        assertEquals("00001", sales.get(0)[0]);
+        assertEquals(5, sales.get(0)[1]);
+    }
+
+    @Test
+    void checkoutRollsBackEarlierItemsWhenAnOrderFails() {
+        InMemoryProductRepository checkoutProducts = new InMemoryProductRepository();
+        checkoutProducts.save(new Product("A", "A", 3, 2.0, "", "test"));
+        checkoutProducts.save(new Product("B", "B", 3, 3.0, "", "test"));
+        FailingOrderRepository failingOrders = new FailingOrderRepository();
+        InMemoryCartRepository checkoutCart = new InMemoryCartRepository();
+        checkoutCart.addItem(new CartItem("cart-a", "u", "A", 1, java.time.LocalDateTime.now()));
+        checkoutCart.addItem(new CartItem("cart-b", "u", "B", 1, java.time.LocalDateTime.now()));
+
+        DefaultStoreService checkout = new DefaultStoreService(checkoutProducts, failingOrders, checkoutCart);
+        ServiceResult<Void> result = checkout.checkout("u");
+
+        assertEquals(StatusCode.CONFLICT, result.getStatus());
+        assertEquals(3, checkoutProducts.findById("A").getStock());
+        assertEquals(3, checkoutProducts.findById("B").getStock());
+        assertTrue(failingOrders.findByUserId("u").isEmpty());
+        assertEquals(2, checkoutCart.findByUserId("u").size());
+    }
+
+    private static final class FailingOrderRepository implements OrderRepository {
+        private final InMemoryOrderRepository delegate = new InMemoryOrderRepository();
+        private int createCount;
+        private final boolean throwOnCreate;
+
+        private FailingOrderRepository() {
+            this(false);
+        }
+
+        private FailingOrderRepository(boolean throwOnCreate) {
+            this.throwOnCreate = throwOnCreate;
+        }
+
+        @Override
+        public boolean create(Order order) {
+            if (throwOnCreate) throw new IllegalStateException("database unavailable");
+            createCount++;
+            return createCount == 2 ? false : delegate.create(order);
+        }
+
+        @Override
+        public boolean deleteById(String orderId) {
+            return delegate.deleteById(orderId);
+        }
+
+        @Override
+        public List<Order> findByUserId(String userId) {
+            return delegate.findByUserId(userId);
+        }
+
+        @Override
+        public List<Order> findAll() {
+            return delegate.findAll();
+        }
+
+        @Override
+        public List<Object[]> findSalesVolume() {
+            return delegate.findSalesVolume();
+        }
     }
 }

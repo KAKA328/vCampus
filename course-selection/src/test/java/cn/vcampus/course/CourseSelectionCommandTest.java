@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 class CourseSelectionCommandTest {
     @Test
     void storesTrimmedRoundAndOfferingWithoutStudentId() {
-        CourseSelectionCommand command = new CourseSelectionCommand(
+        CourseSelectOfferingV2Command command = new CourseSelectOfferingV2Command(
                 " token-001 ", " ROUND-INITIAL ", " OFFER-JAVA-01 ");
 
         assertEquals("token-001", command.getToken());
@@ -19,10 +19,18 @@ class CourseSelectionCommandTest {
     @Test
     void rejectsBlankRequestFields() {
         assertThrows(IllegalArgumentException.class,
-                () -> new CourseSelectionCommand("", "ROUND-INITIAL", "OFFER-JAVA-01"));
+                () -> new CourseSelectOfferingV2Command("", "ROUND-INITIAL", "OFFER-JAVA-01"));
         assertThrows(IllegalArgumentException.class,
-                () -> new CourseSelectionCommand("token-001", " ", "OFFER-JAVA-01"));
+                () -> new CourseSelectOfferingV2Command("token-001", " ", "OFFER-JAVA-01"));
         assertThrows(IllegalArgumentException.class,
-                () -> new CourseSelectionCommand("token-001", "ROUND-INITIAL", null));
+                () -> new CourseSelectOfferingV2Command("token-001", "ROUND-INITIAL", null));
+    }
+
+    @Test
+    void legacySelectionCommandKeepsOldCourseLevelShape() {
+        CourseSelectionCommand command = new CourseSelectionCommand(" STU-001 ", " C001 ");
+
+        assertEquals("STU-001", command.getStudentId());
+        assertEquals("C001", command.getCourseId());
     }
 }

@@ -9,6 +9,9 @@ import cn.vcampus.user.UserManagementService;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import cn.vcampus.store.DefaultStoreService;
+import cn.vcampus.store.InMemoryStoreService;
 
 class UserServiceFactoryTest {
     private static final String ADMIN_ID = "vcampus.bootstrap.admin.id";
@@ -43,5 +46,12 @@ class UserServiceFactoryTest {
 
         assertEquals(StatusCode.OK, login.getStatus());
         assertEquals(Role.ADMIN, login.getData().getUser().getRole());
+    }
+
+    @Test
+    void storeFactoryUsesAccessRepositoriesWhenDatabaseIsConfigured() {
+        assertInstanceOf(DefaultStoreService.class,
+                StoreServiceFactory.create(java.nio.file.Paths.get("target", "store.accdb")));
+        assertInstanceOf(InMemoryStoreService.class, StoreServiceFactory.create((java.nio.file.Path) null));
     }
 }

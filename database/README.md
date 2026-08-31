@@ -29,4 +29,11 @@
 - `tblCourseResult`：历史课程结果，保存学生每次首修/重修记录、成绩、是否通过和获得学分。
 - `tblAcademicReview`：学业审查结果快照，保存累计学分、挂科门数、重修门数、是否满足毕业要求和审核人。
 
+## 商店模块表
+
+- `tblProduct`：商品、库存、价格和分类；`active` 表示是否上架。
+- `tblOrder`：订单记录，保存用户、商品快照、数量和金额。
+
+查询、购物车和购买只处理 `tblProduct.active=1` 的商品。全新数据库按 `schema.sql` 创建 `active` 字段；已有按旧 `004_store` 建立的数据库先执行 `database/migrations/007_store_product_active.up.sql`，回滚使用同名 `.down.sql`，不要对新库重复执行该迁移。
+
 身份字段分工如下：`tblUser.user_id` 是登录身份；`tblStudent.student_id` 是学生学号；`tblTeacher.teacher_id` 是教师工号；`tblStudent.user_id` 和 `tblTeacher.user_id` 是档案与登录账号之间的一对一绑定字段，可为空但绑定后应保持唯一。如果账号尚未关联 `tblStudent` 或 `tblTeacher`，相关页面应提示“暂无对应档案，请联系管理员维护”；学业审查、课程历史和授课关系不能根据账号信息凭空生成。

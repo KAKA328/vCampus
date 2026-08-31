@@ -3,32 +3,28 @@ package cn.vcampus.course;
 import java.io.Serializable;
 
 /**
- * 学生选择某个教学班的网络请求。学生身份由服务器 token 推导，客户端不再提交 studentId。
+ * 早期课程级选课请求。
+ *
+ * <p>完整选课流程已经升级为 V2 协议，请使用 {@link CourseSelectOfferingV2Command}。
  */
+@Deprecated
 public final class CourseSelectionCommand implements Serializable {
-    /** 新选课协议使用教学班和选课轮次字段，与早期课程级协议不兼容。 */
-    private static final long serialVersionUID = 2L;
+    private static final long serialVersionUID = 1L;
 
-    private final String token;
-    private final String roundId;
-    private final String offeringId;
+    private final String studentId;
+    private final String courseId;
 
-    public CourseSelectionCommand(String token, String roundId, String offeringId) {
-        this.token = requireText(token, "token");
-        this.roundId = requireText(roundId, "roundId");
-        this.offeringId = requireText(offeringId, "offeringId");
+    public CourseSelectionCommand(String studentId, String courseId) {
+        this.studentId = requireText(studentId, "studentId");
+        this.courseId = requireText(courseId, "courseId");
     }
 
-    public String getToken() {
-        return token;
+    public String getStudentId() {
+        return studentId;
     }
 
-    public String getRoundId() {
-        return roundId;
-    }
-
-    public String getOfferingId() {
-        return offeringId;
+    public String getCourseId() {
+        return courseId;
     }
 
     private static String requireText(String value, String fieldName) {

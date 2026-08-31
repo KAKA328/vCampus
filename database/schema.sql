@@ -155,6 +155,7 @@ CREATE TABLE tblProduct (
     price DOUBLE NOT NULL,
     description VARCHAR(255),
     category VARCHAR(64) NOT NULL,
+    active BIT NOT NULL,
     PRIMARY KEY (product_id)
 );
 
