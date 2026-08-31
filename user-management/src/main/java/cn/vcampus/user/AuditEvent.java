@@ -1,9 +1,11 @@
 package cn.vcampus.user;
 
 import java.time.Instant;
+import java.io.Serializable;
 
 /** Audit event for sensitive user-management operations. */
-public final class AuditEvent {
+public final class AuditEvent implements Serializable {
+    private static final long serialVersionUID = 1L;
     private final String actorUserId;
     private final String action;
     private final String targetType;
