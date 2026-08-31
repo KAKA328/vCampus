@@ -70,11 +70,14 @@
 | InMemoryLibraryServiceTest | 12 个单元测试 |
 | LibraryMessageHandler | 服务器端消息适配 |
 
-## 五、数据库待办
+## 五、数据库设计
 
-- tblBook：图书表
-- tblBorrowRecord：借阅记录表（含 order_id 字段）
-- tblBorrowRecord.order_id：批量借阅单号
+- `tblBook`：图书表，一行是一本书，含书名、作者、ISBN、分类、出版社、库存、馆藏位置。
+- `tblBorrowRecord`：借阅流水表，一行是“某用户借某本书”的一次记录。
+- `tblBorrowRecord.order_id`：批量借阅单号。一次批量借 N 本共享一个 `order_id`，每本书有独立 `record_id`。
+- `tblBorrowRenew`：续借记录表，为后续“申请延期/续借”预留，当前代码尚未使用。
+
+设计脚本已写入 `database/schema.sql`，演示数据在 `database/seed.sql`。
 
 ## 六、当前进度记录
 
@@ -82,4 +85,5 @@
 - 已支持批量借阅（同一批共享 orderId）。
 - 借阅模型已从 studentId 重构为 userId，兼容教师借阅。
 - 服务器端图书馆消息分发已接入。
-- 尚未接入 Access 数据库、客户端 UI、角色权限控制。
+- 已完成 Access 数据库表结构设计（`tblBook`、`tblBorrowRecord`、`tblBorrowRenew`）和演示数据。
+- 尚未把内存实现替换为 Access 实现、尚未做客户端 UI、角色权限控制。
