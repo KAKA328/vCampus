@@ -22,10 +22,18 @@ public final class CourseOffering implements Serializable {
     private final int electiveCapacity;
     private final int crossMajorCapacity;
     private final CourseOfferingStatus status;
+    private final CourseSchedule meetingSchedule;
 
     public CourseOffering(String offeringId, String courseId, String term, String teacherId,
             String schedule, String location, int requiredCapacity, int electiveCapacity,
             int crossMajorCapacity, CourseOfferingStatus status) {
+        this(offeringId, courseId, term, teacherId, schedule, location, requiredCapacity,
+                electiveCapacity, crossMajorCapacity, status, CourseSchedule.empty());
+    }
+
+    private CourseOffering(String offeringId, String courseId, String term, String teacherId,
+            String schedule, String location, int requiredCapacity, int electiveCapacity,
+            int crossMajorCapacity, CourseOfferingStatus status, CourseSchedule meetingSchedule) {
         this.offeringId = requireText(offeringId, "offeringId");
         this.courseId = requireText(courseId, "courseId");
         this.term = requireText(term, "term");
@@ -41,10 +49,14 @@ public final class CourseOffering implements Serializable {
         if (status == null) {
             throw new IllegalArgumentException("status must not be null");
         }
+        if (meetingSchedule == null) {
+            throw new IllegalArgumentException("meetingSchedule must not be null");
+        }
         this.requiredCapacity = requiredCapacity;
         this.electiveCapacity = electiveCapacity;
         this.crossMajorCapacity = crossMajorCapacity;
         this.status = status;
+        this.meetingSchedule = meetingSchedule;
     }
 
     public String getOfferingId() {
@@ -111,11 +123,20 @@ public final class CourseOffering implements Serializable {
     }
 
     /**
+     * 返回可用于时间冲突检测的结构化上课时间表。
+     *
+     * <p>旧教学班尚未配置时返回空时间表；原有的 {@link #getSchedule()} 继续用于显示文本。</p>
+     */
+    public CourseSchedule getMeetingSchedule() {
+        return meetingSchedule;
+    }
+
+    /**
      * 返回状态更新后的新教学班对象，原对象保持不变。
      */
     public CourseOffering withStatus(CourseOfferingStatus newStatus) {
         return new CourseOffering(offeringId, courseId, term, teacherId, schedule, location,
-                requiredCapacity, electiveCapacity, crossMajorCapacity, newStatus);
+                requiredCapacity, electiveCapacity, crossMajorCapacity, newStatus, meetingSchedule);
     }
 
     /**
@@ -126,7 +147,14 @@ public final class CourseOffering implements Serializable {
     public CourseOffering withCapacities(int newRequiredCapacity, int newElectiveCapacity,
             int newCrossMajorCapacity) {
         return new CourseOffering(offeringId, courseId, term, teacherId, schedule, location,
-                newRequiredCapacity, newElectiveCapacity, newCrossMajorCapacity, status);
+                newRequiredCapacity, newElectiveCapacity, newCrossMajorCapacity, status,
+                meetingSchedule);
+    }
+
+    /** 返回附加结构化上课时间表后的新教学班对象。 */
+    public CourseOffering withMeetingSchedule(CourseSchedule newMeetingSchedule) {
+        return new CourseOffering(offeringId, courseId, term, teacherId, schedule, location,
+                requiredCapacity, electiveCapacity, crossMajorCapacity, status, newMeetingSchedule);
     }
 
     private static String requireText(String value, String fieldName) {
