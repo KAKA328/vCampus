@@ -5,28 +5,30 @@ import cn.vcampus.common.MessageType;
 import cn.vcampus.common.Role;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
+import cn.vcampus.course.CourseDropCommand;
 import cn.vcampus.course.CourseQueryCommand;
 import cn.vcampus.course.CourseSelectionCommand;
 import cn.vcampus.course.CourseSelectionService;
+import cn.vcampus.course.StudentSelectionProfile;
+import cn.vcampus.course.StudentSelectionProfileProvider;
 import cn.vcampus.user.Permission;
 import cn.vcampus.user.Session;
 import cn.vcampus.user.UserManagementService;
+import java.time.LocalDateTime;
 
-/**
- * 将选课模块的业务结果转换为统一的 Socket 消息响应。
- *
- * <p>该处理器仅负责一条选课请求的校验和转发；服务器总入口何时调用它，
- * 由组长在 ServerApplication 中统一接入。</p>
- */
+/** 将当前选课流程转换为 Socket 消息；学生资料仅由服务器按 token 查询。 */
 final class CourseMessageHandler {
     private final CourseSelectionService courses;
+    private final StudentSelectionProfileProvider profiles;
     private final UserManagementService users;
 
-    CourseMessageHandler(CourseSelectionService courses, UserManagementService users) {
-        if (courses == null || users == null) {
-            throw new IllegalArgumentException("courses and users must not be null");
+    CourseMessageHandler(CourseSelectionService courses, StudentSelectionProfileProvider profiles,
+            UserManagementService users) {
+        if (courses == null || profiles == null || users == null) {
+            throw new IllegalArgumentException("course handler dependencies must not be null");
         }
         this.courses = courses;
+        this.profiles = profiles;
         this.users = users;
     }
 
@@ -35,20 +37,18 @@ final class CourseMessageHandler {
             return Message.response(Message.request("invalid", MessageType.COURSE_QUERY, null),
                     StatusCode.BAD_REQUEST, "request is invalid");
         }
-
         try {
             ServiceResult<?> result;
             switch (request.getType()) {
                 case COURSE_QUERY:
-                    result = query(request);
+                    result = query(payload(request, CourseQueryCommand.class));
                     break;
                 case COURSE_SELECT:
                     CourseSelectionCommand select = payload(request, CourseSelectionCommand.class);
                     result = select(select);
                     break;
                 case COURSE_DROP:
-                    CourseSelectionCommand drop = payload(request, CourseSelectionCommand.class);
-                    result = drop(drop);
+                    result = drop(payload(request, CourseDropCommand.class));
                     break;
                 default:
                     return Message.response(request, StatusCode.NOT_FOUND,
@@ -60,72 +60,45 @@ final class CourseMessageHandler {
         }
     }
 
-    private ServiceResult<Void> select(CourseSelectionCommand command) {
-        ServiceResult<Session> scope = authorizeStudentScope(
-                command.getToken(), command.getStudentId(), Permission.COURSE_SELECT);
-        if (scope.getStatus() != StatusCode.OK) {
-            return ServiceResult.failure(scope.getStatus(), scope.getMessage());
+    private ServiceResult<?> query(CourseQueryCommand command) {
+        ServiceResult<StudentSelectionProfile> profile = profile(command.getToken(), Permission.COURSE_READ);
+        if (profile.getStatus() != StatusCode.OK) return profile;
+        if (command.getQueryType() == CourseQueryCommand.QueryType.AVAILABLE_ROUNDS) {
+            return courses.listAvailableRounds(profile.getData(), LocalDateTime.now());
         }
-        return courses.select(command.getStudentId(), command.getCourseId());
+        if (command.getQueryType() == CourseQueryCommand.QueryType.AVAILABLE_OFFERINGS) {
+            return courses.listAvailableOfferings(profile.getData(), command.getRoundId(),
+                    LocalDateTime.now());
+        }
+        return courses.listSelectedOfferings(profile.getData());
     }
 
-    private ServiceResult<?> query(Message request) {
-        if (request.getPayload() == null) {
-            return courses.listCourses();
-        }
-
-        CourseQueryCommand command = payload(request, CourseQueryCommand.class);
-        switch (command.getQueryType()) {
-            case ALL_COURSES:
-                return courses.listCourses();
-            case SELECTED_COURSES:
-                ServiceResult<Session> scope = authorizeStudentScope(
-                        command.getToken(), command.getStudentId(), Permission.COURSE_READ);
-                if (scope.getStatus() != StatusCode.OK) {
-                    return ServiceResult.failure(scope.getStatus(), scope.getMessage());
-                }
-                return courses.selectedCourses(command.getStudentId());
-            default:
-                return ServiceResult.failure(StatusCode.BAD_REQUEST, "unknown course query type");
-        }
+    private ServiceResult<?> select(CourseSelectionCommand command) {
+        ServiceResult<StudentSelectionProfile> profile = profile(command.getToken(), Permission.COURSE_SELECT);
+        return profile.getStatus() == StatusCode.OK
+                ? courses.select(profile.getData(), command.getRoundId(), command.getOfferingId(),
+                        LocalDateTime.now()) : profile;
     }
 
-    private ServiceResult<Void> drop(CourseSelectionCommand command) {
-        ServiceResult<Session> scope = authorizeStudentScope(
-                command.getToken(), command.getStudentId(), Permission.COURSE_SELECT);
-        if (scope.getStatus() != StatusCode.OK) {
-            return ServiceResult.failure(scope.getStatus(), scope.getMessage());
-        }
-        return courses.drop(command.getStudentId(), command.getCourseId());
+    private ServiceResult<?> drop(CourseDropCommand command) {
+        ServiceResult<StudentSelectionProfile> profile = profile(command.getToken(), Permission.COURSE_SELECT);
+        return profile.getStatus() == StatusCode.OK
+                ? courses.drop(profile.getData(), command.getRecordId(), LocalDateTime.now()) : profile;
     }
 
-    private ServiceResult<Session> authorizeStudentScope(String token, String studentId, Permission permission) {
-        ServiceResult<Boolean> authorization = users.authorize(token, permission.getCode());
-        if (authorization.getStatus() != StatusCode.OK) {
-            return ServiceResult.failure(authorization.getStatus(), authorization.getMessage());
+    private ServiceResult<StudentSelectionProfile> profile(String token, Permission permission) {
+        ServiceResult<Boolean> authorized = users.authorize(token, permission.getCode());
+        if (authorized.getStatus() != StatusCode.OK) return ServiceResult.failure(authorized.getStatus(), authorized.getMessage());
+        ServiceResult<Session> session = users.currentSession(token);
+        if (session.getStatus() != StatusCode.OK) return ServiceResult.failure(session.getStatus(), session.getMessage());
+        if (session.getData().getUser().getRole() != Role.STUDENT) {
+            return ServiceResult.failure(StatusCode.FORBIDDEN, "only student can use student course selection");
         }
-
-        ServiceResult<Session> current = users.currentSession(token);
-        if (current.getStatus() != StatusCode.OK) {
-            return current;
-        }
-
-        Session session = current.getData();
-        Role role = session.getUser().getRole();
-        if (role == Role.ADMIN) {
-            return current;
-        }
-        if (role == Role.STUDENT && session.getUser().getUserId().equals(studentId)) {
-            return current;
-        }
-        return ServiceResult.failure(StatusCode.FORBIDDEN, "student scope denied");
+        return profiles.findByUserId(session.getData().getUser().getUserId());
     }
 
     private static <T> T payload(Message request, Class<T> type) {
-        Object payload = request.getPayload();
-        if (!type.isInstance(payload)) {
-            throw new IllegalArgumentException("unexpected payload type");
-        }
-        return type.cast(payload);
+        if (!type.isInstance(request.getPayload())) throw new IllegalArgumentException("unexpected payload type");
+        return type.cast(request.getPayload());
     }
 }
