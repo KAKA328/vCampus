@@ -10,6 +10,17 @@ package "store 模块" {
         + listProducts(): ServiceResult<List<Product>>
         + purchase(userId: String, productId: String, quantity: int): ServiceResult<Void>
         + findOrdersByUserId(userId: String): ServiceResult<List<Order>>
+        + restock(userId, productId, additionalStock): ServiceResult<Void>
+        + addProduct(name, price, stock, description, category): ServiceResult<Product>
+        + updateProduct(productId, name, price, description, category): ServiceResult<Product>
+        + deactivateProduct(userId, productId): ServiceResult<Void>
+        + addToCart(userId, productId, quantity): ServiceResult<Void>
+        + removeFromCart(userId, cartItemId): ServiceResult<Void>
+        + getCart(userId): ServiceResult<List<CartItem>>
+        + checkout(userId): ServiceResult<Void>
+        + findAllOrders(): ServiceResult<List<Order>>
+        + listHotProducts(limit): ServiceResult<List<Product>>
+        + listProducts(category): ServiceResult<List<Product>>
     }
 
     class DefaultStoreService {
@@ -18,13 +29,18 @@ package "store 模块" {
         + listProducts(): ServiceResult<List<Product>>
         + purchase(userId, productId, quantity): ServiceResult<Void>
         + findOrdersByUserId(userId): ServiceResult<List<Order>>
+        + restock / addProduct / updateProduct / deactivateProduct
+        + addToCart / removeFromCart / getCart / checkout
+        + findAllOrders / listHotProducts / listProducts(category)
     }
+    note bottom of DefaultStoreService
+        第二轮新增方法目前为占位实现（返回 failure），
+        Day 2 起逐个替换为真实业务逻辑
+    end note
 
     class InMemoryStoreService {
         - delegate: StoreService
-        + listProducts(): ServiceResult<List<Product>>
-        + purchase(userId, productId, quantity): ServiceResult<Void>
-        + findOrdersByUserId(userId): ServiceResult<List<Order>>
+        + 全部 StoreService 方法（原样转发给 delegate）
     }
 
     interface ProductRepository {
@@ -32,11 +48,24 @@ package "store 模块" {
         + findById(id: String): Product
         + save(product: Product): void
         + updateStock(productId: String, newStock: int): boolean
+        + addStock(productId: String, amount: int): boolean
+        + updateProduct(product: Product): boolean
+        + deleteById(productId: String): boolean
     }
 
     interface OrderRepository {
         + create(order: Order): boolean
         + findByUserId(userId: String): List<Order>
+        + findAll(): List<Order>
+        + findSalesVolume(): List<Object[]>
+    }
+
+    interface CartRepository {
+        + findByUserId(userId: String): List<CartItem>
+        + addItem(item: CartItem): boolean
+        + removeItem(cartItemId: String): boolean
+        + updateQuantity(cartItemId: String, newQuantity: int): boolean
+        + clearByUserId(userId: String): void
     }
 
     class InMemoryProductRepository {
@@ -45,6 +74,7 @@ package "store 模块" {
         + findById(id): Product
         + save(product): void
         + updateStock(productId, newStock): boolean
+        + addStock / updateProduct / deleteById（占位）
     }
 
     class InMemoryOrderRepository {
@@ -52,6 +82,7 @@ package "store 模块" {
         - userIdMap: ConcurrentHashMap<String, List<Order>>
         + create(order): boolean
         + findByUserId(userId): List<Order>
+        + findAll / findSalesVolume（占位）
     }
 
     class Product <<Value Object>> {
@@ -61,6 +92,7 @@ package "store 模块" {
         - price: double
         - description: String
         - category: String
+        - active: boolean
     }
 
     class Order <<Value Object>> {
@@ -76,7 +108,9 @@ package "store 模块" {
 
     class StoreQueryCommand <<Command>> {
         - token: String
+        - category: String <<null 表示查全部分类>>
         + getToken(): String
+        + getCategory(): String
     }
 
     class StorePurchaseCommand <<Command>> {
@@ -91,6 +125,71 @@ package "store 模块" {
     class StoreOrderQueryCommand <<Command>> {
         - token: String
         + getToken(): String
+    }
+
+    class StoreRestockCommand <<Command>> {
+        - token: String
+        - productId: String
+        - additionalStock: int
+    }
+
+    class StoreProductAddCommand <<Command>> {
+        - token: String
+        - name: String
+        - price: double
+        - stock: int
+        - description: String
+        - category: String
+    }
+
+    class StoreProductUpdateCommand <<Command>> {
+        - token: String
+        - productId: String
+        - name: String
+        - price: double
+        - description: String
+        - category: String
+    }
+
+    class StoreProductDeactivateCommand <<Command>> {
+        - token: String
+        - productId: String
+    }
+
+    class CartAddCommand <<Command>> {
+        - token: String
+        - productId: String
+        - quantity: int
+    }
+
+    class CartRemoveCommand <<Command>> {
+        - token: String
+        - cartItemId: String
+    }
+
+    class CartQueryCommand <<Command>> {
+        - token: String
+    }
+
+    class CartCheckoutCommand <<Command>> {
+        - token: String
+    }
+
+    class StoreOrderListAllCommand <<Command>> {
+        - token: String
+    }
+
+    class StoreHotProductsCommand <<Command>> {
+        - token: String
+        - limit: int
+    }
+
+    class CartItem <<Value Object>> {
+        - cartItemId: String
+        - userId: String
+        - productId: String
+        - quantity: int
+        - addedAt: LocalDateTime
     }
 }
 
@@ -131,6 +230,8 @@ InMemoryStoreService *-- DefaultStoreService : delegates
 
 ProductRepository <|.. InMemoryProductRepository
 OrderRepository <|.. InMemoryOrderRepository
+
+CartRepository ..> CartItem : stores
 
 DefaultStoreService --> ProductRepository
 DefaultStoreService --> OrderRepository

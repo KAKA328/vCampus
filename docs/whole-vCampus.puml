@@ -4,11 +4,13 @@ skinparam classAttributeIconSize 0
 skinparam monochrome true
 skinparam shadowing false
 skinparam defaultFontSize 12
+skinparam nodesep 18
+skinparam ranksep 46
 
 ' =====================================================================
-' common 模块：通信协议与共享类型
+' common 模块：通信协议与共享类型（位于最底层）
 ' =====================================================================
-package "common 模块（通信协议与共享类型）" {
+package "common 模块（通信协议与共享类型）" as PCOM {
     class Message <<Envelope>> {
         - requestId: String
         - type: MessageType
@@ -19,6 +21,10 @@ package "common 模块（通信协议与共享类型）" {
         + {static} response(request, statusCode, payload): Message
         + withSender(value): Message
     }
+    note bottom of Message
+        客户端与服务器之间
+        经 Socket 对象流收发的唯一载体
+    end note
 
     enum MessageType {
         REGISTER / UNREGISTER / LOGIN / LOGOUT
@@ -62,12 +68,17 @@ package "common 模块（通信协议与共享类型）" {
         - displayName: String
         - role: Role
     }
+
+    Message --> MessageType
+    Message --> StatusCode
+    User --> Role
+    ServiceResult --> StatusCode
 }
 
 ' =====================================================================
-' user-management 模块：账号、会话与权限
+' user-management 模块：账号、会话与权限（业务层中心，被三个处理器依赖）
 ' =====================================================================
-package "user-management 模块" {
+package "user-management 模块" as PUSER {
     interface UserManagementService {
         + register(credentials: UserCredentials): ServiceResult<Void>
         + importUsers(token, rows): ServiceResult<UserImportResult>
@@ -209,65 +220,31 @@ package "user-management 模块" {
         - targetId: String
         - createdAt: Instant
     }
+
+    UserManagementService <|.. DefaultUserManagementService
+    UserManagementService <|.. InMemoryUserManagementService
+    InMemoryUserManagementService -right-> DefaultUserManagementService : delegates
+
+    DefaultUserManagementService --> UserRepository
+    DefaultUserManagementService --> SessionManager
+    DefaultUserManagementService --> AuditLogRepository
+    DefaultUserManagementService *-- PasswordHasher
+    DefaultUserManagementService *-- RolePermissionPolicy
+
+    UserRepository <|.. InMemoryUserRepository
+    AuditLogRepository <|.. InMemoryAuditLogRepository
+
+    SessionManager o-- Session
+    UserRegistrationCommand --> UserCredentials
+    UserImportCommand o-- UserImportRow
+    UserImportResult o-- UserImportFailure
+    RolePermissionPolicy ..> Permission : matrix
 }
 
 ' =====================================================================
-' student-management 模块：学籍与学业审查
+' course-selection 模块：课程、教学班与选课轮次（业务层左侧）
 ' =====================================================================
-package "student-management 模块" {
-    interface StudentManagementService {
-        + findById(studentId): ServiceResult<StudentRecord>
-        + findByClass(classId): ServiceResult<List<StudentRecord>>
-        + save(record): ServiceResult<StudentRecord>
-    }
-
-    class StudentRecord <<Value Object>> {
-        - studentId: String
-        - name: String
-        - gender: String
-        - departmentName: String
-        - majorName: String
-        - classId: String
-        - enrollmentYear: int
-        - status: String
-        - phone: String
-        - email: String
-    }
-
-    class InMemoryAcademicReviewService {
-        - historiesByStudentId: Map<String, List<CourseHistoryRecord>>
-        + addHistory(record): ServiceResult<Void>
-        + historyFor(studentId): ServiceResult<List<CourseHistoryRecord>>
-        + review(studentId, requiredCredits): ServiceResult<AcademicReview>
-    }
-
-    class AcademicReview <<Value Object>> {
-        - studentId: String
-        - totalEarnedCredits: int
-        - passedCourseCount: int
-        - failedCourseCount: int
-        - retakeCourseCount: int
-        - graduationReady: boolean
-        - remark: String
-    }
-
-    class CourseHistoryRecord <<Value Object>> {
-        - studentId: String
-        - courseId: String
-        - courseName: String
-        - semester: String
-        - attemptNo: int
-        - attemptType: String
-        - score: int
-        - passed: boolean
-        - earnedCredits: int
-    }
-}
-
-' =====================================================================
-' course-selection 模块：课程、教学班与选课轮次
-' =====================================================================
-package "course-selection 模块" {
+package "course-selection 模块" as PCO {
     interface CourseSelectionService {
         + listCourses(): ServiceResult<List<Course>>
         + select(studentId, courseId): ServiceResult<Void>
@@ -369,38 +346,45 @@ package "course-selection 模块" {
         - studentId: String
         - courseId: String
     }
+
+    CourseSelectionService <|.. InMemoryCourseSelectionService
+    SelectionRoundService <|.. InMemorySelectionRoundService
+    InMemoryCourseSelectionService o-- Course
+    InMemorySelectionRoundService o-- SelectionRound
+
+    CourseOffering --> CourseOfferingStatus
+    CourseOffering ..> CapacityBucket
+    CourseOffering ..> Course : courseId
+    SelectionRound --> SelectionRoundType
+    SelectionRound --> SelectionRoundStatus
+    SelectionType ..> CapacityBucket : occupies
 }
 
 ' =====================================================================
-' library 模块：图书与借还
+' store 模块：商品、订单、购物车与管理命令（业务层右侧）
 ' =====================================================================
-package "library 模块" {
-    interface LibraryService {
-        + search(keyword): ServiceResult<List<Book>>
-        + borrow(studentId, bookId): ServiceResult<Void>
-        + returnBook(studentId, bookId): ServiceResult<Void>
-    }
-
-    class Book <<Value Object>> {
-        - bookId: String
-        - title: String
-        - author: String
-    }
-}
-
-' =====================================================================
-' store 模块：商品、订单与购买
-' =====================================================================
-package "store 模块" {
+package "store 模块" as PSTORE {
     interface StoreService {
         + listProducts(): ServiceResult<List<Product>>
         + purchase(userId, productId, quantity): ServiceResult<Void>
         + findOrdersByUserId(userId): ServiceResult<List<Order>>
+        + restock(userId, productId, additionalStock): ServiceResult<Void>
+        + addProduct(name, price, stock, description, category): ServiceResult<Product>
+        + updateProduct(productId, name, price, description, category): ServiceResult<Product>
+        + deactivateProduct(userId, productId): ServiceResult<Void>
+        + addToCart(userId, productId, quantity): ServiceResult<Void>
+        + removeFromCart(userId, cartItemId): ServiceResult<Void>
+        + getCart(userId): ServiceResult<List<CartItem>>
+        + checkout(userId): ServiceResult<Void>
+        + findAllOrders(): ServiceResult<List<Order>>
+        + listHotProducts(limit): ServiceResult<List<Product>>
+        + listProducts(category): ServiceResult<List<Product>>
     }
 
     class DefaultStoreService {
         - products: ProductRepository
         - orders: OrderRepository
+        + 第二轮新方法暂为占位实现（Day 2 起替换）
     }
 
     class InMemoryStoreService {
@@ -412,11 +396,24 @@ package "store 模块" {
         + findById(id): Product
         + save(product): void
         + updateStock(productId, newStock): boolean
+        + addStock(productId, amount): boolean
+        + updateProduct(product): boolean
+        + deleteById(productId): boolean
     }
 
     interface OrderRepository {
         + create(order): boolean
         + findByUserId(userId): List<Order>
+        + findAll(): List<Order>
+        + findSalesVolume(): List<Object[]>
+    }
+
+    interface CartRepository {
+        + findByUserId(userId): List<CartItem>
+        + addItem(item): boolean
+        + removeItem(cartItemId): boolean
+        + updateQuantity(cartItemId, newQuantity): boolean
+        + clearByUserId(userId): void
     }
 
     class InMemoryProductRepository {
@@ -435,6 +432,7 @@ package "store 模块" {
         - price: double
         - description: String
         - category: String
+        - active: boolean
     }
 
     class Order <<Value Object>> {
@@ -448,8 +446,17 @@ package "store 模块" {
         - unitPrice: double <<snapshot>>
     }
 
+    class CartItem <<Value Object>> {
+        - cartItemId: String
+        - userId: String
+        - productId: String
+        - quantity: int
+        - addedAt: LocalDateTime
+    }
+
     class StoreQueryCommand <<Command>> {
         - token: String
+        - category: String <<null 表示查全部分类>>
     }
 
     class StorePurchaseCommand <<Command>> {
@@ -461,12 +468,157 @@ package "store 模块" {
     class StoreOrderQueryCommand <<Command>> {
         - token: String
     }
+
+    class StoreRestockCommand <<Command>> {
+        - token: String
+        - productId: String
+        - additionalStock: int
+    }
+
+    class StoreProductAddCommand <<Command>> {
+        - token: String
+        - name: String
+        - price: double
+        - stock: int
+        - description: String
+        - category: String
+    }
+
+    class StoreProductUpdateCommand <<Command>> {
+        - token: String
+        - productId: String
+        - name: String
+        - price: double
+        - description: String
+        - category: String
+    }
+
+    class StoreProductDeactivateCommand <<Command>> {
+        - token: String
+        - productId: String
+    }
+
+    class CartAddCommand <<Command>> {
+        - token: String
+        - productId: String
+        - quantity: int
+    }
+
+    class CartRemoveCommand <<Command>> {
+        - token: String
+        - cartItemId: String
+    }
+
+    class CartQueryCommand <<Command>> {
+        - token: String
+    }
+
+    class CartCheckoutCommand <<Command>> {
+        - token: String
+    }
+
+    class StoreOrderListAllCommand <<Command>> {
+        - token: String
+    }
+
+    class StoreHotProductsCommand <<Command>> {
+        - token: String
+        - limit: int
+    }
+
+    StoreService <|.. DefaultStoreService
+    StoreService <|.. InMemoryStoreService
+    InMemoryStoreService -right-> DefaultStoreService : delegates
+
+    ProductRepository <|.. InMemoryProductRepository
+    OrderRepository <|.. InMemoryOrderRepository
+
+    CartRepository ..> CartItem : stores
+
+    DefaultStoreService --> ProductRepository
+    DefaultStoreService --> OrderRepository
 }
 
 ' =====================================================================
-' server 模块：网络入口、消息路由与 Access 持久化
+' library 模块：图书与借还
 ' =====================================================================
-package "server 模块" {
+package "library 模块" as PLIB {
+    interface LibraryService {
+        + search(keyword): ServiceResult<List<Book>>
+        + borrow(studentId, bookId): ServiceResult<Void>
+        + returnBook(studentId, bookId): ServiceResult<Void>
+    }
+
+    class Book <<Value Object>> {
+        - bookId: String
+        - title: String
+        - author: String
+    }
+
+    LibraryService ..> Book
+}
+
+' =====================================================================
+' student-management 模块：学籍与学业审查
+' =====================================================================
+package "student-management 模块" as PSTU {
+    interface StudentManagementService {
+        + findById(studentId): ServiceResult<StudentRecord>
+        + findByClass(classId): ServiceResult<List<StudentRecord>>
+        + save(record): ServiceResult<StudentRecord>
+    }
+
+    class StudentRecord <<Value Object>> {
+        - studentId: String
+        - name: String
+        - gender: String
+        - departmentName: String
+        - majorName: String
+        - classId: String
+        - enrollmentYear: int
+        - status: String
+        - phone: String
+        - email: String
+    }
+
+    class InMemoryAcademicReviewService {
+        - historiesByStudentId: Map<String, List<CourseHistoryRecord>>
+        + addHistory(record): ServiceResult<Void>
+        + historyFor(studentId): ServiceResult<List<CourseHistoryRecord>>
+        + review(studentId, requiredCredits): ServiceResult<AcademicReview>
+    }
+
+    class AcademicReview <<Value Object>> {
+        - studentId: String
+        - totalEarnedCredits: int
+        - passedCourseCount: int
+        - failedCourseCount: int
+        - retakeCourseCount: int
+        - graduationReady: boolean
+        - remark: String
+    }
+
+    class CourseHistoryRecord <<Value Object>> {
+        - studentId: String
+        - courseId: String
+        - courseName: String
+        - semester: String
+        - attemptNo: int
+        - attemptType: String
+        - score: int
+        - passed: boolean
+        - earnedCredits: int
+    }
+
+    StudentManagementService ..> StudentRecord
+    InMemoryAcademicReviewService o-- CourseHistoryRecord
+    InMemoryAcademicReviewService ..> AcademicReview : computes
+}
+
+' =====================================================================
+' server 模块：网络入口、消息路由与 Access 持久化（位于客户端之下）
+' =====================================================================
+package "server 模块" as PSV {
     class ServerApplication <<Entry Point>> {
         - port: int
         - userMessages: UserMessageHandler
@@ -479,6 +631,12 @@ package "server 模块" {
         ~ dispatch(request: Message): Message
         + {static} main(args): void
     }
+    note right of ServerApplication
+        dispatch 路由：
+        COURSE_* → CourseMessageHandler
+        STORE_* → StoreMessageHandler
+        其余 → UserMessageHandler
+    end note
 
     class ClientHandler <<inner, Runnable>> {
         - socket: Socket
@@ -490,9 +648,8 @@ package "server 模块" {
         + {static} databasePath(args): Path
     }
     note right of UserServiceFactory
-        根据 --db 参数选择实现:
-        无数据库 → InMemory 仓储 + 演示账号
-        有数据库 → Access 仓储
+        无 --db → InMemory 仓储 + 演示账号
+        有 --db → Access 仓储
         支持环境变量引导创建管理员
     end note
 
@@ -500,10 +657,6 @@ package "server 模块" {
         - service: UserManagementService
         + handle(request: Message): Message
     }
-    note right of UserMessageHandler
-        REGISTER / LOGIN / LOGOUT
-        UNREGISTER / AUTHORIZE / USER_IMPORT
-    end note
 
     class CourseMessageHandler {
         - courses: CourseSelectionService
@@ -547,58 +700,24 @@ package "server 模块" {
         Access 系列仓储通过 JDBC-ODBC
         读写 vCampus.accdb 数据库
     end note
+
+    ServerApplication *-- ClientHandler
+    ServerApplication --> UserMessageHandler
+    ServerApplication --> CourseMessageHandler
+    ServerApplication --> StoreMessageHandler
+    ServerApplication -right-> UserServiceFactory : bootstraps
+    UserServiceFactory .down.> DefaultUserManagementService : creates
 }
 
 ' =====================================================================
-' client 模块：Swing 界面、远程服务适配与 Socket 传输
+' client 模块：Swing 界面、远程服务适配与 Socket 传输（位于最顶层）
 ' =====================================================================
-package "client 模块" {
+package "client 模块" as PCL {
     class ClientApplication <<Entry Point>> {
         + {static} main(args): void
     }
-    note right of ClientApplication
-        --demo：对象流协议演示
-        默认：启动 Swing 登录窗口
-    end note
 
-    package "transport 传输层" {
-        class SocketMessageClient <<Closeable>> {
-            - socket: Socket
-            - output: ObjectOutputStream
-            - input: ObjectInputStream
-            + send(request: Message): Message
-            + close(): void
-        }
-    }
-
-    package "service 服务适配层" {
-        class RemoteUserService <<Closeable>> {
-            - messages: SocketMessageClient
-            - sequence: AtomicLong
-            + register(token, credentials): Message
-            + login(credentials): Message
-            + logout(token): Message
-        }
-
-        class RemoteCourseService <<Closeable>> {
-            - messages: SocketMessageClient
-            - sequence: AtomicLong
-            + listCourses(): Message
-            + selectedCourses(token, studentId): Message
-            + select(token, studentId, courseId): Message
-            + drop(token, studentId, courseId): Message
-        }
-
-        class RemoteStoreService <<Closeable>> {
-            - messages: SocketMessageClient
-            - sequence: AtomicLong
-            + listProducts(token): Message
-            + purchase(token, productId, quantity): Message
-            + ordersFor(token): Message
-        }
-    }
-
-    package "view 界面层 (Swing)" {
+    package "view 界面层 (Swing)" as PV {
         class LoginFrame <<Swing UI>> {
             - host: String
             - port: int
@@ -645,146 +764,112 @@ package "client 模块" {
         class PromptTextField <<Swing UI>>
         class PromptPasswordField <<Swing UI>>
         class BatchTableModel <<Table Model>>
+
+        LoginFrame -right-> MainFrame : opens after login
+        MainFrame --> ModuleNavigationModel
+        MainFrame ..> CourseSelectionPanel : creates
+        MainFrame ..> StorePanel : creates
+        MainFrame ..> RegisterDialog : creates
+        MainFrame ..> ModuleCardPanel : creates
+        MainFrame ..> ResponsiveModuleGridPanel : creates
+        ModuleNavigationModel o-- ModuleDescriptor
+        ModuleCardPanel --> ModuleDescriptor
     }
+
+    package "service 服务适配层" as PS {
+        class RemoteUserService <<Closeable>> {
+            - messages: SocketMessageClient
+            - sequence: AtomicLong
+            + register(token, credentials): Message
+            + login(credentials): Message
+            + logout(token): Message
+        }
+
+        class RemoteCourseService <<Closeable>> {
+            - messages: SocketMessageClient
+            - sequence: AtomicLong
+            + listCourses(): Message
+            + selectedCourses(token, studentId): Message
+            + select(token, studentId, courseId): Message
+            + drop(token, studentId, courseId): Message
+        }
+
+        class RemoteStoreService <<Closeable>> {
+            - messages: SocketMessageClient
+            - sequence: AtomicLong
+            + listProducts(token): Message
+            + purchase(token, productId, quantity): Message
+            + ordersFor(token): Message
+        }
+    }
+
+    package "transport 传输层" as PT {
+        class SocketMessageClient <<Closeable>> {
+            - socket: Socket
+            - output: ObjectOutputStream
+            - input: ObjectInputStream
+            + send(request: Message): Message
+            + close(): void
+        }
+    }
+
+    ClientApplication ..> LoginFrame : launches
+
+    LoginFrame .up.> RemoteUserService : login
+    RegisterDialog .up.> RemoteUserService : register
+    MainFrame .up.> RemoteUserService : logout
+    CourseSelectionPanel .up.> RemoteCourseService : uses
+    StorePanel .up.> RemoteStoreService : uses
+
+    RemoteUserService -down-> SocketMessageClient
+    RemoteCourseService -down-> SocketMessageClient
+    RemoteStoreService -down-> SocketMessageClient
+
+    PV -[hidden]down-> PS
+    PS -[hidden]down-> PT
 }
 
 ' =====================================================================
-' 关系：common 内部
+' 跨模块关系（全部带方向约束，保证分层走线）
 ' =====================================================================
-Message --> MessageType
-Message --> StatusCode
-User --> Role
-ServiceResult --> StatusCode
 
-' =====================================================================
-' 关系：user-management 模块内部
-' =====================================================================
-UserManagementService <|.. DefaultUserManagementService
-UserManagementService <|.. InMemoryUserManagementService
-InMemoryUserManagementService *-- DefaultUserManagementService : delegates
+' --- server 处理器 → 各业务服务（向下） ---
+UserMessageHandler .down.> UserManagementService
+CourseMessageHandler .down.> CourseSelectionService
+CourseMessageHandler .down.> UserManagementService
+StoreMessageHandler .down.> StoreService
+StoreMessageHandler .down.> UserManagementService
 
-DefaultUserManagementService --> UserRepository
-DefaultUserManagementService --> SessionManager
-DefaultUserManagementService --> AuditLogRepository
-DefaultUserManagementService *-- PasswordHasher
-DefaultUserManagementService *-- RolePermissionPolicy
-DefaultUserManagementService ..> UserCredentials : validates
-DefaultUserManagementService ..> UserAccount : creates
-DefaultUserManagementService ..> AuditEvent : records
+' --- Access 持久化 → 各模块接口（向上实现） ---
+UserRepository <|.up. AccessUserRepository
+AuditLogRepository <|.up. AccessAuditLogRepository
+CourseSelectionService <|.up. AccessCourseSelectionService
+ProductRepository <|.up. AccessProductRepository
+OrderRepository <|.up. AccessOrderRepository
 
-UserRepository <|.. InMemoryUserRepository
-AuditLogRepository <|.. InMemoryAuditLogRepository
+' --- 客户端远程服务 → 各模块命令对象（向下创建） ---
+RemoteUserService .down.> UserRegistrationCommand : creates
+RemoteCourseService .down.> CourseQueryCommand : creates
+RemoteCourseService .down.> CourseSelectionCommand : creates
+RemoteStoreService .down.> StoreQueryCommand : creates
+RemoteStoreService .down.> StorePurchaseCommand : creates
+RemoteStoreService .down.> StoreOrderQueryCommand : creates
 
-SessionManager o-- Session : creates
-Session --> User
-UserAccount --> User
-RolePermissionPolicy ..> Permission : matrix
-UserRegistrationCommand --> UserCredentials
-UserImportCommand o-- UserImportRow
-UserImportResult o-- UserImportFailure
+' --- user-management → common（向下） ---
+Session .down.> User
+UserAccount .down.> User
+RolePermissionPolicy .down.> Role
 
 ' =====================================================================
-' 关系：student-management 模块内部
+' 隐藏边：仅用于固定分层与模块排布顺序，不产生连线
 ' =====================================================================
-StudentManagementService ..> StudentRecord
-InMemoryAcademicReviewService o-- CourseHistoryRecord
-InMemoryAcademicReviewService ..> AcademicReview : computes
-
-' =====================================================================
-' 关系：course-selection 模块内部
-' =====================================================================
-CourseSelectionService <|.. InMemoryCourseSelectionService
-SelectionRoundService <|.. InMemorySelectionRoundService
-InMemoryCourseSelectionService o-- Course
-InMemorySelectionRoundService o-- SelectionRound
-
-CourseOffering --> CourseOfferingStatus
-CourseOffering ..> CapacityBucket
-CourseOffering ..> Course : courseId
-SelectionRound --> SelectionRoundType
-SelectionRound --> SelectionRoundStatus
-SelectionType ..> CapacityBucket : occupies
-
-' =====================================================================
-' 关系：store 模块内部
-' =====================================================================
-StoreService <|.. DefaultStoreService
-StoreService <|.. InMemoryStoreService
-InMemoryStoreService *-- DefaultStoreService : delegates
-
-ProductRepository <|.. InMemoryProductRepository
-OrderRepository <|.. InMemoryOrderRepository
-
-DefaultStoreService --> ProductRepository
-DefaultStoreService --> OrderRepository
-
-' =====================================================================
-' 关系：server 模块
-' =====================================================================
-ServerApplication *-- ClientHandler
-ServerApplication --> UserMessageHandler
-ServerApplication --> CourseMessageHandler
-ServerApplication --> StoreMessageHandler
-ServerApplication ..> UserServiceFactory : bootstraps
-
-UserMessageHandler --> UserManagementService
-CourseMessageHandler --> CourseSelectionService
-CourseMessageHandler --> UserManagementService
-StoreMessageHandler --> StoreService
-StoreMessageHandler --> UserManagementService
-
-UserServiceFactory ..> DefaultUserManagementService : creates
-UserServiceFactory ..> SessionManager : creates
-
-UserRepository <|.. AccessUserRepository
-AuditLogRepository <|.. AccessAuditLogRepository
-CourseSelectionService <|.. AccessCourseSelectionService
-ProductRepository <|.. AccessProductRepository
-OrderRepository <|.. AccessOrderRepository
-
-' =====================================================================
-' 关系：client 模块
-' =====================================================================
-ClientApplication ..> LoginFrame : launches
-
-RemoteUserService --> SocketMessageClient
-RemoteCourseService --> SocketMessageClient
-RemoteStoreService --> SocketMessageClient
-
-RemoteUserService ..> UserRegistrationCommand : creates
-RemoteCourseService ..> CourseQueryCommand : creates
-RemoteCourseService ..> CourseSelectionCommand : creates
-RemoteStoreService ..> StoreQueryCommand : creates
-RemoteStoreService ..> StorePurchaseCommand : creates
-RemoteStoreService ..> StoreOrderQueryCommand : creates
-
-LoginFrame ..> RemoteUserService : uses
-LoginFrame ..> MainFrame : opens after login
-LoginFrame --> PromptTextField
-LoginFrame --> PromptPasswordField
-LoginFrame ..> VCampusTheme
-
-MainFrame --> ModuleNavigationModel
-MainFrame --> Session
-MainFrame ..> CourseSelectionPanel : creates
-MainFrame ..> StorePanel : creates
-MainFrame ..> RegisterDialog : creates
-MainFrame ..> ModuleCardPanel : creates
-MainFrame ..> ResponsiveModuleGridPanel : creates
-MainFrame ..> RemoteUserService : logout
-ModuleNavigationModel o-- ModuleDescriptor
-ModuleCardPanel --> ModuleDescriptor
-
-CourseSelectionPanel ..> RemoteCourseService : uses
-StorePanel ..> RemoteStoreService : uses
-RegisterDialog ..> RemoteUserService : uses
-
-' =====================================================================
-' 跨模块：客户端与服务端通过 Message 通信
-' =====================================================================
-SocketMessageClient ..> Message : sends/receives
-UserMessageHandler ..> Message
-CourseMessageHandler ..> Message
-StoreMessageHandler ..> Message
+PCL -[hidden]down-> PSV
+PSV -[hidden]down-> PUSER
+PCO -[hidden]right-> PUSER
+PUSER -[hidden]right-> PSTORE
+PSTORE -[hidden]right-> PLIB
+PLIB -[hidden]right-> PSTU
+PUSER -[hidden]down-> PCOM
+PSTORE -[hidden]down-> PCOM
 
 @enduml
