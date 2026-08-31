@@ -34,4 +34,16 @@ public final class InMemoryOrderRepository implements OrderRepository {
         List<Order> result = userIdMap.get(userId);
         return result != null ? result : new ArrayList<Order>();// 如果用户没有订单，返回空列表
     }
+
+    // 占位实现，Day 2 完成
+    @Override
+    public final List<Order> findAll() {
+        return new ArrayList<Order>();
+    }
+
+    // 占位实现，Day 2 完成
+    @Override
+    public final List<Object[]> findSalesVolume() {
+        return new ArrayList<Object[]>();
+    }
 }

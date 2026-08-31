@@ -40,4 +40,22 @@ public final class InMemoryProductRepository implements ProductRepository {
         return false;
     }
 
+    // 占位实现，Day 2 完成
+    @Override
+    public final boolean addStock(String productId, int amount) {
+        return false;
+    }
+
+    // 占位实现，Day 2 完成
+    @Override
+    public final boolean updateProduct(Product product) {
+        return false;
+    }
+
+    // 占位实现，Day 2 完成
+    @Override
+    public final boolean deleteById(String productId) {
+        return false;
+    }
+
 }
