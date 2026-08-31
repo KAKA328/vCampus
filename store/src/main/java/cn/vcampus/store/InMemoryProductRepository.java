@@ -33,7 +33,7 @@ public final class InMemoryProductRepository implements ProductRepository {
             Product oldPro = this.findById(productId);
             Product newPro = new Product(oldPro.getProductId(), oldPro.getName(), newStock, oldPro.getPrice(),
                     oldPro.getDescription(),
-                    oldPro.getCategory());
+                    oldPro.getCategory(), oldPro.isActive());
             this.products.replace(productId, newPro);
             return true;
         }

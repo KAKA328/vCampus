@@ -33,7 +33,7 @@ public interface StoreService {
 
     ServiceResult<Void> checkout(String userId);
 
-    // P1: 增值功能
+    // 增值功能
     ServiceResult<List<Order>> findAllOrders();
 
     ServiceResult<List<Product>> listHotProducts(int limit);
