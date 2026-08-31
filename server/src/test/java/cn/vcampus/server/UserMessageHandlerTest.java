@@ -10,6 +10,10 @@ import cn.vcampus.user.DefaultUserManagementService;
 import cn.vcampus.user.InMemoryAuditLogRepository;
 import cn.vcampus.user.InMemoryUserRepository;
 import cn.vcampus.user.InMemoryUserManagementService;
+import cn.vcampus.user.PasswordChangeCommand;
+import cn.vcampus.user.PasswordResetRequestCommand;
+import cn.vcampus.user.PasswordResetReviewCommand;
+import cn.vcampus.user.PasswordResetReviewResult;
 import cn.vcampus.user.Permission;
 import cn.vcampus.user.Session;
 import cn.vcampus.user.SessionManager;
@@ -19,6 +23,7 @@ import cn.vcampus.user.UserImportCommand;
 import cn.vcampus.user.UserImportResult;
 import cn.vcampus.user.UserImportRow;
 import cn.vcampus.user.UserRegistrationCommand;
+import cn.vcampus.user.UserRoleChangeCommand;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
@@ -91,6 +96,63 @@ class UserMessageHandlerTest {
         assertTrue(response.getPayload() instanceof UserImportResult);
         assertEquals(1, ((UserImportResult) response.getPayload()).getSuccessCount());
         assertEquals(StatusCode.OK, loginResponse.getStatusCode());
+    }
+
+    @Test
+    void adminCanApprovePasswordResetThroughMessages() {
+        Session adminSession = loginAsAdmin();
+        UserCredentials oldCredentials = new UserCredentials("srv_reset001", "Old123", "Reset User", Role.STUDENT.name());
+        handler.handle(Message.request("reset-register", MessageType.REGISTER,
+                new UserRegistrationCommand(adminSession.getToken(), oldCredentials)));
+
+        Message requestResponse = handler.handle(Message.request("reset-request", MessageType.PASSWORD_RESET_REQUEST,
+                new PasswordResetRequestCommand("srv_reset001", "忘记密码", "13800000000")));
+        Message reviewResponse = handler.handle(Message.request("reset-review", MessageType.PASSWORD_RESET_REVIEW,
+                new PasswordResetReviewCommand(adminSession.getToken(), "srv_reset001", true)));
+        Message oldLogin = handler.handle(Message.request("reset-old-login", MessageType.LOGIN, oldCredentials));
+        PasswordResetReviewResult review = (PasswordResetReviewResult) reviewResponse.getPayload();
+        Message temporaryLogin = handler.handle(Message.request("reset-temp-login", MessageType.LOGIN,
+                new UserCredentials("srv_reset001", review.getTemporaryPassword(), "Reset User", Role.STUDENT.name())));
+        Session temporarySession = (Session) temporaryLogin.getPayload();
+        Message blockedAuthorize = handler.handle(Message.request("reset-temp-auth", MessageType.AUTHORIZE,
+                new AuthorizationRequest(temporarySession.getToken(), Permission.COURSE_SELECT.getCode())));
+        Message forcedChange = handler.handle(Message.request("reset-change", MessageType.PASSWORD_CHANGE,
+                new PasswordChangeCommand(temporarySession.getToken(), "OwnNew123")));
+        Message finalLogin = handler.handle(Message.request("reset-final-login", MessageType.LOGIN,
+                new UserCredentials("srv_reset001", "OwnNew123", "Reset User", Role.STUDENT.name())));
+
+        assertEquals(StatusCode.OK, requestResponse.getStatusCode());
+        assertEquals(StatusCode.OK, reviewResponse.getStatusCode());
+        assertEquals(StatusCode.UNAUTHORIZED, oldLogin.getStatusCode());
+        assertEquals(StatusCode.OK, temporaryLogin.getStatusCode());
+        assertTrue(temporarySession.isForcePasswordChange());
+        assertEquals(StatusCode.FORBIDDEN, blockedAuthorize.getStatusCode());
+        assertEquals(StatusCode.OK, forcedChange.getStatusCode());
+        assertEquals(StatusCode.OK, finalLogin.getStatusCode());
+    }
+
+    @Test
+    void adminCanChangeAnotherUsersRoleThroughMessages() {
+        Session adminSession = loginAsAdmin();
+        UserCredentials target = new UserCredentials("srv_role001", "Demo123", "Role User", Role.STUDENT.name());
+        handler.handle(Message.request("role-register", MessageType.REGISTER,
+                new UserRegistrationCommand(adminSession.getToken(), target)));
+        Session targetSession = (Session) handler.handle(Message.request("role-login", MessageType.LOGIN, target))
+                .getPayload();
+
+        Message response = handler.handle(Message.request("role-change", MessageType.USER_ROLE_CHANGE,
+                new UserRoleChangeCommand(adminSession.getToken(), "srv_role001", Role.STORE_MANAGER.name())));
+        Message oldSession = handler.handle(Message.request("role-old-token", MessageType.AUTHORIZE,
+                new AuthorizationRequest(targetSession.getToken(), Permission.COURSE_SELECT.getCode())));
+        Message targetLogin = handler.handle(Message.request("role-new-login", MessageType.LOGIN, target));
+        Session newSession = (Session) targetLogin.getPayload();
+        Message storePermission = handler.handle(Message.request("role-store-auth", MessageType.AUTHORIZE,
+                new AuthorizationRequest(newSession.getToken(), Permission.STORE_MANAGE.getCode())));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertEquals(StatusCode.UNAUTHORIZED, oldSession.getStatusCode());
+        assertEquals(StatusCode.OK, targetLogin.getStatusCode());
+        assertEquals(StatusCode.OK, storePermission.getStatusCode());
     }
 
     @Test

@@ -11,11 +11,13 @@ public final class SessionManager {
     private final Map<String, String> activeTokensByUserId = new ConcurrentHashMap<String, String>();
 
     public synchronized Session create(User user) {
-        if (activeTokensByUserId.containsKey(user.getUserId())) {
-            return null;
-        }
+        return create(user, false);
+    }
+
+    public synchronized Session create(User user, boolean forcePasswordChange) {
+        invalidateUser(user.getUserId());
         String token = UUID.randomUUID().toString();
-        Session session = new Session(token, user);
+        Session session = new Session(token, user, forcePasswordChange);
         sessions.put(token, session);
         activeTokensByUserId.put(user.getUserId(), token);
         return session;
