@@ -55,6 +55,8 @@ git switch -c feature/store
 
 原则：业务逻辑优先写在自己模块中；公共类型放入 `common` 前要先和组长确认，避免公共协议被频繁改坏。
 
+账号与业务档案的对接统一遵守 [`ACCOUNT_PROFILE_INTEGRATION.md`](ACCOUNT_PROFILE_INTEGRATION.md)：`user_id` 只表示登录账号，`student_id` 只表示学生学号，`teacher_id` 只表示教师工号。学生/教师档案可以先存在，再由管理员创建或导入账号并完成绑定。
+
 ## 4. 模块分层约定
 
 每个业务模块建议按以下结构组织：
@@ -169,29 +171,29 @@ docs/MODULE_INTEGRATION_GUIDE.md
 - 涉及登录权限的操作：payload 必须包含 `token`；
 - 不要在 payload 中传明文密码，除登录和管理员开户注册的 `UserCredentials` 外；
 - 用户批量导入例外：`USER_IMPORT` 请求使用 `UserImportCommand(token, rows)`，每行是 `UserImportRow(userId, password, displayName, roleCode)`；只允许管理员端发起，服务端写入 `created_by`、`created_at`、`import_batch_id` 并返回 `UserImportResult`；
+- 学生本人、教师本人相关操作应优先只传 `token` 和业务对象编号，服务器根据 `token -> user_id -> student_id/teacher_id` 推导真实业务身份；过渡期如命令对象仍带 `studentId` 或 `teacherId`，服务器必须做一致性校验，不能直接信任客户端传值；
 - 不要把数据库连接、文件路径、Socket 对象放进 payload。
 
-示例：选课命令对象可以这样设计：
+示例：学生本人选课命令对象建议只携带 token 和课程或教学班编号：
 
 ```java
 public final class CourseSelectionCommand implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private final String token;
-    private final String studentId;
     private final String courseId;
 
-    public CourseSelectionCommand(String token, String studentId, String courseId) {
+    public CourseSelectionCommand(String token, String courseId) {
         this.token = token;
-        this.studentId = studentId;
         this.courseId = courseId;
     }
 
     public String getToken() { return token; }
-    public String getStudentId() { return studentId; }
     public String getCourseId() { return courseId; }
 }
 ```
+
+如果当前代码为了兼容旧页面暂时保留 `studentId` 字段，也应由服务器通过 token 查到当前 `user_id`，再查询绑定的 `student_id` 后比对；不一致时返回 `FORBIDDEN`。
 
 ## 7. ServiceResult 返回规范
 
@@ -275,10 +277,10 @@ final class CourseMessageHandler {
                     if (current.getStatus() != StatusCode.OK) {
                         return Message.response(request, current.getStatus(), null);
                     }
-                    if (!current.getData().getUser().getUserId().equals(select.getStudentId())) {
-                        return Message.response(request, StatusCode.FORBIDDEN, "student scope denied");
-                    }
-                    result = service.select(select.getStudentId(), select.getCourseId());
+                    // 正式接入时应通过 user_id 查询绑定的 student_id，而不是信任客户端传入的学号。
+                    String studentId = studentProfiles.findStudentIdByUserId(
+                            current.getData().getUser().getUserId());
+                    result = service.select(studentId, select.getCourseId());
                     break;
                 default:
                     return Message.response(request, StatusCode.NOT_FOUND, "course handler does not support this message");
@@ -418,6 +420,17 @@ created_at
 updated_at
 ```
 
+账号与学生/教师档案绑定字段固定如下：
+
+| 字段 | 所在表 | 含义 | 使用规则 |
+|---|---|---|---|
+| `user_id` | `tblUser` | 登录账号主键 | 登录、会话、权限、商店订单、图书借阅统一使用 |
+| `student_id` | `tblStudent` | 学生学号 | 学籍、选课、课程结果、学业审查使用 |
+| `teacher_id` | `tblTeacher` | 教师工号 | 任课关系、成绩录入、教师档案使用 |
+| `user_id` | `tblStudent` / `tblTeacher` | 档案绑定账号 | 可空、唯一；允许先建档案再绑定账号 |
+
+各模块不得把学号直接当作登录账号，也不得把教师工号直接当作登录账号。需要从登录身份进入业务身份时，由服务器根据当前 `user_id` 查询绑定档案。
+
 数据库代码必须使用参数化查询，不要拼接 SQL 字符串。
 
 推荐：
@@ -500,15 +513,16 @@ git commit -m "feat(course): add course selection service"
 git push origin feature/course-selection
 ```
 
-然后在 GitHub 创建 Pull Request。
+然后在 GitHub 创建 Pull Request。分支名可以继续使用英文或拼音，避免工具兼容问题；PR 标题和描述尽量使用中文，便于组内同学和老师助教理解。
 
 PR 标题建议：
 
 ```text
-feat(course): add course selection module
-feat(student): add student management module
-feat(library): add library module
-feat(store): add store module
+选课：接入学生选课与退课功能
+学籍：新增学生档案查询与保存接口
+图书馆：接入图书借阅与归还功能
+商店：接入商品购买与订单查询功能
+用户管理：补充账号与学生教师档案绑定规范
 ```
 
 PR 描述至少包含：
