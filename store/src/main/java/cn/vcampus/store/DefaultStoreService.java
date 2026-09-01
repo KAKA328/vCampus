@@ -10,12 +10,18 @@ import java.util.UUID;
 // 默认商店业务，通过提供商品仓库和订单仓库以实现业务逻辑
 public final class DefaultStoreService implements StoreService {
     private final ProductRepository products;// 商品仓库
+    private final CartRepository cart;// 购物车仓库
     private final OrderRepository orders;// 订单仓库
+
+    public DefaultStoreService(ProductRepository products, OrderRepository orders, CartRepository cart) {
+        this.products = products;
+        this.orders = orders;
+        this.cart = cart;
+    }
 
     // 依赖注入
     public DefaultStoreService(ProductRepository products, OrderRepository orders) {
-        this.products = products;
-        this.orders = orders;
+        this(products, orders, null);
     }
 
     // 列出所有商品，使用serviceresult类的ok方法打包返回
@@ -34,18 +40,13 @@ public final class DefaultStoreService implements StoreService {
     // 购买方法
     @Override
     public final ServiceResult<Void> purchase(String userId, String productId, int quantity) {
-        Product toBuy = products.findById(productId);
-        // 没有目标商品
-        if (toBuy == null)
-            return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
-        // 数量不合法
-        else if (quantity <= 0)
-            return ServiceResult.failure(StatusCode.BAD_REQUEST, "Quantity must be positive");
-        // 商品数量不够
-        else if (toBuy.getStock() < quantity)
-            return ServiceResult.failure(StatusCode.BAD_REQUEST, "No enough stock");
+        ServiceResult<Void> tryBuyResult = tryBuy(userId, productId, quantity);
+        if (tryBuyResult.getStatus() != StatusCode.OK) {
+            return tryBuyResult;
+        }
         // 商品存在且数量充足
         else {
+            Product toBuy = products.findById(productId);
             // 计算总价
             double totalPrice = toBuy.getPrice() * quantity;
             // 刷新库存
@@ -57,6 +58,24 @@ public final class DefaultStoreService implements StoreService {
             // 返回成功
             return ServiceResult.ok(null);
         }
+    }
+
+    // 尝试购买，但是不买，检验是否能够购买成功
+    private final ServiceResult<Void> tryBuy(String userId, String productId, int quantity) {
+        if (userId == null || userId.trim().isEmpty() || productId == null || productId.trim().isEmpty())
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "Invalid user ID or product ID");
+        Product toBuy = products.findById(productId);
+        // 没有目标商品
+        if (toBuy == null)
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
+        // 数量不合法
+        else if (quantity <= 0)
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "Quantity must be positive");
+        // 商品数量不够
+        else if (toBuy.getStock() < quantity)
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "No enough stock");
+        return ServiceResult.ok(null);
+
     }
 
     // 根据用户ID查询订单
@@ -137,25 +156,86 @@ public final class DefaultStoreService implements StoreService {
     // 加入购物车
     @Override
     public final ServiceResult<Void> addToCart(String userId, String productId, int quantity) {
-        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+
+        if (cart == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "Cart not enabled");
+        }
+        if (userId == null || userId.trim().isEmpty() || productId == null || productId.trim().isEmpty()
+                || quantity <= 0) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "Invalid parameters");
+        }
+        Product product = products.findById(productId);
+        if (product == null) {
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
+        }
+        if (!product.isActive()) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "Product is not active");
+        }
+        CartItem newItem = new CartItem(UUID.randomUUID().toString(), userId, productId, quantity, LocalDateTime.now());
+        cart.addItem(newItem);
+        return ServiceResult.ok(null);
     }
 
     // 删除购物车条目
     @Override
     public final ServiceResult<Void> removeFromCart(String userId, String cartItemId) {
-        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+        if (cart == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "Cart not enabled");
+        }
+        if (userId == null || userId.trim().isEmpty() || cartItemId == null || cartItemId.trim().isEmpty())
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "Invalid parameters");
+        for (CartItem item : cart.findByUserId(userId)) {
+            if (item.getCartItemId().equals(cartItemId)) {
+                cart.removeItem(cartItemId);
+                return ServiceResult.ok(null);
+            }
+        }
+        return ServiceResult.failure(StatusCode.NOT_FOUND, "Cart item not found");
     }
 
     // 查询购物车
     @Override
     public final ServiceResult<List<CartItem>> getCart(String userId) {
-        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+        if (cart == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "Cart not enabled");
+        }
+        if (userId == null || userId.trim().isEmpty()) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "Invalid parameters");
+        }
+        return ServiceResult.ok(cart.findByUserId(userId));
     }
 
     // 购物车结账
     @Override
     public final ServiceResult<Void> checkout(String userId) {
-        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+        if (cart == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "Cart not enabled");
+        }
+        if (userId == null || userId.trim().isEmpty()) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "Invalid parameters");
+        }
+        List<String> failedProducts = new ArrayList<>();// 失败名单
+        List<CartItem> cartItems = cart.findByUserId(userId);
+        for (CartItem item : cartItems) {
+            // 使用私有函数先模拟购买，检验是否能够购买成功
+            ServiceResult<Void> result = this.tryBuy(userId, item.getProductId(), item.getQuantity());
+            if (result.getStatus() != StatusCode.OK) {
+                Product p = products.findById(item.getProductId());
+                String name = p != null ? p.getName() : item.getProductId(); // 查不到就用编号顶名字
+                failedProducts.add(name);
+            }
+        }
+        // 如果没有失败的购买
+        if (failedProducts.isEmpty()) {
+            for (CartItem item : cartItems) {
+                this.purchase(userId, item.getProductId(), item.getQuantity());
+            }
+            cart.clearByUserId(userId);// 全部购买成功，清空购物车
+            return ServiceResult.ok(null);
+        } else {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "Failed to purchase: " + String.join(", ", failedProducts));
+        }
     }
 
     // 查询所有订单
