@@ -26,20 +26,25 @@ package "store 模块" {
     class DefaultStoreService {
         - products: ProductRepository
         - orders: OrderRepository
-        + listProducts(): ServiceResult<List<Product>>
+        - cart: CartRepository <<可为 null>>
+        + listProducts(): ServiceResult<List<Product>> <<只返回上架商品>>
         + purchase(userId, productId, quantity): ServiceResult<Void>
         + findOrdersByUserId(userId): ServiceResult<List<Order>>
         + restock / addProduct / updateProduct / deactivateProduct
         + addToCart / removeFromCart / getCart / checkout
-        + findAllOrders / listHotProducts / listProducts(category)
+        + findAllOrders / listHotProducts / listProducts(category)（占位）
     }
     note bottom of DefaultStoreService
-        第二轮新增方法目前为占位实现（返回 failure），
-        Day 2 起逐个替换为真实业务逻辑
+        2 参构造函数委托 3 参版本，购物车传 null（向后兼容），
+        此时购物车方法统一返回 BAD_REQUEST；
+        checkout 采用两段式：tryBuy 全部预检通过后才逐项 purchase 并清空购物车
     end note
 
     class InMemoryStoreService {
         - delegate: StoreService
+        + InMemoryStoreService()（自带三仓库）
+        + InMemoryStoreService(products, orders)
+        + InMemoryStoreService(products, orders, cart)（包内，测试注入）
         + 全部 StoreService 方法（原样转发给 delegate）
     }
 
@@ -57,7 +62,7 @@ package "store 模块" {
         + create(order: Order): boolean
         + findByUserId(userId: String): List<Order>
         + findAll(): List<Order>
-        + findSalesVolume(): List<Object[]>
+        + findSalesVolume(): List<Map.Entry<String, Integer>>
     }
 
     interface CartRepository {
@@ -74,7 +79,9 @@ package "store 模块" {
         + findById(id): Product
         + save(product): void
         + updateStock(productId, newStock): boolean
-        + addStock / updateProduct / deleteById（占位）
+        + addStock(productId, amount): boolean
+        + updateProduct(product): boolean
+        + deleteById(productId): boolean
     }
 
     class InMemoryOrderRepository {
@@ -82,7 +89,18 @@ package "store 模块" {
         - userIdMap: ConcurrentHashMap<String, List<Order>>
         + create(order): boolean
         + findByUserId(userId): List<Order>
-        + findAll / findSalesVolume（占位）
+        + findAll(): List<Order>
+        + findSalesVolume(): List<Map.Entry<String, Integer>> <<不可变快照，可序列化>>
+    }
+
+    class InMemoryCartRepository {
+        - items: ConcurrentHashMap<String, CartItem>
+        - userIdMap: ConcurrentHashMap<String, List<CartItem>>
+        + findByUserId(userId): List<CartItem> <<返回副本>>
+        + addItem(item): boolean <<同商品数量累加>>
+        + removeItem(cartItemId): boolean
+        + updateQuantity(cartItemId, newQuantity): boolean
+        + clearByUserId(userId): void
     }
 
     class Product <<Value Object>> {
@@ -230,11 +248,13 @@ InMemoryStoreService *-- DefaultStoreService : delegates
 
 ProductRepository <|.. InMemoryProductRepository
 OrderRepository <|.. InMemoryOrderRepository
+CartRepository <|.. InMemoryCartRepository
 
 CartRepository ..> CartItem : stores
 
 DefaultStoreService --> ProductRepository
 DefaultStoreService --> OrderRepository
+DefaultStoreService --> CartRepository
 
 StoreMessageHandler --> StoreService
 StoreMessageHandler --> UserManagementService
