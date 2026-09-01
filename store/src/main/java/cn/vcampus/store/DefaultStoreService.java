@@ -5,6 +5,7 @@ import cn.vcampus.common.StatusCode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 // 默认商店业务，通过提供商品仓库和订单仓库以实现业务逻辑
@@ -241,18 +242,41 @@ public final class DefaultStoreService implements StoreService {
     // 查询所有订单
     @Override
     public final ServiceResult<List<Order>> findAllOrders() {
-        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+        return ServiceResult.ok(orders.findAll());
     }
 
-    // 热销商品排行
+    // 热销商品排行，按销量取前 limit 名，只展示上架商品
     @Override
     public final ServiceResult<List<Product>> listHotProducts(int limit) {
-        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+        if (limit <= 0)
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "Limit must be positive");
+        List<Map.Entry<String, Integer>> volumeList = orders.findSalesVolume();
+        List<Product> hotProducts = new ArrayList<Product>();
+        // 取前 limit 名，榜单不足时全取
+        int top = Math.min(limit, volumeList.size());
+        for (int i = 0; i < top; i++) {
+            String productId = volumeList.get(i).getKey();
+            Product product = products.findById(productId);
+            // 商品已删除或已下架，跳过
+            if (product == null || !product.isActive()) {
+                continue;
+            }
+            hotProducts.add(product);
+        }
+        return ServiceResult.ok(hotProducts);
     }
 
-    // 按分类列出商品
+    // 按分类列出商品category为null时不过滤分类
     @Override
     public final ServiceResult<List<Product>> listProducts(String category) {
-        return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+        List<Product> productsList = products.findAll();
+        List<Product> matchedProducts = new ArrayList<Product>();
+        for (Product product : productsList) {
+            // 分类为 null不挑，非null才比较是否相等
+            if (product.isActive() && (category == null || category.equals(product.getCategory()))) {
+                matchedProducts.add(product);
+            }
+        }
+        return ServiceResult.ok(matchedProducts);
     }
 }

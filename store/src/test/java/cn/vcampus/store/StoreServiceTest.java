@@ -235,7 +235,7 @@ class StoreServiceTest {
         assertEquals(StatusCode.NOT_FOUND, testResult.getStatus());
     }
 
-    // 测试加入后删除（先查出真正的购物车项编号再删）
+    // 测试加入后删除
     @Test
     void testRemoveFromCart() {
         service.addToCart("0120", "00001", 1);
@@ -245,7 +245,7 @@ class StoreServiceTest {
         assertEquals(0, cartRepo.findByUserId("0120").size());
     }
 
-    // 测试删除别的用户的购物车（用对方真实的购物车项编号）
+    // 测试删除别的用户的购物车
     @Test
     void testRemoveFromCartNotOwned() {
         service.addToCart("0121", "00001", 1);
@@ -264,7 +264,7 @@ class StoreServiceTest {
         assertTrue(testResult.getData().isEmpty());
     }
 
-    // 测试购买购物车中的所有商品（逐项购买，每项生成一张独立订单）
+    // 测试购买购物车中的所有商品
     @Test
     void testCheckoutSuccess() {
         int formerStock1 = products.findById("00001").getStock();
@@ -276,7 +276,7 @@ class StoreServiceTest {
         service.addToCart("0120", "00002", 10);
         ServiceResult<Void> testResult = service.checkout("0120");
         assertEquals(StatusCode.OK, testResult.getStatus());
-        // 验证库存扣减（00001 两次加购合并为 4 件）
+        // 验证库存扣减
         assertEquals(formerStock1 - 4, products.findById("00001").getStock());
         assertEquals(formerStock2 - 10, products.findById("00002").getStock());
         // 验证两张订单各自的数量和总价
@@ -299,7 +299,7 @@ class StoreServiceTest {
         assertTrue(bananaOrderFound);
     }
 
-    // 测试购买数量超过了库存（结账失败，购物车不清空，库存不变）
+    // 测试购买数量超过了库存
     @Test
     void testCheckoutInsufficientStock() {
         int stock = products.findById("00001").getStock();
