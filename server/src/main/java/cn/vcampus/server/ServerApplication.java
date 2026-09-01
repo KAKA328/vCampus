@@ -10,6 +10,8 @@ import cn.vcampus.course.CourseOfferingService;
 import cn.vcampus.course.StudentSelectionProfileProvider;
 import cn.vcampus.store.StoreService;
 import cn.vcampus.store.InMemoryStoreService;
+import cn.vcampus.student.StudentManagementService;
+import cn.vcampus.student.InMemoryStudentManagementService;
 import cn.vcampus.user.UserManagementService;
 
 import java.io.Closeable;
@@ -31,6 +33,7 @@ public final class ServerApplication implements Closeable {
 
     private final int port;
     private final UserMessageHandler userMessages;
+    private final StudentMessageHandler studentMessages;
     private final CourseMessageHandler courseMessages;
     private final StoreMessageHandler storeMessages;
     private final ExecutorService clients = Executors.newCachedThreadPool();
@@ -38,25 +41,30 @@ public final class ServerApplication implements Closeable {
 
     public ServerApplication(int port, UserManagementService users) {
         this(port, users, CourseSelectionDemoFactory.createModule(),
-                CourseSelectionDemoFactory.createProfileProvider(), new InMemoryStoreService());
+                CourseSelectionDemoFactory.createProfileProvider(), new InMemoryStoreService(),
+                new InMemoryStudentManagementService());
     }
 
     private ServerApplication(int port, UserManagementService users, CourseSelectionModule module,
-            StudentSelectionProfileProvider profiles, StoreService store) {
+            StudentSelectionProfileProvider profiles, StoreService store,
+            StudentManagementService students) {
         this(port, users, module.getSelectionService(), module.getCatalogService(),
-                module.getOfferingService(), profiles, store);
+                module.getOfferingService(), profiles, store, students);
     }
 
     public ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
             StudentSelectionProfileProvider profiles) {
-        this(port, users, courses, null, null, profiles, new InMemoryStoreService());
+        this(port, users, courses, null, null, profiles, new InMemoryStoreService(),
+                new InMemoryStudentManagementService());
     }
 
     ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
             CourseCatalogService catalog, CourseOfferingService offerings,
-            StudentSelectionProfileProvider profiles, StoreService store) {
+            StudentSelectionProfileProvider profiles, StoreService store,
+            StudentManagementService students) {
         this.port = port;
         this.userMessages = new UserMessageHandler(users);
+        this.studentMessages = new StudentMessageHandler(students, users);
         this.courseMessages = new CourseMessageHandler(courses, catalog, offerings, profiles, users);
         this.storeMessages = new StoreMessageHandler(store, users);
     }
@@ -113,6 +121,9 @@ public final class ServerApplication implements Closeable {
         if (request != null && isCourseMessage(request.getType())) {
             return courseMessages.handle(request);
         }
+        if (request != null && isStudentMessage(request.getType())) {
+            return studentMessages.handle(request);
+        }
         if (request != null && isStoreMessage(request.getType())) {
             return storeMessages.handle(request);
         }
@@ -132,6 +143,10 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.COURSE_DROP_RECORD_V2;
     }
 
+    private static boolean isStudentMessage(MessageType type) {
+        return type == MessageType.STUDENT_QUERY || type == MessageType.STUDENT_UPDATE;
+    }
+
     private static boolean isStoreMessage(MessageType type) {
         return type == MessageType.STORE_QUERY
                 || type == MessageType.STORE_PURCHASE || type == MessageType.STORE_ORDER_QUERY
@@ -145,12 +160,13 @@ public final class ServerApplication implements Closeable {
     public static void main(String[] args) throws IOException {
         int port = parsePort(args);
         new ServerApplication(port, UserServiceFactory.create(args),
-                StoreServiceFactory.create(args)).start();
+                StoreServiceFactory.create(args), StudentServiceFactory.create(args)).start();
     }
 
-    private ServerApplication(int port, UserManagementService users, StoreService store) {
+    private ServerApplication(int port, UserManagementService users, StoreService store,
+            StudentManagementService students) {
         this(port, users, CourseSelectionDemoFactory.createModule(),
-                CourseSelectionDemoFactory.createProfileProvider(), store);
+                CourseSelectionDemoFactory.createProfileProvider(), store, students);
     }
 
     private static int parsePort(String[] args) {

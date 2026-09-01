@@ -5,7 +5,7 @@
 | 模块 | 核心接口 | 初始操作 |
 |---|---|---|
 | 用户管理 | `UserManagementService` | `register`、`importUsers`、`unregister`、`login`、`currentSession`、`logout`、`authorize`；`register` 作为管理员端开户注册能力，批量导入使用 `USER_IMPORT`，载荷见 `UserCredentials`、`UserImportCommand`、`UserCommand`、`AuthorizationRequest` |
-| 学生学籍 | `StudentManagementService` | `findById`、`findByClass`、`save` |
+| 学生学籍 | `StudentManagementService` | `findByUserId`、`findById`、`findByClass`、`save`；Socket 命令见 `StudentQueryCommand`、`StudentUpdateCommand` |
 | 选课 | `CourseSelectionService` | 完整选课流程使用 V2 消息：查询轮次/教学班/已选记录、按教学班选课、按选课记录退选；课程维护消息见下文 |
 | 图书馆 | `LibraryService` | `search`、`borrow`、`returnBook` |
 | 商店 | `StoreService` | 商品查询/分类、购买、购物车、本人/全量订单、热销排行和商品维护；商店消息使用 token-only 命令，用户编号由服务器会话解析 |
@@ -50,6 +50,13 @@
 - `STORE_RESTOCK`、`STORE_PRODUCT_ADD`、`STORE_PRODUCT_UPDATE`、`STORE_PRODUCT_DEACTIVATE`：商品和库存维护，使用对应 `Store*Command`；均要求 `STORE_MANAGE`。
 - `STORE_ORDER_LIST_ALL` + `StoreOrderListAllCommand(token)`：管理员全量订单；要求 `STORE_MANAGE`。
 - `STORE_HOT_PRODUCTS` + `StoreHotProductsCommand(token, limit)`：热销商品排行；要求 `STORE_READ`。
+
+学籍当前使用以下 token-first 命令，服务端必须先解析会话和权限，再决定查询范围：
+
+- `STUDENT_QUERY` + `StudentQueryCommand.self(token)`：学生本人查询，只返回 token 绑定的 `tblStudent.user_id` 对应档案；要求 `STUDENT_READ`。
+- `STUDENT_QUERY` + `StudentQueryCommand.byId(token, studentId)`：按学号查询；要求 `STUDENT_READ`，学生角色不会使用客户端传入的 `studentId`，教务管理员等有权限角色可用。
+- `STUDENT_QUERY` + `StudentQueryCommand.byClass(token, classId)`：按班级查询；要求 `STUDENT_READ`，用于教务/教师侧查询。
+- `STUDENT_UPDATE` + `StudentUpdateCommand(token, record)`：保存学生档案；要求 `STUDENT_WRITE`，当前 Access 实现写入 `tblStudent` 并以 `record.studentId` 作为默认 `user_id` 绑定值，后续如增加独立绑定页面应改为显式绑定命令。
 
 用户批量导入使用 `USER_IMPORT`。请求 payload 为 `UserImportCommand(token, rows)`，其中 `rows` 是 `UserImportRow(userId, password, displayName, roleCode)` 列表；响应 payload 为 `UserImportResult(importBatchId, totalCount, successCount, failures)`，失败明细为 `UserImportFailure(rowNumber, userId, message)`。客户端用户管理页可从 `.xlsx`、`.csv`、`.tsv` 外部表格读取账号清单并转为 `rows`；这些表格只是导入源文件，不替代 Access 运行数据库。该能力要求 `USER_MANAGE`，服务端会记录导入管理员、导入时间、导入批次，并为每个成功创建的账号写入 `IMPORT_USER` 审计记录。单行失败不会影响同批次其它有效账号。
 

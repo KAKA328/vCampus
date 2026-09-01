@@ -1,6 +1,6 @@
 # 数据库目录
 
-最终提交时放入机房兼容版本的 `vCampus.accdb`，并补充 `schema.sql` 与 `seed.sql`（如 Access 版本不支持某条 SQL，以实际建库结果为准）。
+最终提交时放入机房兼容版本的 `vCampus.accdb`，并补充 `schema.sql` 与 `seed.sql`（如 Access 版本不支持某条 SQL，以实际建库结果为准）。当前自动化联调使用 UCanAccess 4.0.4 初始化临时 `.accdb` 时会跳过 `CREATE INDEX` / `CREATE UNIQUE INDEX` 语句，因为该驱动对部分 Access 索引 DDL 返回不支持；正式交付库可在 Access UI 中建立索引，或在演示规模下先依赖表级主键和业务校验。
 
 运行数据库统一使用 Access：服务器通过 `--db database/vCampus.accdb` 连接该文件，客户端不直接连接数据库。用户批量导入的外部源文件可以使用 `.xlsx`、`.csv` 或 `.tsv` 表格模板；这些文件只负责把账号清单读入系统，最终账号、导入人、导入时间和导入批次仍写入 `vCampus.accdb`。不建议把另一个 `.accdb/.mdb` 文件作为用户导入源，避免导入源表结构与系统运行数据库结构混淆。
 

@@ -111,6 +111,17 @@ class ModuleNavigationModelTest {
     }
 
     @Test
+    void studentRelatedRolesUseStudentPanel() {
+        ModuleNavigationModel model = new ModuleNavigationModel();
+
+        assertTrue(MainFrame.useStudentPanel(Role.STUDENT, model.findModule(Role.STUDENT, "学籍信息")));
+        assertTrue(MainFrame.useStudentPanel(Role.TEACHER, model.findModule(Role.TEACHER, "学籍查询")));
+        assertTrue(MainFrame.useStudentPanel(Role.ACADEMIC_ADMIN, model.findModule(Role.ACADEMIC_ADMIN, "学籍管理")));
+        assertTrue(MainFrame.useStudentPanel(Role.ADMIN, model.findModule(Role.ADMIN, "学籍管理")));
+        assertFalse(MainFrame.useStudentPanel(Role.STORE_MANAGER, model.findModule(Role.STORE_MANAGER, "商店")));
+    }
+
+    @Test
     void studentModuleCardsHaveReadableDescriptions() {
         ModuleNavigationModel model = new ModuleNavigationModel();
 
