@@ -31,6 +31,20 @@ public final class DefaultStudentManagementService implements StudentManagementS
     }
 
     @Override
+    public ServiceResult<StudentRecord> findByUserId(String userId) {
+        try {
+            StudentRecord record = students.findByUserId(userId);
+            return record == null
+                    ? ServiceResult.<StudentRecord>failure(StatusCode.NOT_FOUND, "student profile not bound")
+                    : ServiceResult.ok(record);
+        } catch (IllegalArgumentException failure) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, failure.getMessage());
+        } catch (IllegalStateException failure) {
+            return ServiceResult.failure(StatusCode.SERVER_ERROR, "failed to find student profile");
+        }
+    }
+
+    @Override
     public ServiceResult<List<StudentRecord>> findByClass(String classId) {
         try {
             List<StudentRecord> records = students.findByClass(classId);

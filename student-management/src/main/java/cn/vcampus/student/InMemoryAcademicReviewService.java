@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 /** In-memory academic review implementation used before Access persistence is connected. */
-public final class InMemoryAcademicReviewService {
+public final class InMemoryAcademicReviewService implements AcademicReviewService {
     private final Map<String, List<CourseHistoryRecord>> historiesByStudentId = new LinkedHashMap<String, List<CourseHistoryRecord>>();
 
     public synchronized ServiceResult<Void> addHistory(CourseHistoryRecord record) {
@@ -22,12 +22,48 @@ public final class InMemoryAcademicReviewService {
         return ServiceResult.ok(null);
     }
 
+    @Override
     public synchronized ServiceResult<List<CourseHistoryRecord>> historyFor(String studentId) {
         List<CourseHistoryRecord> records = historiesByStudentId.get(studentId);
         if (records == null) {
             return ServiceResult.ok(Collections.<CourseHistoryRecord>emptyList());
         }
         return ServiceResult.ok(new ArrayList<CourseHistoryRecord>(records));
+    }
+
+    @Override
+    public synchronized ServiceResult<List<CourseHistoryRecord>> pendingRetakes(String studentId) {
+        if (studentId == null || studentId.trim().isEmpty()) {
+            return ServiceResult.failure(cn.vcampus.common.StatusCode.BAD_REQUEST,
+                    "studentId must not be blank");
+        }
+        Map<String, CourseSummary> summariesByCourseId = new LinkedHashMap<String, CourseSummary>();
+        List<CourseHistoryRecord> records = historiesByStudentId.get(studentId.trim());
+        if (records == null) {
+            return ServiceResult.ok(Collections.<CourseHistoryRecord>emptyList());
+        }
+        for (CourseHistoryRecord record : records) {
+            CourseSummary summary = summariesByCourseId.get(record.getCourseId());
+            if (summary == null) {
+                summary = new CourseSummary();
+                summariesByCourseId.put(record.getCourseId(), summary);
+            }
+            summary.passed = summary.passed || record.isPassed();
+            if (!record.isPassed() && (summary.latestFailed == null
+                    || record.getAttemptNo() > summary.latestFailed.getAttemptNo()
+                    || (record.getAttemptNo() == summary.latestFailed.getAttemptNo()
+                    && record.getSemester().compareTo(summary.latestFailed.getSemester()) > 0))) {
+                summary.latestFailed = record;
+            }
+        }
+        List<CourseHistoryRecord> pending = new ArrayList<CourseHistoryRecord>();
+        for (Map.Entry<String, CourseSummary> entry : summariesByCourseId.entrySet()) {
+            if (!entry.getValue().passed && entry.getValue().latestFailed != null) {
+                pending.add(entry.getValue().latestFailed);
+            }
+        }
+        Collections.sort(pending, (left, right) -> left.getCourseId().compareTo(right.getCourseId()));
+        return ServiceResult.ok(pending);
     }
 
     public synchronized ServiceResult<AcademicReview> review(String studentId, int requiredCredits) {
@@ -80,5 +116,6 @@ public final class InMemoryAcademicReviewService {
         private boolean passed;
         private boolean retake;
         private int maxEarnedCredits;
+        private CourseHistoryRecord latestFailed;
     }
 }

@@ -19,6 +19,8 @@ public class DefaultStudentManagementServiceTest {
 
         assertEquals(StatusCode.OK, service.findById("S001").getStatus());
         assertEquals(StatusCode.NOT_FOUND, service.findById("S999").getStatus());
+        assertEquals(StatusCode.OK, service.findByUserId("u001").getStatus());
+        assertEquals(StatusCode.NOT_FOUND, service.findByUserId("unbound").getStatus());
     }
 
     @Test
@@ -26,6 +28,7 @@ public class DefaultStudentManagementServiceTest {
         StudentManagementService service = new DefaultStudentManagementService(new StubRepository());
 
         assertEquals(StatusCode.BAD_REQUEST, service.findById(" ").getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.findByUserId(" ").getStatus());
         assertEquals(StatusCode.BAD_REQUEST, service.findByClass(null).getStatus());
     }
 
@@ -61,7 +64,15 @@ public class DefaultStudentManagementServiceTest {
             for (StudentRecord record : records) if (studentId.equals(record.getStudentId())) return record;
             return null;
         }
-        @Override public StudentRecord findByUserId(String userId) { return null; }
+        @Override public StudentRecord findByUserId(String userId) {
+            if (userId == null || userId.trim().isEmpty()) {
+                throw new IllegalArgumentException("userId must not be blank");
+            }
+            for (StudentRecord record : records) {
+                if (userId.equals(record.getUserId())) return record;
+            }
+            return null;
+        }
         @Override public List<StudentRecord> findByClass(String classId) {
             if (classId == null || classId.trim().isEmpty()) throw new IllegalArgumentException("classId must not be blank");
             return Collections.emptyList();

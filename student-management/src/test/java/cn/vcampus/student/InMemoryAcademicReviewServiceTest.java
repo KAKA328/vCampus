@@ -53,4 +53,28 @@ public class InMemoryAcademicReviewServiceTest {
         assertEquals(StatusCode.OK, result.getStatus());
         assertTrue(result.getData().isEmpty());
     }
+
+    @Test
+    public void pendingRetakesOnlyReturnsCoursesWithoutAnyPassingAttempt() {
+        InMemoryAcademicReviewService service = new InMemoryAcademicReviewService();
+        service.addHistory(new CourseHistoryRecord("S003", "C001", "Java程序设计", "2025-2026-1", 1, "首修", 48, false, 0));
+        service.addHistory(new CourseHistoryRecord("S003", "C001", "Java程序设计", "2025-2026-2", 2, "重修", 76, true, 3));
+        service.addHistory(new CourseHistoryRecord("S003", "C002", "数据库原理", "2025-2026-1", 1, "首修", 50, false, 0));
+        service.addHistory(new CourseHistoryRecord("S003", "C002", "数据库原理", "2025-2026-2", 2, "重修", 55, false, 0));
+
+        ServiceResult<List<CourseHistoryRecord>> result = service.pendingRetakes("S003");
+
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals(1, result.getData().size());
+        assertEquals("C002", result.getData().get(0).getCourseId());
+        assertEquals(2, result.getData().get(0).getAttemptNo());
+    }
+
+    @Test
+    public void pendingRetakesRejectsBlankStudentId() {
+        ServiceResult<List<CourseHistoryRecord>> result =
+                new InMemoryAcademicReviewService().pendingRetakes(" ");
+
+        assertEquals(StatusCode.BAD_REQUEST, result.getStatus());
+    }
 }

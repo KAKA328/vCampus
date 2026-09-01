@@ -95,6 +95,13 @@ class StudentMessageHandlerTest {
             return ServiceResult.failure(StatusCode.NOT_FOUND, "student not found");
         }
 
+        @Override public ServiceResult<StudentRecord> findByUserId(String userId) {
+            for (StudentRecord record : records) {
+                if (record.getUserId().equals(userId)) return ServiceResult.ok(record);
+            }
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "student profile not bound");
+        }
+
         @Override public ServiceResult<List<StudentRecord>> findByClass(String classId) {
             return ServiceResult.ok(Arrays.asList(records.get(0), records.get(1)));
         }

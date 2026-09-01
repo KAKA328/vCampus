@@ -6,6 +6,7 @@ import java.util.List;
 /** Student records contract owned by the student-management team. */
 public interface StudentManagementService {
     ServiceResult<StudentRecord> findById(String studentId);
+    ServiceResult<StudentRecord> findByUserId(String userId);
     ServiceResult<List<StudentRecord>> findByClass(String classId);
     ServiceResult<StudentRecord> save(StudentRecord record);
 }
