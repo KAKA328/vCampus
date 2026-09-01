@@ -6,7 +6,7 @@ import java.io.Serializable;
 public final class StudentQueryCommand implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    public enum QueryType { BY_ID, BY_CLASS }
+    public enum QueryType { SELF, BY_ID, BY_CLASS }
 
     private final QueryType queryType;
     private final String token;
@@ -15,7 +15,13 @@ public final class StudentQueryCommand implements Serializable {
     private StudentQueryCommand(QueryType queryType, String token, String value) {
         this.queryType = queryType;
         this.token = requireText(token, "token");
-        this.value = requireText(value, queryType == QueryType.BY_ID ? "studentId" : "classId");
+        this.value = queryType == QueryType.SELF ? null : requireText(value,
+                queryType == QueryType.BY_ID ? "studentId" : "classId");
+    }
+
+    /** Creates a query resolved from the current session's userId on the server. */
+    public static StudentQueryCommand self(String token) {
+        return new StudentQueryCommand(QueryType.SELF, token, null);
     }
 
     public static StudentQueryCommand byId(String token, String studentId) {

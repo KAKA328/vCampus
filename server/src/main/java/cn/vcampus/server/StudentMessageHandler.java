@@ -56,6 +56,9 @@ final class StudentMessageHandler {
             return ServiceResult.failure(scope.getStatus(), scope.getMessage());
         }
         Role role = scope.getData().getUser().getRole();
+        if (command.getQueryType() == StudentQueryCommand.QueryType.SELF) {
+            return students.findByUserId(scope.getData().getUser().getUserId());
+        }
         if (command.getQueryType() == StudentQueryCommand.QueryType.BY_CLASS) {
             if (role != Role.ADMIN && role != Role.ACADEMIC_ADMIN) {
                 return ServiceResult.failure(StatusCode.FORBIDDEN, "class student query denied");
