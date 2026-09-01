@@ -258,8 +258,11 @@ database                 vCampus.accdb、schema.sql、seed.sql
 | `LOGOUT` | `String token` | 已登录 |
 | `AUTHORIZE` | `AuthorizationRequest` | 已登录 |
 | `STUDENT_QUERY/UPDATE` | 学生查询/更新请求 | 按角色和数据范围 |
-| `COURSE_QUERY/SELECT/DROP` | 课程/选课请求 | `COURSE_READ` 或 `COURSE_SELECT`，并校验本人/授课范围 |
-| `COURSE_CREATE/UPDATE/DEACTIVATE` | 课程维护请求 | `COURSE_MANAGE` |
+| `COURSE_QUERY/SELECT/DROP` | 早期课程级请求（兼容入口） | 当前返回 V2 升级提示；不得承载轮次、教学班或选课记录字段 |
+| `COURSE_SELECTION_QUERY_V2` | `CourseSelectionQueryV2Command(token, roundId?)` | `COURSE_READ`，服务端按 token 推导学生档案 |
+| `COURSE_SELECT_OFFERING_V2` | `CourseSelectOfferingV2Command(token, roundId, offeringId)` | `COURSE_SELECT`，服务端按 token 推导学生档案 |
+| `COURSE_DROP_RECORD_V2` | `CourseDropRecordV2Command(token, recordId)` | `COURSE_SELECT`，服务端按 token 推导学生档案 |
+| `COURSE_MANAGE` | 课程目录、教学班维护命令 | `COURSE_MANAGE` |
 | `LIBRARY_QUERY/BORROW/RETURN` | 图书/借还请求 | 按借阅规则 |
 | `STORE_QUERY` | `StoreQueryCommand(token)` | `STORE_READ`，服务端按 token 校验 |
 | `STORE_PURCHASE` | `StorePurchaseCommand(token, productId, quantity)` | `STORE_PURCHASE`，服务端按 token 取得 userId |

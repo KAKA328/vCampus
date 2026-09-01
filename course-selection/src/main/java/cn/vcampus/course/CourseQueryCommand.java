@@ -3,52 +3,42 @@ package cn.vcampus.course;
 import java.io.Serializable;
 
 /**
- * 课程查询请求。学生身份由服务端 token 推导，客户端不再提交 studentId。
+ * 早期课程级查询请求。
+ *
+ * <p>完整选课流程已经升级为 V2 协议，请使用 {@link CourseSelectionQueryV2Command}。
  */
+@Deprecated
 public final class CourseQueryCommand implements Serializable {
-    /** 新选课协议使用教学班和选课轮次字段，与早期课程级协议不兼容。 */
-    private static final long serialVersionUID = 2L;
+    private static final long serialVersionUID = 1L;
 
-    /** 当前请求要查询的课程范围。 */
     public enum QueryType {
-        AVAILABLE_ROUNDS,
-        AVAILABLE_OFFERINGS,
-        SELECTED_OFFERINGS
+        ALL_COURSES,
+        SELECTED_COURSES
     }
 
     private final QueryType queryType;
-    private final String token;
-    private final String roundId;
+    private final String studentId;
 
-    private CourseQueryCommand(QueryType queryType, String token, String roundId) {
+    private CourseQueryCommand(QueryType queryType, String studentId) {
         this.queryType = queryType;
-        this.token = requireText(token, "token");
-        this.roundId = roundId;
+        this.studentId = studentId;
     }
 
-    public static CourseQueryCommand availableRounds(String token) {
-        return new CourseQueryCommand(QueryType.AVAILABLE_ROUNDS, token, null);
+    public static CourseQueryCommand allCourses() {
+        return new CourseQueryCommand(QueryType.ALL_COURSES, null);
     }
 
-    public static CourseQueryCommand availableOfferings(String token, String roundId) {
-        return new CourseQueryCommand(QueryType.AVAILABLE_OFFERINGS, token,
-                requireText(roundId, "roundId"));
-    }
-
-    public static CourseQueryCommand selectedOfferings(String token) {
-        return new CourseQueryCommand(QueryType.SELECTED_OFFERINGS, token, null);
+    public static CourseQueryCommand selectedCourses(String studentId) {
+        return new CourseQueryCommand(QueryType.SELECTED_COURSES,
+                requireText(studentId, "studentId"));
     }
 
     public QueryType getQueryType() {
         return queryType;
     }
 
-    public String getToken() {
-        return token;
-    }
-
-    public String getRoundId() {
-        return roundId;
+    public String getStudentId() {
+        return studentId;
     }
 
     private static String requireText(String value, String fieldName) {

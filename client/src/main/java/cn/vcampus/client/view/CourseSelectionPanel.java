@@ -10,6 +10,7 @@ import cn.vcampus.course.SelectionRound;
 import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
+import java.awt.Color;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -54,7 +55,18 @@ public final class CourseSelectionPanel extends JPanel {
 
     private void build() {
         setLayout(new BorderLayout(8, 8));
+        setOpaque(false);
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        top.setOpaque(false);
+        VCampusTheme.secondaryButton(loadRoundsButton);
+        VCampusTheme.secondaryButton(loadOfferingsButton);
+        VCampusTheme.secondaryButton(selectedButton);
+        VCampusTheme.primaryButton(selectButton);
+        VCampusTheme.secondaryButton(dropButton);
+        table.setRowHeight(28);
+        table.getTableHeader().setReorderingAllowed(false);
+        table.setGridColor(VCampusTheme.BORDER);
+        status.setForeground(VCampusTheme.MUTED);
         top.add(loadRoundsButton); top.add(roundBox); top.add(loadOfferingsButton);
         top.add(selectedButton); top.add(selectButton); top.add(dropButton);
         add(top, BorderLayout.NORTH); add(new JScrollPane(table), BorderLayout.CENTER); add(status, BorderLayout.SOUTH);
