@@ -19,8 +19,40 @@ public final class InMemoryUserManagementService implements UserManagementServic
         return delegate.register(c);
     }
 
+    @Override public ServiceResult<List<UserAccountSummary>> listAccounts(String token) {
+        return delegate.listAccounts(token);
+    }
+
     @Override public ServiceResult<UserImportResult> importUsers(String token, List<UserImportRow> rows) {
         return delegate.importUsers(token, rows);
+    }
+
+    @Override public ServiceResult<Void> setAccountActive(UserStatusCommand command) {
+        return delegate.setAccountActive(command);
+    }
+
+    @Override public ServiceResult<Void> changeUserRole(UserRoleChangeCommand command) {
+        return delegate.changeUserRole(command);
+    }
+
+    @Override public ServiceResult<List<AuditEvent>> listAuditEvents(String token) {
+        return delegate.listAuditEvents(token);
+    }
+
+    @Override public ServiceResult<Void> requestPasswordReset(PasswordResetRequestCommand command) {
+        return delegate.requestPasswordReset(command);
+    }
+
+    @Override public ServiceResult<List<PasswordResetApplicationSummary>> listPasswordResetApplications(String token) {
+        return delegate.listPasswordResetApplications(token);
+    }
+
+    @Override public ServiceResult<PasswordResetReviewResult> reviewPasswordReset(PasswordResetReviewCommand command) {
+        return delegate.reviewPasswordReset(command);
+    }
+
+    @Override public ServiceResult<Void> changeForcedPassword(PasswordChangeCommand command) {
+        return delegate.changeForcedPassword(command);
     }
 
     @Override public ServiceResult<Void> unregister(String userId, String token) {

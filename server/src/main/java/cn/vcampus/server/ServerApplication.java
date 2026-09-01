@@ -2,8 +2,12 @@ package cn.vcampus.server;
 
 import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
+import cn.vcampus.course.CourseSelectionDemoFactory;
+import cn.vcampus.course.CourseSelectionModule;
 import cn.vcampus.course.CourseSelectionService;
-import cn.vcampus.course.InMemoryCourseSelectionService;
+import cn.vcampus.course.CourseCatalogService;
+import cn.vcampus.course.CourseOfferingService;
+import cn.vcampus.course.StudentSelectionProfileProvider;
 import cn.vcampus.store.StoreService;
 import cn.vcampus.store.InMemoryStoreService;
 import cn.vcampus.user.UserManagementService;
@@ -20,8 +24,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Minimal multi-client server entry point; replace the in-memory service with
- * Access-backed services.
+ * Minimal multi-client server entry point.
  */
 public final class ServerApplication implements Closeable {
     public static final int DEFAULT_PORT = 19090;
@@ -34,17 +37,27 @@ public final class ServerApplication implements Closeable {
     private ServerSocket serverSocket;
 
     public ServerApplication(int port, UserManagementService users) {
-        this(port, users, new InMemoryCourseSelectionService(), new InMemoryStoreService());
+        this(port, users, CourseSelectionDemoFactory.createModule(),
+                CourseSelectionDemoFactory.createProfileProvider(), new InMemoryStoreService());
     }
 
-    public ServerApplication(int port, UserManagementService users, CourseSelectionService courses) {
-        this(port, users, courses, new InMemoryStoreService());
+    private ServerApplication(int port, UserManagementService users, CourseSelectionModule module,
+            StudentSelectionProfileProvider profiles, StoreService store) {
+        this(port, users, module.getSelectionService(), module.getCatalogService(),
+                module.getOfferingService(), profiles, store);
     }
 
-    ServerApplication(int port, UserManagementService users, CourseSelectionService courses, StoreService store) {
+    public ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
+            StudentSelectionProfileProvider profiles) {
+        this(port, users, courses, null, null, profiles, new InMemoryStoreService());
+    }
+
+    ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
+            CourseCatalogService catalog, CourseOfferingService offerings,
+            StudentSelectionProfileProvider profiles, StoreService store) {
         this.port = port;
         this.userMessages = new UserMessageHandler(users);
-        this.courseMessages = new CourseMessageHandler(courses, users);
+        this.courseMessages = new CourseMessageHandler(courses, catalog, offerings, profiles, users);
         this.storeMessages = new StoreMessageHandler(store, users);
     }
 
@@ -112,7 +125,11 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.COURSE_DROP
                 || type == MessageType.COURSE_CREATE
                 || type == MessageType.COURSE_UPDATE
-                || type == MessageType.COURSE_DEACTIVATE;
+                || type == MessageType.COURSE_DEACTIVATE
+                || type == MessageType.COURSE_MANAGE
+                || type == MessageType.COURSE_SELECTION_QUERY_V2
+                || type == MessageType.COURSE_SELECT_OFFERING_V2
+                || type == MessageType.COURSE_DROP_RECORD_V2;
     }
 
     private static boolean isStoreMessage(MessageType type) {
@@ -120,18 +137,20 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.STORE_PURCHASE || type == MessageType.STORE_ORDER_QUERY
                 || type == MessageType.STORE_RESTOCK || type == MessageType.STORE_PRODUCT_ADD
                 || type == MessageType.STORE_PRODUCT_UPDATE || type == MessageType.STORE_PRODUCT_DEACTIVATE
-                || type == MessageType.CART_ADD || type == MessageType.CART_REMOVE
-                || type == MessageType.CART_QUERY || type == MessageType.CART_CHECKOUT
+                || type == MessageType.STORE_CART_ADD || type == MessageType.STORE_CART_REMOVE
+                || type == MessageType.STORE_CART_QUERY || type == MessageType.STORE_CART_CHECKOUT
                 || type == MessageType.STORE_ORDER_LIST_ALL || type == MessageType.STORE_HOT_PRODUCTS;
     }
 
     public static void main(String[] args) throws IOException {
         int port = parsePort(args);
-        Path databasePath = UserServiceFactory.databasePath(args);
-        CourseSelectionService courses = databasePath == null
-                ? new InMemoryCourseSelectionService()
-                : new AccessCourseSelectionService(databasePath);
-        new ServerApplication(port, UserServiceFactory.create(args), courses).start();
+        new ServerApplication(port, UserServiceFactory.create(args),
+                StoreServiceFactory.create(args)).start();
+    }
+
+    private ServerApplication(int port, UserManagementService users, StoreService store) {
+        this(port, users, CourseSelectionDemoFactory.createModule(),
+                CourseSelectionDemoFactory.createProfileProvider(), store);
     }
 
     private static int parsePort(String[] args) {

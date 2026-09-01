@@ -30,8 +30,9 @@ package "common 模块（通信协议与共享类型）" as PCOM {
         REGISTER / UNREGISTER / LOGIN / LOGOUT
         AUTHORIZE / USER_IMPORT
         STUDENT_QUERY / STUDENT_UPDATE
-        COURSE_QUERY / COURSE_SELECT / COURSE_DROP
-        COURSE_CREATE / COURSE_UPDATE / COURSE_DEACTIVATE
+        COURSE_QUERY / COURSE_SELECT / COURSE_DROP（早期协议）
+        COURSE_SELECTION_QUERY_V2 / COURSE_SELECT_OFFERING_V2 / COURSE_DROP_RECORD_V2
+        COURSE_MANAGE
         LIBRARY_QUERY / LIBRARY_BORROW / LIBRARY_RETURN
         STORE_QUERY / STORE_PURCHASE / STORE_ORDER_QUERY
     }
@@ -335,16 +336,39 @@ package "course-selection 模块" as PCO {
 
     class CourseQueryCommand <<Command>> {
         - queryType: QueryType
-        - token: String
         - studentId: String
         + {static} allCourses(): CourseQueryCommand
-        + {static} selectedCourses(token, studentId): CourseQueryCommand
+        + {static} selectedCourses(studentId): CourseQueryCommand
     }
 
     class CourseSelectionCommand <<Command>> {
-        - token: String
         - studentId: String
         - courseId: String
+    }
+
+    class CourseDropCommand <<Command>> {
+        - studentId: String
+        - courseId: String
+    }
+
+    class CourseSelectionQueryV2Command <<Command>> {
+        - queryType: QueryType
+        - token: String
+        - roundId: String
+        + availableRounds(token): CourseSelectionQueryV2Command
+        + availableOfferings(token, roundId): CourseSelectionQueryV2Command
+        + selectedOfferings(token): CourseSelectionQueryV2Command
+    }
+
+    class CourseSelectOfferingV2Command <<Command>> {
+        - token: String
+        - roundId: String
+        - offeringId: String
+    }
+
+    class CourseDropRecordV2Command <<Command>> {
+        - token: String
+        - recordId: String
     }
 
     CourseSelectionService <|.. InMemoryCourseSelectionService
@@ -644,7 +668,8 @@ package "server 模块" as PSV {
     }
     note right of ServerApplication
         dispatch 路由：
-        COURSE_* → CourseMessageHandler
+        COURSE_*（V2）→ CourseMessageHandler
+        早期 COURSE_QUERY/SELECT/DROP → V2 升级提示
         STORE_* → StoreMessageHandler
         其余 → UserMessageHandler
     end note
@@ -860,8 +885,9 @@ OrderRepository <|.up. AccessOrderRepository
 
 ' --- 客户端远程服务 → 各模块命令对象（向下创建） ---
 RemoteUserService .down.> UserRegistrationCommand : creates
-RemoteCourseService .down.> CourseQueryCommand : creates
-RemoteCourseService .down.> CourseSelectionCommand : creates
+RemoteCourseService .down.> CourseSelectionQueryV2Command : creates
+RemoteCourseService .down.> CourseSelectOfferingV2Command : creates
+RemoteCourseService .down.> CourseDropRecordV2Command : creates
 RemoteStoreService .down.> StoreQueryCommand : creates
 RemoteStoreService .down.> StorePurchaseCommand : creates
 RemoteStoreService .down.> StoreOrderQueryCommand : creates

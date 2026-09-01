@@ -1,48 +1,34 @@
 package cn.vcampus.server;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
 import cn.vcampus.common.Role;
 import cn.vcampus.common.StatusCode;
-import cn.vcampus.course.CourseQueryCommand;
-import cn.vcampus.course.CourseSelectionCommand;
-import cn.vcampus.course.InMemoryCourseSelectionService;
+import cn.vcampus.course.CourseSelectionQueryV2Command;
+import cn.vcampus.course.CourseSelectionDemoFactory;
+import cn.vcampus.course.InMemoryStudentSelectionProfileProvider;
+import cn.vcampus.course.StudentSelectionProfile;
 import cn.vcampus.user.InMemoryUserManagementService;
 import cn.vcampus.user.Session;
 import cn.vcampus.user.UserCredentials;
-import java.util.List;
+import java.util.Collections;
 import org.junit.jupiter.api.Test;
 
 class ServerApplicationDispatchTest {
     @Test
-    void dispatchRoutesCourseMessagesToCourseHandler() {
-        ServerApplication server = new ServerApplication(
-                0, new InMemoryUserManagementService(), new InMemoryCourseSelectionService());
-
-        Message response = server.dispatch(Message.request(
-                "course-query", MessageType.COURSE_QUERY, CourseQueryCommand.allCourses()));
-
-        assertEquals(StatusCode.OK, response.getStatusCode());
-        assertTrue(response.getPayload() instanceof List<?>);
-    }
-
-    @Test
-    void dispatchRejectsForgedStudentIdInCourseSelection() {
+    void dispatchRoutesCurrentCourseQueryWithoutClientStudentId() {
         InMemoryUserManagementService users = new InMemoryUserManagementService();
-        InMemoryCourseSelectionService courses = new InMemoryCourseSelectionService();
-        ServerApplication server = new ServerApplication(0, users, courses);
-        UserCredentials student = new UserCredentials("20230001", "password", "测试学生", Role.STUDENT.name());
-        users.register(student);
-        Session session = users.login(student).getData();
+        UserCredentials account = new UserCredentials("20260001", "password", "测试学生", Role.STUDENT.name());
+        users.register(account); Session session = users.login(account).getData();
+        InMemoryStudentSelectionProfileProvider profiles = new InMemoryStudentSelectionProfileProvider(
+                Collections.singletonList(new StudentSelectionProfile("20260001", "STU-001", "计算机科学与技术", 2026, "在读", CourseSelectionDemoFactory.DEMO_TERM, 1, Collections.<String>emptySet())));
+        ServerApplication server = new ServerApplication(0, users, CourseSelectionDemoFactory.createService(), profiles);
 
-        Message response = server.dispatch(Message.request(
-                "forged-select", MessageType.COURSE_SELECT,
-                new CourseSelectionCommand(session.getToken(), "20230002", "JAVA101")));
-
-        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
-        assertEquals(0, courses.selectedCourses("20230002").getData().size());
+        Message response = server.dispatch(Message.request("rounds",
+                MessageType.COURSE_SELECTION_QUERY_V2,
+                CourseSelectionQueryV2Command.availableRounds(session.getToken())));
+        assertEquals(StatusCode.OK, response.getStatusCode());
     }
 }

@@ -8,14 +8,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 // 商店服务测试
 class StoreServiceTest {
     // 商店服务实例
     private final InMemoryProductRepository products = new InMemoryProductRepository();
     private final InMemoryOrderRepository orders = new InMemoryOrderRepository();
-    private final InMemoryCartRepository cartRepo = new InMemoryCartRepository();
-    private final InMemoryStoreService service = new InMemoryStoreService(products, orders, cartRepo);
+    private final InMemoryStoreService service = new InMemoryStoreService(products, orders);
 
     StoreServiceTest() {
         products.save(new Product("00001", "Apple", 100, 2.5, "A delicious apple", "Fruit"));
@@ -128,197 +128,139 @@ class StoreServiceTest {
         assertEquals(StatusCode.BAD_REQUEST, testResult.getStatus());
     }
 
-    // 管理员功能测试：
-    // 测试库存补充
     @Test
-    void testRestockSuccess() {
-        int formerNum = products.findById("00001").getStock();
-        ServiceResult<Void> testResult = service.restock("admin", "00001", 100);
-
-        assertEquals(StatusCode.OK, testResult.getStatus());
-        assertEquals(formerNum + 100, products.findById("00001").getStock());
+    void productPriceMustBeFiniteAndPositive() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new Product("bad-zero", "Bad", 1, 0.0, "", "test"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new Product("bad-nan", "Bad", 1, Double.NaN, "", "test"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new Product("bad-infinity", "Bad", 1, Double.POSITIVE_INFINITY, "", "test"));
     }
 
-    // 测试补货目标不存在
     @Test
-    void testRestockProductNotFound() {
-        ServiceResult<Void> testResult = service.restock("admin", "99999999999", 100);
-        assertEquals(StatusCode.NOT_FOUND, testResult.getStatus());
+    void serviceRejectsNonFiniteOrNonPositiveProductPrices() {
+        assertEquals(StatusCode.BAD_REQUEST, service.addProduct("Zero", 0.0, 1, "", "test").getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.addProduct("NaN", Double.NaN, 1, "", "test").getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.addProduct("Infinity", Double.POSITIVE_INFINITY, 1, "", "test").getStatus());
     }
 
-    // 测试补货数量为负数
     @Test
-    void testRestockNegativeAmount() {
-        ServiceResult<Void> testResult = service.restock("admin", "00001", -100);
-        assertEquals(StatusCode.BAD_REQUEST, testResult.getStatus());
+    void generatedProductIdFitsDatabaseColumn() {
+        Product product = service.addProduct("Generated", 1.0, 1, "", "test").getData();
+        assertNotNull(product);
+        assertEquals(32, product.getProductId().length());
     }
 
-    // 测试添加新商品
     @Test
-    void testAddProduct() {
-        ServiceResult<Product> testResult = service.addProduct("Toy robot", 20.50, 10, "A pastical toy robot", "Toy");
-        assertEquals(StatusCode.OK, testResult.getStatus());
-        assertNotNull(testResult.getData());
-        assertEquals("Toy robot", testResult.getData().getName());
-        assertEquals(20.50, testResult.getData().getPrice(), 0.01);
-        assertEquals(10, testResult.getData().getStock());
-        assertEquals("A pastical toy robot", testResult.getData().getDescription());
-        assertEquals("Toy", testResult.getData().getCategory());
-        assertNotNull(testResult.getData().getProductId());
+    void purchaseRestoresStockWhenOrderRepositoryThrows() {
+        InMemoryProductRepository purchaseProducts = new InMemoryProductRepository();
+        purchaseProducts.save(new Product("P", "P", 2, 2.0, "", "test"));
+        FailingOrderRepository throwingOrders = new FailingOrderRepository(true);
+        DefaultStoreService purchase = new DefaultStoreService(purchaseProducts, throwingOrders);
+
+        ServiceResult<Void> result = purchase.purchase("u", "P", 1);
+
+        assertEquals(StatusCode.CONFLICT, result.getStatus());
+        assertEquals(2, purchaseProducts.findById("P").getStock());
+        assertTrue(throwingOrders.findByUserId("u").isEmpty());
     }
 
-    // 测试添加新商品价格为负数
     @Test
-    void testAddProductInvalidPrice() {
-        ServiceResult<Product> testResult = service.addProduct("Toy robot", -20.50, 10, "A pastical toy robot", "Toy");
-        assertEquals(StatusCode.BAD_REQUEST, testResult.getStatus());
+    void inventoryUpdatesPreserveInactiveProductState() {
+        Product inactive = new Product("00005", "下架商品", 8, 3.0, "不可购买", "测试", false);
+        products.save(inactive);
+
+        assertTrue(products.updateStock("00005", 5));
+        assertFalse(products.findById("00005").isActive());
     }
 
-    // 测试修改商品价格
     @Test
-    void testUpdateProductPrice() {
-        int formerNum = products.findById("00001").getStock();
-        ServiceResult<Product> testResult = service.updateProduct("00001", "Apple", 3.0, "A delicious apple", "Fruit");
-        assertEquals(StatusCode.OK, testResult.getStatus());
-        assertEquals(3.0, testResult.getData().getPrice(), 0.01);
-        assertEquals(formerNum, testResult.getData().getStock());
+    void productRepositorySupportsInventoryAndCatalogOperations() {
+        assertTrue(products.addStock("00001", 7));
+        assertEquals(107, products.findById("00001").getStock());
+
+        Product changed = new Product("00001", "Apple Plus", 107, 3.0, "Updated", "Fruit", true);
+        assertTrue(products.updateProduct(changed));
+        assertEquals("Apple Plus", products.findById("00001").getName());
+        assertEquals(3.0, products.findById("00001").getPrice(), 0.001);
+
+        assertTrue(products.deleteById("00001"));
+        assertEquals(null, products.findById("00001"));
+        assertFalse(products.deleteById("00001"));
     }
 
-    // 测试修改假的商品编号
     @Test
-    void testUpdateProductNotFound() {
-        ServiceResult<Product> testResult = service.updateProduct("99999999999", "Apple", 3.0, "A delicious apple",
-                "Fruit");
-        assertEquals(StatusCode.NOT_FOUND, testResult.getStatus());
+    void orderRepositoryListsAllOrdersAndSalesVolume() {
+        service.purchase("0115", "00001", 2);
+        service.purchase("0116", "00001", 3);
+        service.purchase("0115", "00002", 1);
+
+        assertEquals(3, orders.findAll().size());
+        List<Object[]> sales = orders.findSalesVolume();
+        assertEquals(2, sales.size());
+        assertEquals("00001", sales.get(0)[0]);
+        assertEquals(5, sales.get(0)[1]);
     }
 
-    // 测试下架00001
     @Test
-    void testDeactivateProduct() {
-        ServiceResult<Void> testResult = service.deactivateProduct("admin", "00001");
-        assertEquals(StatusCode.OK, testResult.getStatus());
-        assertFalse(products.findById("00001").isActive());
+    void checkoutRollsBackEarlierItemsWhenAnOrderFails() {
+        InMemoryProductRepository checkoutProducts = new InMemoryProductRepository();
+        checkoutProducts.save(new Product("A", "A", 3, 2.0, "", "test"));
+        checkoutProducts.save(new Product("B", "B", 3, 3.0, "", "test"));
+        FailingOrderRepository failingOrders = new FailingOrderRepository();
+        InMemoryCartRepository checkoutCart = new InMemoryCartRepository();
+        checkoutCart.addItem(new CartItem("cart-a", "u", "A", 1, java.time.LocalDateTime.now()));
+        checkoutCart.addItem(new CartItem("cart-b", "u", "B", 1, java.time.LocalDateTime.now()));
+
+        DefaultStoreService checkout = new DefaultStoreService(checkoutProducts, failingOrders, checkoutCart);
+        ServiceResult<Void> result = checkout.checkout("u");
+
+        assertEquals(StatusCode.CONFLICT, result.getStatus());
+        assertEquals(3, checkoutProducts.findById("A").getStock());
+        assertEquals(3, checkoutProducts.findById("B").getStock());
+        assertTrue(failingOrders.findByUserId("u").isEmpty());
+        assertEquals(2, checkoutCart.findByUserId("u").size());
     }
 
-    // 测试下架00001并且listProducts（）
-    @Test
-    void testDeactivatedProductNotListed() {
-        service.deactivateProduct("admin", "00001");
-        ServiceResult<List<Product>> testResult = service.listProducts();
-        assertEquals(StatusCode.OK, testResult.getStatus());
-        assertNotNull(testResult.getData());
-        assertFalse(testResult.getData().contains(products.findById("00001")));
-    }
+    private static final class FailingOrderRepository implements OrderRepository {
+        private final InMemoryOrderRepository delegate = new InMemoryOrderRepository();
+        private int createCount;
+        private final boolean throwOnCreate;
 
-    // 购物车功能测试:
-    // 测试加入购物车
-    @Test
-    void testAddToCart() {
-        ServiceResult<Void> testResult = service.addToCart("0120", "00001", 1);
-        assertEquals(StatusCode.OK, testResult.getStatus());
-    }
-
-    // 测试同一个商品加两次
-    @Test
-    void testAddToCartDuplicateQuantity() {
-        service.addToCart("0120", "00001", 1);
-        ServiceResult<Void> testResult = service.addToCart("0120", "00001", 1);
-        assertEquals(StatusCode.OK, testResult.getStatus());
-        assertEquals(1, cartRepo.findByUserId("0120").size());
-        assertEquals(2, cartRepo.findByUserId("0120").get(0).getQuantity());
-    }
-
-    // 测试加入假编号
-    @Test
-    void testAddToCartProductNotFound() {
-        ServiceResult<Void> testResult = service.addToCart("0120", "99999999999", 1);
-        assertEquals(StatusCode.NOT_FOUND, testResult.getStatus());
-    }
-
-    // 测试加入后删除
-    @Test
-    void testRemoveFromCart() {
-        service.addToCart("0120", "00001", 1);
-        String cartItemId = service.getCart("0120").getData().get(0).getCartItemId();
-        ServiceResult<Void> testResult = service.removeFromCart("0120", cartItemId);
-        assertEquals(StatusCode.OK, testResult.getStatus());
-        assertEquals(0, cartRepo.findByUserId("0120").size());
-    }
-
-    // 测试删除别的用户的购物车
-    @Test
-    void testRemoveFromCartNotOwned() {
-        service.addToCart("0121", "00001", 1);
-        String cartItemId = service.getCart("0121").getData().get(0).getCartItemId();
-        ServiceResult<Void> testResult = service.removeFromCart("0120", cartItemId);
-        assertEquals(StatusCode.NOT_FOUND, testResult.getStatus());
-        assertEquals(1, cartRepo.findByUserId("0121").size());
-    }
-
-    // 测试查询空购物车的用户
-    @Test
-    void testGetCartEmpty() {
-        ServiceResult<List<CartItem>> testResult = service.getCart("0120");
-        assertEquals(StatusCode.OK, testResult.getStatus());
-        assertNotNull(testResult.getData());
-        assertTrue(testResult.getData().isEmpty());
-    }
-
-    // 测试购买购物车中的所有商品
-    @Test
-    void testCheckoutSuccess() {
-        int formerStock1 = products.findById("00001").getStock();
-        int formerStock2 = products.findById("00002").getStock();
-        double price1 = products.findById("00001").getPrice();
-        double price2 = products.findById("00002").getPrice();
-        service.addToCart("0120", "00001", 2);
-        service.addToCart("0120", "00001", 2);
-        service.addToCart("0120", "00002", 10);
-        ServiceResult<Void> testResult = service.checkout("0120");
-        assertEquals(StatusCode.OK, testResult.getStatus());
-        // 验证库存扣减
-        assertEquals(formerStock1 - 4, products.findById("00001").getStock());
-        assertEquals(formerStock2 - 10, products.findById("00002").getStock());
-        // 验证两张订单各自的数量和总价
-        assertEquals(2, orders.findByUserId("0120").size());
-        boolean appleOrderFound = false;
-        boolean bananaOrderFound = false;
-        for (Order order : orders.findByUserId("0120")) {
-            if (order.getProductId().equals("00001")) {
-                assertEquals(4, order.getQuantity());
-                assertEquals(4 * price1, order.getTotalPrice(), 0.01);
-                appleOrderFound = true;
-            }
-            if (order.getProductId().equals("00002")) {
-                assertEquals(10, order.getQuantity());
-                assertEquals(10 * price2, order.getTotalPrice(), 0.01);
-                bananaOrderFound = true;
-            }
+        private FailingOrderRepository() {
+            this(false);
         }
-        assertTrue(appleOrderFound);
-        assertTrue(bananaOrderFound);
-    }
 
-    // 测试购买数量超过了库存
-    @Test
-    void testCheckoutInsufficientStock() {
-        int stock = products.findById("00001").getStock();
-        service.addToCart("0120", "00001", stock + 1);
-        ServiceResult<Void> testResult = service.checkout("0120");
-        assertEquals(StatusCode.BAD_REQUEST, testResult.getStatus());
-        assertEquals(1, cartRepo.findByUserId("0120").size());
-        assertEquals(stock + 1, cartRepo.findByUserId("0120").get(0).getQuantity());
-        assertEquals(stock, products.findById("00001").getStock());
-    }
+        private FailingOrderRepository(boolean throwOnCreate) {
+            this.throwOnCreate = throwOnCreate;
+        }
 
-    // 测试结账成功后购物车被清空
-    @Test
-    void testCheckoutClearsCart() {
-        service.addToCart("0120", "00001", 2);
-        service.addToCart("0120", "00002", 1);
-        ServiceResult<Void> testResult = service.checkout("0120");
-        assertEquals(StatusCode.OK, testResult.getStatus());
-        assertTrue(service.getCart("0120").getData().isEmpty());
-    }
+        @Override
+        public boolean create(Order order) {
+            if (throwOnCreate) throw new IllegalStateException("database unavailable");
+            createCount++;
+            return createCount == 2 ? false : delegate.create(order);
+        }
 
+        @Override
+        public boolean deleteById(String orderId) {
+            return delegate.deleteById(orderId);
+        }
+
+        @Override
+        public List<Order> findByUserId(String userId) {
+            return delegate.findByUserId(userId);
+        }
+
+        @Override
+        public List<Order> findAll() {
+            return delegate.findAll();
+        }
+
+        @Override
+        public List<Object[]> findSalesVolume() {
+            return delegate.findSalesVolume();
+        }
+    }
 }

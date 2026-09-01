@@ -3,44 +3,38 @@ package cn.vcampus.course;
 import java.io.Serializable;
 
 /**
- * 课程查询请求，用于区分查询全部课程和查询某学生已选课程。
+ * 早期课程级查询请求。
+ *
+ * <p>完整选课流程已经升级为 V2 协议，请使用 {@link CourseSelectionQueryV2Command}。
  */
+@Deprecated
 public final class CourseQueryCommand implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    /** 当前请求要查询的课程范围。 */
     public enum QueryType {
         ALL_COURSES,
         SELECTED_COURSES
     }
 
     private final QueryType queryType;
-    private final String token;
     private final String studentId;
 
-    private CourseQueryCommand(QueryType queryType, String token, String studentId) {
+    private CourseQueryCommand(QueryType queryType, String studentId) {
         this.queryType = queryType;
-        this.token = token;
         this.studentId = studentId;
     }
 
-    /** 创建查询全部课程的请求；该查询不需要携带学生身份。 */
     public static CourseQueryCommand allCourses() {
-        return new CourseQueryCommand(QueryType.ALL_COURSES, null, null);
+        return new CourseQueryCommand(QueryType.ALL_COURSES, null);
     }
 
-    /** 创建查询某学生已选课程的请求，需要登录凭证和学生学号。 */
-    public static CourseQueryCommand selectedCourses(String token, String studentId) {
+    public static CourseQueryCommand selectedCourses(String studentId) {
         return new CourseQueryCommand(QueryType.SELECTED_COURSES,
-                requireText(token, "token"), requireText(studentId, "studentId"));
+                requireText(studentId, "studentId"));
     }
 
     public QueryType getQueryType() {
         return queryType;
-    }
-
-    public String getToken() {
-        return token;
     }
 
     public String getStudentId() {

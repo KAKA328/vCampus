@@ -5,11 +5,13 @@ import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.common.User;
 import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class UserRepositoryBackedServiceTest {
     @Test
@@ -38,10 +40,11 @@ class UserRepositoryBackedServiceTest {
         assertEquals(StatusCode.OK, service.unregister(student.getUserId(), adminSession.getToken()).getStatus());
 
         assertEquals(StatusCode.UNAUTHORIZED, service.login(student).getStatus());
-        assertEquals(1, auditLog.findAll().size());
-        assertEquals("UNREGISTER_USER", auditLog.findAll().get(0).getAction());
-        assertEquals("admin001", auditLog.findAll().get(0).getActorUserId());
-        assertEquals(student.getUserId(), auditLog.findAll().get(0).getTargetId());
+        assertEquals(2, auditLog.findAll().size());
+        assertTrue(auditLog.findAll().stream().anyMatch(event ->
+                "UNREGISTER_USER".equals(event.getAction())
+                        && "admin001".equals(event.getActorUserId())
+                        && student.getUserId().equals(event.getTargetId())));
     }
 
     @Test
@@ -110,8 +113,9 @@ class UserRepositoryBackedServiceTest {
         assertEquals(1, result.getData().getFailures().get(0).getRowNumber());
         assertEquals("dup001", result.getData().getFailures().get(0).getUserId());
         assertNotNull(users.findById("imp_ok001"));
-        assertEquals(1, auditLog.findAll().size());
-        assertEquals("imp_ok001", auditLog.findAll().get(0).getTargetId());
+        assertEquals(2, auditLog.findAll().size());
+        assertTrue(auditLog.findAll().stream().anyMatch(event ->
+                "IMPORT_USER".equals(event.getAction()) && "imp_ok001".equals(event.getTargetId())));
     }
 
     @Test
@@ -131,11 +135,225 @@ class UserRepositoryBackedServiceTest {
     }
 
     @Test
+    void adminCanListAccountsAndAuditEvents() {
+        InMemoryUserRepository users = new InMemoryUserRepository();
+        InMemoryAuditLogRepository auditLog = new InMemoryAuditLogRepository();
+        SessionManager sessions = new SessionManager();
+        UserManagementService service = new DefaultUserManagementService(users, sessions, auditLog);
+        Session adminSession = sessions.create(new User("admin_list", "Admin", Role.ADMIN));
+        service.register(new UserCredentials("list_stu001", "Demo123", "List Student", Role.STUDENT.name()));
+
+        ServiceResult<List<UserAccountSummary>> accounts = service.listAccounts(adminSession.getToken());
+        ServiceResult<List<AuditEvent>> auditEvents = service.listAuditEvents(adminSession.getToken());
+
+        assertEquals(StatusCode.OK, accounts.getStatus());
+        assertTrue(accounts.getData().stream().anyMatch(account ->
+                "list_stu001".equals(account.getUserId()) && "正常".equals(account.getStatusText())));
+        assertEquals(StatusCode.OK, auditEvents.getStatus());
+        assertTrue(auditEvents.getData().stream().anyMatch(event ->
+                "REGISTER_USER".equals(event.getAction()) && "list_stu001".equals(event.getTargetId())));
+    }
+
+    @Test
+    void adminCanDisableEnableAndUnregisterAccount() {
+        InMemoryUserRepository users = new InMemoryUserRepository();
+        InMemoryAuditLogRepository auditLog = new InMemoryAuditLogRepository();
+        SessionManager sessions = new SessionManager();
+        UserManagementService service = new DefaultUserManagementService(users, sessions, auditLog);
+        UserCredentials student = new UserCredentials("state_stu001", "Demo123", "State Student", Role.STUDENT.name());
+        service.register(student);
+        Session adminSession = sessions.create(new User("admin_state", "Admin", Role.ADMIN));
+
+        assertEquals(StatusCode.OK, service.setAccountActive(
+                new UserStatusCommand(adminSession.getToken(), "state_stu001", false)).getStatus());
+        assertEquals(StatusCode.UNAUTHORIZED, service.login(student).getStatus());
+
+        assertEquals(StatusCode.OK, service.setAccountActive(
+                new UserStatusCommand(adminSession.getToken(), "state_stu001", true)).getStatus());
+        assertEquals(StatusCode.OK, service.login(student).getStatus());
+
+        assertEquals(StatusCode.OK, service.unregister("state_stu001", adminSession.getToken()).getStatus());
+        assertEquals(StatusCode.UNAUTHORIZED, service.login(student).getStatus());
+        assertTrue(auditLog.findAll().stream().anyMatch(event -> "DISABLE_USER".equals(event.getAction())));
+        assertTrue(auditLog.findAll().stream().anyMatch(event -> "ENABLE_USER".equals(event.getAction())));
+        assertTrue(auditLog.findAll().stream().anyMatch(event -> "UNREGISTER_USER".equals(event.getAction())));
+    }
+
+    @Test
+    void importAutomaticallyBindsStudentAndTeacherProfilesByProfileId() {
+        InMemoryUserRepository users = new InMemoryUserRepository();
+        InMemoryAuditLogRepository auditLog = new InMemoryAuditLogRepository();
+        SessionManager sessions = new SessionManager();
+        InMemoryProfileBindingRepository profiles = new InMemoryProfileBindingRepository();
+        profiles.addStudentProfile("20240001");
+        profiles.addTeacherProfile("T2024001");
+        UserManagementService service = new DefaultUserManagementService(users, sessions, auditLog,
+                new InMemoryPasswordResetApplicationRepository(), profiles);
+        Session adminSession = sessions.create(new User("admin_bind", "Admin", Role.ADMIN));
+
+        ServiceResult<UserImportResult> result = service.importUsers(adminSession.getToken(), Arrays.asList(
+                new UserImportRow("bind_stu001", "Demo123", "绑定学生", Role.STUDENT.name(), "20240001"),
+                new UserImportRow("bind_tch001", "Demo123", "绑定教师", Role.TEACHER.name(), "T2024001")));
+
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals(2, result.getData().getSuccessCount());
+        List<UserAccountSummary> accounts = service.listAccounts(adminSession.getToken()).getData();
+        assertTrue(accounts.stream().anyMatch(account ->
+                "bind_stu001".equals(account.getUserId()) && "20240001".equals(account.getProfileId())));
+        assertTrue(accounts.stream().anyMatch(account ->
+                "bind_tch001".equals(account.getUserId()) && "T2024001".equals(account.getProfileId())));
+    }
+
+    @Test
+    void importRejectsMissingProfileIdWhenRoleNeedsProfileBinding() {
+        InMemoryUserRepository users = new InMemoryUserRepository();
+        InMemoryAuditLogRepository auditLog = new InMemoryAuditLogRepository();
+        SessionManager sessions = new SessionManager();
+        InMemoryProfileBindingRepository profiles = new InMemoryProfileBindingRepository();
+        UserManagementService service = new DefaultUserManagementService(users, sessions, auditLog,
+                new InMemoryPasswordResetApplicationRepository(), profiles);
+        Session adminSession = sessions.create(new User("admin_bind_missing", "Admin", Role.ADMIN));
+
+        ServiceResult<UserImportResult> result = service.importUsers(adminSession.getToken(), Arrays.asList(
+                new UserImportRow("bind_missing001", "Demo123", "缺少档案", Role.STUDENT.name(), "20249999")));
+
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals(0, result.getData().getSuccessCount());
+        assertEquals(1, result.getData().getFailureCount());
+        assertTrue(result.getData().getFailures().get(0).getReason().contains("档案"));
+        assertEquals(null, users.findById("bind_missing001"));
+    }
+
+    @Test
+    void studentOrTeacherRegistrationRequiresExistingProfileWhenBindingIsEnabled() {
+        InMemoryUserRepository users = new InMemoryUserRepository();
+        UserManagementService service = new DefaultUserManagementService(users, new SessionManager(),
+                new InMemoryAuditLogRepository(), new InMemoryPasswordResetApplicationRepository(),
+                new InMemoryProfileBindingRepository());
+
+        assertEquals(StatusCode.BAD_REQUEST, service.register(
+                new UserCredentials("bind_required001", "Demo123", "缺少档案", Role.STUDENT.name())).getStatus());
+        assertEquals(null, users.findById("bind_required001"));
+    }
+
+    @Test
+    void adminCanChangeAnotherUsersRoleAndTargetSessionIsInvalidated() {
+        InMemoryUserRepository users = new InMemoryUserRepository();
+        InMemoryAuditLogRepository auditLog = new InMemoryAuditLogRepository();
+        SessionManager sessions = new SessionManager();
+        UserManagementService service = new DefaultUserManagementService(users, sessions, auditLog);
+        UserCredentials target = new UserCredentials("role_target001", "Demo123", "Role Target", Role.STUDENT.name());
+        service.register(target);
+        Session targetSession = service.login(target).getData();
+        Session adminSession = sessions.create(new User("admin_role", "Admin", Role.ADMIN));
+
+        ServiceResult<Void> result = service.changeUserRole(
+                new UserRoleChangeCommand(adminSession.getToken(), "role_target001", Role.STORE_MANAGER.name()));
+
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals(StatusCode.UNAUTHORIZED, service.currentSession(targetSession.getToken()).getStatus());
+        assertEquals(Role.STORE_MANAGER, users.findById("role_target001").getUser().getRole());
+        assertTrue(auditLog.findAll().stream().anyMatch(event ->
+                "CHANGE_USER_ROLE".equals(event.getAction()) && "role_target001".equals(event.getTargetId())));
+    }
+
+    @Test
+    void adminCannotChangeOwnRole() {
+        InMemoryUserRepository users = new InMemoryUserRepository();
+        SessionManager sessions = new SessionManager();
+        UserManagementService service = new DefaultUserManagementService(users, sessions, new InMemoryAuditLogRepository());
+        Session adminSession = sessions.create(new User("admin_self_role", "Admin", Role.ADMIN));
+
+        ServiceResult<Void> result = service.changeUserRole(
+                new UserRoleChangeCommand(adminSession.getToken(), "admin_self_role", Role.STUDENT.name()));
+
+        assertEquals(StatusCode.FORBIDDEN, result.getStatus());
+    }
+
+    @Test
     void emptyImportReturnsBadRequest() {
         UserManagementService service = new InMemoryUserManagementService();
 
         ServiceResult<UserImportResult> result = service.importUsers("token", Arrays.<UserImportRow>asList());
 
         assertEquals(StatusCode.BAD_REQUEST, result.getStatus());
+    }
+
+    @Test
+    void passwordResetApprovalUsesTemporaryPasswordAndForcesUserToChangeIt() {
+        InMemoryUserRepository users = new InMemoryUserRepository();
+        InMemoryAuditLogRepository auditLog = new InMemoryAuditLogRepository();
+        SessionManager sessions = new SessionManager();
+        InMemoryProfileBindingRepository profiles = new InMemoryProfileBindingRepository();
+        profiles.addStudentProfile("20241234");
+        PasswordResetApplicationRepository passwordResets = new InMemoryPasswordResetApplicationRepository();
+        UserManagementService service = new DefaultUserManagementService(users, sessions, auditLog,
+                passwordResets, profiles);
+        UserCredentials student = new UserCredentials("reset001", "Old123", "Reset Student",
+                Role.STUDENT.name(), "20241234");
+        service.register(student);
+        Session adminSession = sessions.create(new User("admin_reset", "Admin", Role.ADMIN));
+
+        assertEquals(StatusCode.OK, service.requestPasswordReset(
+                new PasswordResetRequestCommand("reset001", "忘记密码", "13800000000")).getStatus());
+        assertEquals(StatusCode.OK, service.login(student).getStatus());
+
+        List<PasswordResetApplicationSummary> pending = service
+                .listPasswordResetApplications(adminSession.getToken()).getData();
+        assertEquals(1, pending.size());
+        assertEquals("reset001", pending.get(0).getUserId());
+        assertEquals("Reset Student", pending.get(0).getDisplayName());
+        assertEquals(Role.STUDENT.name(), pending.get(0).getRoleCode());
+        assertEquals("20241234", pending.get(0).getProfileId());
+        assertEquals("忘记密码", pending.get(0).getReason());
+
+        ServiceResult<PasswordResetReviewResult> review = service.reviewPasswordReset(
+                new PasswordResetReviewCommand(adminSession.getToken(), "reset001", true));
+
+        assertEquals(StatusCode.OK, review.getStatus());
+        assertNotNull(review.getData().getTemporaryPassword());
+        assertEquals(StatusCode.UNAUTHORIZED, service.login(student).getStatus());
+        ServiceResult<Session> temporaryLogin = service.login(new UserCredentials(
+                "reset001", review.getData().getTemporaryPassword(), "Reset Student", Role.STUDENT.name()));
+        assertEquals(StatusCode.OK, temporaryLogin.getStatus());
+        assertTrue(temporaryLogin.getData().isForcePasswordChange());
+        assertEquals(StatusCode.FORBIDDEN, service.authorize(
+                temporaryLogin.getData().getToken(), Permission.COURSE_SELECT.getCode()).getStatus());
+
+        assertEquals(StatusCode.OK, service.changeForcedPassword(
+                new PasswordChangeCommand(temporaryLogin.getData().getToken(), "OwnNew123")).getStatus());
+        assertEquals(StatusCode.UNAUTHORIZED, service.login(new UserCredentials(
+                "reset001", review.getData().getTemporaryPassword(), "Reset Student", Role.STUDENT.name())).getStatus());
+        ServiceResult<Session> finalLogin = service.login(new UserCredentials(
+                "reset001", "OwnNew123", "Reset Student", Role.STUDENT.name()));
+        assertEquals(StatusCode.OK, finalLogin.getStatus());
+        assertFalse(finalLogin.getData().isForcePasswordChange());
+        assertTrue(auditLog.findAll().stream().anyMatch(event ->
+                "PASSWORD_RESET_REQUEST".equals(event.getAction()) && "reset001".equals(event.getTargetId())));
+        assertTrue(auditLog.findAll().stream().anyMatch(event ->
+                "PASSWORD_RESET_APPROVE".equals(event.getAction()) && "reset001".equals(event.getTargetId())));
+        assertTrue(auditLog.findAll().stream().anyMatch(event ->
+                "FORCED_PASSWORD_CHANGE".equals(event.getAction()) && "reset001".equals(event.getTargetId())));
+    }
+
+    @Test
+    void studentCannotReviewPasswordResetRequest() {
+        InMemoryUserRepository users = new InMemoryUserRepository();
+        InMemoryAuditLogRepository auditLog = new InMemoryAuditLogRepository();
+        SessionManager sessions = new SessionManager();
+        PasswordResetApplicationRepository passwordResets = new InMemoryPasswordResetApplicationRepository();
+        UserManagementService service = new DefaultUserManagementService(users, sessions, auditLog, passwordResets);
+        UserCredentials student = new UserCredentials("reset002", "Old123", "Reset Student", Role.STUDENT.name());
+        service.register(student);
+        Session studentSession = service.login(student).getData();
+        assertEquals(StatusCode.OK, service.requestPasswordReset(
+                new PasswordResetRequestCommand("reset002", "New123")).getStatus());
+
+        ServiceResult<PasswordResetReviewResult> result = service.reviewPasswordReset(
+                new PasswordResetReviewCommand(studentSession.getToken(), "reset002", true));
+
+        assertEquals(StatusCode.FORBIDDEN, result.getStatus());
+        assertEquals(StatusCode.OK, service.logout(studentSession.getToken()).getStatus());
+        assertEquals(StatusCode.OK, service.login(student).getStatus());
     }
 }

@@ -7,31 +7,47 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.Test;
 
 class CourseQueryCommandTest {
-
     @Test
-    void allCoursesQueryDoesNotNeedStudentCredentials() {
-        CourseQueryCommand command = CourseQueryCommand.allCourses();
+    void availableRoundsQueryStoresToken() {
+        CourseSelectionQueryV2Command command = CourseSelectionQueryV2Command.availableRounds(
+                " token-001 ");
 
-        assertEquals(CourseQueryCommand.QueryType.ALL_COURSES, command.getQueryType());
-        assertNull(command.getToken());
-        assertNull(command.getStudentId());
-    }
-
-    @Test
-    void selectedCoursesQueryStoresTrimmedCredentials() {
-        CourseQueryCommand command = CourseQueryCommand.selectedCourses(
-                " token-001 ", " 20230001 ");
-
-        assertEquals(CourseQueryCommand.QueryType.SELECTED_COURSES, command.getQueryType());
+        assertEquals(CourseSelectionQueryV2Command.QueryType.AVAILABLE_ROUNDS,
+                command.getQueryType());
         assertEquals("token-001", command.getToken());
-        assertEquals("20230001", command.getStudentId());
+        assertNull(command.getRoundId());
     }
 
     @Test
-    void selectedCoursesQueryRejectsBlankCredentials() {
+    void offeringAndSelectedQueriesDoNotCarryStudentId() {
+        CourseSelectionQueryV2Command offerings =
+                CourseSelectionQueryV2Command.availableOfferings("token-001", " ROUND-INITIAL ");
+        CourseSelectionQueryV2Command selected =
+                CourseSelectionQueryV2Command.selectedOfferings("token-001");
+
+        assertEquals(CourseSelectionQueryV2Command.QueryType.AVAILABLE_OFFERINGS,
+                offerings.getQueryType());
+        assertEquals("ROUND-INITIAL", offerings.getRoundId());
+        assertEquals(CourseSelectionQueryV2Command.QueryType.SELECTED_OFFERINGS,
+                selected.getQueryType());
+        assertNull(selected.getRoundId());
+    }
+
+    @Test
+    void queriesRejectBlankCredentials() {
         assertThrows(IllegalArgumentException.class,
-                () -> CourseQueryCommand.selectedCourses("", "20230001"));
+                () -> CourseSelectionQueryV2Command.availableRounds(""));
         assertThrows(IllegalArgumentException.class,
-                () -> CourseQueryCommand.selectedCourses("token-001", " "));
+                () -> CourseSelectionQueryV2Command.availableOfferings("token-001", " "));
+    }
+
+    @Test
+    void legacyQueryCommandKeepsOldCourseLevelShape() {
+        CourseQueryCommand allCourses = CourseQueryCommand.allCourses();
+        CourseQueryCommand selected = CourseQueryCommand.selectedCourses(" STU-001 ");
+
+        assertEquals(CourseQueryCommand.QueryType.ALL_COURSES, allCourses.getQueryType());
+        assertEquals(CourseQueryCommand.QueryType.SELECTED_COURSES, selected.getQueryType());
+        assertEquals("STU-001", selected.getStudentId());
     }
 }

@@ -6,7 +6,15 @@ import java.util.List;
 /** User-management contract implemented by the server and called by the client adapter. */
 public interface UserManagementService {
     ServiceResult<Void> register(UserCredentials credentials);
+    ServiceResult<List<UserAccountSummary>> listAccounts(String token);
     ServiceResult<UserImportResult> importUsers(String token, List<UserImportRow> rows);
+    ServiceResult<Void> setAccountActive(UserStatusCommand command);
+    ServiceResult<Void> changeUserRole(UserRoleChangeCommand command);
+    ServiceResult<List<AuditEvent>> listAuditEvents(String token);
+    ServiceResult<Void> requestPasswordReset(PasswordResetRequestCommand command);
+    ServiceResult<List<PasswordResetApplicationSummary>> listPasswordResetApplications(String token);
+    ServiceResult<PasswordResetReviewResult> reviewPasswordReset(PasswordResetReviewCommand command);
+    ServiceResult<Void> changeForcedPassword(PasswordChangeCommand command);
     ServiceResult<Void> unregister(String userId, String token);
     ServiceResult<Session> login(UserCredentials credentials);
     ServiceResult<Session> currentSession(String token);

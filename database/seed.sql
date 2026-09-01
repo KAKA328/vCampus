@@ -1,21 +1,21 @@
 -- Demo-only accounts. Initial password for all demo accounts: Demo123.
-INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active)
-VALUES ('demo_admin', 'zOeizxrgRZic/JFPuVpBUg==:xWXvxTlDz+TMHc7vtlTIA5co9c9CGtcym4aYtr2LK7M=', 'Demo Administrator', 'ADMIN', 1);
+INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
+VALUES ('demo_admin', 'zOeizxrgRZic/JFPuVpBUg==:xWXvxTlDz+TMHc7vtlTIA5co9c9CGtcym4aYtr2LK7M=', 'Demo Administrator', 'ADMIN', 1, 0);
 
-INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active)
-VALUES ('demo_academic_admin', '2URhsAIut9zD4Wpa2LitDg==:hqrBro/Sc1nex0VjnlgVqlFs+1hSpS0g/RfTZAnot2g=', 'Demo Academic Administrator', 'ACADEMIC_ADMIN', 1);
+INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
+VALUES ('demo_academic_admin', '2URhsAIut9zD4Wpa2LitDg==:hqrBro/Sc1nex0VjnlgVqlFs+1hSpS0g/RfTZAnot2g=', 'Demo Academic Administrator', 'ACADEMIC_ADMIN', 1, 0);
 
-INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active)
-VALUES ('demo_librarian', 'CyUGA2zztjSKYZHTcuFFVw==:P3kwUfUVmXevVzORB4/2AO72BYFFLnpKXD4k+Vs/6XE=', 'Demo Librarian', 'LIBRARIAN', 1);
+INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
+VALUES ('demo_librarian', 'CyUGA2zztjSKYZHTcuFFVw==:P3kwUfUVmXevVzORB4/2AO72BYFFLnpKXD4k+Vs/6XE=', 'Demo Librarian', 'LIBRARIAN', 1, 0);
 
-INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active)
-VALUES ('demo_store_manager', 'MlmQfJs4JPqfyzrOS2vWSA==:60rRuqawBtN2BIANRJmd3X++VrG/WgO0npwd09JfU4Y=', 'Demo Store Manager', 'STORE_MANAGER', 1);
+INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
+VALUES ('demo_store_manager', 'MlmQfJs4JPqfyzrOS2vWSA==:60rRuqawBtN2BIANRJmd3X++VrG/WgO0npwd09JfU4Y=', 'Demo Store Manager', 'STORE_MANAGER', 1, 0);
 
-INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active)
-VALUES ('demo_student', 'IZBIc+YD2QyDs5+HFIF4yQ==:jZiW3CFhJ854HF2PQsi2QVG0VRdz+SdW59ig/fMh1MY=', 'Demo Student', 'STUDENT', 1);
+INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
+VALUES ('demo_student', 'IZBIc+YD2QyDs5+HFIF4yQ==:jZiW3CFhJ854HF2PQsi2QVG0VRdz+SdW59ig/fMh1MY=', 'Demo Student', 'STUDENT', 1, 0);
 
-INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active)
-VALUES ('demo_teacher', 'cSoOs3pVGxBnmJO0OZy1Rg==:qmNTtyQn+Lprr8EEzSRs/ZNxtQKgSEzVy3WOSl7VYdQ=', 'Demo Teacher', 'TEACHER', 1);
+INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
+VALUES ('demo_teacher', 'cSoOs3pVGxBnmJO0OZy1Rg==:qmNTtyQn+Lprr8EEzSRs/ZNxtQKgSEzVy3WOSl7VYdQ=', 'Demo Teacher', 'TEACHER', 1, 0);
 
 -- 选课模块演示课程。
 INSERT INTO tblCourse(course_id, course_name, credits, capacity)
@@ -50,20 +50,20 @@ INSERT INTO tblAcademicReview(review_id, student_id, total_earned_credits, requi
 VALUES ('review-demo-student-1', 'demo_student', 6, 6, 0, 1, 1, 'demo_admin', NOW(), '演示数据：包含首修未通过和重修通过记录。');
 
 -- 商店模块演示商品。
-INSERT INTO tblProduct(product_id, name, stock, price, description, category)
-VALUES ('P001', '黑色签字笔', 200, 2.0, '0.5mm 中性笔，流畅书写', '文具');
+INSERT INTO tblProduct(product_id, name, stock, price, description, category, active)
+VALUES ('P001', '黑色签字笔', 200, 2.0, '0.5mm 中性笔，流畅书写', '文具', 1);
 
-INSERT INTO tblProduct(product_id, name, stock, price, description, category)
-VALUES ('P002', '笔记本 A5', 150, 5.0, '80页横线本，封面随机', '文具');
+INSERT INTO tblProduct(product_id, name, stock, price, description, category, active)
+VALUES ('P002', '笔记本 A5', 150, 5.0, '80页横线本，封面随机', '文具', 1);
 
-INSERT INTO tblProduct(product_id, name, stock, price, description, category)
-VALUES ('P003', '矿泉水 550ml', 300, 1.5, '天然矿泉水', '零食饮料');
+INSERT INTO tblProduct(product_id, name, stock, price, description, category, active)
+VALUES ('P003', '矿泉水 550ml', 300, 1.5, '天然矿泉水', '零食饮料', 1);
 
-INSERT INTO tblProduct(product_id, name, stock, price, description, category)
-VALUES ('P004', '薯片 60g', 100, 6.0, '原味薯片，酥脆可口', '零食饮料');
+INSERT INTO tblProduct(product_id, name, stock, price, description, category, active)
+VALUES ('P004', '薯片 60g', 100, 6.0, '原味薯片，酥脆可口', '零食饮料', 1);
 
-INSERT INTO tblProduct(product_id, name, stock, price, description, category)
-VALUES ('P005', '抽纸 3连包', 80, 8.5, '三层加厚面巾纸', '日用品');
+INSERT INTO tblProduct(product_id, name, stock, price, description, category, active)
+VALUES ('P005', '抽纸 3连包', 80, 8.5, '三层加厚面巾纸', '日用品', 1);
 
 -- 商店模块演示订单。
 INSERT INTO tblOrder(order_id, user_id, product_id, quantity, total_price, order_date, product_name, unit_price)

@@ -23,42 +23,47 @@ class UserImportFileReaderTest {
     void readsCsvWithChineseHeaders() throws Exception {
         Path file = tempDir.resolve("users.csv");
         Files.write(file, java.util.Arrays.asList(
-                "账号,姓名,初始密码,角色",
-                "stu1001,张三,Secret123,STUDENT",
-                "tea1001,李老师,Teacher1,TEACHER"), StandardCharsets.UTF_8);
+                "账号,姓名,初始密码,角色,档案编号",
+                "stu1001,张三,Secret123,STUDENT,20240001",
+                "tea1001,李老师,Teacher1,TEACHER,T2024001"), StandardCharsets.UTF_8);
 
         List<UserImportRow> rows = new UserImportFileReader().read(file);
 
         assertEquals(2, rows.size());
         assertEquals("stu1001", rows.get(0).getUserId());
         assertEquals("Secret123", rows.get(0).getPassword());
+        assertEquals("20240001", rows.get(0).getProfileId());
         assertEquals(Role.TEACHER.name(), rows.get(1).getRoleCode());
+        assertEquals("T2024001", rows.get(1).getProfileId());
     }
 
     @Test
     void readsTsvWithEnglishHeaders() throws Exception {
         Path file = tempDir.resolve("users.tsv");
         Files.write(file, java.util.Arrays.asList(
-                "userId\tdisplayName\tpassword\troleCode",
-                "stu1002\t学生乙\tDemo123\tSTUDENT"), StandardCharsets.UTF_8);
+                "userId\tdisplayName\tpassword\troleCode\tprofileId",
+                "stu1002\t学生乙\tDemo123\tSTUDENT\t20240002"), StandardCharsets.UTF_8);
 
         List<UserImportRow> rows = new UserImportFileReader().read(file);
 
         assertEquals(1, rows.size());
         assertEquals("学生乙", rows.get(0).getDisplayName());
+        assertEquals("20240002", rows.get(0).getProfileId());
     }
 
     @Test
     void readsXlsxFirstSheetWithSharedStrings() throws Exception {
         Path file = tempDir.resolve("users.xlsx");
         writeMinimalXlsx(file,
-                new String[] {"账号", "姓名", "初始密码", "角色", "stu1003", "学生丙", "Demo123", "STUDENT"});
+                new String[] {"账号", "姓名", "初始密码", "角色", "档案编号",
+                        "stu1003", "学生丙", "Demo123", "STUDENT", "20240003"});
 
         List<UserImportRow> rows = new UserImportFileReader().read(file);
 
         assertEquals(1, rows.size());
         assertEquals("stu1003", rows.get(0).getUserId());
         assertEquals("学生丙", rows.get(0).getDisplayName());
+        assertEquals("20240003", rows.get(0).getProfileId());
     }
 
     @Test
@@ -82,9 +87,11 @@ class UserImportFileReaderTest {
                     + "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">"
                     + "<sheetData>"
                     + "<row r=\"1\"><c r=\"A1\" t=\"s\"><v>0</v></c><c r=\"B1\" t=\"s\"><v>1</v></c>"
-                    + "<c r=\"C1\" t=\"s\"><v>2</v></c><c r=\"D1\" t=\"s\"><v>3</v></c></row>"
-                    + "<row r=\"2\"><c r=\"A2\" t=\"s\"><v>4</v></c><c r=\"B2\" t=\"s\"><v>5</v></c>"
-                    + "<c r=\"C2\" t=\"s\"><v>6</v></c><c r=\"D2\" t=\"s\"><v>7</v></c></row>"
+                    + "<c r=\"C1\" t=\"s\"><v>2</v></c><c r=\"D1\" t=\"s\"><v>3</v></c>"
+                    + "<c r=\"E1\" t=\"s\"><v>4</v></c></row>"
+                    + "<row r=\"2\"><c r=\"A2\" t=\"s\"><v>5</v></c><c r=\"B2\" t=\"s\"><v>6</v></c>"
+                    + "<c r=\"C2\" t=\"s\"><v>7</v></c><c r=\"D2\" t=\"s\"><v>8</v></c>"
+                    + "<c r=\"E2\" t=\"s\"><v>9</v></c></row>"
                     + "</sheetData></worksheet>");
         }
     }

@@ -9,23 +9,30 @@ public final class UserCredentials implements Serializable {
     private static final int MAX_USER_ID_LENGTH = 32;
     private static final int MAX_DISPLAY_NAME_LENGTH = 64;
     private final String userId; private final String password; private final String displayName; private final String roleCode;
+    private final String profileId;
     public UserCredentials(String userId, String password, String displayName, String roleCode) {
+        this(userId, password, displayName, roleCode, null);
+    }
+    public UserCredentials(String userId, String password, String displayName, String roleCode, String profileId) {
         this.userId = requireUserId(userId); this.password = requirePassword(password);
         this.displayName = requireDisplayName(displayName); this.roleCode = require(roleCode, "roleCode");
+        this.profileId = optional(profileId);
     }
     public String getUserId() { return userId; } public String getPassword() { return password; }
     public String getDisplayName() { return displayName; } public String getRoleCode() { return roleCode; }
+    public String getProfileId() { return profileId; }
 
     @Override public boolean equals(Object other) {
         if (this == other) return true;
         if (!(other instanceof UserCredentials)) return false;
         UserCredentials that = (UserCredentials) other;
         return userId.equals(that.userId) && password.equals(that.password)
-                && displayName.equals(that.displayName) && roleCode.equals(that.roleCode);
+                && displayName.equals(that.displayName) && roleCode.equals(that.roleCode)
+                && Objects.equals(profileId, that.profileId);
     }
 
     @Override public int hashCode() {
-        return Objects.hash(userId, password, displayName, roleCode);
+        return Objects.hash(userId, password, displayName, roleCode, profileId);
     }
     private static String require(String value, String field) {
         if (value == null || value.trim().isEmpty()) throw new IllegalArgumentException(field + " must not be blank");
@@ -53,5 +60,12 @@ public final class UserCredentials implements Serializable {
             throw new IllegalArgumentException("密码需为 6-16 位");
         }
         return value;
+    }
+
+    private static String optional(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        return value.trim();
     }
 }

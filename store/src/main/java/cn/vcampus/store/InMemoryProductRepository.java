@@ -26,48 +26,37 @@ public final class InMemoryProductRepository implements ProductRepository {
     }
 
     @Override
-    public final boolean updateStock(String productId, int newStock) {
-        // 如果商品存在，改动存储数量，如果不存在，返回false
+    public synchronized final boolean updateStock(String productId, int newStock) {
+        // 如果商品存在，改动存储数量，
+        // 如果不存在，返回false
         if (this.findById(productId) != null) {
             Product oldPro = this.findById(productId);
+            if (newStock < 0) return false;
             Product newPro = new Product(oldPro.getProductId(), oldPro.getName(), newStock, oldPro.getPrice(),
-                    oldPro.getDescription(),
-                    oldPro.getCategory(), oldPro.isActive());
+                    oldPro.getDescription(), oldPro.getCategory(), oldPro.isActive());
             this.products.replace(productId, newPro);
             return true;
         }
         return false;
     }
 
-    // 增加库存，商品存在则替换为新对象，不存在返回 false
     @Override
-    public final boolean addStock(String productId, int amount) {
-        Product oldPro = this.findById(productId);
-        if (oldPro == null)
-            return false;
-        Product newPro = new Product(oldPro.getProductId(), oldPro.getName(), oldPro.getStock() + amount,
-                oldPro.getPrice(), oldPro.getDescription(), oldPro.getCategory(), oldPro.isActive());
-        this.products.replace(productId, newPro);
+    public synchronized final boolean addStock(String productId, int amount) {
+        if (amount <= 0) return false;
+        Product product = products.get(productId);
+        return product != null && updateStock(productId, product.getStock() + amount);
+    }
+
+    @Override
+    public synchronized final boolean updateProduct(Product product) {
+        if (product == null || !products.containsKey(product.getProductId())) return false;
+        products.put(product.getProductId(), product);
         return true;
     }
 
-    // 更新商品非库存字段，商品存在则替换，不存在返回 false
     @Override
-    public final boolean updateProduct(Product product) {
-        Product oldPro = this.findById(product.getProductId());
-        if (oldPro == null)
-            return false;
-        Product updatedPro = new Product(oldPro.getProductId(), product.getName(), oldPro.getStock(),
-                product.getPrice(),
-                product.getDescription(), product.getCategory(), product.isActive());
-        this.products.replace(product.getProductId(), updatedPro);
-        return true;
-    }
-
-    // 按Id删除商品
-    @Override
-    public final boolean deleteById(String productId) {
-        return this.products.remove(productId) != null;
+    public synchronized final boolean deleteById(String productId) {
+        return products.remove(productId) != null;
     }
 
 }

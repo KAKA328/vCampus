@@ -17,8 +17,10 @@ public final class Product implements Serializable {
             boolean active) {
         this.productId = checkStr(productId, "productId");
         this.name = checkStr(name, "name");
-        if (price < 0 || stock < 0)
-            throw new IllegalArgumentException("price cannot be negative");
+        if (stock < 0)
+            throw new IllegalArgumentException("stock cannot be negative");
+        if (!Double.isFinite(price) || price <= 0)
+            throw new IllegalArgumentException("price must be a finite positive number");
         this.price = price;
         this.stock = stock;
         this.description = description;

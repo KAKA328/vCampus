@@ -3,26 +3,20 @@ package cn.vcampus.course;
 import java.io.Serializable;
 
 /**
- * A request to select or drop a course for an authenticated student.
+ * 早期课程级选课请求。
  *
- * <p>This object is serializable so a client can place it in a message payload
- * and send it to the server.</p>
+ * <p>完整选课流程已经升级为 V2 协议，请使用 {@link CourseSelectOfferingV2Command}。
  */
+@Deprecated
 public final class CourseSelectionCommand implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    private final String token;
     private final String studentId;
     private final String courseId;
 
-    public CourseSelectionCommand(String token, String studentId, String courseId) {
-        this.token = requireText(token, "token");
+    public CourseSelectionCommand(String studentId, String courseId) {
         this.studentId = requireText(studentId, "studentId");
         this.courseId = requireText(courseId, "courseId");
-    }
-
-    public String getToken() {
-        return token;
     }
 
     public String getStudentId() {

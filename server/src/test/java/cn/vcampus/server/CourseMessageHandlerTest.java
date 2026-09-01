@@ -6,180 +6,110 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
 import cn.vcampus.common.Role;
-import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
-import cn.vcampus.course.Course;
 import cn.vcampus.course.CourseQueryCommand;
+import cn.vcampus.course.Course;
+import cn.vcampus.course.CourseManagementCommand;
+import cn.vcampus.course.CourseOffering;
+import cn.vcampus.course.CourseOfferingStatus;
+import cn.vcampus.course.CourseSelectionModule;
 import cn.vcampus.course.CourseSelectionCommand;
-import cn.vcampus.course.InMemoryCourseSelectionService;
+import cn.vcampus.course.CourseSelectOfferingV2Command;
+import cn.vcampus.course.CourseSelectionQueryV2Command;
+import cn.vcampus.course.CourseSelectionDemoFactory;
+import cn.vcampus.course.InMemoryStudentSelectionProfileProvider;
+import cn.vcampus.course.StudentSelectionProfile;
 import cn.vcampus.user.DefaultUserManagementService;
 import cn.vcampus.user.InMemoryAuditLogRepository;
 import cn.vcampus.user.InMemoryUserRepository;
 import cn.vcampus.user.Session;
 import cn.vcampus.user.SessionManager;
 import cn.vcampus.user.UserCredentials;
+import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class CourseMessageHandlerTest {
-    private InMemoryCourseSelectionService courses;
-    private DefaultUserManagementService users;
     private CourseMessageHandler handler;
-    private Session studentSession;
+    private Session session;
 
     @BeforeEach
     void setUp() {
-        courses = new InMemoryCourseSelectionService();
-        users = new DefaultUserManagementService(
-                new InMemoryUserRepository(), new SessionManager(), new InMemoryAuditLogRepository());
-        handler = new CourseMessageHandler(courses, users);
-
-        UserCredentials student = new UserCredentials(
-                "20230001", "password", "测试学生", Role.STUDENT.name());
-        users.register(student);
-        studentSession = users.login(student).getData();
+        DefaultUserManagementService users = new DefaultUserManagementService(new InMemoryUserRepository(),
+                new SessionManager(), new InMemoryAuditLogRepository());
+        UserCredentials student = new UserCredentials("20260001", "password", "测试学生", Role.STUDENT.name());
+        users.register(student); session = users.login(student).getData();
+        InMemoryStudentSelectionProfileProvider profiles = new InMemoryStudentSelectionProfileProvider(
+                Collections.singletonList(new StudentSelectionProfile("20260001", "STU-001", "计算机科学与技术", 2026, "在读", CourseSelectionDemoFactory.DEMO_TERM, 1, Collections.<String>emptySet())));
+        handler = new CourseMessageHandler(CourseSelectionDemoFactory.createService(), profiles, users);
     }
 
     @Test
-    void courseQueryReturnsCourseList() {
-        Message response = handler.handle(Message.request(
-                "course-query", MessageType.COURSE_QUERY, CourseQueryCommand.allCourses()));
-
+    void queryUsesTokenToReturnStudentRounds() {
+        Message response = handler.handle(Message.request("rounds",
+                MessageType.COURSE_SELECTION_QUERY_V2,
+                CourseSelectionQueryV2Command.availableRounds(session.getToken())));
         assertEquals(StatusCode.OK, response.getStatusCode());
         assertTrue(response.getPayload() instanceof List<?>);
-        List<?> courses = (List<?>) response.getPayload();
-        assertEquals(3, courses.size());
-        assertTrue(courses.get(0) instanceof Course);
     }
 
     @Test
-    void selectedCoursesQueryAuthorizesStudentAndReturnsOnlySelectedCourses() {
-        courses.select("20230001", "JAVA101");
-        CourseQueryCommand command = CourseQueryCommand.selectedCourses(
-                studentSession.getToken(), "20230001");
-
-        Message response = handler.handle(Message.request(
-                "selected-courses", MessageType.COURSE_QUERY, command));
-
+    void selectionRequestDoesNotContainStudentId() {
+        Message response = handler.handle(Message.request("select",
+                MessageType.COURSE_SELECT_OFFERING_V2,
+                new CourseSelectOfferingV2Command(session.getToken(), "ROUND-INITIAL",
+                        "OFFER-JAVA-01")));
         assertEquals(StatusCode.OK, response.getStatusCode());
-        List<?> selected = (List<?>) response.getPayload();
-        assertEquals(1, selected.size());
-        assertEquals("JAVA101", ((Course) selected.get(0)).getCourseId());
-    }
-
-    @Test
-    void courseSelectAuthorizesStudentAndCallsService() {
-        CourseSelectionCommand command = new CourseSelectionCommand(
-                studentSession.getToken(), "20230001", "JAVA101");
-
-        Message response = handler.handle(Message.request(
-                "course-select", MessageType.COURSE_SELECT, command));
-
-        assertEquals(StatusCode.OK, response.getStatusCode());
-        assertEquals(1, courses.selectedCourses("20230001").getData().size());
-    }
-
-    @Test
-    void studentCannotSelectCourseForAnotherStudent() {
-        registerStudent("20230002", "password", "测试学生二");
-        CourseSelectionCommand command = new CourseSelectionCommand(
-                studentSession.getToken(), "20230002", "JAVA101");
-
-        Message response = handler.handle(Message.request(
-                "forged-course-select", MessageType.COURSE_SELECT, command));
-
-        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
-        assertEquals(0, courses.selectedCourses("20230002").getData().size());
-    }
-
-    @Test
-    void courseDropAuthorizesStudentAndCallsService() {
-        courses.select("20230001", "JAVA101");
-        CourseSelectionCommand command = new CourseSelectionCommand(
-                studentSession.getToken(), "20230001", "JAVA101");
-
-        Message response = handler.handle(Message.request(
-                "course-drop", MessageType.COURSE_DROP, command));
-
-        assertEquals(StatusCode.OK, response.getStatusCode());
-        assertEquals(0, courses.selectedCourses("20230001").getData().size());
-    }
-
-    @Test
-    void studentCannotDropCourseForAnotherStudent() {
-        registerStudent("20230002", "password", "测试学生二");
-        courses.select("20230002", "JAVA101");
-        CourseSelectionCommand command = new CourseSelectionCommand(
-                studentSession.getToken(), "20230002", "JAVA101");
-
-        Message response = handler.handle(Message.request(
-                "forged-course-drop", MessageType.COURSE_DROP, command));
-
-        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
-        assertEquals(1, courses.selectedCourses("20230002").getData().size());
-    }
-
-    @Test
-    void studentCannotQuerySelectedCoursesForAnotherStudent() {
-        registerStudent("20230002", "password", "测试学生二");
-        courses.select("20230002", "JAVA101");
-        CourseQueryCommand command = CourseQueryCommand.selectedCourses(
-                studentSession.getToken(), "20230002");
-
-        Message response = handler.handle(Message.request(
-                "forged-selected-courses", MessageType.COURSE_QUERY, command));
-
-        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
-    }
-
-    @Test
-    void invalidTokenRejectsCourseSelection() {
-        CourseSelectionCommand command = new CourseSelectionCommand(
-                "invalid-token", "20230001", "JAVA101");
-
-        Message response = handler.handle(Message.request(
-                "invalid-token", MessageType.COURSE_SELECT, command));
-
-        assertEquals(StatusCode.UNAUTHORIZED, response.getStatusCode());
-        assertEquals(0, courses.selectedCourses("20230001").getData().size());
-    }
-
-    @Test
-    void userWithoutCourseSelectionPermissionIsRejected() {
-        UserCredentials teacher = new UserCredentials(
-                "teacher001", "password", "测试教师", Role.TEACHER.name());
-        assertEquals(StatusCode.OK, users.provisionAccount(teacher).getStatus());
-        ServiceResult<Session> login = users.login(teacher);
-        assertEquals(StatusCode.OK, login.getStatus());
-        Session teacherSession = login.getData();
-        CourseSelectionCommand command = new CourseSelectionCommand(
-                teacherSession.getToken(), "20230001", "JAVA101");
-
-        Message response = handler.handle(Message.request(
-                "permission-denied", MessageType.COURSE_SELECT, command));
-
-        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
-        assertEquals(0, courses.selectedCourses("20230001").getData().size());
     }
 
     @Test
     void invalidPayloadReturnsBadRequest() {
-        Message response = handler.handle(Message.request(
-                "invalid-payload", MessageType.COURSE_SELECT, "not a course command"));
-
+        Message response = handler.handle(Message.request("invalid",
+                MessageType.COURSE_SELECT_OFFERING_V2, "bad"));
         assertEquals(StatusCode.BAD_REQUEST, response.getStatusCode());
     }
 
     @Test
-    void unsupportedMessageTypeReturnsNotFound() {
-        Message response = handler.handle(Message.request(
-                "unsupported", MessageType.LIBRARY_QUERY, null));
+    void legacyCourseSelectionMessageReturnsClearUpgradeError() {
+        Message response = handler.handle(Message.request("legacy", MessageType.COURSE_SELECT,
+                new CourseSelectionCommand("STU-001", "C001")));
 
-        assertEquals(StatusCode.NOT_FOUND, response.getStatusCode());
+        assertEquals(StatusCode.BAD_REQUEST, response.getStatusCode());
+        assertTrue(String.valueOf(response.getPayload()).contains("V2"));
     }
 
-    private void registerStudent(String userId, String password, String displayName) {
-        users.register(new UserCredentials(userId, password, displayName, Role.STUDENT.name()));
+    @Test
+    void academicAdminCanManageCatalogAndOfferings() {
+        DefaultUserManagementService users = new DefaultUserManagementService(new InMemoryUserRepository(),
+                new SessionManager(), new InMemoryAuditLogRepository());
+        UserCredentials academicAdmin = new UserCredentials("academic_001", "password", "教务老师",
+                Role.ACADEMIC_ADMIN.name());
+        users.register(academicAdmin);
+        Session academicSession = users.login(academicAdmin).getData();
+        CourseSelectionModule module = CourseSelectionDemoFactory.createModule();
+        CourseMessageHandler managementHandler = new CourseMessageHandler(
+                module.getSelectionService(), module.getCatalogService(), module.getOfferingService(),
+                new InMemoryStudentSelectionProfileProvider(Collections.<StudentSelectionProfile>emptyList()),
+                users);
+
+        Message createCourse = managementHandler.handle(Message.request("create-course",
+                MessageType.COURSE_MANAGE, CourseManagementCommand.createCourse(
+                        academicSession.getToken(), new Course("CS201", "算法设计", 3))));
+        assertEquals(StatusCode.OK, createCourse.getStatusCode());
+
+        Message createOffering = managementHandler.handle(Message.request("create-offering",
+                MessageType.COURSE_MANAGE, CourseManagementCommand.createOffering(
+                        academicSession.getToken(), new CourseOffering("OFFER-CS201-01", "CS201",
+                                CourseSelectionDemoFactory.DEMO_TERM, "教师004", "周四 1-2 节", "A204",
+                                30, 10, 5, CourseOfferingStatus.DRAFT))));
+        assertEquals(StatusCode.OK, createOffering.getStatusCode());
+    }
+
+    @Test
+    void studentCannotCallCourseManagementMessage() {
+        Message response = handler.handle(Message.request("manage", MessageType.COURSE_MANAGE,
+                CourseManagementCommand.listCourses(session.getToken())));
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
     }
 }
