@@ -1,0 +1,84 @@
+' store 模块：商品、订单、购物车与库存管理
+package "store | 校园商店" as P_STORE {
+    interface ST_StoreService as "StoreService" {
+        + listProducts(): ServiceResult<List<Product>>
+        + purchase(userId, productId, quantity): ServiceResult<Void>
+        + findOrdersByUserId(userId): ServiceResult<List<Order>>
+        + restock(userId, productId, amount): ServiceResult<Void>
+        + add/update/deactivateProduct(...)
+        + addToCart/removeFromCart/getCart(...)
+        + checkout(userId): ServiceResult<Void>
+        + findAllOrders(): ServiceResult<List<Order>>
+        + listHotProducts(limit): ServiceResult<List<Product>>
+    }
+    class ST_DefaultStoreService as "DefaultStoreService"
+    class ST_InMemoryStoreService as "InMemoryStoreService"
+    interface ST_ProductRepository as "ProductRepository" {
+        + findAll(): List<Product>
+        + findById(id): Product
+        + save/updateProduct(product): boolean
+        + updateStock(productId, stock): boolean
+        + addStock(productId, amount): boolean
+        + deleteById(productId): boolean
+    }
+    interface ST_OrderRepository as "OrderRepository" {
+        + create(order): boolean
+        + findByUserId(userId): List<Order>
+        + findAll(): List<Order>
+        + findSalesVolume(): List<Object[]>
+    }
+    interface ST_CartRepository as "CartRepository" {
+        + findByUserId(userId): List<CartItem>
+        + addItem/removeItem(...): boolean
+        + updateQuantity(itemId, quantity): boolean
+        + clearByUserId(userId): void
+    }
+    class ST_InMemoryProductRepository as "InMemoryProductRepository"
+    class ST_InMemoryOrderRepository as "InMemoryOrderRepository"
+    class ST_InMemoryCartRepository as "InMemoryCartRepository"
+    class ST_Product as "Product" {
+        - productId: String
+        - name: String
+        - stock: int
+        - price: double
+        - description/category: String
+        - active: boolean
+    }
+    class ST_Order as "Order" {
+        - orderId/userId/productId: String
+        - quantity: int
+        - totalPrice/unitPrice: double
+        - orderDate: LocalDateTime
+        - productName: String <<snapshot>>
+    }
+    class ST_CartItem as "CartItem" {
+        - cartItemId/userId/productId: String
+        - quantity: int
+        - addedAt: LocalDateTime
+    }
+    class ST_StoreQueryCommand as "StoreQueryCommand"
+    class ST_StorePurchaseCommand as "StorePurchaseCommand"
+    class ST_StoreOrderQueryCommand as "StoreOrderQueryCommand"
+    class ST_StoreRestockCommand as "StoreRestockCommand"
+    class ST_StoreProductAddCommand as "StoreProductAddCommand"
+    class ST_StoreProductUpdateCommand as "StoreProductUpdateCommand"
+    class ST_StoreProductDeactivateCommand as "StoreProductDeactivateCommand"
+    class ST_CartAddCommand as "CartAddCommand"
+    class ST_CartRemoveCommand as "CartRemoveCommand"
+    class ST_CartQueryCommand as "CartQueryCommand"
+    class ST_CartCheckoutCommand as "CartCheckoutCommand"
+    class ST_StoreOrderListAllCommand as "StoreOrderListAllCommand"
+    class ST_StoreHotProductsCommand as "StoreHotProductsCommand"
+
+    ST_StoreService <|.. ST_DefaultStoreService
+    ST_StoreService <|.. ST_InMemoryStoreService
+    ST_InMemoryStoreService --> ST_DefaultStoreService : delegates
+    ST_ProductRepository <|.. ST_InMemoryProductRepository
+    ST_OrderRepository <|.. ST_InMemoryOrderRepository
+    ST_CartRepository <|.. ST_InMemoryCartRepository
+    ST_DefaultStoreService --> ST_ProductRepository
+    ST_DefaultStoreService --> ST_OrderRepository
+    ST_DefaultStoreService --> ST_CartRepository
+    ST_Order --> ST_Product : productId / price snapshot
+    ST_CartItem --> ST_Product : productId
+}
