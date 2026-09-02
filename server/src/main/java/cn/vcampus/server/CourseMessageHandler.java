@@ -56,7 +56,7 @@ final class CourseMessageHandler {
 
     Message handle(Message request) {
         if (request == null) {
-            return Message.response(Message.request("invalid", MessageType.COURSE_QUERY, null),
+            return Message.response(Message.request("invalid", MessageType.COURSE_SELECTION_QUERY_V2, null),
                     StatusCode.BAD_REQUEST, "request is invalid");
         }
         try {
@@ -76,11 +76,6 @@ final class CourseMessageHandler {
                 case COURSE_MANAGE:
                     result = manage(payload(request, CourseManagementCommand.class));
                     break;
-                case COURSE_QUERY:
-                case COURSE_SELECT:
-                case COURSE_DROP:
-                    return Message.response(request, StatusCode.BAD_REQUEST,
-                            "course selection protocol upgraded to V2; use explicit V2 message types");
                 default:
                     return Message.response(request, StatusCode.NOT_FOUND,
                             "course handler does not support this message");

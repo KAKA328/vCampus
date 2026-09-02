@@ -20,7 +20,7 @@
   - `COURSE_SELECTION_QUERY_V2`
   - `COURSE_SELECT_OFFERING_V2`
   - `COURSE_DROP_RECORD_V2`
-- 旧 `COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP` 恢复为旧课程级语义并标记弃用，服务端收到旧选课消息时返回升级提示，不再混用 V2 字段。
+- 选课协议只保留当前完整流程：查询轮次/教学班、选择教学班、按选课记录退选，以及教务管理命令；不保留早期课程级选课入口。
 - 商店已补齐商品查询/分类、购买、本人订单、购物车、商品维护、全量订单、热销排行协议；服务端分发、权限校验、内存服务和 Access 商品/订单仓储已同步。
 - `--db` 模式下用户、商店商品和订单使用 Access；购物车仍为进程内实现，选课仍为演示内存实现。
 - `VCampusTheme` 已覆盖登录、主界面、用户管理、商店、选课页面；`CourseSelectionPanel` 与 `CourseManagementPanel` 已统一按钮、表格、字体、边框和状态色。

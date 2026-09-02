@@ -33,13 +33,13 @@
 7. 正常、异常、权限拒绝测试；
 8. 本文档中的接口说明。
 
-完整选课流程已经升级为显式 V2 Socket 协议。早期 `COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP` 只表示“课程级简化选课”遗留入口，不再承载带轮次和教学班的完整流程；当前服务端收到旧选课消息会返回清晰的升级提示。新客户端必须使用：
+完整选课流程统一使用以下 Socket 协议：
 
 - `COURSE_SELECTION_QUERY_V2` + `CourseSelectionQueryV2Command(token, roundId?)`：查询可用选课轮次、指定轮次的教学班、本人已选教学班；
 - `COURSE_SELECT_OFFERING_V2` + `CourseSelectOfferingV2Command(token, roundId, offeringId)`：在指定轮次选择具体教学班；
 - `COURSE_DROP_RECORD_V2` + `CourseDropRecordV2Command(token, recordId)`：按选课记录编号退选。
 
-客户端不再提交 `studentId` 作为本人身份，服务端必须根据 `token -> user_id -> student_id` 推导学生档案；退选使用已选记录的 `recordId`。旧课程级消息类型不属于当前项目协议，也不提供兼容入口。
+客户端不提交 `studentId` 作为本人身份，服务端必须根据 `token -> user_id -> student_id` 推导学生档案；退选使用已选记录的 `recordId`。
 
 教务人员维护课程目录、教学班和选课轮次统一使用 `COURSE_MANAGE` 与
 `CourseManagementCommand`，服务端要求 `COURSE_MANAGE` 权限。选课轮次相关操作为：
@@ -82,6 +82,5 @@
 - 首个系统管理员由服务器读取 `VCAMPUS_BOOTSTRAP_ADMIN_ID`、`VCAMPUS_BOOTSTRAP_ADMIN_PASSWORD`、`VCAMPUS_BOOTSTRAP_ADMIN_NAME` 后在进程内初始化，不通过 Socket 暴露管理员注册接口。
 - 权限新增 `COURSE_MANAGE`、`GRADE_WRITE`、`ACADEMIC_REVIEW`。
 - 学生完整选课使用 `COURSE_SELECTION_QUERY_V2`、`COURSE_SELECT_OFFERING_V2`、`COURSE_DROP_RECORD_V2`，查询要求 `COURSE_READ`，选课和退选要求 `COURSE_SELECT`。
-- 课程维护使用 `COURSE_MANAGE`，要求 `COURSE_MANAGE` 权限；历史 `COURSE_CREATE`、`COURSE_UPDATE`、`COURSE_DEACTIVATE` 仅作为早期枚举保留。
-- `COURSE_DEACTIVATE` 表示停开；存在选课或历史记录时不得直接删除关联数据。
+- 课程维护统一使用 `COURSE_MANAGE`，要求 `COURSE_MANAGE` 权限；停开课程或教学班时，存在选课或历史记录不得直接物理删除关联数据。
 - 客户端只负责按角色隐藏无权入口，服务器 Handler 必须在调用业务接口前执行 `authorize`，拒绝时返回 `FORBIDDEN`。

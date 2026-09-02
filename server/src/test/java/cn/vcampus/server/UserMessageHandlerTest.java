@@ -178,7 +178,7 @@ class UserMessageHandlerTest {
 
     @Test
     void unsupportedMessageTypeReturnsNotFound() {
-        Message response = handler.handle(Message.request("r7", MessageType.COURSE_QUERY, null));
+        Message response = handler.handle(Message.request("r7", MessageType.LIBRARY_QUERY, null));
 
         assertEquals(StatusCode.NOT_FOUND, response.getStatusCode());
     }

@@ -7,13 +7,11 @@ import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
 import cn.vcampus.common.Role;
 import cn.vcampus.common.StatusCode;
-import cn.vcampus.course.CourseQueryCommand;
 import cn.vcampus.course.Course;
 import cn.vcampus.course.CourseManagementCommand;
 import cn.vcampus.course.CourseOffering;
 import cn.vcampus.course.CourseOfferingStatus;
 import cn.vcampus.course.CourseSelectionModule;
-import cn.vcampus.course.CourseSelectionCommand;
 import cn.vcampus.course.CourseSelectOfferingV2Command;
 import cn.vcampus.course.CourseSelectionQueryV2Command;
 import cn.vcampus.course.CourseSelectionDemoFactory;
@@ -72,15 +70,6 @@ class CourseMessageHandlerTest {
         Message response = handler.handle(Message.request("invalid",
                 MessageType.COURSE_SELECT_OFFERING_V2, "bad"));
         assertEquals(StatusCode.BAD_REQUEST, response.getStatusCode());
-    }
-
-    @Test
-    void legacyCourseSelectionMessageReturnsClearUpgradeError() {
-        Message response = handler.handle(Message.request("legacy", MessageType.COURSE_SELECT,
-                new CourseSelectionCommand("STU-001", "C001")));
-
-        assertEquals(StatusCode.BAD_REQUEST, response.getStatusCode());
-        assertTrue(String.valueOf(response.getPayload()).contains("V2"));
     }
 
     @Test
