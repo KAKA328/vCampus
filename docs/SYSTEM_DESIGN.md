@@ -262,7 +262,7 @@ database                 vCampus.accdb、schema.sql、seed.sql
 | `COURSE_SELECTION_QUERY_V2` | `CourseSelectionQueryV2Command(token, roundId?)` | `COURSE_READ`，服务端按 token 推导学生档案 |
 | `COURSE_SELECT_OFFERING_V2` | `CourseSelectOfferingV2Command(token, roundId, offeringId)` | `COURSE_SELECT`，服务端按 token 推导学生档案 |
 | `COURSE_DROP_RECORD_V2` | `CourseDropRecordV2Command(token, recordId)` | `COURSE_SELECT`，服务端按 token 推导学生档案 |
-| `COURSE_MANAGE` | 课程目录、教学班维护命令 | `COURSE_MANAGE` |
+| `COURSE_MANAGE` | `CourseManagementCommand`：课程目录维护；教学班创建、状态/容量调整；`UPDATE_OFFERING_TEACHING_INFO(offeringId, teacherId, location)` 仅修改任课教师和地点，不修改上课时间 | `COURSE_MANAGE` |
 | `LIBRARY_QUERY/BORROW/RETURN` | 图书/借还请求 | 按借阅规则 |
 | `STORE_QUERY` | `StoreQueryCommand(token)` | `STORE_READ`，服务端按 token 校验 |
 | `STORE_PURCHASE` | `StorePurchaseCommand(token, productId, quantity)` | `STORE_PURCHASE`，服务端按 token 取得 userId |

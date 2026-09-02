@@ -14,7 +14,7 @@
 - 学生学籍、选课、图书馆、商店四个模块的基础接口和实体；商店服务已补齐内存业务、Access 商品/订单仓储及管理/购物车协议处理；
 - 选课模块的轮次查询、教学班查询、学生选课、退选和本人已选教学班查询已接入服务器和学生客户端页面，完整流程使用显式 V2 协议。
 
-当前学生学籍、图书馆仍没有完整接入服务器分发和客户端页面；商店服务器分发已覆盖查询、购买、购物车、商品维护、订单管理和热销排行，但客户端暂有商品查询、购买和本人订单页面，管理员维护与购物车页面仍待补齐；选课模块仍需补充真实 Access 数据、教务开课/改课/停课、教师成绩录入和教务复核等管理功能。
+当前学生学籍已完成服务器分发、Access 仓储、Token 身份映射和基础 Swing 页面；学业审查已提供历史课程、待重修和实时审查接口。图书馆仍需完整接入服务器分发和客户端页面；商店服务器分发已覆盖查询、购买、购物车、商品维护、订单管理和热销排行，但客户端管理员维护与购物车页面仍待补齐；选课模块仍需补充真实 Access 选课数据、教师成绩录入和教务复核等管理功能。
 
 ## 2. 队友开始开发前要做什么
 
@@ -144,7 +144,7 @@ Message response = Message.response(request, StatusCode.OK, data);
 |---|---|
 | 用户管理 | `REGISTER`、`USER_IMPORT`、`UNREGISTER`、`LOGIN`、`LOGOUT`、`AUTHORIZE` |
 | 学生学籍 | `STUDENT_QUERY`、`STUDENT_UPDATE` |
-| 选课系统 | 旧协议保留：`COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP`；完整选课 V2：`COURSE_SELECTION_QUERY_V2`、`COURSE_SELECT_OFFERING_V2`、`COURSE_DROP_RECORD_V2`；课程维护：`COURSE_MANAGE` |
+| 选课系统 | 旧协议保留：`COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP`；完整选课 V2：`COURSE_SELECTION_QUERY_V2`、`COURSE_SELECT_OFFERING_V2`、`COURSE_DROP_RECORD_V2`；课程维护：`COURSE_MANAGE` + `CourseManagementCommand`，含课程目录、教学班创建、`CHANGE_OFFERING_STATUS`、`CHANGE_OFFERING_CAPACITIES`，以及 `UPDATE_OFFERING_TEACHING_INFO(offeringId, teacherId, location)` |
 | 图书馆 | `LIBRARY_QUERY`、`LIBRARY_BORROW`、`LIBRARY_RETURN` |
 | 商店 | `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY`、`STORE_RESTOCK`、`STORE_PRODUCT_ADD`、`STORE_PRODUCT_UPDATE`、`STORE_PRODUCT_DEACTIVATE`、`STORE_CART_ADD`、`STORE_CART_REMOVE`、`STORE_CART_QUERY`、`STORE_CART_CHECKOUT`、`STORE_ORDER_LIST_ALL`、`STORE_HOT_PRODUCTS` |
 
