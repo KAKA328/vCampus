@@ -98,6 +98,8 @@ saveStudent(token, studentRecord)
 bindStudentAccount(token, studentId, userId)
 ```
 
+在 Java 业务层，`StudentManagementService.findMyStudentProfile(userId)` 是服务器完成 Token 解析后的兼容别名，内部复用 `findByUserId(userId)`，不会接受客户端自行传入的身份编号。
+
 学生本人查询时，客户端只传 `token`；服务器解析出 `user_id` 后查询 `tblStudent.user_id`，不要让学生在界面上手工输入学号来决定查询范围。
 
 教务管理员维护学生档案时，可以按 `student_id` 查询和保存，但服务器仍要先检查教务权限。

@@ -39,9 +39,11 @@ public final class StudentManagementPanel extends JPanel {
     private final JTable table = new JTable(tableModel);
     private final JTextField studentIdQuery = new JTextField(12);
     private final JTextField classQuery = new JTextField(12);
+    private final JTextField majorQuery = new JTextField(12);
     private final JButton selfButton = new JButton("查询本人");
     private final JButton idButton = new JButton("按学号查询");
     private final JButton classButton = new JButton("按班级查询");
+    private final JButton majorButton = new JButton("按专业查询");
     private final JButton saveButton = new JButton("保存档案");
     private final JLabel status = new JLabel("请选择查询方式");
 
@@ -83,6 +85,7 @@ public final class StudentManagementPanel extends JPanel {
         selfButton.addActionListener(event -> loadSelf());
         idButton.addActionListener(event -> loadById());
         classButton.addActionListener(event -> loadByClass());
+        majorButton.addActionListener(event -> loadByMajor());
         saveButton.addActionListener(event -> save());
         table.getSelectionModel().addListSelectionListener(event -> {
             if (!event.getValueIsAdjusting()) loadSelectedRecord();
@@ -126,10 +129,13 @@ public final class StudentManagementPanel extends JPanel {
         VCampusTheme.secondaryButton(selfButton);
         VCampusTheme.secondaryButton(idButton);
         VCampusTheme.secondaryButton(classButton);
+        VCampusTheme.secondaryButton(majorButton);
         studentIdQuery.setToolTipText("输入学生学号");
         classQuery.setToolTipText("输入班级编号");
+        majorQuery.setToolTipText("输入专业名称");
         VCampusTheme.field(studentIdQuery);
         VCampusTheme.field(classQuery);
+        VCampusTheme.field(majorQuery);
         panel.add(selfButton);
         panel.add(new JLabel("学号"));
         panel.add(studentIdQuery);
@@ -137,6 +143,9 @@ public final class StudentManagementPanel extends JPanel {
         panel.add(new JLabel("班级"));
         panel.add(classQuery);
         panel.add(classButton);
+        panel.add(new JLabel("专业"));
+        panel.add(majorQuery);
+        panel.add(majorButton);
         return panel;
     }
 
@@ -215,6 +224,7 @@ public final class StudentManagementPanel extends JPanel {
         if (student) {
             studentIdQuery.setEnabled(false);
             classQuery.setEnabled(false);
+            majorQuery.setEnabled(false);
         }
     }
 
@@ -245,6 +255,16 @@ public final class StudentManagementPanel extends JPanel {
         runRequest("正在查询班级学生…", service -> service.findByClass(
                 session.getToken(), classQuery.getText()),
                 response -> showList(response, "班级学生查询成功"));
+    }
+
+    private void loadByMajor() {
+        if (!canQueryClass) {
+            showStatus("当前角色不能按专业查询", VCampusTheme.DANGER);
+            return;
+        }
+        runRequest("正在查询专业学生…", service -> service.findByMajor(
+                session.getToken(), majorQuery.getText()),
+                response -> showList(response, "专业学生查询成功"));
     }
 
     private void save() {
@@ -393,6 +413,7 @@ public final class StudentManagementPanel extends JPanel {
         selfButton.setEnabled(!requestInProgress);
         idButton.setEnabled(!requestInProgress && canQueryById);
         classButton.setEnabled(!requestInProgress && canQueryClass);
+        majorButton.setEnabled(!requestInProgress && canQueryClass);
         saveButton.setEnabled(!requestInProgress && canEdit);
     }
 

@@ -74,6 +74,12 @@ class StudentMessageHandlerTest {
                 StudentQueryCommand.byClass(studentToken, "SE2023-01"))).getStatusCode());
     }
 
+    @Test
+    void majorQueryRequiresAcademicAdministratorScope() {
+        assertEquals(StatusCode.FORBIDDEN, handler.handle(request(
+                StudentQueryCommand.byMajor(studentToken, "软件工程"))).getStatusCode());
+    }
+
     private static Message request(Object payload) {
         MessageType type = payload instanceof StudentUpdateCommand
                 ? MessageType.STUDENT_UPDATE : MessageType.STUDENT_QUERY;
@@ -103,6 +109,10 @@ class StudentMessageHandlerTest {
         }
 
         @Override public ServiceResult<List<StudentRecord>> findByClass(String classId) {
+            return ServiceResult.ok(Arrays.asList(records.get(0), records.get(1)));
+        }
+
+        @Override public ServiceResult<List<StudentRecord>> findByMajor(String majorName) {
             return ServiceResult.ok(Arrays.asList(records.get(0), records.get(1)));
         }
 

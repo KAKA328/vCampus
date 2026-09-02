@@ -73,6 +73,24 @@ public final class AccessStudentRepository implements StudentRepository {
     }
 
     @Override
+    public List<StudentRecord> findByMajor(String majorName) {
+        String sql = "SELECT " + COLUMNS + " FROM tblStudent WHERE major_name=? ORDER BY student_id";
+        try (Connection connection = open();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, requireText(majorName, "majorName"));
+            try (ResultSet results = statement.executeQuery()) {
+                List<StudentRecord> records = new ArrayList<StudentRecord>();
+                while (results.next()) {
+                    records.add(readRecord(results));
+                }
+                return records;
+            }
+        } catch (SQLException failure) {
+            throw databaseFailure("find students by major", failure);
+        }
+    }
+
+    @Override
     public synchronized StudentRecord save(StudentRecord record) {
         validate(record);
         try (Connection connection = open()) {

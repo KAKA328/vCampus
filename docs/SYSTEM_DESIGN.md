@@ -320,7 +320,8 @@ User 1 ── N Order ── N OrderItem ── N Product
 | 模块 | 接口 | 核心方法 |
 |---|---|---|
 | 用户 | `UserManagementService` | `register`、`unregister`、`login`、`logout`、`authorize` |
-| 学籍 | `StudentManagementService` | `findById`、`findByClass`、`save` |
+| 学籍 | `StudentManagementService` | `findById`、`findByUserId`、`findMyStudentProfile`、`findByClass`、`findByMajor`、`save` |
+| 学业审查 | `AcademicReviewService` | `historyFor`、`pendingRetakes`、`review`、`latestReview` |
 | 选课 | `CourseSelectionService` | `listCourses`、`select`、`drop`、`selectedCourses` |
 | 图书馆 | `LibraryService` | `search`、`borrow`、`returnBook` |
 | 商店 | `StoreService` | `listProducts`、`purchase`、`findOrdersByUserId` |

@@ -34,6 +34,11 @@ public final class RemoteStudentService implements Closeable {
         return send(MessageType.STUDENT_QUERY, StudentQueryCommand.byClass(token, classId));
     }
 
+    /** 按专业查询学生档案。 */
+    public Message findByMajor(String token, String majorName) throws IOException, ClassNotFoundException {
+        return send(MessageType.STUDENT_QUERY, StudentQueryCommand.byMajor(token, majorName));
+    }
+
     /** 保存学生档案；服务器根据会话角色执行字段级权限校验。 */
     public Message save(String token, StudentRecord record) throws IOException, ClassNotFoundException {
         return send(MessageType.STUDENT_UPDATE, new StudentUpdateCommand(token, record));

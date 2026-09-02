@@ -21,6 +21,7 @@ public class DefaultStudentManagementServiceTest {
         assertEquals(StatusCode.NOT_FOUND, service.findById("S999").getStatus());
         assertEquals(StatusCode.OK, service.findByUserId("u001").getStatus());
         assertEquals(StatusCode.NOT_FOUND, service.findByUserId("unbound").getStatus());
+        assertEquals(StatusCode.OK, service.findMyStudentProfile("u001").getStatus());
     }
 
     @Test
@@ -30,6 +31,7 @@ public class DefaultStudentManagementServiceTest {
         assertEquals(StatusCode.BAD_REQUEST, service.findById(" ").getStatus());
         assertEquals(StatusCode.BAD_REQUEST, service.findByUserId(" ").getStatus());
         assertEquals(StatusCode.BAD_REQUEST, service.findByClass(null).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.findByMajor(" ").getStatus());
     }
 
     @Test
@@ -75,6 +77,10 @@ public class DefaultStudentManagementServiceTest {
         }
         @Override public List<StudentRecord> findByClass(String classId) {
             if (classId == null || classId.trim().isEmpty()) throw new IllegalArgumentException("classId must not be blank");
+            return Collections.emptyList();
+        }
+        @Override public List<StudentRecord> findByMajor(String majorName) {
+            if (majorName == null || majorName.trim().isEmpty()) throw new IllegalArgumentException("majorName must not be blank");
             return Collections.emptyList();
         }
         @Override public StudentRecord save(StudentRecord record) {

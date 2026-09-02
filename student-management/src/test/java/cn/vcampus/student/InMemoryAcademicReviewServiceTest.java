@@ -26,6 +26,8 @@ public class InMemoryAcademicReviewServiceTest {
         assertEquals(2, result.getData().getPassedCourseCount());
         assertEquals(0, result.getData().getFailedCourseCount());
         assertEquals(1, result.getData().getRetakeCourseCount());
+        assertEquals(StatusCode.OK, service.latestReview("S001").getStatus());
+        assertEquals(6, service.latestReview("S001").getData().getTotalEarnedCredits());
     }
 
     @Test
@@ -76,5 +78,11 @@ public class InMemoryAcademicReviewServiceTest {
                 new InMemoryAcademicReviewService().pendingRetakes(" ");
 
         assertEquals(StatusCode.BAD_REQUEST, result.getStatus());
+    }
+
+    @Test
+    public void latestReviewReportsNotFoundBeforeAnyReview() {
+        assertEquals(StatusCode.NOT_FOUND,
+                new InMemoryAcademicReviewService().latestReview("S001").getStatus());
     }
 }

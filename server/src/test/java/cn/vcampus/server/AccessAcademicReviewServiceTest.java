@@ -38,12 +38,19 @@ class AccessAcademicReviewServiceTest {
                     + "course_id VARCHAR(32) NOT NULL, offering_id VARCHAR(36), semester VARCHAR(32) NOT NULL,"
                     + "attempt_no INTEGER NOT NULL, attempt_type VARCHAR(16) NOT NULL, score INTEGER,"
                     + "passed BIT NOT NULL, earned_credits INTEGER NOT NULL, recorded_at DATETIME NOT NULL,"
-                    + "PRIMARY KEY (result_id))");
+                        + "PRIMARY KEY (result_id))");
+            statement.execute("CREATE TABLE tblAcademicReview ("
+                    + "review_id VARCHAR(36) NOT NULL, student_id VARCHAR(32) NOT NULL,"
+                    + "total_earned_credits INTEGER NOT NULL, required_earned_credits INTEGER NOT NULL,"
+                    + "failed_course_count INTEGER NOT NULL, retake_course_count INTEGER NOT NULL,"
+                    + "graduation_ready BIT NOT NULL, reviewed_by VARCHAR(32) NOT NULL,"
+                    + "reviewed_at DATETIME NOT NULL, remark VARCHAR(255), PRIMARY KEY (review_id))");
             insertCourse(connection, "C001", "Java程序设计", 3);
             insertCourse(connection, "C002", "数据库原理", 3);
             insertResult(connection, "R001", "S001", "C001", "2025-2026-1", 1, "首修", 48, false, 0);
             insertResult(connection, "R002", "S001", "C001", "2025-2026-2", 2, "重修", 76, true, 3);
             insertResult(connection, "R003", "S001", "C002", "2025-2026-1", 1, "首修", 50, false, 0);
+            insertReview(connection, "RV001", "S001", 3, 6, 1, 1, false, "admin", "阶段审查");
         }
         service = new AccessAcademicReviewService(database);
     }
@@ -73,6 +80,16 @@ class AccessAcademicReviewServiceTest {
         assertEquals(StatusCode.BAD_REQUEST, service.pendingRetakes(" ").getStatus());
     }
 
+    @Test
+    void latestReviewMapsSnapshotColumns() {
+        assertEquals(StatusCode.OK, service.latestReview("S001").getStatus());
+        assertEquals("RV001", service.latestReview("S001").getData().getReviewId());
+        assertEquals(6, service.latestReview("S001").getData().getRequiredEarnedCredits());
+        assertEquals(1, service.latestReview("S001").getData().getPassedCourseCount());
+        assertEquals("admin", service.latestReview("S001").getData().getReviewedBy());
+        assertEquals("阶段审查", service.latestReview("S001").getData().getRemark());
+    }
+
     private static void insertCourse(Connection connection, String id, String name, int credits)
             throws Exception {
         try (PreparedStatement statement = connection.prepareStatement(
@@ -100,6 +117,26 @@ class AccessAcademicReviewServiceTest {
             statement.setInt(7, score);
             statement.setBoolean(8, passed);
             statement.setInt(9, earnedCredits);
+            statement.executeUpdate();
+        }
+    }
+
+    private static void insertReview(Connection connection, String reviewId, String studentId,
+            int totalCredits, int requiredCredits, int failedCount, int retakeCount,
+            boolean ready, String reviewedBy, String remark) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "INSERT INTO tblAcademicReview(review_id,student_id,total_earned_credits,"
+                        + "required_earned_credits,failed_course_count,retake_course_count,"
+                        + "graduation_ready,reviewed_by,reviewed_at,remark) VALUES(?,?,?,?,?,?,?,?,NOW(),?)")) {
+            statement.setString(1, reviewId);
+            statement.setString(2, studentId);
+            statement.setInt(3, totalCredits);
+            statement.setInt(4, requiredCredits);
+            statement.setInt(5, failedCount);
+            statement.setInt(6, retakeCount);
+            statement.setBoolean(7, ready);
+            statement.setString(8, reviewedBy);
+            statement.setString(9, remark);
             statement.executeUpdate();
         }
     }

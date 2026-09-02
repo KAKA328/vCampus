@@ -36,6 +36,17 @@ public final class InMemoryStudentRepository implements StudentRepository {
     }
 
     @Override
+    public synchronized List<StudentRecord> findByMajor(String majorName) {
+        String normalized = requireText(majorName, "majorName");
+        List<StudentRecord> result = new ArrayList<StudentRecord>();
+        for (StudentRecord record : records.values()) {
+            if (normalized.equals(record.getMajorName())) result.add(record);
+        }
+        Collections.sort(result, (left, right) -> left.getStudentId().compareTo(right.getStudentId()));
+        return result;
+    }
+
+    @Override
     public synchronized StudentRecord save(StudentRecord record) {
         if (record == null) throw new IllegalArgumentException("record must not be null");
         String studentId = requireText(record.getStudentId(), "studentId");

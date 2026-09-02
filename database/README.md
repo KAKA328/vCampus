@@ -30,6 +30,8 @@
 - `tblCourseResult`：历史课程结果，保存学生每次首修/重修记录、成绩、是否通过和获得学分。
 - `tblAcademicReview`：学业审查结果快照，保存累计学分、挂科门数、重修门数、是否满足毕业要求和审核人。
 
+学籍服务的 `latestReview(studentId)` 读取该表最近一次快照；`review(studentId, requiredCredits)` 根据 `tblCourseResult` 实时计算，不会覆盖历史快照。快照中的通过课程数由课程结果按课程号去重计算。
+
 ## 商店模块表
 
 - `tblProduct`：商品、库存、价格和分类；`active` 表示是否上架。

@@ -63,6 +63,14 @@ class AccessStudentRepositoryTest {
     }
 
     @Test
+    void findsMajorMembersInStableStudentIdOrder() {
+        List<StudentRecord> records = repository.findByMajor("软件工程");
+        assertEquals(2, records.size());
+        assertEquals("S001", records.get(0).getStudentId());
+        assertEquals("S002", records.get(1).getStudentId());
+    }
+
+    @Test
     void saveInsertsAndUpdatesAStudent() {
         StudentRecord created = new StudentRecord("S003", "u003", "王五", "男", "信息学院",
                 "计算机科学", "CS2024-01", 2024, "在读", "13800000003", "wang@example.com");

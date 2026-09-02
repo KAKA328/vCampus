@@ -58,6 +58,19 @@ public final class DefaultStudentManagementService implements StudentManagementS
     }
 
     @Override
+    public ServiceResult<List<StudentRecord>> findByMajor(String majorName) {
+        try {
+            List<StudentRecord> records = students.findByMajor(majorName);
+            return ServiceResult.ok(records == null
+                    ? Collections.<StudentRecord>emptyList() : records);
+        } catch (IllegalArgumentException failure) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, failure.getMessage());
+        } catch (IllegalStateException failure) {
+            return ServiceResult.failure(StatusCode.SERVER_ERROR, "failed to find students by major");
+        }
+    }
+
+    @Override
     public ServiceResult<StudentRecord> save(StudentRecord record) {
         try {
             return ServiceResult.ok(students.save(record));

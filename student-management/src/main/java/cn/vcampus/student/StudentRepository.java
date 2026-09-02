@@ -7,5 +7,6 @@ public interface StudentRepository {
     StudentRecord findById(String studentId);
     StudentRecord findByUserId(String userId);
     List<StudentRecord> findByClass(String classId);
+    List<StudentRecord> findByMajor(String majorName);
     StudentRecord save(StudentRecord record);
 }
