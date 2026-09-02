@@ -408,10 +408,11 @@ package "store 模块" as PSTORE {
     class DefaultStoreService {
         - products: ProductRepository
         - orders: OrderRepository
-        - cart: CartRepository <<可为 null>>
-        + 管理员商品管理 + 购物车业务已实现，
-          findAllOrders / listHotProducts / listProducts(category) 仍为占位；
-          checkout 两段式：预检全部通过才下单并清空购物车
+        - cart: CartRepository
+        + 管理员商品管理、购物车业务、findAllOrders / listHotProducts /
+          listProducts(category) 均已实现；
+          checkout 回滚式：逐项扣库存下单，任一步失败则撤销订单恢复库存，
+          全部成功后清空购物车，清空失败也整体回滚
     }
 
     class InMemoryStoreService {
@@ -433,7 +434,7 @@ package "store 模块" as PSTORE {
         + create(order): boolean
         + findByUserId(userId): List<Order>
         + findAll(): List<Order>
-        + findSalesVolume(): List<Map.Entry<String, Integer>>
+        + findSalesVolume(): List<Object[]>
     }
 
     interface CartRepository {
@@ -455,7 +456,6 @@ package "store 模块" as PSTORE {
 
     class InMemoryCartRepository {
         - items: ConcurrentHashMap<String, CartItem>
-        - userIdMap: ConcurrentHashMap<String, List<CartItem>>
     }
 
     class Product <<Value Object>> {

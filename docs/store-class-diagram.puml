@@ -26,18 +26,18 @@ package "store 模块" {
     class DefaultStoreService {
         - products: ProductRepository
         - orders: OrderRepository
-        - cart: CartRepository <<可为 null>>
+        - cart: CartRepository
         + listProducts(): ServiceResult<List<Product>> <<只返回上架商品>>
         + purchase(userId, productId, quantity): ServiceResult<Void>
         + findOrdersByUserId(userId): ServiceResult<List<Order>>
         + restock / addProduct / updateProduct / deactivateProduct
         + addToCart / removeFromCart / getCart / checkout
-        + findAllOrders / listHotProducts / listProducts(category)（占位）
+        + findAllOrders / listHotProducts / listProducts(category)
     }
     note bottom of DefaultStoreService
-        2 参构造函数委托 3 参版本，购物车传 null（向后兼容），
-        此时购物车方法统一返回 BAD_REQUEST；
-        checkout 采用两段式：tryBuy 全部预检通过后才逐项 purchase 并清空购物车
+        2 参构造函数委托 3 参版本，购物车默认用 InMemoryCartRepository；
+        checkout 采用回滚式：逐项扣库存并下单，任一步失败则撤销已下订单、
+        恢复库存；全部成功后清空购物车，清空失败也整体回滚
     end note
 
     class InMemoryStoreService {
@@ -62,7 +62,7 @@ package "store 模块" {
         + create(order: Order): boolean
         + findByUserId(userId: String): List<Order>
         + findAll(): List<Order>
-        + findSalesVolume(): List<Map.Entry<String, Integer>>
+        + findSalesVolume(): List<Object[]> <<[商品编号, 销量]>>
     }
 
     interface CartRepository {
@@ -90,12 +90,11 @@ package "store 模块" {
         + create(order): boolean
         + findByUserId(userId): List<Order>
         + findAll(): List<Order>
-        + findSalesVolume(): List<Map.Entry<String, Integer>> <<不可变快照，可序列化>>
+        + findSalesVolume(): List<Object[]> <<按销量降序>>
     }
 
     class InMemoryCartRepository {
         - items: ConcurrentHashMap<String, CartItem>
-        - userIdMap: ConcurrentHashMap<String, List<CartItem>>
         + findByUserId(userId): List<CartItem> <<返回副本>>
         + addItem(item): boolean <<同商品数量累加>>
         + removeItem(cartItemId): boolean
