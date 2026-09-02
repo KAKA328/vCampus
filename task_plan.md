@@ -16,3 +16,11 @@
 
 ## 状态
 当前阶段已完成：新增测试已提交并推送到 `origin/feature/student-management`。
+
+## Follow-up: 2026-09-02 main 文档同步与对接契约
+- [x] 获取最新 `origin/main`（2230462）并确认本次为课程维护文档更新
+- [x] 备份学籍分支并合并最新 main
+- [x] 解决 `docs/INTERFACES.md`、`docs/SYSTEM_DESIGN.md` 文档冲突
+- [x] 更新 `docs/MODULE_INTEGRATION_GUIDE.md` 中的学籍完成状态和课程维护操作
+- [x] 新增 `docs/STUDENT_COURSE_INTEGRATION.md`，明确学籍与选课接口、字段责任、Token 流程和联调验收
+- [x] 运行 `mvn -pl server -am test`（67 项通过）并推送 `5896c73`
