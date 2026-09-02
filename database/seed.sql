@@ -18,14 +18,14 @@ INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, for
 VALUES ('demo_teacher', 'cSoOs3pVGxBnmJO0OZy1Rg==:qmNTtyQn+Lprr8EEzSRs/ZNxtQKgSEzVy3WOSl7VYdQ=', 'Demo Teacher', 'TEACHER', 1, 0);
 
 -- 选课模块演示课程。
-INSERT INTO tblCourse(course_id, course_name, credits, capacity)
-VALUES ('JAVA101', 'Java 程序设计', 3, 40);
+INSERT INTO tblCourse(course_id, course_name, credits, capacity, status)
+VALUES ('JAVA101', 'Java 程序设计', 3, 40, 'ACTIVE');
 
-INSERT INTO tblCourse(course_id, course_name, credits, capacity)
-VALUES ('DB101', '数据库原理', 3, 40);
+INSERT INTO tblCourse(course_id, course_name, credits, capacity, status)
+VALUES ('DB101', '数据库原理', 3, 40, 'ACTIVE');
 
-INSERT INTO tblCourse(course_id, course_name, credits, capacity)
-VALUES ('NET101', '计算机网络', 3, 30);
+INSERT INTO tblCourse(course_id, course_name, credits, capacity, status)
+VALUES ('NET101', '计算机网络', 3, 30, 'ACTIVE');
 
 -- 学籍与学业审查演示数据：演示账号已预先绑定档案；正式历史成绩由教务维护或导入。
 INSERT INTO tblStudent(student_id, user_id, student_name, gender, department_name, major_name, class_id, enrollment_year, status, phone, email)

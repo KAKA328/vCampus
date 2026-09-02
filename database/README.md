@@ -14,11 +14,13 @@
 
 ## 选课模块表
 
-- `tblCourse`：课程基本信息，包含课程号、课程名称、学分和课程容量。
+- `tblCourse`：课程目录，保存课程号、课程名称、学分和启用/停用状态。旧的 `capacity` 列只为兼容早期演示表结构保留；实际可选人数由 `tblCourseOffering` 的具体教学班容量决定。
 - `tblCourseSelection`：学生选课记录，包含学生学号、课程号和选课时间。
 - `tblSelectionRound`：教务人员维护的选课轮次，保存学期、首修/重修类型、起止时间和状态；同一学期每种轮次类型最多一条。
 
 `tblCourseSelection(student_id, course_id)` 使用唯一索引，保证同一学生不能重复选择同一门课程。已选人数不单独存入 `tblCourse`，而是在选课时统计选课记录，避免人数数据不一致。
+
+已有数据库若已按早期结构创建 `tblCourse`，需先执行 `database/migrations/009_course_catalog_status.up.sql`，为已有课程补充 `ACTIVE` 状态；回滚使用同名 `.down.sql`。新建数据库直接使用 `schema.sql`，不需要重复执行该迁移。
 
 ## 学籍审查规划表
 

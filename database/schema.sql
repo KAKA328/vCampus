@@ -49,6 +49,7 @@ CREATE TABLE tblCourse (
     course_name VARCHAR(100) NOT NULL,
     credits INTEGER NOT NULL,
     capacity INTEGER NOT NULL,
+    status VARCHAR(16) NOT NULL,
     PRIMARY KEY (course_id)
 );
 
