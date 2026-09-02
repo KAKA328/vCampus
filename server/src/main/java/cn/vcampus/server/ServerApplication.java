@@ -147,8 +147,9 @@ public final class ServerApplication implements Closeable {
 
     public static void main(String[] args) throws IOException {
         int port = parsePort(args);
-        new ServerApplication(port, UserServiceFactory.create(args),
-                StoreServiceFactory.create(args)).start();
+        CourseServiceFactory.CourseRuntime courses = CourseServiceFactory.create(args);
+        new ServerApplication(port, UserServiceFactory.create(args), courses.getModule(),
+                courses.getProfiles(), StoreServiceFactory.create(args)).start();
     }
 
     private ServerApplication(int port, UserManagementService users, StoreService store) {
