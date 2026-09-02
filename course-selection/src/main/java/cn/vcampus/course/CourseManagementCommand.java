@@ -14,7 +14,8 @@ public final class CourseManagementCommand implements Serializable {
         CHANGE_COURSE_STATUS,
         CREATE_OFFERING,
         CHANGE_OFFERING_STATUS,
-        CHANGE_OFFERING_CAPACITIES
+        CHANGE_OFFERING_CAPACITIES,
+        UPDATE_OFFERING_TEACHING_INFO
     }
 
     private final String token;
@@ -30,11 +31,22 @@ public final class CourseManagementCommand implements Serializable {
     private final int crossMajorCapacity;
     private final CourseStatus courseStatus;
     private final CourseOfferingStatus offeringStatus;
+    private final String teacherId;
+    private final String location;
 
     private CourseManagementCommand(String token, Operation operation, Course course,
             CourseOffering offering, String targetId, String term, String name, int credits,
             int requiredCapacity, int electiveCapacity, int crossMajorCapacity,
             CourseStatus courseStatus, CourseOfferingStatus offeringStatus) {
+        this(token, operation, course, offering, targetId, term, name, credits, requiredCapacity,
+                electiveCapacity, crossMajorCapacity, courseStatus, offeringStatus, null, null);
+    }
+
+    private CourseManagementCommand(String token, Operation operation, Course course,
+            CourseOffering offering, String targetId, String term, String name, int credits,
+            int requiredCapacity, int electiveCapacity, int crossMajorCapacity,
+            CourseStatus courseStatus, CourseOfferingStatus offeringStatus, String teacherId,
+            String location) {
         this.token = requireText(token, "token");
         if (operation == null) {
             throw new IllegalArgumentException("operation must not be null");
@@ -51,6 +63,8 @@ public final class CourseManagementCommand implements Serializable {
         this.crossMajorCapacity = crossMajorCapacity;
         this.courseStatus = courseStatus;
         this.offeringStatus = offeringStatus;
+        this.teacherId = teacherId;
+        this.location = location;
     }
 
     public static CourseManagementCommand listCourses(String token) {
@@ -107,6 +121,13 @@ public final class CourseManagementCommand implements Serializable {
                 electiveCapacity, crossMajorCapacity, null, null);
     }
 
+    public static CourseManagementCommand updateOfferingTeachingInfo(String token,
+            String offeringId, String teacherId, String location) {
+        return new CourseManagementCommand(token, Operation.UPDATE_OFFERING_TEACHING_INFO, null,
+                null, requireText(offeringId, "offeringId"), null, null, 0, 0, 0, 0, null, null,
+                requireText(teacherId, "teacherId"), requireText(location, "location"));
+    }
+
     public String getToken() { return token; }
     public Operation getOperation() { return operation; }
     public Course getCourse() { return course; }
@@ -120,6 +141,8 @@ public final class CourseManagementCommand implements Serializable {
     public int getCrossMajorCapacity() { return crossMajorCapacity; }
     public CourseStatus getCourseStatus() { return courseStatus; }
     public CourseOfferingStatus getOfferingStatus() { return offeringStatus; }
+    public String getTeacherId() { return teacherId; }
+    public String getLocation() { return location; }
 
     private static String requireText(String value, String fieldName) {
         if (value == null || value.trim().isEmpty()) {

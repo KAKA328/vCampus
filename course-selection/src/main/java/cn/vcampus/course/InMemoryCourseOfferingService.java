@@ -166,6 +166,25 @@ public final class InMemoryCourseOfferingService implements CourseOfferingServic
         }
     }
 
+    @Override
+    public synchronized ServiceResult<CourseOffering> updateTeachingInfo(String offeringId,
+            String teacherId, String location) {
+        String normalizedOfferingId = normalize(offeringId);
+        String normalizedTeacherId = normalize(teacherId);
+        String normalizedLocation = normalize(location);
+        if (normalizedOfferingId == null || normalizedTeacherId == null || normalizedLocation == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "offeringId, teacherId and location must not be blank");
+        }
+        CourseOffering existing = offeringsById.get(normalizedOfferingId);
+        if (existing == null) {
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "course offering not found");
+        }
+        CourseOffering changed = existing.withTeachingInfo(normalizedTeacherId, normalizedLocation);
+        offeringsById.put(normalizedOfferingId, changed);
+        return ServiceResult.ok(changed);
+    }
+
     private ServiceResult<List<CourseOffering>> listByCourseAndStatus(String courseId,
             String term, CourseOfferingStatus requiredStatus) {
         String normalizedCourseId = normalize(courseId);
