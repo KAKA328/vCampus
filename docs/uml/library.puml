@@ -1,0 +1,14 @@
+' library 模块：当前为可替换的业务接口与图书模型
+package "library | 图书馆" as P_LIBRARY {
+    interface L_LibraryService as "LibraryService" {
+        + search(keyword): ServiceResult<List<Book>>
+        + borrow(studentId, bookId): ServiceResult<Void>
+        + returnBook(studentId, bookId): ServiceResult<Void>
+    }
+    class L_Book as "Book" {
+        - bookId: String
+        - title: String
+        - author: String
+    }
+    L_LibraryService ..> L_Book
+}

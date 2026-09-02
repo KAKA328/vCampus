@@ -1,0 +1,46 @@
+' common 模块：Socket 协议与跨模块共享类型
+package "common | 协议与共享类型" as P_COMMON {
+    class C_Message as "Message" {
+        - requestId: String
+        - type: MessageType
+        - statusCode: StatusCode
+        - sender: String
+        - payload: Object
+        + request(requestId, type, payload): Message
+        + response(request, statusCode, payload): Message
+        + withSender(value): Message
+    }
+    enum C_MessageType as "MessageType" {
+        REGISTER / LOGIN / LOGOUT / UNREGISTER
+        AUTHORIZE / USER_LIST / USER_IMPORT
+        USER_ENABLE / USER_DISABLE / USER_ROLE_CHANGE
+        USER_AUDIT_LIST / PASSWORD_RESET_* / PASSWORD_CHANGE
+        STUDENT_QUERY / STUDENT_UPDATE
+        COURSE_QUERY / COURSE_SELECT / COURSE_DROP
+        COURSE_MANAGE / COURSE_SELECTION_QUERY_V2
+        COURSE_SELECT_OFFERING_V2 / COURSE_DROP_RECORD_V2
+        LIBRARY_QUERY / LIBRARY_BORROW / LIBRARY_RETURN
+        STORE_QUERY / STORE_PURCHASE / STORE_ORDER_QUERY
+        STORE_RESTOCK / STORE_PRODUCT_* / STORE_CART_*
+    }
+    enum C_StatusCode as "StatusCode" {
+        OK / BAD_REQUEST / UNAUTHORIZED / FORBIDDEN
+        NOT_FOUND / CONFLICT / SERVER_ERROR
+    }
+    enum C_Role as "Role" {
+        ADMIN / STUDENT / TEACHER
+        ACADEMIC_ADMIN / LIBRARIAN / STORE_MANAGER
+    }
+    class "ServiceResult<T>" as C_ServiceResult {
+        - status: StatusCode
+        - data: T
+        - message: String
+        + ok(data): ServiceResult<T>
+        + failure(status, message): ServiceResult<T>
+    }
+    class C_User as "User" {
+        - userId: String
+        - displayName: String
+        - role: Role
+    }
+}
