@@ -151,6 +151,16 @@ public final class CourseOffering implements Serializable {
                 meetingSchedule);
     }
 
+    /**
+     * 返回任课老师或上课地点更新后的教学班。
+     *
+     * <p>本方法刻意不接收上课时间参数，避免普通教学班维护误改既有的上课安排。</p>
+     */
+    public CourseOffering withTeachingInfo(String newTeacherId, String newLocation) {
+        return new CourseOffering(offeringId, courseId, term, newTeacherId, schedule, newLocation,
+                requiredCapacity, electiveCapacity, crossMajorCapacity, status, meetingSchedule);
+    }
+
     /** 返回附加结构化上课时间表后的新教学班对象。 */
     public CourseOffering withMeetingSchedule(CourseSchedule newMeetingSchedule) {
         return new CourseOffering(offeringId, courseId, term, teacherId, schedule, location,

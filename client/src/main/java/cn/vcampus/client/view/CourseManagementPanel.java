@@ -108,6 +108,7 @@ public final class CourseManagementPanel extends JPanel {
         form.add(new JLabel("跨专业")); form.add(crossMajorCapacity);
         form.add(actionButton("刷新教学班", e -> loadOfferings()));
         form.add(actionButton("新增教学班", e -> createOffering()));
+        form.add(actionButton("更新教师/地点", e -> updateOfferingTeachingInfo()));
         form.add(actionButton("更新容量", e -> updateOfferingCapacities()));
         form.add(actionButton("开放/关闭", e -> toggleOfferingStatus()));
         offeringTable.getSelectionModel().addListSelectionListener(e -> fillOfferingFields());
@@ -210,6 +211,17 @@ public final class CourseManagementPanel extends JPanel {
                     nonNegative(crossMajorCapacity, "跨专业容量")), response -> showSuccess(response,
                             "教学班容量已更新，请刷新教学班列表"));
         } catch (IllegalArgumentException invalid) { status.setText("容量填写不正确：" + invalid.getMessage()); }
+    }
+
+    /** 仅提交教师和地点；上课时间由教学班创建时确定，本次维护不会修改它。 */
+    private void updateOfferingTeachingInfo() {
+        try {
+            request(CourseManagementCommand.updateOfferingTeachingInfo(session.getToken(),
+                    text(offeringId), text(teacherId), text(location)), response -> showSuccess(response,
+                            "任课老师和上课地点已更新，请刷新教学班列表"));
+        } catch (IllegalArgumentException invalid) {
+            status.setText("任课老师和地点不能为空");
+        }
     }
 
     private void toggleOfferingStatus() {
