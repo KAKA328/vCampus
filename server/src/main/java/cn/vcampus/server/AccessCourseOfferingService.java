@@ -4,9 +4,11 @@ import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.Course;
 import cn.vcampus.course.CourseCatalogService;
+import cn.vcampus.course.CourseMeeting;
 import cn.vcampus.course.CourseOffering;
 import cn.vcampus.course.CourseOfferingService;
 import cn.vcampus.course.CourseOfferingStatus;
+import cn.vcampus.course.CourseSchedule;
 import cn.vcampus.course.CourseSelectionRecord;
 import cn.vcampus.course.CourseSelectionRecordService;
 import cn.vcampus.course.SelectionType;
@@ -16,6 +18,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.DayOfWeek;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -66,11 +69,18 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
         String sql = "INSERT INTO tblCourseOffering(offering_id,course_id,term,teacher_id,"
                 + "schedule,location,required_capacity,elective_capacity,cross_major_capacity,status) "
                 + "VALUES(?,?,?,?,?,?,?,?,?,?)";
-        try (Connection connection = open();
-                PreparedStatement statement = connection.prepareStatement(sql)) {
-            writeOffering(statement, offering);
-            statement.executeUpdate();
-            return ServiceResult.ok(offering);
+        try (Connection connection = open()) {
+            connection.setAutoCommit(false);
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                writeOffering(statement, offering);
+                statement.executeUpdate();
+                writeMeetingSchedule(connection, offering);
+                connection.commit();
+                return ServiceResult.ok(offering);
+            } catch (SQLException failure) {
+                rollback(connection);
+                return databaseFailure(failure);
+            }
         } catch (SQLException failure) {
             return databaseFailure(failure);
         }
@@ -89,7 +99,7 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, normalizedOfferingId);
             try (ResultSet results = statement.executeQuery()) {
-                return results.next() ? ServiceResult.ok(readOffering(results))
+                return results.next() ? ServiceResult.ok(readOffering(results, connection))
                         : ServiceResult.<CourseOffering>failure(StatusCode.NOT_FOUND,
                                 "course offering not found");
             }
@@ -108,7 +118,7 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, normalizedTerm);
-            return readOfferings(statement);
+            return readOfferings(statement, connection);
         } catch (SQLException failure) {
             return databaseFailure(failure);
         }
@@ -237,7 +247,7 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
             if (requiredStatus != null) {
                 statement.setString(3, requiredStatus.name());
             }
-            return readOfferings(statement);
+            return readOfferings(statement, connection);
         } catch (SQLException failure) {
             return databaseFailure(failure);
         }
@@ -318,12 +328,13 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
                 + "elective_capacity,cross_major_capacity,status FROM tblCourseOffering";
     }
 
-    private static ServiceResult<List<CourseOffering>> readOfferings(PreparedStatement statement)
+    private static ServiceResult<List<CourseOffering>> readOfferings(PreparedStatement statement,
+            Connection connection)
             throws SQLException {
         try (ResultSet results = statement.executeQuery()) {
             List<CourseOffering> offerings = new ArrayList<CourseOffering>();
             while (results.next()) {
-                offerings.add(readOffering(results));
+                offerings.add(readOffering(results, connection));
             }
             return ServiceResult.ok(Collections.unmodifiableList(offerings));
         }
@@ -343,13 +354,65 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
         statement.setString(10, offering.getStatus().name());
     }
 
-    private static CourseOffering readOffering(ResultSet results) throws SQLException {
-        return new CourseOffering(results.getString("offering_id"), results.getString("course_id"),
+    private static CourseOffering readOffering(ResultSet results, Connection connection)
+            throws SQLException {
+        String offeringId = results.getString("offering_id");
+        CourseOffering offering = new CourseOffering(offeringId, results.getString("course_id"),
                 results.getString("term"), results.getString("teacher_id"),
                 results.getString("schedule"), results.getString("location"),
                 results.getInt("required_capacity"), results.getInt("elective_capacity"),
                 results.getInt("cross_major_capacity"),
                 CourseOfferingStatus.valueOf(results.getString("status")));
+        return offering.withMeetingSchedule(readMeetingSchedule(connection, offeringId));
+    }
+
+    /** 将一门教学班的全部结构化上课时间写入同一事务。 */
+    private static void writeMeetingSchedule(Connection connection, CourseOffering offering)
+            throws SQLException {
+        List<CourseMeeting> meetings = offering.getMeetingSchedule().getMeetings();
+        if (meetings.isEmpty()) {
+            return;
+        }
+        String sql = "INSERT INTO tblCourseMeeting(offering_id,day_of_week,start_period,end_period,"
+                + "location) VALUES(?,?,?,?,?)";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            for (CourseMeeting meeting : meetings) {
+                statement.setString(1, offering.getOfferingId());
+                statement.setInt(2, meeting.getDayOfWeek().getValue());
+                statement.setInt(3, meeting.getStartPeriod());
+                statement.setInt(4, meeting.getEndPeriod());
+                statement.setString(5, meeting.getLocation());
+                statement.addBatch();
+            }
+            statement.executeBatch();
+        }
+    }
+
+    /** 按星期和节次恢复教学班的结构化上课时间。 */
+    private static CourseSchedule readMeetingSchedule(Connection connection, String offeringId)
+            throws SQLException {
+        String sql = "SELECT day_of_week,start_period,end_period,location FROM tblCourseMeeting "
+                + "WHERE offering_id=? ORDER BY day_of_week,start_period";
+        List<CourseMeeting> meetings = new ArrayList<CourseMeeting>();
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, offeringId);
+            try (ResultSet results = statement.executeQuery()) {
+                while (results.next()) {
+                    meetings.add(new CourseMeeting(DayOfWeek.of(results.getInt("day_of_week")),
+                            results.getInt("start_period"), results.getInt("end_period"),
+                            results.getString("location")));
+                }
+            }
+        }
+        return meetings.isEmpty() ? CourseSchedule.empty() : new CourseSchedule(meetings);
+    }
+
+    private static void rollback(Connection connection) {
+        try {
+            connection.rollback();
+        } catch (SQLException ignored) {
+            // 原始数据库异常会作为本次操作失败的原因返回。
+        }
     }
 
     private Connection open() throws SQLException {

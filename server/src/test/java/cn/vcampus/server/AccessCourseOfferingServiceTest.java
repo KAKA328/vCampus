@@ -5,8 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.Course;
+import cn.vcampus.course.CourseMeeting;
 import cn.vcampus.course.CourseOffering;
 import cn.vcampus.course.CourseOfferingStatus;
+import cn.vcampus.course.CourseSchedule;
 import cn.vcampus.course.CourseSelectionRecord;
 import cn.vcampus.course.SelectionType;
 import java.nio.file.Path;
@@ -14,6 +16,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
 import java.time.LocalDateTime;
+import java.time.DayOfWeek;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,6 +40,7 @@ class AccessCourseOfferingServiceTest {
                 Statement statement = connection.createStatement()) {
             createCourseTable(statement);
             createCurrentOfferingTable(statement);
+            createCurrentMeetingTable(statement);
             createCurrentSelectionRecordTable(statement);
         }
         catalog = new AccessCourseCatalogService(database);
@@ -56,6 +61,11 @@ class AccessCourseOfferingServiceTest {
         assertEquals(1, open.getData().size());
         assertEquals("教学楼A201", open.getData().get(0).getLocation());
         assertEquals(30, open.getData().get(0).getRequiredCapacity());
+        assertEquals(2, open.getData().get(0).getMeetingSchedule().getMeetings().size());
+        assertEquals(DayOfWeek.MONDAY,
+                open.getData().get(0).getMeetingSchedule().getMeetings().get(0).getDayOfWeek());
+        assertEquals(DayOfWeek.WEDNESDAY,
+                open.getData().get(0).getMeetingSchedule().getMeetings().get(1).getDayOfWeek());
     }
 
     @Test
@@ -106,7 +116,9 @@ class AccessCourseOfferingServiceTest {
     private static CourseOffering offering(String offeringId, String courseId,
             CourseOfferingStatus status) {
         return new CourseOffering(offeringId, courseId, TERM, "T001", "周一第1-2节", "教学楼A201",
-                30, 5, 4, status);
+                30, 5, 4, status).withMeetingSchedule(new CourseSchedule(Arrays.asList(
+                        new CourseMeeting(DayOfWeek.MONDAY, 1, 2, "教学楼A201"),
+                        new CourseMeeting(DayOfWeek.WEDNESDAY, 3, 4, "教学楼A201"))));
     }
 
     private static void createCourseTable(Statement statement) throws Exception {
@@ -133,6 +145,14 @@ class AccessCourseOfferingServiceTest {
                 + "round_id VARCHAR(36) NOT NULL,selection_type VARCHAR(16) NOT NULL,"
                 + "selected_at DATETIME NOT NULL,status VARCHAR(16) NOT NULL,dropped_at DATETIME,"
                 + "PRIMARY KEY (selection_id))");
+    }
+
+    private static void createCurrentMeetingTable(Statement statement) throws Exception {
+        statement.execute("CREATE TABLE tblCourseMeeting ("
+                + "offering_id VARCHAR(36) NOT NULL,day_of_week INTEGER NOT NULL,"
+                + "start_period INTEGER NOT NULL,end_period INTEGER NOT NULL,"
+                + "location VARCHAR(64) NOT NULL,"
+                + "PRIMARY KEY (offering_id,day_of_week,start_period))");
     }
 
 }

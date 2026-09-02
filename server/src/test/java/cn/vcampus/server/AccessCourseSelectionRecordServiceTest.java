@@ -97,6 +97,11 @@ class AccessCourseSelectionRecordServiceTest {
                 + "elective_capacity INTEGER NOT NULL,cross_major_capacity INTEGER NOT NULL,"
                 + "status VARCHAR(16) NOT NULL,"
                 + "PRIMARY KEY (offering_id))");
+        statement.execute("CREATE TABLE tblCourseMeeting ("
+                + "offering_id VARCHAR(36) NOT NULL,day_of_week INTEGER NOT NULL,"
+                + "start_period INTEGER NOT NULL,end_period INTEGER NOT NULL,"
+                + "location VARCHAR(64) NOT NULL,"
+                + "PRIMARY KEY (offering_id,day_of_week,start_period))");
         statement.execute("CREATE TABLE tblCourseSelection ("
                 + "selection_id VARCHAR(36) NOT NULL,student_id VARCHAR(32) NOT NULL,"
                 + "offering_id VARCHAR(36) NOT NULL,"

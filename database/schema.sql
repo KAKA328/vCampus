@@ -118,6 +118,18 @@ CREATE INDEX idx_tblCourseOffering_course ON tblCourseOffering(course_id);
 CREATE INDEX idx_tblCourseOffering_teacher ON tblCourseOffering(teacher_id);
 CREATE INDEX idx_tblCourseOffering_term ON tblCourseOffering(term);
 
+-- 一个教学班可包含多次上课安排，用于选课时的时间冲突检测。
+CREATE TABLE tblCourseMeeting (
+    offering_id VARCHAR(36) NOT NULL,
+    day_of_week INTEGER NOT NULL,
+    start_period INTEGER NOT NULL,
+    end_period INTEGER NOT NULL,
+    location VARCHAR(64) NOT NULL,
+    PRIMARY KEY (offering_id, day_of_week, start_period)
+);
+
+CREATE INDEX idx_tblCourseMeeting_offering ON tblCourseMeeting(offering_id);
+
 CREATE TABLE tblTrainingPlan (
     plan_id VARCHAR(36) NOT NULL,
     major_name VARCHAR(64) NOT NULL,
