@@ -41,3 +41,11 @@
 - [x] 明确 `tblCourseResult` 字段责任、学分来源、重修统计和阶段/最终审查边界
 - [x] 记录当前实现缺口及需要组长、选课负责人确认的三项规则
 - [x] 在 `docs/STUDENT_COURSE_INTEGRATION.md` 增加专项规则文档入口
+
+## Follow-up: 2026-09-02 PR33 审查问题修复
+- [x] 修复列表选中学生后表单字段不完整的问题：按学号重新查询完整 `StudentRecord`
+- [x] 通过选择更新保护避免单条查询自动触发重复加载
+- [x] 将学籍迁移从 `008_student_academic` 顺延为 `009_student_academic`，避免与 PR31 冲突
+- [x] 同步 `database/README.md` 的迁移编号说明
+- [x] 运行 `mvn clean test package`（250 项通过）
+- [ ] 等待用户明确指令后再推送并更新 PR33

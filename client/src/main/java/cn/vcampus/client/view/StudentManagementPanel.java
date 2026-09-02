@@ -59,6 +59,7 @@ public final class StudentManagementPanel extends JPanel {
     private final JTextField phone = new JTextField();
     private final JTextField email = new JTextField();
     private boolean requestInProgress;
+    private boolean selectionUpdateInProgress;
 
     public StudentManagementPanel(String host, int port, Session session) {
         if (host == null || host.trim().isEmpty() || session == null) {
@@ -88,7 +89,7 @@ public final class StudentManagementPanel extends JPanel {
         majorButton.addActionListener(event -> loadByMajor());
         saveButton.addActionListener(event -> save());
         table.getSelectionModel().addListSelectionListener(event -> {
-            if (!event.getValueIsAdjusting()) loadSelectedRecord();
+            if (!event.getValueIsAdjusting() && !selectionUpdateInProgress) loadSelectedRecord();
         });
         configureFields();
         updateButtons();
@@ -317,7 +318,12 @@ public final class StudentManagementPanel extends JPanel {
         }
         StudentRecord record = (StudentRecord) response.getPayload();
         tableModel.replaceRows(java.util.Collections.singletonList(row(record)));
-        table.setRowSelectionInterval(0, 0);
+        selectionUpdateInProgress = true;
+        try {
+            table.setRowSelectionInterval(0, 0);
+        } finally {
+            selectionUpdateInProgress = false;
+        }
         apply(record);
         showStatus(successMessage, VCampusTheme.SUCCESS);
     }
@@ -353,17 +359,25 @@ public final class StudentManagementPanel extends JPanel {
         int row = table.getSelectedRow();
         if (row < 0) return;
         String selectedId = String.valueOf(tableModel.getValueAt(row, 0));
-        for (int index = 0; index < tableModel.getRowCount(); index++) {
-            if (selectedId.equals(String.valueOf(tableModel.getValueAt(index, 0)))) {
-                studentId.setText(selectedId);
-                name.setText(value(tableModel.getValueAt(index, 1)));
-                major.setText(value(tableModel.getValueAt(index, 2)));
-                classId.setText(value(tableModel.getValueAt(index, 3)));
-                enrollmentYear.setText(value(tableModel.getValueAt(index, 4)));
-                academicStatus.setText(value(tableModel.getValueAt(index, 5)));
-                return;
-            }
-        }
+        if (requestInProgress || !canQueryById) return;
+        runRequest("正在加载所选学生完整档案…", service -> service.findById(
+                session.getToken(), selectedId), response -> {
+                    int selectedRow = table.getSelectedRow();
+                    if (selectedRow < 0 || !selectedId.equals(
+                            String.valueOf(tableModel.getValueAt(selectedRow, 0)))) {
+                        return;
+                    }
+                    if (response.getStatusCode() != StatusCode.OK) {
+                        showResponseFailure(response);
+                        return;
+                    }
+                    if (!(response.getPayload() instanceof StudentRecord)) {
+                        showStatus("服务器返回的学生数据格式不正确", VCampusTheme.DANGER);
+                        return;
+                    }
+                    apply((StudentRecord) response.getPayload());
+                    showStatus("已加载所选学生完整档案", VCampusTheme.SUCCESS);
+                });
     }
 
     private void apply(StudentRecord record) {

@@ -41,4 +41,4 @@
 
 身份字段分工如下：`tblUser.user_id` 是登录身份；`tblStudent.student_id` 是学生学号；`tblTeacher.teacher_id` 是教师工号；`tblStudent.user_id` 和 `tblTeacher.user_id` 是档案与登录账号之间的一对一绑定字段，可为空但绑定后应保持唯一。如果账号尚未关联 `tblStudent` 或 `tblTeacher`，相关页面应提示“暂无对应档案，请联系管理员维护”；学业审查、课程历史和授课关系不能根据账号信息凭空生成。
 
-学籍表由 `migrations/008_student_academic.up.sql` 创建；回滚使用同目录下的 `008_student_academic.down.sql`。
+学籍表由 `migrations/009_student_academic.up.sql` 创建；回滚使用同目录下的 `009_student_academic.down.sql`。编号 008 已由其他模块占用，学籍迁移顺延为 009。
