@@ -231,6 +231,7 @@ public final class StudentManagementPanel extends JPanel {
     }
 
     private void loadSelf() {
+        clearEditor();
         runRequest("正在查询本人档案…", new StudentCall() {
             @Override public Message execute(RemoteStudentService service)
                     throws IOException, ClassNotFoundException {
@@ -244,6 +245,7 @@ public final class StudentManagementPanel extends JPanel {
             showStatus("当前角色不能按学号查询", VCampusTheme.DANGER);
             return;
         }
+        clearEditor();
         runRequest("正在查询学生档案…", service -> service.findById(
                 session.getToken(), studentIdQuery.getText()),
                 response -> showSingle(response, "学生档案查询成功"));

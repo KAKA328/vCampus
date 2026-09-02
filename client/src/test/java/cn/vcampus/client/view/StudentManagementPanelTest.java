@@ -59,6 +59,27 @@ class StudentManagementPanelTest {
     }
 
     @Test
+    void clearingEditorDisablesSaveForPreviouslyLoadedStudent() throws Exception {
+        StudentManagementPanel panel = new StudentManagementPanel("127.0.0.1", 1,
+                new Session("token", new User("academic-admin", "教务管理员", Role.ACADEMIC_ADMIN)));
+        Field loadedRecord = panel.getClass().getDeclaredField("loadedRecord");
+        loadedRecord.setAccessible(true);
+        loadedRecord.setBoolean(panel, true);
+        JTextField studentId = field(panel, "studentId", JTextField.class);
+        studentId.setText("STU-001");
+
+        Method clearEditor = panel.getClass().getDeclaredMethod("clearEditor");
+        clearEditor.setAccessible(true);
+        clearEditor.invoke(panel);
+        Method updateButtons = panel.getClass().getDeclaredMethod("updateButtons");
+        updateButtons.setAccessible(true);
+        updateButtons.invoke(panel);
+
+        assertTrue(studentId.getText().isEmpty());
+        assertFalse(field(panel, "saveButton", JButton.class).isEnabled());
+    }
+
+    @Test
     void mainFrameRecognizesAllStudentModuleTitles() {
         ModuleNavigationModel model = new ModuleNavigationModel();
         assertTrue(MainFrame.useStudentManagementPanel(Role.STUDENT,
