@@ -429,6 +429,7 @@ public final class StudentManagementPanel extends JPanel {
         classButton.setEnabled(!requestInProgress && canQueryClass);
         majorButton.setEnabled(!requestInProgress && canQueryClass);
         saveButton.setEnabled(!requestInProgress && canEdit);
+        table.setEnabled(!requestInProgress);
     }
 
     private void showResponseFailure(Message response) {
