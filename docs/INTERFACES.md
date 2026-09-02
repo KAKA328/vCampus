@@ -70,6 +70,16 @@
 - 首个系统管理员由服务器读取 `VCAMPUS_BOOTSTRAP_ADMIN_ID`、`VCAMPUS_BOOTSTRAP_ADMIN_PASSWORD`、`VCAMPUS_BOOTSTRAP_ADMIN_NAME` 后在进程内初始化，不通过 Socket 暴露管理员注册接口。
 - 权限新增 `COURSE_MANAGE`、`GRADE_WRITE`、`ACADEMIC_REVIEW`。
 - 学生完整选课使用 `COURSE_SELECTION_QUERY_V2`、`COURSE_SELECT_OFFERING_V2`、`COURSE_DROP_RECORD_V2`，查询要求 `COURSE_READ`，选课和退选要求 `COURSE_SELECT`。
-- 课程维护使用 `COURSE_MANAGE`，要求 `COURSE_MANAGE` 权限；历史 `COURSE_CREATE`、`COURSE_UPDATE`、`COURSE_DEACTIVATE` 仅作为早期枚举保留。
+- 课程维护使用 `COURSE_MANAGE`，要求 `COURSE_MANAGE` 权限；payload 固定为 `CourseManagementCommand`。当前支持：
+  - `LIST_COURSES`：查询全部课程目录，响应 `List<Course>`；
+  - `LIST_OFFERINGS_BY_TERM(term)`：按学期查询教学班，响应 `List<CourseOffering>`；
+  - `CREATE_COURSE(course)`：新增课程目录，响应 `Course`；
+  - `UPDATE_COURSE_DETAILS(courseId, name, credits)`：修改课程名称和学分，响应 `Course`；
+  - `CHANGE_COURSE_STATUS(courseId, courseStatus)`：启用或停用课程，响应 `Course`；
+  - `CREATE_OFFERING(offering)`：新增教学班，响应 `CourseOffering`；
+  - `CHANGE_OFFERING_STATUS(offeringId, offeringStatus)`：开放或关闭教学班，响应 `CourseOffering`；
+  - `CHANGE_OFFERING_CAPACITIES(offeringId, requiredCapacity, electiveCapacity, crossMajorCapacity)`：修改三类容量，响应 `CourseOffering`；
+  - `UPDATE_OFFERING_TEACHING_INFO(offeringId, teacherId, location)`：仅修改任课教师和上课地点，响应 `CourseOffering`，不得修改既有 `schedule` 文本或 `meetingSchedule` 结构化上课时间。
+  历史 `COURSE_CREATE`、`COURSE_UPDATE`、`COURSE_DEACTIVATE` 仅作为早期枚举保留。
 - `COURSE_DEACTIVATE` 表示停开；存在选课或历史记录时不得直接删除关联数据。
 - 客户端只负责按角色隐藏无权入口，服务器 Handler 必须在调用业务接口前执行 `authorize`，拒绝时返回 `FORBIDDEN`。
