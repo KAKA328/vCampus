@@ -15,7 +15,8 @@ class StoreServiceTest {
     // 商店服务实例
     private final InMemoryProductRepository products = new InMemoryProductRepository();
     private final InMemoryOrderRepository orders = new InMemoryOrderRepository();
-    private final InMemoryStoreService service = new InMemoryStoreService(products, orders);
+    private final InMemoryCartRepository cartRepo = new InMemoryCartRepository();
+    private final InMemoryStoreService service = new InMemoryStoreService(products, orders, cartRepo);
 
     StoreServiceTest() {
         products.save(new Product("00001", "Apple", 100, 2.5, "A delicious apple", "Fruit"));
@@ -142,7 +143,8 @@ class StoreServiceTest {
     void serviceRejectsNonFiniteOrNonPositiveProductPrices() {
         assertEquals(StatusCode.BAD_REQUEST, service.addProduct("Zero", 0.0, 1, "", "test").getStatus());
         assertEquals(StatusCode.BAD_REQUEST, service.addProduct("NaN", Double.NaN, 1, "", "test").getStatus());
-        assertEquals(StatusCode.BAD_REQUEST, service.addProduct("Infinity", Double.POSITIVE_INFINITY, 1, "", "test").getStatus());
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.addProduct("Infinity", Double.POSITIVE_INFINITY, 1, "", "test").getStatus());
     }
 
     @Test
@@ -223,6 +225,281 @@ class StoreServiceTest {
         assertEquals(2, checkoutCart.findByUserId("u").size());
     }
 
+    // 管理员功能测试：补货成功
+    @Test
+    void testRestockSuccess() {
+        int formerNum = products.findById("00001").getStock();
+        ServiceResult<Void> testResult = service.restock("admin", "00001", 100);
+
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertEquals(formerNum + 100, products.findById("00001").getStock());
+    }
+
+    // 管理员功能测试：补货目标不存在
+    @Test
+    void testRestockProductNotFound() {
+        ServiceResult<Void> testResult = service.restock("admin", "99999999999", 100);
+        assertEquals(StatusCode.NOT_FOUND, testResult.getStatus());
+    }
+
+    // 管理员功能测试：补货数量为负数
+    @Test
+    void testRestockNegativeAmount() {
+        ServiceResult<Void> testResult = service.restock("admin", "00001", -100);
+        assertEquals(StatusCode.BAD_REQUEST, testResult.getStatus());
+    }
+
+    // 管理员功能测试：新增商品
+    @Test
+    void testAddProduct() {
+        ServiceResult<Product> testResult = service.addProduct("Toy robot", 20.50, 10, "A pastical toy robot", "Toy");
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertNotNull(testResult.getData());
+        assertEquals("Toy robot", testResult.getData().getName());
+        assertEquals(20.50, testResult.getData().getPrice(), 0.01);
+        assertEquals(10, testResult.getData().getStock());
+        assertEquals("A pastical toy robot", testResult.getData().getDescription());
+        assertEquals("Toy", testResult.getData().getCategory());
+        assertNotNull(testResult.getData().getProductId());
+    }
+
+    // 管理员功能测试：新增商品价格非法
+    @Test
+    void testAddProductInvalidPrice() {
+        ServiceResult<Product> testResult = service.addProduct("Toy robot", -20.50, 10, "A pastical toy robot", "Toy");
+        assertEquals(StatusCode.BAD_REQUEST, testResult.getStatus());
+    }
+
+    // 管理员功能测试：修改商品价格（库存不变）
+    @Test
+    void testUpdateProductPrice() {
+        int formerNum = products.findById("00001").getStock();
+        ServiceResult<Product> testResult = service.updateProduct("00001", "Apple", 3.0, "A delicious apple", "Fruit");
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertEquals(3.0, testResult.getData().getPrice(), 0.01);
+        assertEquals(formerNum, testResult.getData().getStock());
+    }
+
+    // 管理员功能测试：修改不存在的商品编号
+    @Test
+    void testUpdateProductNotFound() {
+        ServiceResult<Product> testResult = service.updateProduct("99999999999", "Apple", 3.0, "A delicious apple",
+                "Fruit");
+        assertEquals(StatusCode.NOT_FOUND, testResult.getStatus());
+    }
+
+    // 管理员功能测试：下架商品
+    @Test
+    void testDeactivateProduct() {
+        ServiceResult<Void> testResult = service.deactivateProduct("admin", "00001");
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertFalse(products.findById("00001").isActive());
+    }
+
+    // 管理员功能测试：下架后不再出现在商品列表
+    @Test
+    void testDeactivatedProductNotListed() {
+        service.deactivateProduct("admin", "00001");
+        ServiceResult<List<Product>> testResult = service.listProducts();
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertNotNull(testResult.getData());
+        assertFalse(testResult.getData().contains(products.findById("00001")));
+    }
+
+    // 购物车测试：加入购物车
+    @Test
+    void testAddToCart() {
+        ServiceResult<Void> testResult = service.addToCart("0120", "00001", 1);
+        assertEquals(StatusCode.OK, testResult.getStatus());
+    }
+
+    // 购物车测试：同一商品加两次，数量累加为一条
+    @Test
+    void testAddToCartDuplicateQuantity() {
+        service.addToCart("0120", "00001", 1);
+        ServiceResult<Void> testResult = service.addToCart("0120", "00001", 1);
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertEquals(1, cartRepo.findByUserId("0120").size());
+        assertEquals(2, cartRepo.findByUserId("0120").get(0).getQuantity());
+    }
+
+    // 购物车测试：加入不存在的商品
+    @Test
+    void testAddToCartProductNotFound() {
+        ServiceResult<Void> testResult = service.addToCart("0120", "99999999999", 1);
+        assertEquals(StatusCode.NOT_FOUND, testResult.getStatus());
+    }
+
+    // 购物车测试：加入后按真实 cartItemId 删除
+    @Test
+    void testRemoveFromCart() {
+        service.addToCart("0120", "00001", 1);
+        String cartItemId = service.getCart("0120").getData().get(0).getCartItemId();
+        ServiceResult<Void> testResult = service.removeFromCart("0120", cartItemId);
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertEquals(0, cartRepo.findByUserId("0120").size());
+    }
+
+    // 购物车测试：不能删除他人购物车条目
+    @Test
+    void testRemoveFromCartNotOwned() {
+        service.addToCart("0121", "00001", 1);
+        String cartItemId = service.getCart("0121").getData().get(0).getCartItemId();
+        ServiceResult<Void> testResult = service.removeFromCart("0120", cartItemId);
+        assertEquals(StatusCode.NOT_FOUND, testResult.getStatus());
+        assertEquals(1, cartRepo.findByUserId("0121").size());
+    }
+
+    // 购物车测试：查询空购物车
+    @Test
+    void testGetCartEmpty() {
+        ServiceResult<List<CartItem>> testResult = service.getCart("0120");
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertNotNull(testResult.getData());
+        assertTrue(testResult.getData().isEmpty());
+    }
+
+    // 购物车测试：结账成功，逐项下单并扣减库存
+    @Test
+    void testCheckoutSuccess() {
+        int formerStock1 = products.findById("00001").getStock();
+        int formerStock2 = products.findById("00002").getStock();
+        double price1 = products.findById("00001").getPrice();
+        double price2 = products.findById("00002").getPrice();
+        service.addToCart("0120", "00001", 2);
+        service.addToCart("0120", "00001", 2);
+        service.addToCart("0120", "00002", 10);
+        ServiceResult<Void> testResult = service.checkout("0120");
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        // 验证库存扣减
+        assertEquals(formerStock1 - 4, products.findById("00001").getStock());
+        assertEquals(formerStock2 - 10, products.findById("00002").getStock());
+        // 验证两张订单各自的数量和总价
+        assertEquals(2, orders.findByUserId("0120").size());
+        boolean appleOrderFound = false;
+        boolean bananaOrderFound = false;
+        for (Order order : orders.findByUserId("0120")) {
+            if (order.getProductId().equals("00001")) {
+                assertEquals(4, order.getQuantity());
+                assertEquals(4 * price1, order.getTotalPrice(), 0.01);
+                appleOrderFound = true;
+            }
+            if (order.getProductId().equals("00002")) {
+                assertEquals(10, order.getQuantity());
+                assertEquals(10 * price2, order.getTotalPrice(), 0.01);
+                bananaOrderFound = true;
+            }
+        }
+        assertTrue(appleOrderFound);
+        assertTrue(bananaOrderFound);
+    }
+
+    // 购物车测试：预检阶段发现库存不足，直接拒绝且不改动任何状态
+    @Test
+    void testCheckoutInsufficientStock() {
+        int stock = products.findById("00001").getStock();
+        service.addToCart("0120", "00001", stock + 1);
+        ServiceResult<Void> testResult = service.checkout("0120");
+        assertEquals(StatusCode.BAD_REQUEST, testResult.getStatus());
+        assertEquals(1, cartRepo.findByUserId("0120").size());
+        assertEquals(stock + 1, cartRepo.findByUserId("0120").get(0).getQuantity());
+        assertEquals(stock, products.findById("00001").getStock());
+    }
+
+    // 购物车测试：结账成功后购物车被清空
+    @Test
+    void testCheckoutClearsCart() {
+        service.addToCart("0120", "00001", 2);
+        service.addToCart("0120", "00002", 1);
+        ServiceResult<Void> testResult = service.checkout("0120");
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertTrue(service.getCart("0120").getData().isEmpty());
+    }
+
+    // P1 测试：查询所有订单（有数据）
+    @Test
+    void testFindAllOrders() {
+        service.purchase("0201", "00001", 2);
+        service.purchase("0202", "00002", 3);
+
+        ServiceResult<List<Order>> testResult = service.findAllOrders();
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertNotNull(testResult.getData());
+        assertEquals(2, testResult.getData().size());
+    }
+
+    // P1 测试：无订单时查询所有订单返回空列表
+    @Test
+    void testFindAllOrdersEmpty() {
+        ServiceResult<List<Order>> testResult = service.findAllOrders();
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertNotNull(testResult.getData());
+        assertTrue(testResult.getData().isEmpty());
+    }
+
+    // P1 测试：热销榜按销量降序，且已下架商品不出现在榜单
+    @Test
+    void testListHotProducts() {
+        service.purchase("0301", "00001", 5);
+        service.purchase("0302", "00002", 3);
+        service.purchase("0303", "00003", 1);
+
+        ServiceResult<List<Product>> testResult = service.listHotProducts(10);
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertEquals(3, testResult.getData().size());
+        assertEquals("00001", testResult.getData().get(0).getProductId());
+        assertEquals("00002", testResult.getData().get(1).getProductId());
+
+        // 下架销量最高的商品后，榜单不再包含它
+        service.deactivateProduct("admin", "00001");
+        ServiceResult<List<Product>> afterDeactivate = service.listHotProducts(10);
+        assertEquals(2, afterDeactivate.getData().size());
+        assertEquals("00002", afterDeactivate.getData().get(0).getProductId());
+    }
+
+    // P1 测试：无订单时热销榜为空
+    @Test
+    void testListHotProductsEmpty() {
+        ServiceResult<List<Product>> testResult = service.listHotProducts(5);
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertNotNull(testResult.getData());
+        assertTrue(testResult.getData().isEmpty());
+    }
+
+    // P1 测试：热销榜受 limit 限制，只返回销量最高的前几名
+    @Test
+    void testListHotProductsLimit() {
+        service.purchase("0401", "00001", 5);
+        service.purchase("0402", "00002", 3);
+        service.purchase("0403", "00003", 1);
+
+        ServiceResult<List<Product>> testResult = service.listHotProducts(2);
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertEquals(2, testResult.getData().size());
+        assertEquals("00001", testResult.getData().get(0).getProductId());
+        assertEquals("00002", testResult.getData().get(1).getProductId());
+    }
+
+    // P1 测试：按分类列出商品
+    @Test
+    void testListProductsByCategory() {
+        ServiceResult<List<Product>> testResult = service.listProducts("Fruit");
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertEquals(2, testResult.getData().size());
+        for (Product product : testResult.getData()) {
+            assertEquals("Fruit", product.getCategory());
+        }
+    }
+
+    // P1 测试：分类为 null 时等价于列出全部上架商品
+    @Test
+    void testListProductsByNullCategory() {
+        int activeCount = service.listProducts().getData().size();
+        ServiceResult<List<Product>> testResult = service.listProducts(null);
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertEquals(activeCount, testResult.getData().size());
+    }
+
     private static final class FailingOrderRepository implements OrderRepository {
         private final InMemoryOrderRepository delegate = new InMemoryOrderRepository();
         private int createCount;
@@ -238,7 +515,8 @@ class StoreServiceTest {
 
         @Override
         public boolean create(Order order) {
-            if (throwOnCreate) throw new IllegalStateException("database unavailable");
+            if (throwOnCreate)
+                throw new IllegalStateException("database unavailable");
             createCount++;
             return createCount == 2 ? false : delegate.create(order);
         }
