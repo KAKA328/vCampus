@@ -408,11 +408,16 @@ package "store 模块" as PSTORE {
     class DefaultStoreService {
         - products: ProductRepository
         - orders: OrderRepository
-        + 第二轮新方法暂为占位实现（Day 2 起替换）
+        - cart: CartRepository
+        + 管理员商品管理、购物车业务、findAllOrders / listHotProducts /
+          listProducts(category) 均已实现；
+          checkout 回滚式：逐项扣库存下单，任一步失败则撤销订单恢复库存，
+          全部成功后清空购物车，清空失败也整体回滚
     }
 
     class InMemoryStoreService {
         - delegate: StoreService
+        + 无参构造自带三仓库；包内 2/3 参构造供测试注入
     }
 
     interface ProductRepository {
@@ -447,6 +452,10 @@ package "store 模块" as PSTORE {
     class InMemoryOrderRepository {
         - orders: ConcurrentHashMap<String, Order>
         - userIdMap: ConcurrentHashMap<String, List<Order>>
+    }
+
+    class InMemoryCartRepository {
+        - items: ConcurrentHashMap<String, CartItem>
     }
 
     class Product <<Value Object>> {
@@ -556,11 +565,13 @@ package "store 模块" as PSTORE {
 
     ProductRepository <|.. InMemoryProductRepository
     OrderRepository <|.. InMemoryOrderRepository
+    CartRepository <|.. InMemoryCartRepository
 
     CartRepository ..> CartItem : stores
 
     DefaultStoreService --> ProductRepository
     DefaultStoreService --> OrderRepository
+    DefaultStoreService --> CartRepository
 }
 
 ' =====================================================================

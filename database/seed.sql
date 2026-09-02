@@ -74,3 +74,10 @@ VALUES ('demo-order-002', 'demo_student', 'P003', 2, 3.0, NOW(), '矿泉水 550m
 
 INSERT INTO tblOrder(order_id, user_id, product_id, quantity, total_price, order_date, product_name, unit_price)
 VALUES ('demo-order-003', 'demo_teacher', 'P002', 3, 15.0, NOW(), '笔记本 A5', 5.0);
+
+-- 商店模块演示购物车条目。
+INSERT INTO tblCartItem(cart_item_id, user_id, product_id, quantity, added_at)
+VALUES ('demo-cart-001', 'demo_student', 'P001', 2, NOW());
+
+INSERT INTO tblCartItem(cart_item_id, user_id, product_id, quantity, added_at)
+VALUES ('demo-cart-002', 'demo_student', 'P003', 1, NOW());

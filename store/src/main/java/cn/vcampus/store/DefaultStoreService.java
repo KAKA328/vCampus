@@ -203,7 +203,13 @@ public final class DefaultStoreService implements StoreService {
             products.updateStock(product.getProductId(), product.getStock());
             return ServiceResult.failure(StatusCode.CONFLICT, "Could not create order; checkout rolled back");
         }
-        cart.clearByUserId(userId);
+        // 清空购物车失败也要回滚，否则用户重试会重复下单
+        try {
+            cart.clearByUserId(userId);
+        } catch (RuntimeException failure) {
+            rollbackCheckout(created, reserved);
+            return ServiceResult.failure(StatusCode.CONFLICT, "Could not clear cart; checkout rolled back");
+        }
         return ServiceResult.ok(null);
     }
 

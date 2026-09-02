@@ -10,12 +10,16 @@ public final class InMemoryStoreService implements StoreService {
 
     // 无参构造函数
     public InMemoryStoreService() {
-        this(new InMemoryProductRepository(), new InMemoryOrderRepository());// 生成仓库
+        this(new InMemoryProductRepository(), new InMemoryOrderRepository(), new InMemoryCartRepository());// 生成仓库
     }
 
     // 包内可见构造函数，传入自定义的Repository
     InMemoryStoreService(ProductRepository products, OrderRepository orders) {
         this.delegate = new DefaultStoreService(products, orders);
+    }
+
+    InMemoryStoreService(ProductRepository products, OrderRepository orders, CartRepository cart) {
+        this.delegate = new DefaultStoreService(products, orders, cart);
     }
 
     @Override
