@@ -90,6 +90,16 @@ class AccessAcademicReviewServiceTest {
         assertEquals("阶段审查", service.latestReview("S001").getData().getRemark());
     }
 
+    @Test
+    void reviewComputesCurrentResultsWithoutOverwritingSnapshot() {
+        assertEquals(StatusCode.OK, service.review("S001", 3).getStatus());
+        assertEquals(3, service.review("S001", 3).getData().getTotalEarnedCredits());
+        assertEquals(1, service.review("S001", 3).getData().getPassedCourseCount());
+        assertEquals(1, service.review("S001", 3).getData().getFailedCourseCount());
+        assertEquals(1, service.review("S001", 3).getData().getRetakeCourseCount());
+        assertEquals("RV001", service.latestReview("S001").getData().getReviewId());
+    }
+
     private static void insertCourse(Connection connection, String id, String name, int credits)
             throws Exception {
         try (PreparedStatement statement = connection.prepareStatement(
