@@ -118,6 +118,27 @@ CREATE INDEX idx_tblCourseOffering_course ON tblCourseOffering(course_id);
 CREATE INDEX idx_tblCourseOffering_teacher ON tblCourseOffering(teacher_id);
 CREATE INDEX idx_tblCourseOffering_term ON tblCourseOffering(term);
 
+CREATE TABLE tblTrainingPlan (
+    plan_id VARCHAR(36) NOT NULL,
+    major_name VARCHAR(64) NOT NULL,
+    enrollment_year INTEGER NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    PRIMARY KEY (plan_id)
+);
+
+CREATE INDEX idx_tblTrainingPlan_scope ON tblTrainingPlan(major_name, enrollment_year);
+
+CREATE TABLE tblTrainingPlanCourse (
+    plan_id VARCHAR(36) NOT NULL,
+    course_id VARCHAR(32) NOT NULL,
+    recommended_term INTEGER NOT NULL,
+    selection_type VARCHAR(16) NOT NULL,
+    cross_major_allowed BIT NOT NULL,
+    PRIMARY KEY (plan_id, course_id)
+);
+
+CREATE INDEX idx_tblTrainingPlanCourse_plan ON tblTrainingPlanCourse(plan_id);
+
 -- 教务人员维护的选课轮次。每个学期至多配置一个首修轮次和一个重修轮次。
 CREATE TABLE tblSelectionRound (
     round_id VARCHAR(36) NOT NULL,
