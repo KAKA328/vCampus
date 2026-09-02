@@ -14,15 +14,11 @@
 
 ## 选课模块表
 
-- `tblCourse`：课程目录，保存课程号、课程名称、学分和启用/停用状态。旧的 `capacity` 列只为兼容早期演示表结构保留；实际可选人数由 `tblCourseOffering` 的具体教学班容量决定。
-- `tblCourseSelection`：学生选课记录，包含学生学号、课程号和选课时间。
+- `tblCourse`：课程目录，保存课程号、课程名称、学分和启用/停用状态；实际可选人数由 `tblCourseOffering` 的具体教学班容量决定。
+- `tblCourseSelection`：学生选课记录，包含学生、教学班、选课轮次、选课身份、选课/退选时间和状态。已退选记录会保留，但不计入容量和名单。
 - `tblSelectionRound`：教务人员维护的选课轮次，保存学期、首修/重修类型、起止时间和状态；同一学期每种轮次类型最多一条。
 
-`tblCourseSelection(student_id, course_id)` 使用唯一索引，保证同一学生不能重复选择同一门课程。已选人数不单独存入 `tblCourse`，而是在选课时统计选课记录，避免人数数据不一致。
-
-已有数据库若已按早期结构创建 `tblCourse`，需先执行 `database/migrations/009_course_catalog_status.up.sql`，为已有课程补充 `ACTIVE` 状态；回滚使用同名 `.down.sql`。新建数据库直接使用 `schema.sql`，不需要重复执行该迁移。
-
-已有数据库若已按早期结构创建 `tblCourseOffering`，需执行 `database/migrations/010_course_offering_detail.up.sql`。迁移会尽可能保留学期和旧容量，但无法从旧数据推断上课时间、地点和选修容量，因此会填入“待安排”并将教学班设为 `DRAFT`；教务人员补齐后才能开放选课。
+服务端会阻止同一学生重复选择同一个教学班；教学班容量根据 `tblCourseSelection` 中状态为 `ACTIVE` 的记录统计，已退选记录不会占用容量。已选人数不单独存入 `tblCourse`，避免人数数据不一致。
 
 ## 学籍审查规划表
 
@@ -30,7 +26,7 @@
 
 - `tblStudent`：学生基础学籍信息，保存学号、姓名、院系、专业、班级、入学年份、学籍状态和联系方式，可通过 `user_id` 关联登录账号。
 - `tblTeacher`：教师基础信息，保存教师编号、姓名、院系和职称，可通过 `user_id` 关联登录账号。
-- `tblCourseOffering`：具体学期开课记录，保存课程、任课教师、学期、显示用上课时间、地点、必修/选修/跨专业容量和状态。重修学生保留重修身份，但占用必修容量。旧的 `semester`、`course_type`、`total_capacity`、`major_capacity` 和 `active` 列仅作兼容保留，新逻辑以 `term`、三类容量和 `status` 为准。
+- `tblCourseOffering`：具体学期开课记录，保存课程、任课教师、学期、显示用上课时间、地点、必修/选修/跨专业容量和状态。重修学生保留重修身份，但占用必修容量。
 - `tblCourseResult`：历史课程结果，保存学生每次首修/重修记录、成绩、是否通过和获得学分。
 - `tblAcademicReview`：学业审查结果快照，保存累计学分、挂科门数、重修门数、是否满足毕业要求和审核人。
 

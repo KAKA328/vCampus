@@ -48,7 +48,6 @@ CREATE TABLE tblCourse (
     course_id VARCHAR(32) NOT NULL,
     course_name VARCHAR(100) NOT NULL,
     credits INTEGER NOT NULL,
-    capacity INTEGER NOT NULL,
     status VARCHAR(16) NOT NULL,
     PRIMARY KEY (course_id)
 );
@@ -56,15 +55,18 @@ CREATE TABLE tblCourse (
 CREATE TABLE tblCourseSelection (
     selection_id VARCHAR(36) NOT NULL,
     student_id VARCHAR(32) NOT NULL,
-    course_id VARCHAR(32) NOT NULL,
+    offering_id VARCHAR(36) NOT NULL,
+    round_id VARCHAR(36) NOT NULL,
+    selection_type VARCHAR(16) NOT NULL,
     selected_at DATETIME NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    dropped_at DATETIME,
     PRIMARY KEY (selection_id)
 );
 
-CREATE UNIQUE INDEX uk_tblCourseSelection_student_course
-    ON tblCourseSelection(student_id, course_id);
 CREATE INDEX idx_tblCourseSelection_student ON tblCourseSelection(student_id);
-CREATE INDEX idx_tblCourseSelection_course ON tblCourseSelection(course_id);
+CREATE INDEX idx_tblCourseSelection_offering ON tblCourseSelection(offering_id);
+CREATE INDEX idx_tblCourseSelection_status ON tblCourseSelection(status);
 
 -- 学籍审查与后续教务管理规划表。
 -- 账号由系统管理员开户注册或由初始化脚本预置；学生/教师账号应同步创建或绑定对应档案。
@@ -101,26 +103,19 @@ CREATE UNIQUE INDEX uk_tblTeacher_user ON tblTeacher(user_id);
 CREATE TABLE tblCourseOffering (
     offering_id VARCHAR(36) NOT NULL,
     course_id VARCHAR(32) NOT NULL,
-    teacher_id VARCHAR(32),
-    -- 以下五列兼容早期教学班表；新选课逻辑使用 term、容量池和 status。
-    semester VARCHAR(32) NOT NULL,
-    course_type VARCHAR(16) NOT NULL,
-    total_capacity INTEGER NOT NULL,
-    major_capacity INTEGER,
-    cross_major_capacity INTEGER,
-    active BIT NOT NULL,
+    teacher_id VARCHAR(32) NOT NULL,
     term VARCHAR(32) NOT NULL,
     schedule VARCHAR(128) NOT NULL,
     location VARCHAR(64) NOT NULL,
     required_capacity INTEGER NOT NULL,
     elective_capacity INTEGER NOT NULL,
+    cross_major_capacity INTEGER NOT NULL,
     status VARCHAR(16) NOT NULL,
     PRIMARY KEY (offering_id)
 );
 
 CREATE INDEX idx_tblCourseOffering_course ON tblCourseOffering(course_id);
 CREATE INDEX idx_tblCourseOffering_teacher ON tblCourseOffering(teacher_id);
-CREATE INDEX idx_tblCourseOffering_semester ON tblCourseOffering(semester);
 CREATE INDEX idx_tblCourseOffering_term ON tblCourseOffering(term);
 
 -- 教务人员维护的选课轮次。每个学期至多配置一个首修轮次和一个重修轮次。

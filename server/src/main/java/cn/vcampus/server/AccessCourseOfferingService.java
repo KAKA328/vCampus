@@ -9,6 +9,7 @@ import cn.vcampus.course.CourseOfferingService;
 import cn.vcampus.course.CourseOfferingStatus;
 import cn.vcampus.course.CourseSelectionRecord;
 import cn.vcampus.course.CourseSelectionRecordService;
+import cn.vcampus.course.SelectionType;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -62,10 +63,9 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
             return ServiceResult.failure(existing.getStatus(), existing.getMessage());
         }
 
-        String sql = "INSERT INTO tblCourseOffering("
-                + "offering_id,course_id,teacher_id,semester,course_type,total_capacity,"
-                + "major_capacity,cross_major_capacity,active,term,schedule,location,"
-                + "required_capacity,elective_capacity,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+        String sql = "INSERT INTO tblCourseOffering(offering_id,course_id,term,teacher_id,"
+                + "schedule,location,required_capacity,elective_capacity,cross_major_capacity,status) "
+                + "VALUES(?,?,?,?,?,?,?,?,?,?)";
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             writeOffering(statement, offering);
@@ -137,12 +137,11 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
             return existing;
         }
         CourseOffering changed = existing.getData().withStatus(status);
-        String sql = "UPDATE tblCourseOffering SET status=?,active=? WHERE offering_id=?";
+        String sql = "UPDATE tblCourseOffering SET status=? WHERE offering_id=?";
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, changed.getStatus().name());
-            statement.setBoolean(2, changed.getStatus() == CourseOfferingStatus.OPEN);
-            statement.setString(3, changed.getOfferingId());
+            statement.setString(2, changed.getOfferingId());
             return statement.executeUpdate() == 1 ? ServiceResult.ok(changed)
                     : ServiceResult.<CourseOffering>failure(StatusCode.NOT_FOUND,
                             "course offering not found");
@@ -175,16 +174,14 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
             return ServiceResult.failure(capacityResult.getStatus(), capacityResult.getMessage());
         }
 
-        String sql = "UPDATE tblCourseOffering SET total_capacity=?,major_capacity=?,"
-                + "cross_major_capacity=?,required_capacity=?,elective_capacity=? WHERE offering_id=?";
+        String sql = "UPDATE tblCourseOffering SET required_capacity=?,elective_capacity=?,"
+                + "cross_major_capacity=? WHERE offering_id=?";
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setInt(1, changed.getTotalCapacity());
-            statement.setInt(2, changed.getRequiredCapacity());
+            statement.setInt(1, changed.getRequiredCapacity());
+            statement.setInt(2, changed.getElectiveCapacity());
             statement.setInt(3, changed.getCrossMajorCapacity());
-            statement.setInt(4, changed.getRequiredCapacity());
-            statement.setInt(5, changed.getElectiveCapacity());
-            statement.setString(6, changed.getOfferingId());
+            statement.setString(4, changed.getOfferingId());
             return statement.executeUpdate() == 1 ? ServiceResult.ok(changed)
                     : ServiceResult.<CourseOffering>failure(StatusCode.NOT_FOUND,
                             "course offering not found");
@@ -255,13 +252,7 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
     private ServiceResult<Void> verifyCapacityNotBelowActiveSelections(CourseOffering existing,
             CourseOffering changed) {
         if (selectionRecords == null) {
-            if (changed.getRequiredCapacity() < existing.getRequiredCapacity()
-                    || changed.getElectiveCapacity() < existing.getElectiveCapacity()
-                    || changed.getCrossMajorCapacity() < existing.getCrossMajorCapacity()) {
-                return ServiceResult.failure(StatusCode.CONFLICT,
-                        "cannot reduce capacity before selection record service is configured");
-            }
-            return ServiceResult.ok(null);
+            return verifyCapacityFromDatabase(existing, changed);
         }
         ServiceResult<List<CourseSelectionRecord>> recordsResult = selectionRecords
                 .listActiveByOffering(existing.getOfferingId());
@@ -278,6 +269,40 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
                 case CROSS_MAJOR: crossMajorUsed++; break;
                 default: throw new IllegalStateException("unsupported capacity bucket");
             }
+        }
+        if (changed.getRequiredCapacity() < requiredUsed
+                || changed.getElectiveCapacity() < electiveUsed
+                || changed.getCrossMajorCapacity() < crossMajorUsed) {
+            return ServiceResult.failure(StatusCode.CONFLICT,
+                    "capacity must not be lower than active selection count");
+        }
+        return ServiceResult.ok(null);
+    }
+
+    /** 使用同一个 Access 数据库中的有效记录统计已占用容量。 */
+    private ServiceResult<Void> verifyCapacityFromDatabase(CourseOffering existing,
+            CourseOffering changed) {
+        String sql = "SELECT selection_type FROM tblCourseSelection "
+                + "WHERE offering_id=? AND status='ACTIVE'";
+        int requiredUsed = 0;
+        int electiveUsed = 0;
+        int crossMajorUsed = 0;
+        try (Connection connection = open();
+                PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, existing.getOfferingId());
+            try (ResultSet results = statement.executeQuery()) {
+                while (results.next()) {
+                    SelectionType type = SelectionType.valueOf(results.getString("selection_type"));
+                    switch (type.getCapacityBucket()) {
+                        case REQUIRED: requiredUsed++; break;
+                        case ELECTIVE: electiveUsed++; break;
+                        case CROSS_MAJOR: crossMajorUsed++; break;
+                        default: throw new IllegalStateException("unsupported capacity bucket");
+                    }
+                }
+            }
+        } catch (SQLException failure) {
+            return databaseFailure(failure);
         }
         if (changed.getRequiredCapacity() < requiredUsed
                 || changed.getElectiveCapacity() < electiveUsed
@@ -308,20 +333,14 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
             throws SQLException {
         statement.setString(1, offering.getOfferingId());
         statement.setString(2, offering.getCourseId());
-        statement.setString(3, offering.getTeacherId());
-        // 以下五列兼容早期 tblCourseOffering 表；新业务读取 term、容量池与 status。
-        statement.setString(4, offering.getTerm());
-        statement.setString(5, "MIXED");
-        statement.setInt(6, offering.getTotalCapacity());
+        statement.setString(3, offering.getTerm());
+        statement.setString(4, offering.getTeacherId());
+        statement.setString(5, offering.getSchedule());
+        statement.setString(6, offering.getLocation());
         statement.setInt(7, offering.getRequiredCapacity());
-        statement.setInt(8, offering.getCrossMajorCapacity());
-        statement.setBoolean(9, offering.getStatus() == CourseOfferingStatus.OPEN);
-        statement.setString(10, offering.getTerm());
-        statement.setString(11, offering.getSchedule());
-        statement.setString(12, offering.getLocation());
-        statement.setInt(13, offering.getRequiredCapacity());
-        statement.setInt(14, offering.getElectiveCapacity());
-        statement.setString(15, offering.getStatus().name());
+        statement.setInt(8, offering.getElectiveCapacity());
+        statement.setInt(9, offering.getCrossMajorCapacity());
+        statement.setString(10, offering.getStatus().name());
     }
 
     private static CourseOffering readOffering(ResultSet results) throws SQLException {

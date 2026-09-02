@@ -33,7 +33,6 @@ class AccessCourseCatalogServiceTest {
                     + "course_id VARCHAR(32) NOT NULL,"
                     + "course_name VARCHAR(100) NOT NULL,"
                     + "credits INTEGER NOT NULL,"
-                    + "capacity INTEGER NOT NULL,"
                     + "status VARCHAR(16) NOT NULL,"
                     + "PRIMARY KEY (course_id))");
         }
@@ -84,27 +83,4 @@ class AccessCourseCatalogServiceTest {
                 service.changeStatus("UNKNOWN", CourseStatus.ACTIVE).getStatus());
     }
 
-    @Test
-    void migrationKeepsExistingCoursesAvailable() throws Exception {
-        Path database = temporaryDirectory.resolve("legacy-course-catalog-test.accdb");
-        try (Connection connection = DriverManager.getConnection("jdbc:ucanaccess://" + database
-                + ";newDatabaseVersion=V2010;immediatelyReleaseResources=true");
-                Statement statement = connection.createStatement()) {
-            statement.execute("CREATE TABLE tblCourse ("
-                    + "course_id VARCHAR(32) NOT NULL,"
-                    + "course_name VARCHAR(100) NOT NULL,"
-                    + "credits INTEGER NOT NULL,"
-                    + "capacity INTEGER NOT NULL,"
-                    + "PRIMARY KEY (course_id))");
-            statement.execute("INSERT INTO tblCourse(course_id,course_name,credits,capacity) "
-                    + "VALUES ('LEGACY101','旧课程',2,30)");
-            statement.execute("ALTER TABLE tblCourse ADD COLUMN status VARCHAR(16)");
-            statement.execute("UPDATE tblCourse SET status='ACTIVE' WHERE status IS NULL");
-        }
-
-        AccessCourseCatalogService migrated = new AccessCourseCatalogService(database);
-
-        assertEquals(StatusCode.OK, migrated.findActiveById("LEGACY101").getStatus());
-        assertEquals(CourseStatus.ACTIVE, migrated.findById("LEGACY101").getData().getStatus());
-    }
 }

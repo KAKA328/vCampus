@@ -43,8 +43,7 @@ public final class AccessCourseCatalogService implements CourseCatalogService {
             return ServiceResult.failure(existing.getStatus(), existing.getMessage());
         }
 
-        String sql = "INSERT INTO tblCourse(course_id,course_name,credits,capacity,status) "
-                + "VALUES(?,?,?,?,?)";
+        String sql = "INSERT INTO tblCourse(course_id,course_name,credits,status) VALUES(?,?,?,?)";
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             writeCourse(statement, course);
@@ -61,7 +60,7 @@ public final class AccessCourseCatalogService implements CourseCatalogService {
         if (normalizedCourseId == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "courseId must not be blank");
         }
-        String sql = "SELECT course_id,course_name,credits,capacity,status "
+        String sql = "SELECT course_id,course_name,credits,status "
                 + "FROM tblCourse WHERE course_id=?";
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -89,13 +88,13 @@ public final class AccessCourseCatalogService implements CourseCatalogService {
 
     @Override
     public ServiceResult<List<Course>> listAll() {
-        return list("SELECT course_id,course_name,credits,capacity,status FROM tblCourse "
+        return list("SELECT course_id,course_name,credits,status FROM tblCourse "
                 + "ORDER BY course_id");
     }
 
     @Override
     public ServiceResult<List<Course>> listActive() {
-        String sql = "SELECT course_id,course_name,credits,capacity,status FROM tblCourse "
+        String sql = "SELECT course_id,course_name,credits,status FROM tblCourse "
                 + "WHERE status=? ORDER BY course_id";
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -185,19 +184,14 @@ public final class AccessCourseCatalogService implements CourseCatalogService {
         statement.setString(1, course.getCourseId());
         statement.setString(2, course.getName());
         statement.setInt(3, course.getCredits());
-        // 课程容量已迁移到教学班；该列仅用于兼容早期 tblCourse 表结构。
-        statement.setInt(4, course.getCapacity());
-        statement.setString(5, course.getStatus().name());
+        statement.setString(4, course.getStatus().name());
     }
 
     private static Course readCourse(ResultSet results) throws SQLException {
         String courseId = results.getString("course_id");
         String name = results.getString("course_name");
         int credits = results.getInt("credits");
-        int legacyCapacity = results.getInt("capacity");
-        // 新课程目录会把兼容列写为 0，不能使用要求正容量的旧构造方法读取。
-        Course course = legacyCapacity == 0 ? new Course(courseId, name, credits)
-                : new Course(courseId, name, credits, legacyCapacity);
+        Course course = new Course(courseId, name, credits);
         return course.withStatus(CourseStatus.valueOf(results.getString("status")));
     }
 

@@ -39,7 +39,7 @@
 - `COURSE_SELECT_OFFERING_V2` + `CourseSelectOfferingV2Command(token, roundId, offeringId)`：在指定轮次选择具体教学班；
 - `COURSE_DROP_RECORD_V2` + `CourseDropRecordV2Command(token, recordId)`：按选课记录编号退选。
 
-这次变更是公共协议升级。客户端不再提交 `studentId` 作为本人身份，服务端必须根据 `token -> user_id -> student_id` 推导学生档案；退选也不再使用 `courseId`，而是使用已选记录的 `recordId`。如果后续需要兼容旧客户端，应由组内另行实现旧消息的简化流程，不能再把旧消息类型偷偷改成 V2 字段。
+客户端不再提交 `studentId` 作为本人身份，服务端必须根据 `token -> user_id -> student_id` 推导学生档案；退选使用已选记录的 `recordId`。旧课程级消息类型不属于当前项目协议，也不提供兼容入口。
 
 教务人员维护课程目录、教学班和选课轮次统一使用 `COURSE_MANAGE` 与
 `CourseManagementCommand`，服务端要求 `COURSE_MANAGE` 权限。选课轮次相关操作为：
@@ -50,8 +50,8 @@
 - `CHANGE_SELECTION_ROUND_STATUS`：在草稿、开放、关闭状态之间切换。
 
 轮次操作不新增 `MessageType`，仍由现有 `COURSE_MANAGE` 分发；响应 payload 为
-`SelectionRound` 或其列表。数据库表为 `tblSelectionRound`，新增数据库时执行
-`schema.sql`，已有数据库执行 `migrations/008_selection_round.up.sql`。
+`SelectionRound` 或其列表。数据库表为 `tblSelectionRound`，项目直接按最新版
+`schema.sql` 创建数据库，不保留旧表迁移要求。
 
 商店当前使用以下 token-only 命令，服务端必须从 token 对应会话取得 `userId`，不得相信客户端传入的学生/用户编号：
 
