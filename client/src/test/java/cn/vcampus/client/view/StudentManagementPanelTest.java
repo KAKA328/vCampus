@@ -4,7 +4,9 @@ import cn.vcampus.common.Role;
 import cn.vcampus.common.User;
 import cn.vcampus.user.Session;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import javax.swing.JButton;
+import javax.swing.JTable;
 import javax.swing.JTextField;
 import org.junit.jupiter.api.Test;
 
@@ -36,6 +38,24 @@ class StudentManagementPanelTest {
         assertTrue(field(panel, "saveButton", JButton.class).isEnabled());
         assertTrue(field(panel, "academicStatus", JTextField.class).isEditable());
         assertTrue(field(panel, "studentId", JTextField.class).isEditable());
+    }
+
+    @Test
+    void tableIsDisabledWhileStudentRequestIsInProgress() throws Exception {
+        StudentManagementPanel panel = new StudentManagementPanel("127.0.0.1", 1,
+                new Session("token", new User("academic-admin", "教务管理员", Role.ACADEMIC_ADMIN)));
+        Field requestInProgress = panel.getClass().getDeclaredField("requestInProgress");
+        requestInProgress.setAccessible(true);
+        Method updateButtons = panel.getClass().getDeclaredMethod("updateButtons");
+        updateButtons.setAccessible(true);
+
+        requestInProgress.setBoolean(panel, true);
+        updateButtons.invoke(panel);
+        assertFalse(field(panel, "table", JTable.class).isEnabled());
+
+        requestInProgress.setBoolean(panel, false);
+        updateButtons.invoke(panel);
+        assertTrue(field(panel, "table", JTable.class).isEnabled());
     }
 
     @Test
