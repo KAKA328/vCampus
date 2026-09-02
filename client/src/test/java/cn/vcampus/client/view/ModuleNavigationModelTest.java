@@ -111,6 +111,20 @@ class ModuleNavigationModelTest {
     }
 
     @Test
+    void libraryRolesUseLibraryPanel() {
+        ModuleNavigationModel model = new ModuleNavigationModel();
+
+        assertTrue(MainFrame.useLibraryPanel(Role.STUDENT, model.findModule(Role.STUDENT, "图书馆")));
+        assertTrue(MainFrame.useLibraryPanel(Role.TEACHER, model.findModule(Role.TEACHER, "图书馆")));
+        assertTrue(MainFrame.useLibraryPanel(Role.LIBRARIAN, model.findModule(Role.LIBRARIAN, "图书馆")));
+        assertTrue(MainFrame.useLibraryPanel(Role.ADMIN, model.findModule(Role.ADMIN, "图书管理")));
+        assertFalse(MainFrame.useLibraryPanel(Role.ACADEMIC_ADMIN,
+                model.findModule(Role.ACADEMIC_ADMIN, "图书馆")));
+        assertFalse(MainFrame.useLibraryPanel(Role.STORE_MANAGER,
+                model.findModule(Role.STORE_MANAGER, "图书馆")));
+    }
+
+    @Test
     void studentModuleCardsHaveReadableDescriptions() {
         ModuleNavigationModel model = new ModuleNavigationModel();
 

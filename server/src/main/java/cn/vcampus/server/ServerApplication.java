@@ -8,6 +8,8 @@ import cn.vcampus.course.CourseSelectionService;
 import cn.vcampus.course.CourseCatalogService;
 import cn.vcampus.course.CourseOfferingService;
 import cn.vcampus.course.StudentSelectionProfileProvider;
+import cn.vcampus.library.InMemoryLibraryService;
+import cn.vcampus.library.LibraryService;
 import cn.vcampus.store.StoreService;
 import cn.vcampus.store.InMemoryStoreService;
 import cn.vcampus.user.UserManagementService;
@@ -33,6 +35,7 @@ public final class ServerApplication implements Closeable {
     private final UserMessageHandler userMessages;
     private final CourseMessageHandler courseMessages;
     private final StoreMessageHandler storeMessages;
+    private final LibraryMessageHandler libraryMessages;
     private final ExecutorService clients = Executors.newCachedThreadPool();
     private ServerSocket serverSocket;
 
@@ -55,10 +58,17 @@ public final class ServerApplication implements Closeable {
     ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
             CourseCatalogService catalog, CourseOfferingService offerings,
             StudentSelectionProfileProvider profiles, StoreService store) {
+        this(port, users, courses, catalog, offerings, profiles, store, new InMemoryLibraryService());
+    }
+
+    ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
+            CourseCatalogService catalog, CourseOfferingService offerings,
+            StudentSelectionProfileProvider profiles, StoreService store, LibraryService library) {
         this.port = port;
         this.userMessages = new UserMessageHandler(users);
         this.courseMessages = new CourseMessageHandler(courses, catalog, offerings, profiles, users);
         this.storeMessages = new StoreMessageHandler(store, users);
+        this.libraryMessages = new LibraryMessageHandler(library, users);
     }
 
     public void start() throws IOException {
@@ -116,6 +126,9 @@ public final class ServerApplication implements Closeable {
         if (request != null && isStoreMessage(request.getType())) {
             return storeMessages.handle(request);
         }
+        if (request != null && isLibraryMessage(request.getType())) {
+            return libraryMessages.handle(request);
+        }
         return userMessages.handle(request);
     }
 
@@ -142,15 +155,35 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.STORE_ORDER_LIST_ALL || type == MessageType.STORE_HOT_PRODUCTS;
     }
 
+    private static boolean isLibraryMessage(MessageType type) {
+        return type == MessageType.LIBRARY_QUERY_V2
+                || type == MessageType.LIBRARY_DETAIL_V2
+                || type == MessageType.LIBRARY_BORROW_V2
+                || type == MessageType.LIBRARY_RETURN_V2
+                || type == MessageType.LIBRARY_HISTORY_V2
+                || type == MessageType.LIBRARY_ADD_BOOK_V2;
+    }
+
     public static void main(String[] args) throws IOException {
         int port = parsePort(args);
         new ServerApplication(port, UserServiceFactory.create(args),
-                StoreServiceFactory.create(args)).start();
+                StoreServiceFactory.create(args), LibraryServiceFactory.create(args)).start();
     }
 
     private ServerApplication(int port, UserManagementService users, StoreService store) {
         this(port, users, CourseSelectionDemoFactory.createModule(),
                 CourseSelectionDemoFactory.createProfileProvider(), store);
+    }
+
+    private ServerApplication(int port, UserManagementService users, StoreService store, LibraryService library) {
+        this(port, users, CourseSelectionDemoFactory.createModule(),
+                CourseSelectionDemoFactory.createProfileProvider(), store, library);
+    }
+
+    private ServerApplication(int port, UserManagementService users, CourseSelectionModule module,
+            StudentSelectionProfileProvider profiles, StoreService store, LibraryService library) {
+        this(port, users, module.getSelectionService(), module.getCatalogService(),
+                module.getOfferingService(), profiles, store, library);
     }
 
     private static int parsePort(String[] args) {

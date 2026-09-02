@@ -16,6 +16,11 @@
         </dependency>
         <dependency>
             <groupId>cn.vcampus</groupId>
+            <artifactId>library</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>cn.vcampus</groupId>
             <artifactId>user-management</artifactId>
             <version>${project.version}</version>
         </dependency>

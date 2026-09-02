@@ -263,7 +263,10 @@ database                 vCampus.accdb、schema.sql、seed.sql
 | `COURSE_SELECT_OFFERING_V2` | `CourseSelectOfferingV2Command(token, roundId, offeringId)` | `COURSE_SELECT`，服务端按 token 推导学生档案 |
 | `COURSE_DROP_RECORD_V2` | `CourseDropRecordV2Command(token, recordId)` | `COURSE_SELECT`，服务端按 token 推导学生档案 |
 | `COURSE_MANAGE` | 课程目录、教学班维护命令 | `COURSE_MANAGE` |
-| `LIBRARY_QUERY/BORROW/RETURN` | 图书/借还请求 | 按借阅规则 |
+| `LIBRARY_QUERY_V2` / `LIBRARY_DETAIL_V2` | `LibraryQueryV2Command` / `LibraryDetailV2Command` | `LIBRARY_READ` |
+| `LIBRARY_BORROW_V2` / `LIBRARY_RETURN_V2` | token + 图书号列表 / 借阅记录号 | `LIBRARY_BORROW`，服务端按 token 取得 userId；批量借阅原子执行 |
+| `LIBRARY_HISTORY_V2` | 本人、指定用户或全量记录范围 | 本人使用 `LIBRARY_READ`；指定/全量使用 `LIBRARY_MANAGE` |
+| `LIBRARY_ADD_BOOK_V2` | `LibraryAddBookV2Command(token, book)` | `LIBRARY_MANAGE` |
 | `STORE_QUERY` | `StoreQueryCommand(token)` | `STORE_READ`，服务端按 token 校验 |
 | `STORE_PURCHASE` | `StorePurchaseCommand(token, productId, quantity)` | `STORE_PURCHASE`，服务端按 token 取得 userId |
 | `STORE_ORDER_QUERY` | `StoreOrderQueryCommand(token)` | `STORE_READ`，仅返回当前用户订单 |
@@ -322,7 +325,7 @@ User 1 ── N Order ── N OrderItem ── N Product
 | 用户 | `UserManagementService` | `register`、`unregister`、`login`、`logout`、`authorize` |
 | 学籍 | `StudentManagementService` | `findById`、`findByClass`、`save` |
 | 选课 | `CourseSelectionService` | `listCourses`、`select`、`drop`、`selectedCourses` |
-| 图书馆 | `LibraryService` | `search`、`borrow`、`returnBook` |
+| 图书馆 | `LibraryService` | `search`、`getBook`、`borrowBatch`、`returnBook`、`borrowHistory`、`addBook` |
 | 商店 | `StoreService` | `listProducts`、`purchase`、`findOrdersByUserId` |
 
 每个接口实现均遵循：输入校验 → 权限检查 → 业务规则 → Repository → `ServiceResult<T>`。客户端通过远程适配器调用，不直接引用数据库实现。
