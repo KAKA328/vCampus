@@ -11,12 +11,12 @@ import javax.swing.table.DefaultTableModel;
 
 /** Preview table model for accounts read from an external import file. */
 final class UserImportTableModel extends DefaultTableModel {
-    private static final int RESULT = 3;
+    private static final int RESULT = 4;
 
     private final List<UserImportRow> importRows = new ArrayList<UserImportRow>();
 
     UserImportTableModel() {
-        super(new Object[] {"账号", "姓名", "角色", "导入结果"}, 0);
+        super(new Object[] {"账号", "姓名", "角色", "档案编号", "导入结果"}, 0);
     }
 
     @Override public boolean isCellEditable(int row, int column) {
@@ -33,7 +33,7 @@ final class UserImportTableModel extends DefaultTableModel {
                 }
                 importRows.add(row);
                 dataVector.add(convertToVector(new Object[] {
-                        row.getUserId(), row.getDisplayName(), row.getRoleCode(), ""
+                        row.getUserId(), row.getDisplayName(), row.getRoleCode(), row.getProfileId(), ""
                 }));
             }
         }

@@ -2,12 +2,19 @@ package cn.vcampus.server;
 
 import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
+import cn.vcampus.course.CourseSelectionDemoFactory;
+import cn.vcampus.course.CourseSelectionModule;
 import cn.vcampus.course.CourseSelectionService;
-import cn.vcampus.course.InMemoryCourseSelectionService;
+import cn.vcampus.course.CourseCatalogService;
+import cn.vcampus.course.CourseOfferingService;
+import cn.vcampus.course.StudentSelectionProfileProvider;
 import cn.vcampus.store.StoreService;
 import cn.vcampus.store.InMemoryStoreService;
+import cn.vcampus.student.AcademicReviewService;
 import cn.vcampus.student.DefaultStudentManagementService;
+import cn.vcampus.student.InMemoryAcademicReviewService;
 import cn.vcampus.student.InMemoryStudentRepository;
+import cn.vcampus.student.StudentRecord;
 import cn.vcampus.student.StudentManagementService;
 import cn.vcampus.user.UserManagementService;
 
@@ -23,8 +30,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Minimal multi-client server entry point; replace the in-memory service with
- * Access-backed services.
+ * Minimal multi-client server entry point.
  */
 public final class ServerApplication implements Closeable {
     public static final int DEFAULT_PORT = 19090;
@@ -38,25 +44,30 @@ public final class ServerApplication implements Closeable {
     private ServerSocket serverSocket;
 
     public ServerApplication(int port, UserManagementService users) {
-        this(port, users, new InMemoryCourseSelectionService(), new InMemoryStoreService(),
-                new DefaultStudentManagementService(new InMemoryStudentRepository()));
+        this(port, users, CourseSelectionDemoFactory.createModule(),
+                memoryStudentServices(), new InMemoryStoreService());
     }
 
-    public ServerApplication(int port, UserManagementService users, CourseSelectionService courses) {
-        this(port, users, courses, new InMemoryStoreService(),
-                new DefaultStudentManagementService(new InMemoryStudentRepository()));
+    private ServerApplication(int port, UserManagementService users, CourseSelectionModule module,
+            StudentServices studentServices, StoreService store) {
+        this(port, users, module.getSelectionService(), module.getCatalogService(),
+                module.getOfferingService(), studentServices.profiles, store,
+                studentServices.students);
     }
 
-    ServerApplication(int port, UserManagementService users, CourseSelectionService courses, StoreService store) {
-        this(port, users, courses, store,
-                new DefaultStudentManagementService(new InMemoryStudentRepository()));
+    public ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
+            StudentSelectionProfileProvider profiles) {
+        this(port, users, courses, null, null, profiles, new InMemoryStoreService(),
+                memoryStudentServices().students);
     }
 
     ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
-            StoreService store, StudentManagementService students) {
+            CourseCatalogService catalog, CourseOfferingService offerings,
+            StudentSelectionProfileProvider profiles, StoreService store,
+            StudentManagementService students) {
         this.port = port;
         this.userMessages = new UserMessageHandler(users);
-        this.courseMessages = new CourseMessageHandler(courses, users);
+        this.courseMessages = new CourseMessageHandler(courses, catalog, offerings, profiles, users);
         this.storeMessages = new StoreMessageHandler(store, users);
         this.studentMessages = new StudentMessageHandler(students, users);
     }
@@ -128,12 +139,21 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.COURSE_DROP
                 || type == MessageType.COURSE_CREATE
                 || type == MessageType.COURSE_UPDATE
-                || type == MessageType.COURSE_DEACTIVATE;
+                || type == MessageType.COURSE_DEACTIVATE
+                || type == MessageType.COURSE_MANAGE
+                || type == MessageType.COURSE_SELECTION_QUERY_V2
+                || type == MessageType.COURSE_SELECT_OFFERING_V2
+                || type == MessageType.COURSE_DROP_RECORD_V2;
     }
 
     private static boolean isStoreMessage(MessageType type) {
         return type == MessageType.STORE_QUERY
-                || type == MessageType.STORE_PURCHASE || type == MessageType.STORE_ORDER_QUERY;
+                || type == MessageType.STORE_PURCHASE || type == MessageType.STORE_ORDER_QUERY
+                || type == MessageType.STORE_RESTOCK || type == MessageType.STORE_PRODUCT_ADD
+                || type == MessageType.STORE_PRODUCT_UPDATE || type == MessageType.STORE_PRODUCT_DEACTIVATE
+                || type == MessageType.STORE_CART_ADD || type == MessageType.STORE_CART_REMOVE
+                || type == MessageType.STORE_CART_QUERY || type == MessageType.STORE_CART_CHECKOUT
+                || type == MessageType.STORE_ORDER_LIST_ALL || type == MessageType.STORE_HOT_PRODUCTS;
     }
 
     private static boolean isStudentMessage(MessageType type) {
@@ -143,14 +163,41 @@ public final class ServerApplication implements Closeable {
     public static void main(String[] args) throws IOException {
         int port = parsePort(args);
         Path databasePath = UserServiceFactory.databasePath(args);
-        CourseSelectionService courses = databasePath == null
-                ? new InMemoryCourseSelectionService()
-                : new AccessCourseSelectionService(databasePath);
-        StudentManagementService students = databasePath == null
-                ? new DefaultStudentManagementService(new InMemoryStudentRepository())
-                : new DefaultStudentManagementService(new AccessStudentRepository(databasePath));
-        new ServerApplication(port, UserServiceFactory.create(args), courses,
-                new InMemoryStoreService(), students).start();
+        CourseSelectionModule module = CourseSelectionDemoFactory.createModule();
+        StudentServices studentServices = databasePath == null
+                ? memoryStudentServices() : accessStudentServices(databasePath);
+        new ServerApplication(port, UserServiceFactory.create(args), module,
+                studentServices, StoreServiceFactory.create(databasePath)).start();
+    }
+
+    private static StudentServices memoryStudentServices() {
+        InMemoryStudentRepository repository = new InMemoryStudentRepository();
+        repository.save(new StudentRecord("20260001", "demo_student", "演示学生", "未知",
+                "计算机学院", "计算机科学与技术", "CS2026-01", 2026,
+                "在读", "", ""));
+        StudentManagementService students = new DefaultStudentManagementService(repository);
+        AcademicReviewService academicReviews = new InMemoryAcademicReviewService();
+        return new StudentServices(students, new StudentSelectionProfileAdapter(
+                students, academicReviews, CourseSelectionDemoFactory.DEMO_TERM));
+    }
+
+    private static StudentServices accessStudentServices(Path databasePath) {
+        StudentManagementService students = new DefaultStudentManagementService(
+                new AccessStudentRepository(databasePath));
+        AcademicReviewService academicReviews = new AccessAcademicReviewService(databasePath);
+        return new StudentServices(students, new StudentSelectionProfileAdapter(
+                students, academicReviews, CourseSelectionDemoFactory.DEMO_TERM));
+    }
+
+    private static final class StudentServices {
+        private final StudentManagementService students;
+        private final StudentSelectionProfileProvider profiles;
+
+        private StudentServices(StudentManagementService students,
+                StudentSelectionProfileProvider profiles) {
+            this.students = students;
+            this.profiles = profiles;
+        }
     }
 
     private static int parsePort(String[] args) {

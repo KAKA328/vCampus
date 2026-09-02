@@ -28,7 +28,7 @@ class InMemoryUserManagementServiceTest {
     }
 
     @Test
-    void secondLoginForSameUserIsRejectedWhileFirstSessionIsActive() {
+    void secondLoginForSameUserInvalidatesFirstSession() {
         UserCredentials credentials = new UserCredentials("u001b", "p00100", "Student", Role.STUDENT.name());
         assertEquals(StatusCode.OK, service.register(credentials).getStatus());
 
@@ -36,7 +36,11 @@ class InMemoryUserManagementServiceTest {
         ServiceResult<Session> second = service.login(credentials);
 
         assertEquals(StatusCode.OK, first.getStatus());
-        assertEquals(StatusCode.CONFLICT, second.getStatus());
+        assertEquals(StatusCode.OK, second.getStatus());
+        assertEquals(StatusCode.UNAUTHORIZED,
+                service.currentSession(first.getData().getToken()).getStatus());
+        assertEquals(StatusCode.OK,
+                service.currentSession(second.getData().getToken()).getStatus());
     }
 
     @Test

@@ -9,19 +9,26 @@ public final class UserAccount {
     private final User user;
     private final String passwordHash;
     private final boolean active;
+    private final boolean forcePasswordChange;
     private final String createdBy;
     private final Instant createdAt;
     private final String importBatchId;
 
     public UserAccount(User user, String passwordHash, boolean active) {
-        this(user, passwordHash, active, null, Instant.now(), null);
+        this(user, passwordHash, active, false, null, Instant.now(), null);
     }
 
     public UserAccount(User user, String passwordHash, boolean active,
                        String createdBy, Instant createdAt, String importBatchId) {
+        this(user, passwordHash, active, false, createdBy, createdAt, importBatchId);
+    }
+
+    public UserAccount(User user, String passwordHash, boolean active, boolean forcePasswordChange,
+                       String createdBy, Instant createdAt, String importBatchId) {
         this.user = Objects.requireNonNull(user, "user");
         this.passwordHash = requireText(passwordHash, "passwordHash");
         this.active = active;
+        this.forcePasswordChange = forcePasswordChange;
         this.createdBy = optionalText(createdBy);
         this.createdAt = createdAt == null ? Instant.now() : createdAt;
         this.importBatchId = optionalText(importBatchId);
@@ -30,12 +37,27 @@ public final class UserAccount {
     public User getUser() { return user; }
     public String getPasswordHash() { return passwordHash; }
     public boolean isActive() { return active; }
+    public boolean isForcePasswordChange() { return forcePasswordChange; }
     public String getCreatedBy() { return createdBy; }
     public Instant getCreatedAt() { return createdAt; }
     public String getImportBatchId() { return importBatchId; }
 
     public UserAccount deactivate() {
-        return new UserAccount(user, passwordHash, false, createdBy, createdAt, importBatchId);
+        return new UserAccount(user, passwordHash, false, forcePasswordChange, createdBy, createdAt, importBatchId);
+    }
+
+    public UserAccount withActive(boolean active) {
+        return new UserAccount(user, passwordHash, active, forcePasswordChange, createdBy, createdAt, importBatchId);
+    }
+
+    public UserAccount withPasswordHash(String newPasswordHash, boolean newForcePasswordChange) {
+        return new UserAccount(user, newPasswordHash, active, newForcePasswordChange,
+                createdBy, createdAt, importBatchId);
+    }
+
+    public UserAccount withRole(cn.vcampus.common.Role role) {
+        return new UserAccount(new User(user.getUserId(), user.getDisplayName(), role), passwordHash,
+                active, forcePasswordChange, createdBy, createdAt, importBatchId);
     }
 
     private static String requireText(String value, String field) {

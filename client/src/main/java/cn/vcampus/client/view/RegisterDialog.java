@@ -30,6 +30,7 @@ public final class RegisterDialog extends JDialog {
     private final Session session;
     private final JTextField userId = new PromptTextField(18, CredentialInputGuidance.USER_ID_HINT);
     private final JTextField displayName = new PromptTextField(18, CredentialInputGuidance.DISPLAY_NAME_HINT);
+    private final JTextField profileId = new PromptTextField(18, "学生填学号，教师填工号");
     private final PromptPasswordField password = new PromptPasswordField(18, CredentialInputGuidance.PASSWORD_HINT);
     private final JComboBox<Role> role = new JComboBox<Role>(Role.values());
     private final JLabel status = new JLabel("请按输入框提示填写，带提示文字的空框不会作为内容提交");
@@ -63,7 +64,7 @@ public final class RegisterDialog extends JDialog {
         JLabel title = new JLabel("创建 vCampus 用户");
         title.setFont(VCampusTheme.font(Font.BOLD, 21));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        JLabel subtitle = new JLabel("仅系统管理员可创建账号；学生和教师账号创建后需同步维护对应档案。");
+        JLabel subtitle = new JLabel("填写账号信息，学生/教师账号会按档案编号自动绑定已有档案。");
         subtitle.setForeground(VCampusTheme.MUTED);
         panel.add(title, BorderLayout.NORTH);
         panel.add(subtitle, BorderLayout.SOUTH);
@@ -76,13 +77,15 @@ public final class RegisterDialog extends JDialog {
         role.setSelectedItem(Role.STUDENT);
         VCampusTheme.field(userId);
         VCampusTheme.field(displayName);
+        VCampusTheme.field(profileId);
         VCampusTheme.field(password);
         VCampusTheme.field(role);
         add(form, "账号", userId, 0);
         add(form, "姓名", displayName, 1);
-        add(form, "密码", password, 2);
-        add(form, "角色", role, 3);
-        GridBagConstraints c = base(0, 4);
+        add(form, "档案编号", profileId, 2);
+        add(form, "密码", password, 3);
+        add(form, "角色", role, 4);
+        GridBagConstraints c = base(0, 5);
         c.gridwidth = 2;
         status.setForeground(VCampusTheme.MUTED);
         form.add(status, c);
@@ -109,10 +112,11 @@ public final class RegisterDialog extends JDialog {
         char[] secret = password.getPassword();
         try (RemoteUserService service = new RemoteUserService(host, port)) {
             UserCredentials credentials = new UserCredentials(
-                    userId.getText().trim(), new String(secret), displayName.getText().trim(), selectedRole.name());
+                    userId.getText().trim(), new String(secret), displayName.getText().trim(),
+                    selectedRole.name(), profileId.getText().trim());
             Message response = service.register(session.getToken(), credentials);
             if (response.getStatusCode() == StatusCode.OK) {
-                JOptionPane.showMessageDialog(this, "账号创建成功，请继续维护对应档案并发放初始密码");
+                JOptionPane.showMessageDialog(this, "账号创建成功");
                 dispose();
             } else {
                 showStatus("创建失败：" + response.getStatusCode(), VCampusTheme.DANGER);

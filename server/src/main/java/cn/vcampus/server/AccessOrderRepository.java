@@ -22,11 +22,12 @@ public final class AccessOrderRepository implements OrderRepository {
 
     @Override
     public boolean create(Order order) {
-        if (exists(order.getOrderId())) return false;
+        if (exists(order.getOrderId()))
+            return false;
         String sql = "INSERT INTO tblOrder(order_id,user_id,product_id,quantity,"
                 + "total_price,order_date,product_name,unit_price) VALUES(?,?,?,?,?,?,?,?)";
         try (Connection connection = open();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+                PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, order.getOrderId());
             statement.setString(2, order.getUserId());
             statement.setString(3, order.getProductId());
@@ -48,7 +49,7 @@ public final class AccessOrderRepository implements OrderRepository {
                 + "total_price,order_date,product_name,unit_price "
                 + "FROM tblOrder WHERE user_id=? ORDER BY order_date";
         try (Connection connection = open();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+                PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, userId);
             try (ResultSet results = statement.executeQuery()) {
                 List<Order> orders = new ArrayList<Order>();
@@ -62,10 +63,52 @@ public final class AccessOrderRepository implements OrderRepository {
         }
     }
 
+    @Override
+    public List<Order> findAll() {
+        String sql = "SELECT order_id,user_id,product_id,quantity,total_price,order_date,product_name,unit_price "
+                + "FROM tblOrder ORDER BY order_date";
+        try (Connection connection = open();
+                PreparedStatement statement = connection.prepareStatement(sql);
+                ResultSet results = statement.executeQuery()) {
+            List<Order> orders = new ArrayList<Order>();
+            while (results.next()) orders.add(readOrder(results));
+            return orders;
+        } catch (SQLException failure) {
+            throw new IllegalStateException("failed to list orders", failure);
+        }
+    }
+
+    @Override
+    public boolean deleteById(String orderId) {
+        String sql = "DELETE FROM tblOrder WHERE order_id=?";
+        try (Connection connection = open();
+                PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, orderId);
+            return statement.executeUpdate() > 0;
+        } catch (SQLException failure) {
+            throw new IllegalStateException("failed to delete order", failure);
+        }
+    }
+
+    @Override
+    public List<Object[]> findSalesVolume() {
+        String sql = "SELECT product_id,SUM(quantity) AS total_quantity FROM tblOrder "
+                + "GROUP BY product_id ORDER BY SUM(quantity) DESC, product_id";
+        try (Connection connection = open();
+                PreparedStatement statement = connection.prepareStatement(sql);
+                ResultSet results = statement.executeQuery()) {
+            List<Object[]> sales = new ArrayList<Object[]>();
+            while (results.next()) sales.add(new Object[] { results.getString("product_id"), results.getInt("total_quantity") });
+            return sales;
+        } catch (SQLException failure) {
+            throw new IllegalStateException("failed to list sales volume", failure);
+        }
+    }
+
     private boolean exists(String orderId) {
         String sql = "SELECT order_id FROM tblOrder WHERE order_id=?";
         try (Connection connection = open();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+                PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, orderId);
             try (ResultSet results = statement.executeQuery()) {
                 return results.next();

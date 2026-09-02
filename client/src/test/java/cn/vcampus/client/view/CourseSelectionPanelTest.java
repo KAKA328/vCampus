@@ -1,44 +1,64 @@
 package cn.vcampus.client.view;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import cn.vcampus.common.Role;
 import cn.vcampus.common.User;
 import cn.vcampus.user.Session;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import javax.swing.JButton;
-import javax.swing.JLabel;
-import javax.swing.SwingUtilities;
+import javax.swing.JComboBox;
 import org.junit.jupiter.api.Test;
 
 class CourseSelectionPanelTest {
     @Test
-    void refreshDoesNotImmediatelyReplaceExistingStatusWithLoadingMessage() throws Exception {
-        final CourseSelectionPanel[] panel = new CourseSelectionPanel[1];
-        SwingUtilities.invokeAndWait(() -> panel[0] = new CourseSelectionPanel(
-                "127.0.0.1", 1, new Session("token", new User("20230001", "测试学生", Role.STUDENT))));
-
-        JLabel status = field(panel[0], "status", JLabel.class);
-        JButton refreshButton = field(panel[0], "refreshButton", JButton.class);
-
-        SwingUtilities.invokeAndWait(() -> {
-            status.setText("已显示全部课程，共 3 门");
-            status.setForeground(VCampusTheme.SUCCESS);
-
-            refreshButton.doClick();
-
-            assertEquals("已显示全部课程，共 3 门", status.getText());
-            assertEquals(VCampusTheme.SUCCESS, status.getForeground());
-        });
+    void providesRoundSelectorForCurrentCourseSelectionFlow() throws Exception {
+        CourseSelectionPanel panel = new CourseSelectionPanel("localhost", 19090,
+                new Session("token", new User("student-001", "测试学生", Role.STUDENT)));
+        Field field = CourseSelectionPanel.class.getDeclaredField("roundBox");
+        field.setAccessible(true);
+        assertNotNull(field.get(panel));
+        assertNotNull((JComboBox<?>) field.get(panel));
     }
 
-    private static <T> T field(Object target, String name, Class<T> type) {
-        try {
-            Field field = target.getClass().getDeclaredField(name);
-            field.setAccessible(true);
-            return type.cast(field.get(target));
-        } catch (ReflectiveOperationException failure) {
-            throw new AssertionError(failure);
-        }
+    @Test
+    void disablesAllCourseActionsWhileRequestIsInProgress() throws Exception {
+        CourseSelectionPanel panel = new CourseSelectionPanel("localhost", 19090,
+                new Session("token", new User("student-001", "测试学生", Role.STUDENT)));
+        Field busy = CourseSelectionPanel.class.getDeclaredField("requestInProgress");
+        busy.setAccessible(true);
+        busy.setBoolean(panel, true);
+        Method update = CourseSelectionPanel.class.getDeclaredMethod("updateInteractiveState");
+        update.setAccessible(true);
+        update.invoke(panel);
+
+        assertFalse(button(panel, "loadRoundsButton").isEnabled());
+        assertFalse(button(panel, "loadOfferingsButton").isEnabled());
+        assertFalse(button(panel, "selectedButton").isEnabled());
+        assertFalse(button(panel, "selectButton").isEnabled());
+        assertFalse(button(panel, "dropButton").isEnabled());
+
+        busy.setBoolean(panel, false);
+        update.invoke(panel);
+        assertTrue(button(panel, "selectButton").isEnabled());
+    }
+
+    @Test
+    void appliesSharedThemeToCourseActions() throws Exception {
+        CourseSelectionPanel panel = new CourseSelectionPanel("localhost", 19090,
+                new Session("token", new User("student-001", "测试学生", Role.STUDENT)));
+        assertTrue(button(panel, "loadRoundsButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+        assertTrue(button(panel, "loadOfferingsButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+        assertTrue(button(panel, "selectButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+        assertTrue(button(panel, "dropButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+    }
+
+    private static JButton button(CourseSelectionPanel panel, String fieldName) throws Exception {
+        Field field = CourseSelectionPanel.class.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return (JButton) field.get(panel);
     }
 }

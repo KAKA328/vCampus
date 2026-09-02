@@ -11,16 +11,25 @@ public final class Product implements Serializable {
     private final double price;// 商品价格
     private final String description;// 商品描述
     private final String category;// 商品类别
+    private final boolean active;// 是否上架
 
-    public Product(String productId, String name, int stock, double price, String description, String category) {
+    public Product(String productId, String name, int stock, double price, String description, String category,
+            boolean active) {
         this.productId = checkStr(productId, "productId");
         this.name = checkStr(name, "name");
-        if (price < 0 || stock < 0)
-            throw new IllegalArgumentException("price cannot be negative");
+        if (stock < 0)
+            throw new IllegalArgumentException("stock cannot be negative");
+        if (!Double.isFinite(price) || price <= 0)
+            throw new IllegalArgumentException("price must be a finite positive number");
         this.price = price;
         this.stock = stock;
         this.description = description;
         this.category = checkStr(category, "category");
+        this.active = active;
+    }
+
+    public Product(String productId, String name, int stock, double price, String description, String category) {
+        this(productId, name, stock, price, description, category, true);
     }
 
     public String getProductId() {
@@ -45,6 +54,10 @@ public final class Product implements Serializable {
 
     public String getCategory() {
         return category;
+    }
+
+    public boolean isActive() {
+        return active;
     }
 
     private static String checkStr(String value, String field) {

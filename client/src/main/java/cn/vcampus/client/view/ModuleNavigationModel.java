@@ -32,7 +32,7 @@ public final class ModuleNavigationModel {
 
     private static final List<ModuleDescriptor> ACADEMIC_ADMIN_MODULES = Collections.unmodifiableList(Arrays.asList(
             new ModuleDescriptor("学籍管理", "维护学籍信息并执行学业审查。", "可用：学生档案查询和维护已接入"),
-            new ModuleDescriptor("选课管理", "维护开课信息、课程容量并复核成绩。", "待接入：等待选课模块页面")
+            new ModuleDescriptor("选课管理", "维护课程目录、教学班状态和分类型容量。", "可用：课程目录和教学班维护已接入")
     ));
 
     private static final List<ModuleDescriptor> LIBRARY_MODULES = Collections.singletonList(

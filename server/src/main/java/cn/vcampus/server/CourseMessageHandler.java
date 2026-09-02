@@ -5,28 +5,43 @@ import cn.vcampus.common.MessageType;
 import cn.vcampus.common.Role;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
-import cn.vcampus.course.CourseQueryCommand;
-import cn.vcampus.course.CourseSelectionCommand;
+import cn.vcampus.course.CourseDropRecordV2Command;
+import cn.vcampus.course.CourseCatalogService;
+import cn.vcampus.course.CourseManagementCommand;
+import cn.vcampus.course.CourseOfferingService;
+import cn.vcampus.course.CourseSelectionQueryV2Command;
+import cn.vcampus.course.CourseSelectOfferingV2Command;
 import cn.vcampus.course.CourseSelectionService;
+import cn.vcampus.course.StudentSelectionProfile;
+import cn.vcampus.course.StudentSelectionProfileProvider;
 import cn.vcampus.user.Permission;
 import cn.vcampus.user.Session;
 import cn.vcampus.user.UserManagementService;
+import java.time.LocalDateTime;
 
-/**
- * 将选课模块的业务结果转换为统一的 Socket 消息响应。
- *
- * <p>该处理器仅负责一条选课请求的校验和转发；服务器总入口何时调用它，
- * 由组长在 ServerApplication 中统一接入。</p>
- */
+/** 将当前选课流程转换为 Socket 消息；学生资料仅由服务器按 token 查询。 */
 final class CourseMessageHandler {
     private final CourseSelectionService courses;
+    private final CourseCatalogService catalog;
+    private final CourseOfferingService offerings;
+    private final StudentSelectionProfileProvider profiles;
     private final UserManagementService users;
 
-    CourseMessageHandler(CourseSelectionService courses, UserManagementService users) {
-        if (courses == null || users == null) {
-            throw new IllegalArgumentException("courses and users must not be null");
+    CourseMessageHandler(CourseSelectionService courses, StudentSelectionProfileProvider profiles,
+            UserManagementService users) {
+        this(courses, null, null, profiles, users);
+    }
+
+    CourseMessageHandler(CourseSelectionService courses, CourseCatalogService catalog,
+            CourseOfferingService offerings, StudentSelectionProfileProvider profiles,
+            UserManagementService users) {
+        if (courses == null || profiles == null || users == null) {
+            throw new IllegalArgumentException("course handler dependencies must not be null");
         }
         this.courses = courses;
+        this.catalog = catalog;
+        this.offerings = offerings;
+        this.profiles = profiles;
         this.users = users;
     }
 
@@ -35,21 +50,28 @@ final class CourseMessageHandler {
             return Message.response(Message.request("invalid", MessageType.COURSE_QUERY, null),
                     StatusCode.BAD_REQUEST, "request is invalid");
         }
-
         try {
             ServiceResult<?> result;
             switch (request.getType()) {
-                case COURSE_QUERY:
-                    result = query(request);
+                case COURSE_SELECTION_QUERY_V2:
+                    result = query(payload(request, CourseSelectionQueryV2Command.class));
                     break;
-                case COURSE_SELECT:
-                    CourseSelectionCommand select = payload(request, CourseSelectionCommand.class);
+                case COURSE_SELECT_OFFERING_V2:
+                    CourseSelectOfferingV2Command select =
+                            payload(request, CourseSelectOfferingV2Command.class);
                     result = select(select);
                     break;
-                case COURSE_DROP:
-                    CourseSelectionCommand drop = payload(request, CourseSelectionCommand.class);
-                    result = drop(drop);
+                case COURSE_DROP_RECORD_V2:
+                    result = drop(payload(request, CourseDropRecordV2Command.class));
                     break;
+                case COURSE_MANAGE:
+                    result = manage(payload(request, CourseManagementCommand.class));
+                    break;
+                case COURSE_QUERY:
+                case COURSE_SELECT:
+                case COURSE_DROP:
+                    return Message.response(request, StatusCode.BAD_REQUEST,
+                            "course selection protocol upgraded to V2; use explicit V2 message types");
                 default:
                     return Message.response(request, StatusCode.NOT_FOUND,
                             "course handler does not support this message");
@@ -60,72 +82,92 @@ final class CourseMessageHandler {
         }
     }
 
-    private ServiceResult<Void> select(CourseSelectionCommand command) {
-        ServiceResult<Session> scope = authorizeStudentScope(
-                command.getToken(), command.getStudentId(), Permission.COURSE_SELECT);
-        if (scope.getStatus() != StatusCode.OK) {
-            return ServiceResult.failure(scope.getStatus(), scope.getMessage());
+    private ServiceResult<?> query(CourseSelectionQueryV2Command command) {
+        ServiceResult<StudentSelectionProfile> profile = profile(command.getToken(), Permission.COURSE_READ);
+        if (profile.getStatus() != StatusCode.OK) return profile;
+        if (command.getQueryType() == CourseSelectionQueryV2Command.QueryType.AVAILABLE_ROUNDS) {
+            return courses.listAvailableRounds(profile.getData(), LocalDateTime.now());
         }
-        return courses.select(command.getStudentId(), command.getCourseId());
+        if (command.getQueryType() == CourseSelectionQueryV2Command.QueryType.AVAILABLE_OFFERINGS) {
+            return courses.listAvailableOfferings(profile.getData(), command.getRoundId(),
+                    LocalDateTime.now());
+        }
+        return courses.listSelectedOfferings(profile.getData());
     }
 
-    private ServiceResult<?> query(Message request) {
-        if (request.getPayload() == null) {
-            return courses.listCourses();
-        }
-
-        CourseQueryCommand command = payload(request, CourseQueryCommand.class);
-        switch (command.getQueryType()) {
-            case ALL_COURSES:
-                return courses.listCourses();
-            case SELECTED_COURSES:
-                ServiceResult<Session> scope = authorizeStudentScope(
-                        command.getToken(), command.getStudentId(), Permission.COURSE_READ);
-                if (scope.getStatus() != StatusCode.OK) {
-                    return ServiceResult.failure(scope.getStatus(), scope.getMessage());
-                }
-                return courses.selectedCourses(command.getStudentId());
-            default:
-                return ServiceResult.failure(StatusCode.BAD_REQUEST, "unknown course query type");
-        }
+    private ServiceResult<?> select(CourseSelectOfferingV2Command command) {
+        ServiceResult<StudentSelectionProfile> profile = profile(command.getToken(), Permission.COURSE_SELECT);
+        return profile.getStatus() == StatusCode.OK
+                ? courses.select(profile.getData(), command.getRoundId(), command.getOfferingId(),
+                        LocalDateTime.now()) : profile;
     }
 
-    private ServiceResult<Void> drop(CourseSelectionCommand command) {
-        ServiceResult<Session> scope = authorizeStudentScope(
-                command.getToken(), command.getStudentId(), Permission.COURSE_SELECT);
-        if (scope.getStatus() != StatusCode.OK) {
-            return ServiceResult.failure(scope.getStatus(), scope.getMessage());
-        }
-        return courses.drop(command.getStudentId(), command.getCourseId());
+    private ServiceResult<?> drop(CourseDropRecordV2Command command) {
+        ServiceResult<StudentSelectionProfile> profile = profile(command.getToken(), Permission.COURSE_SELECT);
+        return profile.getStatus() == StatusCode.OK
+                ? courses.drop(profile.getData(), command.getRecordId(), LocalDateTime.now()) : profile;
     }
 
-    private ServiceResult<Session> authorizeStudentScope(String token, String studentId, Permission permission) {
-        ServiceResult<Boolean> authorization = users.authorize(token, permission.getCode());
+    /** 课程目录和教学班管理仅允许拥有 COURSE_MANAGE 权限的教务人员使用。 */
+    private ServiceResult<?> manage(CourseManagementCommand command) {
+        ServiceResult<Void> authorization = authorizeCourseManager(command.getToken());
         if (authorization.getStatus() != StatusCode.OK) {
-            return ServiceResult.failure(authorization.getStatus(), authorization.getMessage());
+            return authorization;
         }
+        if (catalog == null || offerings == null) {
+            return ServiceResult.failure(StatusCode.NOT_FOUND,
+                    "course management services are not configured");
+        }
+        switch (command.getOperation()) {
+            case LIST_COURSES:
+                return catalog.listAll();
+            case LIST_OFFERINGS_BY_TERM:
+                return offerings.listByTerm(command.getTerm());
+            case CREATE_COURSE:
+                return catalog.create(command.getCourse());
+            case UPDATE_COURSE_DETAILS:
+                return catalog.updateDetails(command.getTargetId(), command.getName(),
+                        command.getCredits());
+            case CHANGE_COURSE_STATUS:
+                return catalog.changeStatus(command.getTargetId(), command.getCourseStatus());
+            case CREATE_OFFERING:
+                return offerings.create(command.getOffering());
+            case CHANGE_OFFERING_STATUS:
+                return offerings.changeStatus(command.getTargetId(), command.getOfferingStatus());
+            case CHANGE_OFFERING_CAPACITIES:
+                return offerings.changeCapacities(command.getTargetId(),
+                        command.getRequiredCapacity(), command.getElectiveCapacity(),
+                        command.getCrossMajorCapacity());
+            default:
+                return ServiceResult.failure(StatusCode.BAD_REQUEST, "unsupported management operation");
+        }
+    }
 
-        ServiceResult<Session> current = users.currentSession(token);
-        if (current.getStatus() != StatusCode.OK) {
-            return current;
+    private ServiceResult<StudentSelectionProfile> profile(String token, Permission permission) {
+        ServiceResult<Boolean> authorized = users.authorize(token, permission.getCode());
+        if (authorized.getStatus() != StatusCode.OK) return ServiceResult.failure(authorized.getStatus(), authorized.getMessage());
+        ServiceResult<Session> session = users.currentSession(token);
+        if (session.getStatus() != StatusCode.OK) return ServiceResult.failure(session.getStatus(), session.getMessage());
+        if (session.getData().getUser().getRole() != Role.STUDENT) {
+            return ServiceResult.failure(StatusCode.FORBIDDEN, "only student can use student course selection");
         }
+        return profiles.findByUserId(session.getData().getUser().getUserId());
+    }
 
-        Session session = current.getData();
-        Role role = session.getUser().getRole();
-        if (role == Role.ADMIN) {
-            return current;
+    private ServiceResult<Void> authorizeCourseManager(String token) {
+        ServiceResult<Boolean> authorized = users.authorize(token, Permission.COURSE_MANAGE.getCode());
+        if (authorized.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(authorized.getStatus(), authorized.getMessage());
         }
-        if (role == Role.STUDENT && session.getUser().getUserId().equals(studentId)) {
-            return current;
+        ServiceResult<Session> session = users.currentSession(token);
+        if (session.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(session.getStatus(), session.getMessage());
         }
-        return ServiceResult.failure(StatusCode.FORBIDDEN, "student scope denied");
+        return ServiceResult.ok(null);
     }
 
     private static <T> T payload(Message request, Class<T> type) {
-        Object payload = request.getPayload();
-        if (!type.isInstance(payload)) {
-            throw new IllegalArgumentException("unexpected payload type");
-        }
-        return type.cast(payload);
+        if (!type.isInstance(request.getPayload())) throw new IllegalArgumentException("unexpected payload type");
+        return type.cast(request.getPayload());
     }
 }

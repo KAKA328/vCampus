@@ -5,9 +5,11 @@ import cn.vcampus.common.MessageType;
 import cn.vcampus.common.Role;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
+import cn.vcampus.store.CartItem;
 import cn.vcampus.store.Order;
 import cn.vcampus.store.Product;
 import cn.vcampus.store.StoreOrderQueryCommand;
+import cn.vcampus.store.StoreRestockCommand;
 import cn.vcampus.store.StorePurchaseCommand;
 import cn.vcampus.store.StoreQueryCommand;
 import cn.vcampus.store.StoreService;
@@ -27,6 +29,7 @@ class StoreMessageHandlerTest {
     private InMemoryUserManagementService users;
     private StoreMessageHandler handler;
     private Session studentSession;
+    private Session managerSession;
 
     @BeforeEach
     void setUp() {
@@ -37,6 +40,10 @@ class StoreMessageHandlerTest {
                 "student001", "password", "测试学生", Role.STUDENT.name());
         users.register(student);
         studentSession = users.login(student).getData();
+        UserCredentials manager = new UserCredentials(
+                "manager001", "password", "商店管理员", Role.STORE_MANAGER.name());
+        users.register(manager);
+        managerSession = users.login(manager).getData();
     }
 
     @Test
@@ -90,6 +97,28 @@ class StoreMessageHandlerTest {
         assertEquals(0, store.listCallCount);
     }
 
+    @Test
+    void productQueryPassesOptionalCategoryToService() {
+        Message response = handler.handle(Message.request(
+                "store-category", MessageType.STORE_QUERY,
+                new StoreQueryCommand(studentSession.getToken(), "文具")));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertEquals("文具", store.lastCategory);
+    }
+
+    @Test
+    void managerCanReachRestockCommand() {
+        Message response = handler.handle(Message.request(
+                "store-restock", MessageType.STORE_RESTOCK,
+                new StoreRestockCommand(managerSession.getToken(), "P001", 10)));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertEquals("manager001", store.lastRestockUserId);
+        assertEquals("P001", store.lastRestockProductId);
+        assertEquals(10, store.lastRestockAmount);
+    }
+
     private static final class CapturingStoreService implements StoreService {
         private boolean listCalled;
         private int listCallCount;
@@ -97,11 +126,21 @@ class StoreMessageHandlerTest {
         private String lastPurchaseProductId;
         private int lastPurchaseQuantity;
         private String lastOrderQueryUserId;
+        private String lastCategory;
+        private String lastRestockUserId;
+        private String lastRestockProductId;
+        private int lastRestockAmount;
 
         @Override
         public ServiceResult<List<Product>> listProducts() {
             listCalled = true;
             listCallCount++;
+            return ServiceResult.ok(Collections.<Product>emptyList());
+        }
+
+        @Override
+        public ServiceResult<List<Product>> listProducts(String category) {
+            lastCategory = category;
             return ServiceResult.ok(Collections.<Product>emptyList());
         }
 
@@ -118,5 +157,61 @@ class StoreMessageHandlerTest {
             lastOrderQueryUserId = userId;
             return ServiceResult.ok(Collections.<Order>emptyList());
         }
+
+        @Override
+        public ServiceResult<Void> restock(String userId, String productId, int additionalStock) {
+            lastRestockUserId = userId;
+            lastRestockProductId = productId;
+            lastRestockAmount = additionalStock;
+            return ServiceResult.ok(null);
+        }
+
+        @Override
+        public ServiceResult<Product> addProduct(String name, double price, int stock, String description,
+                String category) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+        }
+
+        @Override
+        public ServiceResult<Product> updateProduct(String productId, String name, double price,
+                String description, String category) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+        }
+
+        @Override
+        public ServiceResult<Void> deactivateProduct(String userId, String productId) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+        }
+
+        @Override
+        public ServiceResult<Void> addToCart(String userId, String productId, int quantity) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+        }
+
+        @Override
+        public ServiceResult<Void> removeFromCart(String userId, String cartItemId) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+        }
+
+        @Override
+        public ServiceResult<List<CartItem>> getCart(String userId) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+        }
+
+        @Override
+        public ServiceResult<Void> checkout(String userId) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+        }
+
+        @Override
+        public ServiceResult<List<Order>> findAllOrders() {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+        }
+
+        @Override
+        public ServiceResult<List<Product>> listHotProducts(int limit) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "not implemented yet");
+        }
+
     }
 }

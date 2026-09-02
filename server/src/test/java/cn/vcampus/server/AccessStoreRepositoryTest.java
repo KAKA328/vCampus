@@ -8,6 +8,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.time.LocalDateTime;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -41,6 +42,7 @@ class AccessStoreRepositoryTest {
                     + "price DOUBLE NOT NULL,"
                     + "description VARCHAR(255),"
                     + "category VARCHAR(64) NOT NULL,"
+                    + "active BIT NOT NULL,"
                     + "PRIMARY KEY (product_id))");
             statement.execute("CREATE TABLE tblOrder ("
                     + "order_id VARCHAR(36) NOT NULL,"
@@ -111,6 +113,22 @@ class AccessStoreRepositoryTest {
     }
 
     @Test
+    void inventoryAndCatalogMutationsArePersisted() {
+        assertTrue(products.addStock("P001", 25));
+        assertEquals(225, products.findById("P001").getStock());
+
+        assertTrue(products.updateProduct(new Product("P001", "签字笔升级", 225, 2.5,
+                "新描述", "文具", false)));
+        Product changed = products.findById("P001");
+        assertEquals("签字笔升级", changed.getName());
+        assertEquals(2.5, changed.getPrice(), 0.001);
+        assertFalse(changed.isActive());
+
+        assertTrue(products.deleteById("P001"));
+        assertEquals(null, products.findById("P001"));
+    }
+
+    @Test
     void createOrderPersistsAndFindByUserIdReturnsIt() {
         Order order = new Order("ORD001", "student001", "P001", 5, 10.0,
                 LocalDateTime.now(), "黑色签字笔", 2.0);
@@ -151,16 +169,33 @@ class AccessStoreRepositoryTest {
         assertEquals(1, orders.findByUserId("student002").size());
     }
 
+    @Test
+    void findAllAndSalesVolumeReadPersistedOrders() {
+        orders.create(new Order("ORD020", "student001", "P001", 2, 4.0,
+                LocalDateTime.now(), "黑色签字笔", 2.0));
+        orders.create(new Order("ORD021", "student002", "P001", 3, 6.0,
+                LocalDateTime.now(), "黑色签字笔", 2.0));
+        orders.create(new Order("ORD022", "student002", "P002", 1, 5.0,
+                LocalDateTime.now(), "笔记本 A5", 5.0));
+
+        assertEquals(3, orders.findAll().size());
+        List<Object[]> sales = orders.findSalesVolume();
+        assertEquals(2, sales.size());
+        assertEquals("P001", sales.get(0)[0]);
+        assertEquals(5, sales.get(0)[1]);
+    }
+
     private static void insertProduct(Connection connection, String productId, String name,
             int stock, double price, String description, String category) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement(
-                "INSERT INTO tblProduct(product_id,name,stock,price,description,category) VALUES(?,?,?,?,?,?)")) {
+                "INSERT INTO tblProduct(product_id,name,stock,price,description,category,active) VALUES(?,?,?,?,?,?,?)")) {
             statement.setString(1, productId);
             statement.setString(2, name);
             statement.setInt(3, stock);
             statement.setDouble(4, price);
             statement.setString(5, description);
             statement.setString(6, category);
+            statement.setBoolean(7, true);
             statement.executeUpdate();
         }
     }
