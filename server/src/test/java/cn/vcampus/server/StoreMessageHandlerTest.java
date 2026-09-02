@@ -53,7 +53,7 @@ class StoreMessageHandlerTest {
                 "manager001", "password", "商店管理员", Role.STORE_MANAGER.name());
         users.register(manager);
         managerSession = users.login(manager).getData();
-        // 图书馆员既无 STORE_PURCHASE 也无 STORE_READ，用作购物车/热销类操作的“无权限”对照组
+        // 图书馆员无商店权限，用作无权限对照组
         UserCredentials librarian = new UserCredentials(
                 "librarian001", "password", "图书馆员", Role.LIBRARIAN.name());
         users.register(librarian);

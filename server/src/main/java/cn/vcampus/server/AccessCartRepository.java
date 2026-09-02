@@ -43,23 +43,13 @@ public final class AccessCartRepository implements CartRepository {
     public boolean addItem(CartItem item) {
         if (item == null)
             return false;
-        // 同用户同商品已存在则累加数量，与内存实现保持一致的合并语义
-        CartItem existing = findSameProduct(item.getUserId(), item.getProductId());
-        if (existing != null) {
-            return updateQuantity(existing.getCartItemId(), existing.getQuantity() + item.getQuantity());
-        }
-        String sql = "INSERT INTO tblCartItem(cart_item_id,user_id,product_id,quantity,added_at) "
-                + "VALUES(?,?,?,?,?)";
-        try (Connection connection = open();
-                PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, item.getCartItemId());
-            statement.setString(2, item.getUserId());
-            statement.setString(3, item.getProductId());
-            statement.setInt(4, item.getQuantity());
-            statement.setTimestamp(5, Timestamp.valueOf(item.getAddedAt()));
-            return statement.executeUpdate() > 0;
-        } catch (SQLException failure) {
-            throw new IllegalStateException("failed to add cart item", failure);
+        // 先原子累加已有行；无行时插入，插入撞唯一约束则再累加
+        if (accumulate(item.getUserId(), item.getProductId(), item.getQuantity()))
+            return true;
+        try {
+            return insert(item);
+        } catch (IllegalStateException conflict) {
+            return accumulate(item.getUserId(), item.getProductId(), item.getQuantity());
         }
     }
 
@@ -102,20 +92,32 @@ public final class AccessCartRepository implements CartRepository {
         }
     }
 
-    private CartItem findSameProduct(String userId, String productId) {
-        String sql = "SELECT cart_item_id,user_id,product_id,quantity,added_at "
-                + "FROM tblCartItem WHERE user_id=? AND product_id=?";
+    private boolean insert(CartItem item) {
+        String sql = "INSERT INTO tblCartItem(cart_item_id,user_id,product_id,quantity,added_at) "
+                + "VALUES(?,?,?,?,?)";
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, userId);
-            statement.setString(2, productId);
-            try (ResultSet results = statement.executeQuery()) {
-                if (!results.next())
-                    return null;
-                return readCartItem(results);
-            }
+            statement.setString(1, item.getCartItemId());
+            statement.setString(2, item.getUserId());
+            statement.setString(3, item.getProductId());
+            statement.setInt(4, item.getQuantity());
+            statement.setTimestamp(5, Timestamp.valueOf(item.getAddedAt()));
+            return statement.executeUpdate() > 0;
         } catch (SQLException failure) {
-            throw new IllegalStateException("failed to locate existing cart item", failure);
+            throw new IllegalStateException("failed to add cart item", failure);
+        }
+    }
+
+    private boolean accumulate(String userId, String productId, int quantity) {
+        String sql = "UPDATE tblCartItem SET quantity=quantity+? WHERE user_id=? AND product_id=?";
+        try (Connection connection = open();
+                PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, quantity);
+            statement.setString(2, userId);
+            statement.setString(3, productId);
+            return statement.executeUpdate() > 0;
+        } catch (SQLException failure) {
+            throw new IllegalStateException("failed to accumulate cart quantity", failure);
         }
     }
 

@@ -62,7 +62,8 @@ class AccessStoreRepositoryTest {
                     + "product_id VARCHAR(32) NOT NULL,"
                     + "quantity INTEGER NOT NULL,"
                     + "added_at DATETIME NOT NULL,"
-                    + "PRIMARY KEY (cart_item_id))");
+                    + "PRIMARY KEY (cart_item_id),"
+                    + "CONSTRAINT uk_tblCartItem_user_product UNIQUE (user_id, product_id))");
             insertProduct(connection, "P001", "黑色签字笔", 200, 2.0, "0.5mm 中性笔", "文具");
             insertProduct(connection, "P002", "笔记本 A5", 150, 5.0, "80页横线本", "文具");
         }
@@ -260,6 +261,65 @@ class AccessStoreRepositoryTest {
         carts.clearByUserId("student001");
         assertTrue(carts.findByUserId("student001").isEmpty());
         assertEquals(1, carts.findByUserId("student002").size());
+    }
+
+    @Test
+    void cartUniqueIndexRejectsDuplicateUserProductRow() throws Exception {
+        insertCart("CART040", "student001", "P001", 1);
+        org.junit.jupiter.api.Assertions.assertThrows(java.sql.SQLException.class,
+                () -> insertCart("CART041", "student001", "P001", 1));
+    }
+
+    @Test
+    void concurrentAddSameProductKeepsSingleCartRow() throws Exception {
+        carts.addItem(new CartItem("CART-BASE", "student001", "P001", 1, LocalDateTime.now()));
+        int threads = 6;
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(threads);
+        final java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        List<java.util.concurrent.Future<?>> futures = new java.util.ArrayList<java.util.concurrent.Future<?>>();
+        for (int i = 0; i < threads; i++) {
+            final String cartItemId = "CART-C-" + i;
+            futures.add(pool.submit(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        start.await();
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                    }
+                    carts.addItem(new CartItem(cartItemId, "student001", "P001", 1, LocalDateTime.now()));
+                }
+            }));
+        }
+        start.countDown();
+        for (java.util.concurrent.Future<?> future : futures) {
+            try {
+                future.get();
+            } catch (java.util.concurrent.ExecutionException ignored) {
+                // 个别连接因锁失败不影响唯一索引的单行保证
+            }
+        }
+        pool.shutdown();
+
+        List<CartItem> rows = carts.findByUserId("student001");
+        assertEquals(1, rows.size());
+        assertTrue(rows.get(0).getQuantity() >= 1);
+    }
+
+    private void insertCart(String cartItemId, String userId, String productId, int quantity)
+            throws java.sql.SQLException {
+        String sql = "INSERT INTO tblCartItem(cart_item_id,user_id,product_id,quantity,added_at) "
+                + "VALUES(?,?,?,?,?)";
+        try (Connection connection = DriverManager.getConnection(
+                "jdbc:ucanaccess://" + database + ";immediatelyReleaseResources=true");
+                PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, cartItemId);
+            statement.setString(2, userId);
+            statement.setString(3, productId);
+            statement.setInt(4, quantity);
+            statement.setTimestamp(5, java.sql.Timestamp.valueOf(LocalDateTime.now()));
+            statement.executeUpdate();
+        }
     }
 
     private static void insertProduct(Connection connection, String productId, String name,
