@@ -1,5 +1,6 @@
 package cn.vcampus.server;
 
+import cn.vcampus.store.CartItem;
 import cn.vcampus.store.Order;
 import cn.vcampus.store.Product;
 import java.nio.file.Path;
@@ -25,6 +26,7 @@ class AccessStoreRepositoryTest {
 
     private AccessProductRepository products;
     private AccessOrderRepository orders;
+    private AccessCartRepository carts;
     private Path database;
 
     @BeforeEach
@@ -34,7 +36,7 @@ class AccessStoreRepositoryTest {
         try (Connection connection = DriverManager.getConnection(
                 "jdbc:ucanaccess://" + database
                         + ";newDatabaseVersion=V2010;immediatelyReleaseResources=true");
-             Statement statement = connection.createStatement()) {
+                Statement statement = connection.createStatement()) {
             statement.execute("CREATE TABLE tblProduct ("
                     + "product_id VARCHAR(32) NOT NULL,"
                     + "name VARCHAR(100) NOT NULL,"
@@ -54,11 +56,19 @@ class AccessStoreRepositoryTest {
                     + "product_name VARCHAR(100) NOT NULL,"
                     + "unit_price DOUBLE NOT NULL,"
                     + "PRIMARY KEY (order_id))");
+            statement.execute("CREATE TABLE tblCartItem ("
+                    + "cart_item_id VARCHAR(36) NOT NULL,"
+                    + "user_id VARCHAR(32) NOT NULL,"
+                    + "product_id VARCHAR(32) NOT NULL,"
+                    + "quantity INTEGER NOT NULL,"
+                    + "added_at DATETIME NOT NULL,"
+                    + "PRIMARY KEY (cart_item_id))");
             insertProduct(connection, "P001", "黑色签字笔", 200, 2.0, "0.5mm 中性笔", "文具");
             insertProduct(connection, "P002", "笔记本 A5", 150, 5.0, "80页横线本", "文具");
         }
         products = new AccessProductRepository(database);
         orders = new AccessOrderRepository(database);
+        carts = new AccessCartRepository(database);
     }
 
     @Test
@@ -183,6 +193,73 @@ class AccessStoreRepositoryTest {
         assertEquals(2, sales.size());
         assertEquals("P001", sales.get(0)[0]);
         assertEquals(5, sales.get(0)[1]);
+    }
+
+    @Test
+    void deleteByIdRemovesProductAndReturnsFalseWhenMissing() {
+        assertTrue(products.deleteById("P002"));
+        assertEquals(null, products.findById("P002"));
+        assertFalse(products.deleteById("P002"));
+    }
+
+    @Test
+    void findAllPersistsActiveFlagForInactiveProducts() {
+        products.save(new Product("P003", "已下架商品", 10, 1.0, "不可购买", "测试", false));
+        Product saved = products.findById("P003");
+        assertNotNull(saved);
+        assertFalse(saved.isActive());
+        boolean foundInactive = false;
+        for (Product product : products.findAll()) {
+            if (product.getProductId().equals("P003"))
+                foundInactive = !product.isActive();
+        }
+        assertTrue(foundInactive);
+    }
+
+    @Test
+    void cartAddThenFindByUserIdReturnsIt() {
+        CartItem item = new CartItem("CART001", "student001", "P001", 3, LocalDateTime.now());
+        assertTrue(carts.addItem(item));
+        List<CartItem> items = carts.findByUserId("student001");
+        assertEquals(1, items.size());
+        CartItem saved = items.get(0);
+        assertEquals("CART001", saved.getCartItemId());
+        assertEquals("student001", saved.getUserId());
+        assertEquals("P001", saved.getProductId());
+        assertEquals(3, saved.getQuantity());
+    }
+
+    @Test
+    void cartAddSameProductAccumulatesQuantity() {
+        carts.addItem(new CartItem("CART010", "student001", "P001", 2, LocalDateTime.now()));
+        carts.addItem(new CartItem("CART011", "student001", "P001", 3, LocalDateTime.now()));
+        List<CartItem> items = carts.findByUserId("student001");
+        assertEquals(1, items.size());
+        assertEquals(5, items.get(0).getQuantity());
+        assertEquals("CART010", items.get(0).getCartItemId());
+    }
+
+    @Test
+    void cartFindByUserIdReturnsEmptyForNoItems() {
+        assertTrue(carts.findByUserId("nobody").isEmpty());
+    }
+
+    @Test
+    void cartRemoveItemDeletesEntry() {
+        carts.addItem(new CartItem("CART020", "student001", "P001", 1, LocalDateTime.now()));
+        assertTrue(carts.removeItem("CART020"));
+        assertTrue(carts.findByUserId("student001").isEmpty());
+        assertFalse(carts.removeItem("CART020"));
+    }
+
+    @Test
+    void cartClearByUserIdRemovesOnlyThatUser() {
+        carts.addItem(new CartItem("CART030", "student001", "P001", 1, LocalDateTime.now()));
+        carts.addItem(new CartItem("CART031", "student001", "P002", 2, LocalDateTime.now()));
+        carts.addItem(new CartItem("CART032", "student002", "P001", 1, LocalDateTime.now()));
+        carts.clearByUserId("student001");
+        assertTrue(carts.findByUserId("student001").isEmpty());
+        assertEquals(1, carts.findByUserId("student002").size());
     }
 
     private static void insertProduct(Connection connection, String productId, String name,
