@@ -7,6 +7,7 @@ import cn.vcampus.course.CourseSelectionModule;
 import cn.vcampus.course.CourseSelectionService;
 import cn.vcampus.course.CourseCatalogService;
 import cn.vcampus.course.CourseOfferingService;
+import cn.vcampus.course.SelectionRoundService;
 import cn.vcampus.course.StudentSelectionProfileProvider;
 import cn.vcampus.store.StoreService;
 import cn.vcampus.store.InMemoryStoreService;
@@ -44,7 +45,7 @@ public final class ServerApplication implements Closeable {
     private ServerApplication(int port, UserManagementService users, CourseSelectionModule module,
             StudentSelectionProfileProvider profiles, StoreService store) {
         this(port, users, module.getSelectionService(), module.getCatalogService(),
-                module.getOfferingService(), profiles, store);
+                module.getOfferingService(), module.getSelectionRoundService(), profiles, store);
     }
 
     public ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
@@ -55,9 +56,17 @@ public final class ServerApplication implements Closeable {
     ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
             CourseCatalogService catalog, CourseOfferingService offerings,
             StudentSelectionProfileProvider profiles, StoreService store) {
+        this(port, users, courses, catalog, offerings, null, profiles, store);
+    }
+
+    ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
+            CourseCatalogService catalog, CourseOfferingService offerings,
+            SelectionRoundService selectionRounds, StudentSelectionProfileProvider profiles,
+            StoreService store) {
         this.port = port;
         this.userMessages = new UserMessageHandler(users);
-        this.courseMessages = new CourseMessageHandler(courses, catalog, offerings, profiles, users);
+        this.courseMessages = new CourseMessageHandler(courses, catalog, offerings, selectionRounds,
+                profiles, users);
         this.storeMessages = new StoreMessageHandler(store, users);
     }
 

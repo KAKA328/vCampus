@@ -12,6 +12,7 @@ import cn.vcampus.course.CourseOfferingService;
 import cn.vcampus.course.CourseSelectionQueryV2Command;
 import cn.vcampus.course.CourseSelectOfferingV2Command;
 import cn.vcampus.course.CourseSelectionService;
+import cn.vcampus.course.SelectionRoundService;
 import cn.vcampus.course.StudentSelectionProfile;
 import cn.vcampus.course.StudentSelectionProfileProvider;
 import cn.vcampus.user.Permission;
@@ -24,6 +25,7 @@ final class CourseMessageHandler {
     private final CourseSelectionService courses;
     private final CourseCatalogService catalog;
     private final CourseOfferingService offerings;
+    private final SelectionRoundService selectionRounds;
     private final StudentSelectionProfileProvider profiles;
     private final UserManagementService users;
 
@@ -35,12 +37,19 @@ final class CourseMessageHandler {
     CourseMessageHandler(CourseSelectionService courses, CourseCatalogService catalog,
             CourseOfferingService offerings, StudentSelectionProfileProvider profiles,
             UserManagementService users) {
+        this(courses, catalog, offerings, null, profiles, users);
+    }
+
+    CourseMessageHandler(CourseSelectionService courses, CourseCatalogService catalog,
+            CourseOfferingService offerings, SelectionRoundService selectionRounds,
+            StudentSelectionProfileProvider profiles, UserManagementService users) {
         if (courses == null || profiles == null || users == null) {
             throw new IllegalArgumentException("course handler dependencies must not be null");
         }
         this.courses = courses;
         this.catalog = catalog;
         this.offerings = offerings;
+        this.selectionRounds = selectionRounds;
         this.profiles = profiles;
         this.users = users;
     }
@@ -114,36 +123,59 @@ final class CourseMessageHandler {
         if (authorization.getStatus() != StatusCode.OK) {
             return authorization;
         }
-        if (catalog == null || offerings == null) {
-            return ServiceResult.failure(StatusCode.NOT_FOUND,
-                    "course management services are not configured");
-        }
         switch (command.getOperation()) {
             case LIST_COURSES:
-                return catalog.listAll();
+                return catalog == null ? managementServiceUnavailable() : catalog.listAll();
             case LIST_OFFERINGS_BY_TERM:
-                return offerings.listByTerm(command.getTerm());
+                return offerings == null ? managementServiceUnavailable()
+                        : offerings.listByTerm(command.getTerm());
             case CREATE_COURSE:
-                return catalog.create(command.getCourse());
+                return catalog == null ? managementServiceUnavailable()
+                        : catalog.create(command.getCourse());
             case UPDATE_COURSE_DETAILS:
-                return catalog.updateDetails(command.getTargetId(), command.getName(),
-                        command.getCredits());
+                return catalog == null ? managementServiceUnavailable()
+                        : catalog.updateDetails(command.getTargetId(), command.getName(),
+                                command.getCredits());
             case CHANGE_COURSE_STATUS:
-                return catalog.changeStatus(command.getTargetId(), command.getCourseStatus());
+                return catalog == null ? managementServiceUnavailable()
+                        : catalog.changeStatus(command.getTargetId(), command.getCourseStatus());
             case CREATE_OFFERING:
-                return offerings.create(command.getOffering());
+                return offerings == null ? managementServiceUnavailable()
+                        : offerings.create(command.getOffering());
             case CHANGE_OFFERING_STATUS:
-                return offerings.changeStatus(command.getTargetId(), command.getOfferingStatus());
+                return offerings == null ? managementServiceUnavailable()
+                        : offerings.changeStatus(command.getTargetId(), command.getOfferingStatus());
             case CHANGE_OFFERING_CAPACITIES:
-                return offerings.changeCapacities(command.getTargetId(),
-                        command.getRequiredCapacity(), command.getElectiveCapacity(),
-                        command.getCrossMajorCapacity());
+                return offerings == null ? managementServiceUnavailable()
+                        : offerings.changeCapacities(command.getTargetId(),
+                                command.getRequiredCapacity(), command.getElectiveCapacity(),
+                                command.getCrossMajorCapacity());
             case UPDATE_OFFERING_TEACHING_INFO:
-                return offerings.updateTeachingInfo(command.getTargetId(), command.getTeacherId(),
-                        command.getLocation());
+                return offerings == null ? managementServiceUnavailable()
+                        : offerings.updateTeachingInfo(command.getTargetId(), command.getTeacherId(),
+                                command.getLocation());
+            case LIST_SELECTION_ROUNDS_BY_TERM:
+                return selectionRounds == null ? managementServiceUnavailable()
+                        : selectionRounds.listByTerm(command.getTerm());
+            case CREATE_SELECTION_ROUND:
+                return selectionRounds == null ? managementServiceUnavailable()
+                        : selectionRounds.create(command.getSelectionRound());
+            case UPDATE_SELECTION_ROUND_TIME_WINDOW:
+                return selectionRounds == null ? managementServiceUnavailable()
+                        : selectionRounds.updateTimeWindow(command.getTargetId(), command.getStartsAt(),
+                                command.getEndsAt());
+            case CHANGE_SELECTION_ROUND_STATUS:
+                return selectionRounds == null ? managementServiceUnavailable()
+                        : selectionRounds.changeStatus(command.getTargetId(),
+                                command.getSelectionRoundStatus());
             default:
                 return ServiceResult.failure(StatusCode.BAD_REQUEST, "unsupported management operation");
         }
+    }
+
+    private static ServiceResult<Void> managementServiceUnavailable() {
+        return ServiceResult.failure(StatusCode.NOT_FOUND,
+                "requested course management service is not configured");
     }
 
     private ServiceResult<StudentSelectionProfile> profile(String token, Permission permission) {

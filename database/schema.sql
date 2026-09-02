@@ -114,6 +114,19 @@ CREATE INDEX idx_tblCourseOffering_course ON tblCourseOffering(course_id);
 CREATE INDEX idx_tblCourseOffering_teacher ON tblCourseOffering(teacher_id);
 CREATE INDEX idx_tblCourseOffering_semester ON tblCourseOffering(semester);
 
+-- 教务人员维护的选课轮次。每个学期至多配置一个首修轮次和一个重修轮次。
+CREATE TABLE tblSelectionRound (
+    round_id VARCHAR(36) NOT NULL,
+    term VARCHAR(32) NOT NULL,
+    round_type VARCHAR(16) NOT NULL,
+    starts_at DATETIME NOT NULL,
+    ends_at DATETIME NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    PRIMARY KEY (round_id)
+);
+
+CREATE INDEX idx_tblSelectionRound_term ON tblSelectionRound(term);
+
 CREATE TABLE tblCourseResult (
     result_id VARCHAR(36) NOT NULL,
     student_id VARCHAR(32) NOT NULL,

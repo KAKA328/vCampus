@@ -18,6 +18,9 @@ import cn.vcampus.course.CourseSelectOfferingV2Command;
 import cn.vcampus.course.CourseSelectionQueryV2Command;
 import cn.vcampus.course.CourseSelectionDemoFactory;
 import cn.vcampus.course.InMemoryStudentSelectionProfileProvider;
+import cn.vcampus.course.SelectionRound;
+import cn.vcampus.course.SelectionRoundStatus;
+import cn.vcampus.course.SelectionRoundType;
 import cn.vcampus.course.StudentSelectionProfile;
 import cn.vcampus.user.DefaultUserManagementService;
 import cn.vcampus.user.InMemoryAuditLogRepository;
@@ -26,6 +29,7 @@ import cn.vcampus.user.Session;
 import cn.vcampus.user.SessionManager;
 import cn.vcampus.user.UserCredentials;
 import java.util.Collections;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -90,6 +94,7 @@ class CourseMessageHandlerTest {
         CourseSelectionModule module = CourseSelectionDemoFactory.createModule();
         CourseMessageHandler managementHandler = new CourseMessageHandler(
                 module.getSelectionService(), module.getCatalogService(), module.getOfferingService(),
+                module.getSelectionRoundService(),
                 new InMemoryStudentSelectionProfileProvider(Collections.<StudentSelectionProfile>emptyList()),
                 users);
 
@@ -113,6 +118,26 @@ class CourseMessageHandlerTest {
         assertEquals("教师005", updatedOffering.getTeacherId());
         assertEquals("B301", updatedOffering.getLocation());
         assertEquals("周四 1-2 节", updatedOffering.getSchedule());
+
+        LocalDateTime startsAt = LocalDateTime.of(2026, 10, 1, 8, 0);
+        LocalDateTime endsAt = LocalDateTime.of(2026, 10, 7, 18, 0);
+        Message createRound = managementHandler.handle(Message.request("create-round",
+                MessageType.COURSE_MANAGE, CourseManagementCommand.createSelectionRound(
+                        academicSession.getToken(), new SelectionRound("ROUND-EXTRA",
+                                "2026-2027-2", SelectionRoundType.INITIAL, startsAt, endsAt,
+                                SelectionRoundStatus.DRAFT))));
+        assertEquals(StatusCode.OK, createRound.getStatusCode());
+
+        Message openRound = managementHandler.handle(Message.request("open-round",
+                MessageType.COURSE_MANAGE, CourseManagementCommand.changeSelectionRoundStatus(
+                        academicSession.getToken(), "ROUND-EXTRA", SelectionRoundStatus.OPEN)));
+        assertEquals(StatusCode.OK, openRound.getStatusCode());
+
+        Message updateRoundTime = managementHandler.handle(Message.request("update-round-time",
+                MessageType.COURSE_MANAGE, CourseManagementCommand.updateSelectionRoundTimeWindow(
+                        academicSession.getToken(), "ROUND-EXTRA", startsAt.plusDays(1),
+                        endsAt.plusDays(1))));
+        assertEquals(StatusCode.OK, updateRoundTime.getStatusCode());
     }
 
     @Test
