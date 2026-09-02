@@ -102,18 +102,26 @@ CREATE TABLE tblCourseOffering (
     offering_id VARCHAR(36) NOT NULL,
     course_id VARCHAR(32) NOT NULL,
     teacher_id VARCHAR(32),
+    -- 以下五列兼容早期教学班表；新选课逻辑使用 term、容量池和 status。
     semester VARCHAR(32) NOT NULL,
     course_type VARCHAR(16) NOT NULL,
     total_capacity INTEGER NOT NULL,
     major_capacity INTEGER,
     cross_major_capacity INTEGER,
     active BIT NOT NULL,
+    term VARCHAR(32) NOT NULL,
+    schedule VARCHAR(128) NOT NULL,
+    location VARCHAR(64) NOT NULL,
+    required_capacity INTEGER NOT NULL,
+    elective_capacity INTEGER NOT NULL,
+    status VARCHAR(16) NOT NULL,
     PRIMARY KEY (offering_id)
 );
 
 CREATE INDEX idx_tblCourseOffering_course ON tblCourseOffering(course_id);
 CREATE INDEX idx_tblCourseOffering_teacher ON tblCourseOffering(teacher_id);
 CREATE INDEX idx_tblCourseOffering_semester ON tblCourseOffering(semester);
+CREATE INDEX idx_tblCourseOffering_term ON tblCourseOffering(term);
 
 -- 教务人员维护的选课轮次。每个学期至多配置一个首修轮次和一个重修轮次。
 CREATE TABLE tblSelectionRound (

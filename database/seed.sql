@@ -34,8 +34,8 @@ VALUES ('demo_student', 'demo_student', 'Demo Student', '未知', '计算机科�
 INSERT INTO tblTeacher(teacher_id, user_id, teacher_name, department_name, title)
 VALUES ('demo_teacher', 'demo_teacher', 'Demo Teacher', '计算机科学与工程学院', '讲师');
 
-INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, semester, course_type, total_capacity, major_capacity, cross_major_capacity, active)
-VALUES ('offering-java-2025a', 'JAVA101', 'demo_teacher', '2025-2026-1', '必修', 40, 35, 5, 1);
+INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, semester, course_type, total_capacity, major_capacity, cross_major_capacity, active, term, schedule, location, required_capacity, elective_capacity, status)
+VALUES ('offering-java-2025a', 'JAVA101', 'demo_teacher', '2025-2026-1', '必修', 40, 35, 5, 1, '2025-2026-1', '周一第1-2节', '教学楼A201', 35, 0, 'OPEN');
 
 INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at)
 VALUES ('result-java-demo-1', 'demo_student', 'JAVA101', 'offering-java-2025a', '2025-2026-1', 1, '首修', 86, 1, 3, NOW());

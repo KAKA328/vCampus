@@ -22,13 +22,15 @@
 
 已有数据库若已按早期结构创建 `tblCourse`，需先执行 `database/migrations/009_course_catalog_status.up.sql`，为已有课程补充 `ACTIVE` 状态；回滚使用同名 `.down.sql`。新建数据库直接使用 `schema.sql`，不需要重复执行该迁移。
 
+已有数据库若已按早期结构创建 `tblCourseOffering`，需执行 `database/migrations/010_course_offering_detail.up.sql`。迁移会尽可能保留学期和旧容量，但无法从旧数据推断上课时间、地点和选修容量，因此会填入“待安排”并将教学班设为 `DRAFT`；教务人员补齐后才能开放选课。
+
 ## 学籍审查规划表
 
 账号由系统管理员创建、批量导入或由初始化脚本预置。学生/教师档案可以先由对应子系统导入或维护，再通过 `student_id` / `teacher_id` 绑定 `user_id`；注册/开户注册流程不负责生成学生历史成绩。学籍审查需要的数据由教务管理员维护或由演示数据导入：
 
 - `tblStudent`：学生基础学籍信息，保存学号、姓名、院系、专业、班级、入学年份、学籍状态和联系方式，可通过 `user_id` 关联登录账号。
 - `tblTeacher`：教师基础信息，保存教师编号、姓名、院系和职称，可通过 `user_id` 关联登录账号。
-- `tblCourseOffering`：具体学期开课记录，保存课程、任课教师、学期、课程类型和容量。后续教务开课、改容量、停课应落在该表。
+- `tblCourseOffering`：具体学期开课记录，保存课程、任课教师、学期、显示用上课时间、地点、必修/选修/跨专业容量和状态。重修学生保留重修身份，但占用必修容量。旧的 `semester`、`course_type`、`total_capacity`、`major_capacity` 和 `active` 列仅作兼容保留，新逻辑以 `term`、三类容量和 `status` 为准。
 - `tblCourseResult`：历史课程结果，保存学生每次首修/重修记录、成绩、是否通过和获得学分。
 - `tblAcademicReview`：学业审查结果快照，保存累计学分、挂科门数、重修门数、是否满足毕业要求和审核人。
 
