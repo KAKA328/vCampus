@@ -35,7 +35,7 @@ class StudentManagementPanelTest {
 
         assertTrue(field(panel, "idButton", JButton.class).isEnabled());
         assertTrue(field(panel, "classButton", JButton.class).isEnabled());
-        assertTrue(field(panel, "saveButton", JButton.class).isEnabled());
+        assertFalse(field(panel, "saveButton", JButton.class).isEnabled());
         assertTrue(field(panel, "academicStatus", JTextField.class).isEditable());
         assertTrue(field(panel, "studentId", JTextField.class).isEditable());
     }

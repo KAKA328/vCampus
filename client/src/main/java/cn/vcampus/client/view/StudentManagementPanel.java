@@ -60,6 +60,7 @@ public final class StudentManagementPanel extends JPanel {
     private final JTextField email = new JTextField();
     private boolean requestInProgress;
     private boolean selectionUpdateInProgress;
+    private boolean loadedRecord;
 
     public StudentManagementPanel(String host, int port, Session session) {
         if (host == null || host.trim().isEmpty() || session == null) {
@@ -253,6 +254,7 @@ public final class StudentManagementPanel extends JPanel {
             showStatus("当前角色不能按班级查询", VCampusTheme.DANGER);
             return;
         }
+        clearEditor();
         runRequest("正在查询班级学生…", service -> service.findByClass(
                 session.getToken(), classQuery.getText()),
                 response -> showList(response, "班级学生查询成功"));
@@ -263,14 +265,16 @@ public final class StudentManagementPanel extends JPanel {
             showStatus("当前角色不能按专业查询", VCampusTheme.DANGER);
             return;
         }
+        clearEditor();
         runRequest("正在查询专业学生…", service -> service.findByMajor(
                 session.getToken(), majorQuery.getText()),
                 response -> showList(response, "专业学生查询成功"));
     }
 
     private void save() {
-        if (!canEdit) {
-            showStatus("当前角色没有修改权限", VCampusTheme.DANGER);
+        if (!canEdit || !loadedRecord) {
+            showStatus(canEdit ? "请先加载完整学生档案后再保存" : "当前角色没有修改权限",
+                    VCampusTheme.DANGER);
             return;
         }
         final StudentRecord record;
@@ -325,6 +329,7 @@ public final class StudentManagementPanel extends JPanel {
             selectionUpdateInProgress = false;
         }
         apply(record);
+        loadedRecord = true;
         showStatus(successMessage, VCampusTheme.SUCCESS);
     }
 
@@ -347,6 +352,7 @@ public final class StudentManagementPanel extends JPanel {
             rows.add(row((StudentRecord) value));
         }
         tableModel.replaceRows(rows);
+        loadedRecord = false;
         showStatus(successMessage + "，共 " + values.size() + " 人", VCampusTheme.SUCCESS);
     }
 
@@ -360,6 +366,8 @@ public final class StudentManagementPanel extends JPanel {
         if (row < 0) return;
         String selectedId = String.valueOf(tableModel.getValueAt(row, 0));
         if (requestInProgress || !canQueryById) return;
+        loadedRecord = false;
+        clearEditor();
         runRequest("正在加载所选学生完整档案…", service -> service.findById(
                 session.getToken(), selectedId), response -> {
                     int selectedRow = table.getSelectedRow();
@@ -376,8 +384,24 @@ public final class StudentManagementPanel extends JPanel {
                         return;
                     }
                     apply((StudentRecord) response.getPayload());
+                    loadedRecord = true;
                     showStatus("已加载所选学生完整档案", VCampusTheme.SUCCESS);
                 });
+    }
+
+    private void clearEditor() {
+        loadedRecord = false;
+        studentId.setText("");
+        userId.setText("");
+        name.setText("");
+        gender.setText("");
+        department.setText("");
+        major.setText("");
+        classId.setText("");
+        enrollmentYear.setText("");
+        academicStatus.setText("");
+        phone.setText("");
+        email.setText("");
     }
 
     private void apply(StudentRecord record) {
@@ -428,7 +452,7 @@ public final class StudentManagementPanel extends JPanel {
         idButton.setEnabled(!requestInProgress && canQueryById);
         classButton.setEnabled(!requestInProgress && canQueryClass);
         majorButton.setEnabled(!requestInProgress && canQueryClass);
-        saveButton.setEnabled(!requestInProgress && canEdit);
+        saveButton.setEnabled(!requestInProgress && canEdit && loadedRecord);
         table.setEnabled(!requestInProgress);
     }
 
