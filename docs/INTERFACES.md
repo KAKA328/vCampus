@@ -28,6 +28,8 @@ AcademicReviewService.pendingRetakes(String studentId)
 
 选课服务应先通过当前会话的 `userId` 调用 `findByUserId`，再使用返回的 `studentId` 进行选课；不得信任客户端自行传入的账号或学号。只有学籍状态为“在读”的学生允许新增选课，休学、毕业和退学学生保留历史但返回 `FORBIDDEN`。
 
+服务器使用 `StudentSelectionProfileAdapter` 完成上述组合：它将 `StudentRecord` 和 `pendingRetakes` 转换为选课V2所需的 `StudentSelectionProfile`。内存启动使用 `InMemoryStudentRepository + InMemoryAcademicReviewService`，`--db` 启动使用 `AccessStudentRepository + AccessAcademicReviewService`；选课模块不直接依赖学籍模块实现。
+
 ## 账号与档案绑定公共契约
 
 账号、学生档案和教师档案的身份字段必须分开使用：`user_id` 是登录身份，`student_id` 是学生学号，`teacher_id` 是教师工号。推荐流程为：先由学籍/教师信息模块建立学生或教师档案，再由管理员创建或批量导入账号，最后通过 `student_id` / `teacher_id` 把档案绑定到 `user_id`。
