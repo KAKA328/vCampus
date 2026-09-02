@@ -144,7 +144,7 @@ Message response = Message.response(request, StatusCode.OK, data);
 |---|---|
 | 用户管理 | `REGISTER`、`USER_IMPORT`、`UNREGISTER`、`LOGIN`、`LOGOUT`、`AUTHORIZE` |
 | 学生学籍 | `STUDENT_QUERY`、`STUDENT_UPDATE` |
-| 选课系统 | 旧协议保留：`COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP`；完整选课 V2：`COURSE_SELECTION_QUERY_V2`、`COURSE_SELECT_OFFERING_V2`、`COURSE_DROP_RECORD_V2`；课程维护：`COURSE_MANAGE` |
+| 选课系统 | 旧协议保留：`COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP`；完整选课 V2：`COURSE_SELECTION_QUERY_V2`、`COURSE_SELECT_OFFERING_V2`、`COURSE_DROP_RECORD_V2`；课程维护：`COURSE_MANAGE` + `CourseManagementCommand`，含课程目录、教学班创建、状态/容量调整，以及 `UPDATE_OFFERING_TEACHING_INFO(offeringId, teacherId, location)` |
 | 图书馆 | `LIBRARY_QUERY`、`LIBRARY_BORROW`、`LIBRARY_RETURN` |
 | 商店 | `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY`、`STORE_RESTOCK`、`STORE_PRODUCT_ADD`、`STORE_PRODUCT_UPDATE`、`STORE_PRODUCT_DEACTIVATE`、`STORE_CART_ADD`、`STORE_CART_REMOVE`、`STORE_CART_QUERY`、`STORE_CART_CHECKOUT`、`STORE_ORDER_LIST_ALL`、`STORE_HOT_PRODUCTS` |
 
@@ -167,6 +167,14 @@ docs/MODULE_INTEGRATION_GUIDE.md
 客户端不再提交 `studentId` 作为本人身份，服务器必须根据 `token -> user_id -> student_id` 推导学生档案。
 
 公共角色、权限编码和数据范围见 [`PERMISSIONS.md`](PERMISSIONS.md)。课程新增、修改和停开操作必须先校验 `COURSE_MANAGE`；任课教师录入成绩校验 `GRADE_WRITE`；教务复核校验 `ACADEMIC_REVIEW`。
+
+教务端课程维护统一走 `COURSE_MANAGE` + `CourseManagementCommand`。教学班维护当前拆成三类操作：
+
+- `CREATE_OFFERING(offering)`：创建教学班时确定课程、学期、任课教师、上课时间、地点、容量和初始状态；
+- `CHANGE_OFFERING_CAPACITIES(offeringId, requiredCapacity, electiveCapacity, crossMajorCapacity)`：只调整容量，服务端不得把容量改到低于当前有效选课人数；
+- `UPDATE_OFFERING_TEACHING_INFO(offeringId, teacherId, location)`：只调整任课教师和地点，服务端必须保留原 `schedule` 和 `meetingSchedule`，不能借此修改既有上课时间。
+
+因此，选课同学和学籍/教师档案同学对接时应把 `teacherId` 当作教师档案工号使用；如果后续要校验教师是否存在或是否绑定账号，应在教师档案服务准备好后由服务端补校验，客户端不能只靠输入框约束。
 
 ## 6. Payload 设计规则
 
