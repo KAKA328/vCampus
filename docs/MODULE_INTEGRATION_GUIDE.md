@@ -14,7 +14,7 @@
 - 学生学籍、选课、图书馆、商店四个模块的基础接口和实体；商店服务已补齐内存业务、Access 商品/订单仓储及管理/购物车协议处理；
 - 选课模块的轮次查询、教学班查询、学生选课、退选和本人已选教学班查询已接入服务器和学生客户端页面，完整流程使用显式 V2 协议。
 
-当前学生学籍、图书馆仍没有完整接入服务器分发和客户端页面；商店服务器分发已覆盖查询、购买、购物车、商品维护、订单管理和热销排行，但客户端暂有商品查询、购买和本人订单页面，管理员维护与购物车页面仍待补齐；选课模块仍需补充真实 Access 数据、教务开课/改课/停课、教师成绩录入和教务复核等管理功能。
+当前学生学籍已完成服务器分发、Access 仓储、Token 身份映射和基础 Swing 页面；学业审查已提供历史课程、待重修和实时审查接口。图书馆仍需完整接入服务器分发和客户端页面；商店服务器分发已覆盖查询、购买、购物车、钱包、商品维护、订单管理和热销排行，客户端已覆盖商品查询、购买、本人订单、购物车和钱包操作，管理员商品维护页面仍待补齐；选课模块仍需补充真实 Access 选课数据、教师成绩录入和教务复核等管理功能。
 
 ## 2. 队友开始开发前要做什么
 
@@ -46,7 +46,7 @@ git switch -c feature/store
 | 学生学籍管理 | `student-management/` | 学生信息实体、业务接口、数据库访问 |
 | 选课系统 | `course-selection/` | 课程信息、选课、退课、已选课程查询 |
 | 图书馆 | `library/` | 图书查询、借阅、归还、借阅记录 |
-| 商店 | `store/` | 商品查询、购买、库存、购买记录 |
+| 商店 | `store/` | 商品查询、购买、库存、购买记录、购物车、钱包余额 |
 | 公共协议 | `common/` | 共享实体、消息类型、状态码，只在确有必要时修改 |
 | 服务器 | `server/` | Socket 启动入口、消息处理器、Access 仓储实现 |
 | 客户端 | `client/` | Swing 页面、远程服务调用、主界面接入 |
@@ -144,7 +144,7 @@ Message response = Message.response(request, StatusCode.OK, data);
 |---|---|
 | 用户管理 | `REGISTER`、`USER_IMPORT`、`UNREGISTER`、`LOGIN`、`LOGOUT`、`AUTHORIZE` |
 | 学生学籍 | `STUDENT_QUERY`、`STUDENT_UPDATE` |
-| 选课系统 | 旧协议保留：`COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP`；完整选课 V2：`COURSE_SELECTION_QUERY_V2`、`COURSE_SELECT_OFFERING_V2`、`COURSE_DROP_RECORD_V2`；课程维护：`COURSE_MANAGE` + `CourseManagementCommand`，含课程目录、教学班创建、状态/容量调整，以及 `UPDATE_OFFERING_TEACHING_INFO(offeringId, teacherId, location)` |
+| 选课系统 | 旧协议保留：`COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP`；完整选课 V2：`COURSE_SELECTION_QUERY_V2`、`COURSE_SELECT_OFFERING_V2`、`COURSE_DROP_RECORD_V2`；课程维护：`COURSE_MANAGE` + `CourseManagementCommand`，含课程目录、教学班创建、`CHANGE_OFFERING_STATUS`、`CHANGE_OFFERING_CAPACITIES`，以及 `UPDATE_OFFERING_TEACHING_INFO(offeringId, teacherId, location)` |
 | 图书馆 | `LIBRARY_QUERY`、`LIBRARY_BORROW`、`LIBRARY_RETURN` |
 | 商店 | `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY`、`STORE_RESTOCK`、`STORE_PRODUCT_ADD`、`STORE_PRODUCT_UPDATE`、`STORE_PRODUCT_DEACTIVATE`、`STORE_CART_ADD`、`STORE_CART_REMOVE`、`STORE_CART_QUERY`、`STORE_CART_CHECKOUT`、`STORE_ORDER_LIST_ALL`、`STORE_HOT_PRODUCTS`、`STORE_ACCOUNT_QUERY`、`STORE_ACCOUNT_RECHARGE`、`STORE_ACCOUNT_ADJUST` |
 
@@ -169,14 +169,6 @@ docs/MODULE_INTEGRATION_GUIDE.md
 客户端不再提交 `studentId` 作为本人身份，服务器必须根据 `token -> user_id -> student_id` 推导学生档案。
 
 公共角色、权限编码和数据范围见 [`PERMISSIONS.md`](PERMISSIONS.md)。课程新增、修改和停开操作必须先校验 `COURSE_MANAGE`；任课教师录入成绩校验 `GRADE_WRITE`；教务复核校验 `ACADEMIC_REVIEW`。
-
-教务端课程维护统一走 `COURSE_MANAGE` + `CourseManagementCommand`。教学班维护当前拆成三类操作：
-
-- `CREATE_OFFERING(offering)`：创建教学班时确定课程、学期、任课教师、上课时间、地点、容量和初始状态；
-- `CHANGE_OFFERING_CAPACITIES(offeringId, requiredCapacity, electiveCapacity, crossMajorCapacity)`：只调整容量，服务端不得把容量改到低于当前有效选课人数；
-- `UPDATE_OFFERING_TEACHING_INFO(offeringId, teacherId, location)`：只调整任课教师和地点，服务端必须保留原 `schedule` 和 `meetingSchedule`，不能借此修改既有上课时间。
-
-因此，选课同学和学籍/教师档案同学对接时应把 `teacherId` 当作教师档案工号使用；如果后续要校验教师是否存在或是否绑定账号，应在教师档案服务准备好后由服务端补校验，客户端不能只靠输入框约束。
 
 ## 6. Payload 设计规则
 

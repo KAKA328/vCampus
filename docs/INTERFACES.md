@@ -5,12 +5,34 @@
 | 模块 | 核心接口 | 初始操作 |
 |---|---|---|
 | 用户管理 | `UserManagementService` | `register`、`importUsers`、`unregister`、`login`、`currentSession`、`logout`、`authorize`；`register` 作为管理员端开户注册能力，批量导入使用 `USER_IMPORT`，载荷见 `UserCredentials`、`UserImportCommand`、`UserCommand`、`AuthorizationRequest` |
-| 学生学籍 | `StudentManagementService` | `findById`、`findByClass`、`save` |
+| 学生学籍 | `StudentManagementService` | `findById`、`findByUserId`、`findMyStudentProfile`、`findByClass`、`findByMajor`、`save` |
+| 学业审查 | `AcademicReviewService` | `historyFor`、`pendingRetakes`、`review`、`latestReview` |
 | 选课 | `CourseSelectionService` | 完整选课流程使用 V2 消息：查询轮次/教学班/已选记录、按教学班选课、按选课记录退选；课程维护消息见下文 |
 | 图书馆 | `LibraryService` | `search`、`borrow`、`returnBook` |
-| 商店 | `StoreService` | 商品查询/分类、购买、购物车、本人/全量订单、热销排行和商品维护；商店消息使用 token-only 命令，用户编号由服务器会话解析 |
+| 商店 | `StoreService` | 商品查询/分类、购买、购物车、钱包、本人/全量订单、热销排行和商品维护；商店消息使用 token-only 命令，用户编号由服务器会话解析 |
 
 所有服务方法返回 `ServiceResult<T>`，由服务器统一映射为 `Message` 响应。服务端必须再次校验会话和权限。
+
+## 学籍与选课对接接口
+
+学籍模块向选课模块提供以下服务能力：
+
+```java
+StudentManagementService.findByUserId(String userId)
+AcademicReviewService.pendingRetakes(String studentId)
+```
+
+`findByUserId` 用于把登录账号映射为学生档案。账号已绑定时返回 `OK + StudentRecord`；未绑定时返回 `NOT_FOUND`，选课模块应提示联系学籍管理员；参数为空返回 `BAD_REQUEST`。
+
+`pendingRetakes` 按 `studentId + courseId` 汇总课程历史：某课程只要有一次 `passed=true` 就不再重修；只有全部尝试均未通过时才返回该课程最新一次失败记录。没有待重修课程返回 `OK + empty list`，参数为空返回 `BAD_REQUEST`。课程历史来源为 `tblCourseResult` 与 `tblCourse`，写入责任仍归选课/教务模块，学籍模块只提供查询和判断。
+
+选课服务应先通过当前会话的 `userId` 调用 `findByUserId`，再使用返回的 `studentId` 进行选课；不得信任客户端自行传入的账号或学号。只有学籍状态为“在读”的学生允许新增选课，休学、毕业和退学学生保留历史但返回 `FORBIDDEN`。
+
+服务器使用 `StudentSelectionProfileAdapter` 完成上述组合：它将 `StudentRecord` 和 `pendingRetakes` 转换为选课V2所需的 `StudentSelectionProfile`。内存启动使用 `InMemoryStudentRepository + InMemoryAcademicReviewService`，`--db` 启动使用 `AccessStudentRepository + AccessAcademicReviewService`；选课模块不直接依赖学籍模块实现。
+
+教务端学籍查询还支持 `findByMajor(majorName)`，仅允许 `ADMIN` 和 `ACADEMIC_ADMIN` 角色调用；学生本人和教师不能按专业批量查询。`findMyStudentProfile(userId)` 是服务器完成 Token 解析后的兼容别名，等价于 `findByUserId(userId)`。
+
+`AcademicReviewService.review(studentId, requiredCredits)` 根据课程结果实时计算学分、挂科和重修统计；`latestReview(studentId)` 读取 `tblAcademicReview` 中按审核时间倒序的最新快照。实时计算不会覆盖历史快照。
 
 ## 账号与档案绑定公共契约
 

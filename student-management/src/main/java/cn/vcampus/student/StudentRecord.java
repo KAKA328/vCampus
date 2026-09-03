@@ -6,6 +6,7 @@ import java.io.Serializable;
 public final class StudentRecord implements Serializable {
     private static final long serialVersionUID = 1L;
     private final String studentId;
+    private final String userId;
     private final String name;
     private final String gender;
     private final String departmentName;
@@ -17,7 +18,7 @@ public final class StudentRecord implements Serializable {
     private final String email;
 
     public StudentRecord(String studentId, String name, String classId) {
-        this(studentId, name, "", "", "", classId, 0, "", "", "");
+        this(studentId, null, name, "", "", "", classId, 0, "", "", "");
     }
 
     public StudentRecord(
@@ -32,7 +33,26 @@ public final class StudentRecord implements Serializable {
             String phone,
             String email
     ) {
+        this(studentId, null, name, gender, departmentName, majorName, classId,
+                enrollmentYear, status, phone, email);
+    }
+
+    /** Creates a complete profile, including the optional login-account binding. */
+    public StudentRecord(
+            String studentId,
+            String userId,
+            String name,
+            String gender,
+            String departmentName,
+            String majorName,
+            String classId,
+            int enrollmentYear,
+            String status,
+            String phone,
+            String email
+    ) {
         this.studentId = studentId;
+        this.userId = userId;
         this.name = name;
         this.gender = gender;
         this.departmentName = departmentName;
@@ -45,6 +65,7 @@ public final class StudentRecord implements Serializable {
     }
 
     public String getStudentId() { return studentId; }
+    public String getUserId() { return userId; }
     public String getName() { return name; }
     public String getGender() { return gender; }
     public String getDepartmentName() { return departmentName; }

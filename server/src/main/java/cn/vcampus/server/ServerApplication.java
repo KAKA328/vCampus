@@ -10,6 +10,12 @@ import cn.vcampus.course.CourseOfferingService;
 import cn.vcampus.course.StudentSelectionProfileProvider;
 import cn.vcampus.store.StoreService;
 import cn.vcampus.store.InMemoryStoreService;
+import cn.vcampus.student.AcademicReviewService;
+import cn.vcampus.student.DefaultStudentManagementService;
+import cn.vcampus.student.InMemoryAcademicReviewService;
+import cn.vcampus.student.InMemoryStudentRepository;
+import cn.vcampus.student.StudentRecord;
+import cn.vcampus.student.StudentManagementService;
 import cn.vcampus.user.UserManagementService;
 
 import java.io.Closeable;
@@ -33,32 +39,37 @@ public final class ServerApplication implements Closeable {
     private final UserMessageHandler userMessages;
     private final CourseMessageHandler courseMessages;
     private final StoreMessageHandler storeMessages;
+    private final StudentMessageHandler studentMessages;
     private final ExecutorService clients = Executors.newCachedThreadPool();
     private ServerSocket serverSocket;
 
     public ServerApplication(int port, UserManagementService users) {
         this(port, users, CourseSelectionDemoFactory.createModule(),
-                CourseSelectionDemoFactory.createProfileProvider(), new InMemoryStoreService());
+                memoryStudentServices(), new InMemoryStoreService());
     }
 
     private ServerApplication(int port, UserManagementService users, CourseSelectionModule module,
-            StudentSelectionProfileProvider profiles, StoreService store) {
+            StudentServices studentServices, StoreService store) {
         this(port, users, module.getSelectionService(), module.getCatalogService(),
-                module.getOfferingService(), profiles, store);
+                module.getOfferingService(), studentServices.profiles, store,
+                studentServices.students);
     }
 
     public ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
             StudentSelectionProfileProvider profiles) {
-        this(port, users, courses, null, null, profiles, new InMemoryStoreService());
+        this(port, users, courses, null, null, profiles, new InMemoryStoreService(),
+                memoryStudentServices().students);
     }
 
     ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
             CourseCatalogService catalog, CourseOfferingService offerings,
-            StudentSelectionProfileProvider profiles, StoreService store) {
+            StudentSelectionProfileProvider profiles, StoreService store,
+            StudentManagementService students) {
         this.port = port;
         this.userMessages = new UserMessageHandler(users);
         this.courseMessages = new CourseMessageHandler(courses, catalog, offerings, profiles, users);
         this.storeMessages = new StoreMessageHandler(store, users);
+        this.studentMessages = new StudentMessageHandler(students, users);
     }
 
     public void start() throws IOException {
@@ -116,6 +127,9 @@ public final class ServerApplication implements Closeable {
         if (request != null && isStoreMessage(request.getType())) {
             return storeMessages.handle(request);
         }
+        if (request != null && isStudentMessage(request.getType())) {
+            return studentMessages.handle(request);
+        }
         return userMessages.handle(request);
     }
 
@@ -144,15 +158,48 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.STORE_ACCOUNT_ADJUST;
     }
 
-    public static void main(String[] args) throws IOException {
-        int port = parsePort(args);
-        new ServerApplication(port, UserServiceFactory.create(args),
-                StoreServiceFactory.create(args)).start();
+    private static boolean isStudentMessage(MessageType type) {
+        return type == MessageType.STUDENT_QUERY || type == MessageType.STUDENT_UPDATE;
     }
 
-    private ServerApplication(int port, UserManagementService users, StoreService store) {
-        this(port, users, CourseSelectionDemoFactory.createModule(),
-                CourseSelectionDemoFactory.createProfileProvider(), store);
+    public static void main(String[] args) throws IOException {
+        int port = parsePort(args);
+        Path databasePath = UserServiceFactory.databasePath(args);
+        CourseSelectionModule module = CourseSelectionDemoFactory.createModule();
+        StudentServices studentServices = databasePath == null
+                ? memoryStudentServices() : accessStudentServices(databasePath);
+        new ServerApplication(port, UserServiceFactory.create(args), module,
+                studentServices, StoreServiceFactory.create(databasePath)).start();
+    }
+
+    private static StudentServices memoryStudentServices() {
+        InMemoryStudentRepository repository = new InMemoryStudentRepository();
+        repository.save(new StudentRecord("20260001", "demo_student", "演示学生", "未知",
+                "计算机学院", "计算机科学与技术", "CS2026-01", 2026,
+                "在读", "", ""));
+        StudentManagementService students = new DefaultStudentManagementService(repository);
+        AcademicReviewService academicReviews = new InMemoryAcademicReviewService();
+        return new StudentServices(students, new StudentSelectionProfileAdapter(
+                students, academicReviews, CourseSelectionDemoFactory.DEMO_TERM));
+    }
+
+    private static StudentServices accessStudentServices(Path databasePath) {
+        StudentManagementService students = new DefaultStudentManagementService(
+                new AccessStudentRepository(databasePath));
+        AcademicReviewService academicReviews = new AccessAcademicReviewService(databasePath);
+        return new StudentServices(students, new StudentSelectionProfileAdapter(
+                students, academicReviews, CourseSelectionDemoFactory.DEMO_TERM));
+    }
+
+    private static final class StudentServices {
+        private final StudentManagementService students;
+        private final StudentSelectionProfileProvider profiles;
+
+        private StudentServices(StudentManagementService students,
+                StudentSelectionProfileProvider profiles) {
+            this.students = students;
+            this.profiles = profiles;
+        }
     }
 
     private static int parsePort(String[] args) {

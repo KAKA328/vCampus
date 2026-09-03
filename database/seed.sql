@@ -28,6 +28,9 @@ INSERT INTO tblCourse(course_id, course_name, credits, capacity)
 VALUES ('NET101', '计算机网络', 3, 30);
 
 -- 学籍与学业审查演示数据：演示账号已预先绑定档案；正式历史成绩由教务维护或导入。
+INSERT INTO tblClass(class_id, class_name, department_name, major_name, grade_year)
+VALUES ('SE2023-01', '软件工程2023级1班', '计算机科学与工程学院', '软件工程', 2023);
+
 INSERT INTO tblStudent(student_id, user_id, student_name, gender, department_name, major_name, class_id, enrollment_year, status, phone, email)
 VALUES ('demo_student', 'demo_student', 'Demo Student', '未知', '计算机科学与工程学院', '软件工程', 'SE2023-01', 2023, '在读', '', '');
 
