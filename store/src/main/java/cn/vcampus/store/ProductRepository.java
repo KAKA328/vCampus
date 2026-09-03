@@ -16,4 +16,6 @@ public interface ProductRepository {
     boolean updateProduct(Product product);// 根据id更新商品信息
 
     boolean deleteById(String productId);// 根据id删除商品
+
+    boolean deductStock(String productId, int qty);// 原子减少库存，不小于qty才扣，否则返回false且不减少库存
 }
