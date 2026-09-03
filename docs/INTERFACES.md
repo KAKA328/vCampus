@@ -9,7 +9,7 @@
 | 学业审查 | `AcademicReviewService` | `historyFor`、`pendingRetakes`、`review`、`latestReview` |
 | 选课 | `CourseSelectionService` | 完整选课流程使用 V2 消息：查询轮次/教学班/已选记录、按教学班选课、按选课记录退选；课程维护消息见下文 |
 | 图书馆 | `LibraryService` | `search`、`borrow`、`returnBook` |
-| 商店 | `StoreService` | 商品查询/分类、购买、购物车、本人/全量订单、热销排行和商品维护；商店消息使用 token-only 命令，用户编号由服务器会话解析 |
+| 商店 | `StoreService` | 商品查询/分类、购买、购物车、钱包、本人/全量订单、热销排行和商品维护；商店消息使用 token-only 命令，用户编号由服务器会话解析 |
 
 所有服务方法返回 `ServiceResult<T>`，由服务器统一映射为 `Message` 响应。服务端必须再次校验会话和权限。
 
@@ -72,6 +72,11 @@ AcademicReviewService.pendingRetakes(String studentId)
 - `STORE_RESTOCK`、`STORE_PRODUCT_ADD`、`STORE_PRODUCT_UPDATE`、`STORE_PRODUCT_DEACTIVATE`：商品和库存维护，使用对应 `Store*Command`；均要求 `STORE_MANAGE`。
 - `STORE_ORDER_LIST_ALL` + `StoreOrderListAllCommand(token)`：管理员全量订单；要求 `STORE_MANAGE`。
 - `STORE_HOT_PRODUCTS` + `StoreHotProductsCommand(token, limit)`：热销商品排行；要求 `STORE_READ`。
+- `STORE_ACCOUNT_QUERY` + `StoreAccountQueryCommand(token)`：查询本人钱包余额，响应 payload 为 `long`（单位「分」）；要求 `STORE_READ`，`userId` 取自 token，无账户时返回 0。
+- `STORE_ACCOUNT_RECHARGE` + `StoreAccountRechargeCommand(token, amountCents)`：本人充值，`amountCents` 必须为正（单位「分」）；要求 `STORE_PURCHASE`，`userId` 取自 token，账户不存在时懒创建。
+- `STORE_ACCOUNT_ADJUST` + `StoreAccountAdjustCommand(token, targetUserId, newBalanceCents)`：管理员把指定用户余额校正为绝对值 `newBalanceCents`（非负，单位「分」）；要求 `STORE_MANAGE` 且角色 ∈ {`ADMIN`, `STORE_MANAGER`}（双重门槛）；`targetUserId` 取自 payload，仅管理员可指定他人，普通用户身份一律取自 token。
+
+商店钱包余额一律以「分」为单位的 `long` 存储和传输（实体 `BankAccount.balanceCents`、数据库列 `balance_cents BIGINT`、服务/命令/仓储接口全传 `long` 分），禁止 `double` 余额；`Product.price`、`Order.totalPrice`/`unitPrice` 仍是 `double`，只在支付边界 `Math.round(totalPrice * 100)` 换算一次，误差不进余额账本。购买/结账时余额不足返回 `PAYMENT_REQUIRED`；库存或余额在并发下变化、补偿失败时返回 `CONFLICT`。钱包只有余额校正，暂无账户流水/审计表。扣库存和扣款走应用层补偿（每个补偿都检查返回值），这是单 JVM 下的补偿一致性，不是数据库事务。
 
 用户批量导入使用 `USER_IMPORT`。请求 payload 为 `UserImportCommand(token, rows)`，其中 `rows` 是 `UserImportRow(userId, password, displayName, roleCode)` 列表；响应 payload 为 `UserImportResult(importBatchId, totalCount, successCount, failures)`，失败明细为 `UserImportFailure(rowNumber, userId, message)`。客户端用户管理页可从 `.xlsx`、`.csv`、`.tsv` 外部表格读取账号清单并转为 `rows`；这些表格只是导入源文件，不替代 Access 运行数据库。该能力要求 `USER_MANAGE`，服务端会记录导入管理员、导入时间、导入批次，并为每个成功创建的账号写入 `IMPORT_USER` 审计记录。单行失败不会影响同批次其它有效账号。
 

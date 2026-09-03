@@ -10,12 +10,22 @@ public final class InMemoryStoreService implements StoreService {
 
     // 无参构造函数
     public InMemoryStoreService() {
-        this(new InMemoryProductRepository(), new InMemoryOrderRepository());// 生成仓库
+        this(new InMemoryProductRepository(), new InMemoryOrderRepository(), new InMemoryCartRepository());// 生成仓库
     }
 
     // 包内可见构造函数，传入自定义的Repository
     InMemoryStoreService(ProductRepository products, OrderRepository orders) {
-        this.delegate = new DefaultStoreService(products, orders);
+        this(products, orders, new InMemoryCartRepository());
+    }
+
+    InMemoryStoreService(ProductRepository products, OrderRepository orders, CartRepository cart) {
+        this(products, orders, cart, new InMemoryBankAccountRepository());
+    }
+
+    // 4 参构造：注入银行账户仓库
+    InMemoryStoreService(ProductRepository products, OrderRepository orders, CartRepository cart,
+            BankAccountRepository bank) {
+        this.delegate = new DefaultStoreService(products, orders, cart, bank);
     }
 
     @Override
@@ -88,5 +98,20 @@ public final class InMemoryStoreService implements StoreService {
     @Override
     public final ServiceResult<List<Product>> listProducts(String category) {
         return delegate.listProducts(category);
+    }
+
+    @Override
+    public final long getBalance(String userId) {
+        return delegate.getBalance(userId);
+    }
+
+    @Override
+    public final ServiceResult<Void> recharge(String userId, long cents) {
+        return delegate.recharge(userId, cents);
+    }
+
+    @Override
+    public final ServiceResult<Void> adjustBalance(String adminId, String userId, long newBalanceCents) {
+        return delegate.adjustBalance(adminId, userId, newBalanceCents);
     }
 }

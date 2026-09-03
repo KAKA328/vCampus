@@ -153,7 +153,9 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.STORE_PRODUCT_UPDATE || type == MessageType.STORE_PRODUCT_DEACTIVATE
                 || type == MessageType.STORE_CART_ADD || type == MessageType.STORE_CART_REMOVE
                 || type == MessageType.STORE_CART_QUERY || type == MessageType.STORE_CART_CHECKOUT
-                || type == MessageType.STORE_ORDER_LIST_ALL || type == MessageType.STORE_HOT_PRODUCTS;
+                || type == MessageType.STORE_ORDER_LIST_ALL || type == MessageType.STORE_HOT_PRODUCTS
+                || type == MessageType.STORE_ACCOUNT_QUERY || type == MessageType.STORE_ACCOUNT_RECHARGE
+                || type == MessageType.STORE_ACCOUNT_ADJUST;
     }
 
     private static boolean isStudentMessage(MessageType type) {

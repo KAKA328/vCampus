@@ -1,5 +1,7 @@
 package cn.vcampus.server;
 
+import cn.vcampus.store.BankAccount;
+import cn.vcampus.store.CartItem;
 import cn.vcampus.store.Order;
 import cn.vcampus.store.Product;
 import java.nio.file.Path;
@@ -25,6 +27,8 @@ class AccessStoreRepositoryTest {
 
     private AccessProductRepository products;
     private AccessOrderRepository orders;
+    private AccessCartRepository carts;
+    private AccessBankAccountRepository bankAccounts;
     private Path database;
 
     @BeforeEach
@@ -34,7 +38,7 @@ class AccessStoreRepositoryTest {
         try (Connection connection = DriverManager.getConnection(
                 "jdbc:ucanaccess://" + database
                         + ";newDatabaseVersion=V2010;immediatelyReleaseResources=true");
-             Statement statement = connection.createStatement()) {
+                Statement statement = connection.createStatement()) {
             statement.execute("CREATE TABLE tblProduct ("
                     + "product_id VARCHAR(32) NOT NULL,"
                     + "name VARCHAR(100) NOT NULL,"
@@ -54,11 +58,25 @@ class AccessStoreRepositoryTest {
                     + "product_name VARCHAR(100) NOT NULL,"
                     + "unit_price DOUBLE NOT NULL,"
                     + "PRIMARY KEY (order_id))");
+            statement.execute("CREATE TABLE tblCartItem ("
+                    + "cart_item_id VARCHAR(36) NOT NULL,"
+                    + "user_id VARCHAR(32) NOT NULL,"
+                    + "product_id VARCHAR(32) NOT NULL,"
+                    + "quantity INTEGER NOT NULL,"
+                    + "added_at DATETIME NOT NULL,"
+                    + "PRIMARY KEY (cart_item_id),"
+                    + "CONSTRAINT uk_tblCartItem_user_product UNIQUE (user_id, product_id))");
+            statement.execute("CREATE TABLE tblBankAccount ("
+                    + "user_id VARCHAR(32) NOT NULL,"
+                    + "balance_cents BIGINT NOT NULL,"
+                    + "PRIMARY KEY (user_id))");
             insertProduct(connection, "P001", "黑色签字笔", 200, 2.0, "0.5mm 中性笔", "文具");
             insertProduct(connection, "P002", "笔记本 A5", 150, 5.0, "80页横线本", "文具");
         }
         products = new AccessProductRepository(database);
         orders = new AccessOrderRepository(database);
+        carts = new AccessCartRepository(database);
+        bankAccounts = new AccessBankAccountRepository(database);
     }
 
     @Test
@@ -183,6 +201,179 @@ class AccessStoreRepositoryTest {
         assertEquals(2, sales.size());
         assertEquals("P001", sales.get(0)[0]);
         assertEquals(5, sales.get(0)[1]);
+    }
+
+    @Test
+    void deleteByIdRemovesProductAndReturnsFalseWhenMissing() {
+        assertTrue(products.deleteById("P002"));
+        assertEquals(null, products.findById("P002"));
+        assertFalse(products.deleteById("P002"));
+    }
+
+    @Test
+    void findAllPersistsActiveFlagForInactiveProducts() {
+        products.save(new Product("P003", "已下架商品", 10, 1.0, "不可购买", "测试", false));
+        Product saved = products.findById("P003");
+        assertNotNull(saved);
+        assertFalse(saved.isActive());
+        boolean foundInactive = false;
+        for (Product product : products.findAll()) {
+            if (product.getProductId().equals("P003"))
+                foundInactive = !product.isActive();
+        }
+        assertTrue(foundInactive);
+    }
+
+    @Test
+    void cartAddThenFindByUserIdReturnsIt() {
+        CartItem item = new CartItem("CART001", "student001", "P001", 3, LocalDateTime.now());
+        assertTrue(carts.addItem(item));
+        List<CartItem> items = carts.findByUserId("student001");
+        assertEquals(1, items.size());
+        CartItem saved = items.get(0);
+        assertEquals("CART001", saved.getCartItemId());
+        assertEquals("student001", saved.getUserId());
+        assertEquals("P001", saved.getProductId());
+        assertEquals(3, saved.getQuantity());
+    }
+
+    @Test
+    void cartAddSameProductAccumulatesQuantity() {
+        carts.addItem(new CartItem("CART010", "student001", "P001", 2, LocalDateTime.now()));
+        carts.addItem(new CartItem("CART011", "student001", "P001", 3, LocalDateTime.now()));
+        List<CartItem> items = carts.findByUserId("student001");
+        assertEquals(1, items.size());
+        assertEquals(5, items.get(0).getQuantity());
+        assertEquals("CART010", items.get(0).getCartItemId());
+    }
+
+    @Test
+    void cartFindByUserIdReturnsEmptyForNoItems() {
+        assertTrue(carts.findByUserId("nobody").isEmpty());
+    }
+
+    @Test
+    void cartRemoveItemDeletesEntry() {
+        carts.addItem(new CartItem("CART020", "student001", "P001", 1, LocalDateTime.now()));
+        assertTrue(carts.removeItem("CART020"));
+        assertTrue(carts.findByUserId("student001").isEmpty());
+        assertFalse(carts.removeItem("CART020"));
+    }
+
+    @Test
+    void cartClearByUserIdRemovesOnlyThatUser() {
+        carts.addItem(new CartItem("CART030", "student001", "P001", 1, LocalDateTime.now()));
+        carts.addItem(new CartItem("CART031", "student001", "P002", 2, LocalDateTime.now()));
+        carts.addItem(new CartItem("CART032", "student002", "P001", 1, LocalDateTime.now()));
+        carts.clearByUserId("student001");
+        assertTrue(carts.findByUserId("student001").isEmpty());
+        assertEquals(1, carts.findByUserId("student002").size());
+    }
+
+    @Test
+    void cartUniqueIndexRejectsDuplicateUserProductRow() throws Exception {
+        insertCart("CART040", "student001", "P001", 1);
+        org.junit.jupiter.api.Assertions.assertThrows(java.sql.SQLException.class,
+                () -> insertCart("CART041", "student001", "P001", 1));
+    }
+
+    @Test
+    void concurrentAddSameProductKeepsSingleCartRow() throws Exception {
+        carts.addItem(new CartItem("CART-BASE", "student001", "P001", 1, LocalDateTime.now()));
+        int threads = 6;
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(threads);
+        final java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        List<java.util.concurrent.Future<?>> futures = new java.util.ArrayList<java.util.concurrent.Future<?>>();
+        for (int i = 0; i < threads; i++) {
+            final String cartItemId = "CART-C-" + i;
+            futures.add(pool.submit(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        start.await();
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                    }
+                    carts.addItem(new CartItem(cartItemId, "student001", "P001", 1, LocalDateTime.now()));
+                }
+            }));
+        }
+        start.countDown();
+        for (java.util.concurrent.Future<?> future : futures) {
+            try {
+                future.get();
+            } catch (java.util.concurrent.ExecutionException ignored) {
+                // 个别连接因锁失败不影响唯一索引的单行保证
+            }
+        }
+        pool.shutdown();
+
+        List<CartItem> rows = carts.findByUserId("student001");
+        assertEquals(1, rows.size());
+        assertTrue(rows.get(0).getQuantity() >= 1);
+    }
+
+    @Test
+    void testAccessDeductStockSuccess() {
+        assertTrue(products.deductStock("P001", 50));
+        assertEquals(150, products.findById("P001").getStock());
+    }
+
+    @Test
+    void testAccessDeductStockGuardRejectsInsufficient() {
+        assertFalse(products.deductStock("P001", 201));// 库存 200，扣 201 被守卫拒绝
+        assertEquals(200, products.findById("P001").getStock());// 库存不变
+    }
+
+    @Test
+    void testAccessBankAccountUpsertOnFirstCredit() {
+        assertEquals(null, bankAccounts.findByUserId("student001"));// 前置：账户不存在
+        assertTrue(bankAccounts.credit("student001", 10000L));// 首次入账懒创建
+        BankAccount account = bankAccounts.findByUserId("student001");
+        assertNotNull(account);
+        assertEquals(10000L, account.getBalanceCents());
+    }
+
+    @Test
+    void testAccessCreditAccumulates() {
+        bankAccounts.credit("student001", 10000L);
+        bankAccounts.credit("student001", 5000L);
+        assertEquals(15000L, bankAccounts.findByUserId("student001").getBalanceCents());
+    }
+
+    @Test
+    void testAccessDebitGuardInsufficientUnchanged() {
+        bankAccounts.credit("student001", 10000L);
+        assertFalse(bankAccounts.debit("student001", 20000L));// 余额不足
+        assertEquals(10000L, bankAccounts.findByUserId("student001").getBalanceCents());// 不变
+        assertTrue(bankAccounts.debit("student001", 3000L));// 余额充足
+        assertEquals(7000L, bankAccounts.findByUserId("student001").getBalanceCents());
+    }
+
+    @Test
+    void testAccessSetBalancePersists() {
+        bankAccounts.credit("student001", 10000L);
+        assertTrue(bankAccounts.setBalance("student001", 250L));
+        assertEquals(250L, bankAccounts.findByUserId("student001").getBalanceCents());
+        // 重开仓库验证已落盘
+        AccessBankAccountRepository reopened = new AccessBankAccountRepository(database);
+        assertEquals(250L, reopened.findByUserId("student001").getBalanceCents());
+    }
+
+    private void insertCart(String cartItemId, String userId, String productId, int quantity)
+            throws java.sql.SQLException {
+        String sql = "INSERT INTO tblCartItem(cart_item_id,user_id,product_id,quantity,added_at) "
+                + "VALUES(?,?,?,?,?)";
+        try (Connection connection = DriverManager.getConnection(
+                "jdbc:ucanaccess://" + database + ";immediatelyReleaseResources=true");
+                PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, cartItemId);
+            statement.setString(2, userId);
+            statement.setString(3, productId);
+            statement.setInt(4, quantity);
+            statement.setTimestamp(5, java.sql.Timestamp.valueOf(LocalDateTime.now()));
+            statement.executeUpdate();
+        }
     }
 
     private static void insertProduct(Connection connection, String productId, String name,

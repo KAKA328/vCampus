@@ -2,7 +2,9 @@ package cn.vcampus.client.view;
 
 import cn.vcampus.client.service.RemoteStoreService;
 import cn.vcampus.common.Message;
+import cn.vcampus.common.Role;
 import cn.vcampus.common.StatusCode;
+import cn.vcampus.store.CartItem;
 import cn.vcampus.store.Order;
 import cn.vcampus.store.Product;
 import cn.vcampus.user.Session;
@@ -15,6 +17,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import javax.swing.JButton;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
@@ -34,16 +37,28 @@ public final class StorePanel extends JPanel {
     private final int port;
     private final Session session;
     private final BatchTableModel productTableModel = new BatchTableModel(
-            new Object[] {"商品号", "名称", "类别", "价格", "库存", "说明"});
+            new Object[] { "商品号", "名称", "类别", "价格", "库存", "说明" });
     private final BatchTableModel orderTableModel = new BatchTableModel(
-            new Object[] {"订单号", "商品", "数量", "单价", "总价", "时间"});
+            new Object[] { "订单号", "商品", "数量", "单价", "总价", "时间" });
+    private final BatchTableModel cartTableModel = new BatchTableModel(
+            new Object[] { "条目号", "商品", "数量", "加入时间" });
     private final JTable productTable = new JTable(productTableModel);
     private final JTable orderTable = new JTable(orderTableModel);
+    private final JTable cartTable = new JTable(cartTableModel);
     private final JLabel status = new JLabel("请点击“刷新商品”查询商店商品");
+    private final JLabel balanceLabel = new JLabel("余额：--.-- 元");
     private final JButton refreshProductsButton = new JButton("刷新商品");
     private final JButton purchaseButton = new JButton("购买选中商品");
+    private final JButton addToCartButton = new JButton("加入购物车");
     private final JButton refreshOrdersButton = new JButton("我的订单");
+    private final JButton rechargeButton = new JButton("充值");
+    private final JButton refreshCartButton = new JButton("刷新购物车");
+    private final JButton removeFromCartButton = new JButton("移除选中");
+    private final JButton checkoutButton = new JButton("去结算");
+    private final JButton adjustBalanceButton = new JButton("校正余额");
     private final JSpinner quantity = new JSpinner(new SpinnerNumberModel(1, 1, 99, 1));
+    // 角色 ∈ {ADMIN, STORE_MANAGER} 才显示“校正余额”入口；按钮可见性只是 UX，真正拦截在服务端
+    private final boolean canManageBalance;
 
     private boolean requestInProgress;
     private final RequestLifecycle requestLifecycle = new RequestLifecycle();
@@ -55,6 +70,8 @@ public final class StorePanel extends JPanel {
         this.host = host.trim();
         this.port = port;
         this.session = session;
+        this.canManageBalance = session.getUser().getRole() == Role.ADMIN
+                || session.getUser().getRole() == Role.STORE_MANAGER;
         build();
     }
 
@@ -68,8 +85,17 @@ public final class StorePanel extends JPanel {
 
         refreshProductsButton.addActionListener(event -> loadProducts());
         purchaseButton.addActionListener(event -> purchaseSelectedProduct());
+        addToCartButton.addActionListener(event -> addSelectedToCart());
         refreshOrdersButton.addActionListener(event -> loadOrders());
+        rechargeButton.addActionListener(event -> promptRecharge());
+        refreshCartButton.addActionListener(event -> loadCart());
+        removeFromCartButton.addActionListener(event -> removeSelectedCartItem());
+        checkoutButton.addActionListener(event -> checkoutCart());
+        if (canManageBalance) {
+            adjustBalanceButton.addActionListener(event -> promptAdjustBalance());
+        }
         updateButtonState();
+        loadBalance();
     }
 
     private JPanel header() {
@@ -84,8 +110,16 @@ public final class StorePanel extends JPanel {
                 + "；可浏览商品、购买商品并查询本人订单。");
         subtitle.setForeground(VCampusTheme.MUTED);
 
+        balanceLabel.setFont(VCampusTheme.font(Font.BOLD, 14));
+        balanceLabel.setForeground(VCampusTheme.PRIMARY_DARK);
+
+        JPanel subtitleRow = new JPanel(new BorderLayout(12, 0));
+        subtitleRow.setOpaque(false);
+        subtitleRow.add(subtitle, BorderLayout.CENTER);
+        subtitleRow.add(balanceLabel, BorderLayout.EAST);
+
         panel.add(title, BorderLayout.NORTH);
-        panel.add(subtitle, BorderLayout.SOUTH);
+        panel.add(subtitleRow, BorderLayout.SOUTH);
         return panel;
     }
 
@@ -94,7 +128,22 @@ public final class StorePanel extends JPanel {
         tabs.setFont(VCampusTheme.font(Font.PLAIN, 14));
         tabs.addTab("商品列表", tablePanel(productTable, productTableModel));
         tabs.addTab("购买记录", tablePanel(orderTable, orderTableModel));
+        tabs.addTab("购物车", cartPanel());
         return tabs;
+    }
+
+    private JPanel cartPanel() {
+        JPanel panel = tablePanel(cartTable, cartTableModel);
+        JPanel cartActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 6));
+        cartActions.setOpaque(false);
+        VCampusTheme.secondaryButton(refreshCartButton);
+        VCampusTheme.secondaryButton(removeFromCartButton);
+        VCampusTheme.primaryButton(checkoutButton);
+        cartActions.add(refreshCartButton);
+        cartActions.add(removeFromCartButton);
+        cartActions.add(checkoutButton);
+        panel.add(cartActions, BorderLayout.SOUTH);
+        return panel;
     }
 
     private JPanel tablePanel(JTable table, DefaultTableModel model) {
@@ -115,12 +164,20 @@ public final class StorePanel extends JPanel {
         actions.setOpaque(false);
         VCampusTheme.secondaryButton(refreshProductsButton);
         VCampusTheme.primaryButton(purchaseButton);
+        VCampusTheme.secondaryButton(addToCartButton);
         VCampusTheme.secondaryButton(refreshOrdersButton);
+        VCampusTheme.primaryButton(rechargeButton);
+        VCampusTheme.secondaryButton(adjustBalanceButton);
         actions.add(refreshProductsButton);
         actions.add(new JLabel("数量"));
         actions.add(quantity);
         actions.add(purchaseButton);
+        actions.add(addToCartButton);
         actions.add(refreshOrdersButton);
+        actions.add(rechargeButton);
+        if (canManageBalance) {
+            actions.add(adjustBalanceButton);
+        }
 
         status.setForeground(VCampusTheme.MUTED);
         panel.add(actions, BorderLayout.NORTH);
@@ -177,6 +234,7 @@ public final class StorePanel extends JPanel {
                 }
                 showStatus("购买成功，正在刷新商品列表…", VCampusTheme.SUCCESS);
                 loadProducts();
+                loadBalance();
             }
         });
     }
@@ -243,6 +301,233 @@ public final class StorePanel extends JPanel {
         showStatus("已显示我的订单，共 " + orders.size() + " 条", VCampusTheme.SUCCESS);
     }
 
+    private void loadBalance() {
+        runRequest("正在查询余额…", new StoreRequest() {
+            @Override
+            public Message execute(RemoteStoreService service) throws IOException, ClassNotFoundException {
+                return service.balance(session.getToken());
+            }
+        }, new ResponseHandler() {
+            @Override
+            public void handle(Message response) {
+                showBalance(response);
+            }
+        });
+    }
+
+    private void showBalance(Message response) {
+        // 服务端返回余额（分，Long）；显示时 /100 转元保留两位
+        if (response.getStatusCode() == StatusCode.OK && response.getPayload() instanceof Number) {
+            long cents = ((Number) response.getPayload()).longValue();
+            balanceLabel.setText("余额：" + formatYuan(cents) + " 元");
+        } else {
+            balanceLabel.setText("余额：--.-- 元");
+        }
+    }
+
+    // 分转元显示：long 分 /100，保留两位小数（仅用于展示，不参与账本运算）
+    private static String formatYuan(long cents) {
+        return String.format("%d.%02d", cents / 100, Math.abs(cents % 100));
+    }
+
+    private void promptRecharge() {
+        String input = JOptionPane.showInputDialog(this, "请输入充值金额（元）：", "充值",
+                JOptionPane.PLAIN_MESSAGE);
+        if (input == null || input.trim().isEmpty()) {
+            return;
+        }
+        long parsed;
+        try {
+            // 元转分：Math.round(元*100) 一次性换算，避免浮点误差进账本
+            parsed = Math.round(Double.parseDouble(input.trim()) * 100);
+        } catch (NumberFormatException invalid) {
+            showStatus("充值金额格式不正确", VCampusTheme.DANGER);
+            return;
+        }
+        if (parsed <= 0) {
+            showStatus("充值金额必须大于 0", VCampusTheme.DANGER);
+            return;
+        }
+        final long cents = parsed;
+        runRequest("正在充值…", new StoreRequest() {
+            @Override
+            public Message execute(RemoteStoreService service) throws IOException, ClassNotFoundException {
+                return service.recharge(session.getToken(), cents);
+            }
+        }, new ResponseHandler() {
+            @Override
+            public void handle(Message response) {
+                if (response.getStatusCode() != StatusCode.OK) {
+                    showResponseFailure(response);
+                    return;
+                }
+                showStatus("充值成功", VCampusTheme.SUCCESS);
+                loadBalance();
+            }
+        });
+    }
+
+    private void addSelectedToCart() {
+        final String productId = selectedProductId();
+        if (productId == null) {
+            showStatus("请先在商品表中选择一个商品", VCampusTheme.DANGER);
+            return;
+        }
+        final int count = ((Integer) quantity.getValue()).intValue();
+        runRequest("正在加入购物车…", new StoreRequest() {
+            @Override
+            public Message execute(RemoteStoreService service) throws IOException, ClassNotFoundException {
+                return service.addToCart(session.getToken(), productId, count);
+            }
+        }, new ResponseHandler() {
+            @Override
+            public void handle(Message response) {
+                if (response.getStatusCode() != StatusCode.OK) {
+                    showResponseFailure(response);
+                    return;
+                }
+                showStatus("已加入购物车", VCampusTheme.SUCCESS);
+                loadCart();
+            }
+        });
+    }
+
+    private void loadCart() {
+        runRequest("正在查询购物车…", new StoreRequest() {
+            @Override
+            public Message execute(RemoteStoreService service) throws IOException, ClassNotFoundException {
+                return service.cart(session.getToken());
+            }
+        }, new ResponseHandler() {
+            @Override
+            public void handle(Message response) {
+                showCart(response);
+            }
+        });
+    }
+
+    private void showCart(Message response) {
+        if (response.getStatusCode() != StatusCode.OK) {
+            showResponseFailure(response);
+            return;
+        }
+        if (!(response.getPayload() instanceof List<?>)) {
+            cartTableModel.replaceRows(new java.util.ArrayList<Object[]>());
+            return;
+        }
+        List<?> items = (List<?>) response.getPayload();
+        java.util.ArrayList<Object[]> rows = new java.util.ArrayList<Object[]>();
+        for (Object item : items) {
+            if (!(item instanceof CartItem)) {
+                showStatus("服务器返回的购物车数据格式不正确", VCampusTheme.DANGER);
+                return;
+            }
+            CartItem cartItem = (CartItem) item;
+            rows.add(new Object[] {
+                    cartItem.getCartItemId(), cartItem.getProductId(), cartItem.getQuantity(),
+                    DATE_TIME.format(cartItem.getAddedAt())
+            });
+        }
+        cartTableModel.replaceRows(rows);
+        showStatus("已显示购物车，共 " + items.size() + " 条", VCampusTheme.SUCCESS);
+    }
+
+    private String selectedCartItemId() {
+        int selectedRow = cartTable.getSelectedRow();
+        if (selectedRow < 0) {
+            return null;
+        }
+        return String.valueOf(cartTableModel.getValueAt(selectedRow, 0));
+    }
+
+    private void removeSelectedCartItem() {
+        final String cartItemId = selectedCartItemId();
+        if (cartItemId == null) {
+            showStatus("请先在购物车表中选择一个条目", VCampusTheme.DANGER);
+            return;
+        }
+        runRequest("正在移除购物车条目…", new StoreRequest() {
+            @Override
+            public Message execute(RemoteStoreService service) throws IOException, ClassNotFoundException {
+                return service.removeFromCart(session.getToken(), cartItemId);
+            }
+        }, new ResponseHandler() {
+            @Override
+            public void handle(Message response) {
+                if (response.getStatusCode() != StatusCode.OK) {
+                    showResponseFailure(response);
+                    return;
+                }
+                showStatus("已移除购物车条目", VCampusTheme.SUCCESS);
+                loadCart();
+            }
+        });
+    }
+
+    private void checkoutCart() {
+        runRequest("正在结算购物车…", new StoreRequest() {
+            @Override
+            public Message execute(RemoteStoreService service) throws IOException, ClassNotFoundException {
+                return service.checkout(session.getToken());
+            }
+        }, new ResponseHandler() {
+            @Override
+            public void handle(Message response) {
+                if (response.getStatusCode() != StatusCode.OK) {
+                    showResponseFailure(response);
+                    return;
+                }
+                showStatus("结算成功，正在刷新…", VCampusTheme.SUCCESS);
+                loadCart();
+                loadBalance();
+                loadProducts();
+                loadOrders();
+            }
+        });
+    }
+
+    private void promptAdjustBalance() {
+        String targetUserId = JOptionPane.showInputDialog(this, "请输入目标用户编号：", "校正余额",
+                JOptionPane.PLAIN_MESSAGE);
+        if (targetUserId == null || targetUserId.trim().isEmpty()) {
+            return;
+        }
+        String input = JOptionPane.showInputDialog(this, "请输入新的余额（元）：", "校正余额",
+                JOptionPane.PLAIN_MESSAGE);
+        if (input == null || input.trim().isEmpty()) {
+            return;
+        }
+        long parsed;
+        try {
+            parsed = Math.round(Double.parseDouble(input.trim()) * 100);
+        } catch (NumberFormatException invalid) {
+            showStatus("余额金额格式不正确", VCampusTheme.DANGER);
+            return;
+        }
+        if (parsed < 0) {
+            showStatus("余额不能为负", VCampusTheme.DANGER);
+            return;
+        }
+        final long cents = parsed;
+        final String target = targetUserId.trim();
+        runRequest("正在校正余额…", new StoreRequest() {
+            @Override
+            public Message execute(RemoteStoreService service) throws IOException, ClassNotFoundException {
+                return service.adjustBalance(session.getToken(), target, cents);
+            }
+        }, new ResponseHandler() {
+            @Override
+            public void handle(Message response) {
+                if (response.getStatusCode() != StatusCode.OK) {
+                    showResponseFailure(response);
+                    return;
+                }
+                showStatus("已校正 " + target + " 的余额", VCampusTheme.SUCCESS);
+                loadBalance();
+            }
+        });
+    }
+
     private void runRequest(String loadingMessage, final StoreRequest request,
             final ResponseHandler responseHandler) {
         final int requestId = requestLifecycle.begin();
@@ -282,7 +567,13 @@ public final class StorePanel extends JPanel {
     private void updateButtonState() {
         refreshProductsButton.setEnabled(!requestInProgress);
         purchaseButton.setEnabled(!requestInProgress);
+        addToCartButton.setEnabled(!requestInProgress);
         refreshOrdersButton.setEnabled(!requestInProgress);
+        rechargeButton.setEnabled(!requestInProgress);
+        refreshCartButton.setEnabled(!requestInProgress);
+        removeFromCartButton.setEnabled(!requestInProgress);
+        checkoutButton.setEnabled(!requestInProgress);
+        adjustBalanceButton.setEnabled(!requestInProgress && canManageBalance);
         quantity.setEnabled(!requestInProgress);
     }
 
@@ -311,6 +602,12 @@ public final class StorePanel extends JPanel {
         }
         if (statusCode == StatusCode.NOT_FOUND) {
             return "商品或订单不存在";
+        }
+        if (statusCode == StatusCode.PAYMENT_REQUIRED) {
+            return "余额不足，请先充值";
+        }
+        if (statusCode == StatusCode.CONFLICT) {
+            return "操作冲突，库存或余额已变化，请刷新后重试";
         }
         return "服务器处理请求失败";
     }

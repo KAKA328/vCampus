@@ -45,7 +45,7 @@
 ## Follow-up: 2026-09-02 PR33 审查问题修复
 - [x] 修复列表选中学生后表单字段不完整的问题：按学号重新查询完整 `StudentRecord`
 - [x] 通过选择更新保护避免单条查询自动触发重复加载
-- [x] 将学籍迁移从 `008_student_academic` 顺延为 `009_student_academic`，避免与 PR31 冲突
+- [x] 将学籍迁移从 `008_student_academic` 顺延为 `010_student_academic`，避免与 PR31 的购物车迁移和 PR36 的钱包迁移冲突
 - [x] 同步 `database/README.md` 的迁移编号说明
 - [x] 运行 `mvn clean test package`（250 项通过）
 - [ ] 等待用户明确指令后再推送并更新 PR33

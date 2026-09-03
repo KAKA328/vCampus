@@ -21,25 +21,39 @@ package "store 模块" {
         + findAllOrders(): ServiceResult<List<Order>>
         + listHotProducts(limit): ServiceResult<List<Product>>
         + listProducts(category): ServiceResult<List<Product>>
+        + getBalance(userId): long <<返回分>>
+        + recharge(userId, cents): ServiceResult<Void>
+        + adjustBalance(adminId, userId, newBalanceCents): ServiceResult<Void>
     }
 
     class DefaultStoreService {
         - products: ProductRepository
         - orders: OrderRepository
-        + listProducts(): ServiceResult<List<Product>>
+        - cart: CartRepository
+        - bank: BankAccountRepository
+        + listProducts(): ServiceResult<List<Product>> <<只返回上架商品>>
         + purchase(userId, productId, quantity): ServiceResult<Void>
         + findOrdersByUserId(userId): ServiceResult<List<Order>>
         + restock / addProduct / updateProduct / deactivateProduct
         + addToCart / removeFromCart / getCart / checkout
         + findAllOrders / listHotProducts / listProducts(category)
+        + getBalance(userId): long
+        + recharge(userId, cents): ServiceResult<Void>
+        + adjustBalance(adminId, userId, newBalanceCents): ServiceResult<Void>
     }
     note bottom of DefaultStoreService
-        第二轮新增方法目前为占位实现（返回 failure），
-        Day 2 起逐个替换为真实业务逻辑
+        4 参主构造注入全部依赖；2/3 参构造默认 InMemoryCartRepository / InMemoryBankAccountRepository。
+        purchase/checkout 均 synchronized 共用一把锁，落地补偿顺序：
+        预检(仅提示) → 原子 deductStock → 原子 debit → 建单(UUID) → 清空购物车；
+        任一步失败按序回滚此前已扣项（退款 credit + 回补 addStock + 撤单 deleteById），
+        每个补偿都检查返回值，补偿失败仍返回 CONFLICT 并记日志。这是单 JVM 下的补偿一致性，非数据库事务。
     end note
 
     class InMemoryStoreService {
         - delegate: StoreService
+        + InMemoryStoreService()（自带三仓库）
+        + InMemoryStoreService(products, orders)
+        + InMemoryStoreService(products, orders, cart)（包内，测试注入）
         + 全部 StoreService 方法（原样转发给 delegate）
     }
 
@@ -49,6 +63,7 @@ package "store 模块" {
         + save(product: Product): void
         + updateStock(productId: String, newStock: int): boolean
         + addStock(productId: String, amount: int): boolean
+        + deductStock(productId: String, qty: int): boolean <<原子守卫扣减>>
         + updateProduct(product: Product): boolean
         + deleteById(productId: String): boolean
     }
@@ -57,7 +72,7 @@ package "store 模块" {
         + create(order: Order): boolean
         + findByUserId(userId: String): List<Order>
         + findAll(): List<Order>
-        + findSalesVolume(): List<Object[]>
+        + findSalesVolume(): List<Object[]> <<[商品编号, 销量]>>
     }
 
     interface CartRepository {
@@ -74,7 +89,10 @@ package "store 模块" {
         + findById(id): Product
         + save(product): void
         + updateStock(productId, newStock): boolean
-        + addStock / updateProduct / deleteById（占位）
+        + addStock(productId, amount): boolean
+        + deductStock(productId, qty): boolean <<synchronized，stock>=qty 才扣>>
+        + updateProduct(product): boolean
+        + deleteById(productId): boolean
     }
 
     class InMemoryOrderRepository {
@@ -82,7 +100,17 @@ package "store 模块" {
         - userIdMap: ConcurrentHashMap<String, List<Order>>
         + create(order): boolean
         + findByUserId(userId): List<Order>
-        + findAll / findSalesVolume（占位）
+        + findAll(): List<Order>
+        + findSalesVolume(): List<Object[]> <<按销量降序>>
+    }
+
+    class InMemoryCartRepository {
+        - items: ConcurrentHashMap<String, CartItem>
+        + findByUserId(userId): List<CartItem> <<返回副本>>
+        + addItem(item): boolean <<同商品数量累加>>
+        + removeItem(cartItemId): boolean
+        + updateQuantity(cartItemId, newQuantity): boolean
+        + clearByUserId(userId): void
     }
 
     class Product <<Value Object>> {
@@ -191,6 +219,39 @@ package "store 模块" {
         - quantity: int
         - addedAt: LocalDateTime
     }
+
+    class BankAccount <<Value Object>> {
+        - userId: String
+        - balanceCents: long <<单位分，恒非负>>
+    }
+
+    interface BankAccountRepository {
+        + findByUserId(userId): BankAccount <<不存在返回 null>>
+        + save(account): boolean <<upsert>>
+        + credit(userId, cents): boolean <<懒创建累加>>
+        + debit(userId, cents): boolean <<守卫 balance_cents>=cents>>
+        + setBalance(userId, cents): boolean
+    }
+
+    class InMemoryBankAccountRepository {
+        - accounts: ConcurrentHashMap<String, BankAccount>
+        + 写方法 synchronized；credit 锁内 computeIfAbsent 累加；debit 锁内守卫
+    }
+
+    class StoreAccountQueryCommand <<Command>> {
+        - token: String
+    }
+
+    class StoreAccountRechargeCommand <<Command>> {
+        - token: String
+        - amountCents: long <<必须为正>>
+    }
+
+    class StoreAccountAdjustCommand <<Command>> {
+        - token: String
+        - targetUserId: String
+        - newBalanceCents: long <<非负>>
+    }
 }
 
 package "server 模块" {
@@ -200,12 +261,21 @@ package "server 模块" {
         + handle(request: Message): Message
     }
     note right of StoreMessageHandler
-        三种消息处理:
-        STORE_QUERY → authorize(STORE_READ)
-        STORE_PURCHASE → authorize(STORE_PURCHASE)
-          + token→Session→userId
-        STORE_ORDER_QUERY → authorize(STORE_READ)
-          + token→Session→userId
+        消息处理（requirePermission + requireUserId，服务端强校验）:
+        STORE_QUERY / STORE_ORDER_QUERY / STORE_CART_QUERY / STORE_HOT_PRODUCTS → STORE_READ
+        STORE_PURCHASE / STORE_CART_* → STORE_PURCHASE
+        STORE_RESTOCK / STORE_PRODUCT_* / STORE_ORDER_LIST_ALL → STORE_MANAGE
+        STORE_ACCOUNT_QUERY → STORE_READ（userId 取自 token）
+        STORE_ACCOUNT_RECHARGE → STORE_PURCHASE（userId 取自 token）
+        STORE_ACCOUNT_ADJUST → STORE_MANAGE + 角色 ∈ {ADMIN, STORE_MANAGER} 双重门槛，targetUserId 取自 payload
+    end note
+
+    class AccessBankAccountRepository {
+        - databasePath: Path
+        + credit/debit/setBalance/save：懒创建防并发 upsert + WHERE balance_cents>=? 守卫
+    }
+    note bottom of AccessBankAccountRepository
+        参数化 JDBC + try-with-resources；balance_cents BIGINT 存 long 分。
     end note
 }
 
@@ -216,11 +286,16 @@ package "client 模块" {
         + listProducts(token): Message
         + purchase(token, productId, quantity): Message
         + ordersFor(token): Message
+        + addToCart / removeFromCart / cart / checkout
+        + balance(token): Message <<返回分>>
+        + recharge(token, cents): Message
+        + adjustBalance(token, targetUserId, newBalanceCents): Message
         + close(): void
     }
 
     class StorePanel <<Swing UI>> {
-        商品列表 + 购买 + 订单查询
+        商品列表 + 购买 + 加入购物车 + 购物车页签(移除/结算)
+        + 头部余额标签(分/100转元) + 充值 + 管理员校正余额
     }
 }
 
@@ -230,11 +305,17 @@ InMemoryStoreService *-- DefaultStoreService : delegates
 
 ProductRepository <|.. InMemoryProductRepository
 OrderRepository <|.. InMemoryOrderRepository
+CartRepository <|.. InMemoryCartRepository
+BankAccountRepository <|.. InMemoryBankAccountRepository
+BankAccountRepository <|.. AccessBankAccountRepository
 
 CartRepository ..> CartItem : stores
+BankAccountRepository ..> BankAccount : stores
 
 DefaultStoreService --> ProductRepository
 DefaultStoreService --> OrderRepository
+DefaultStoreService --> CartRepository
+DefaultStoreService --> BankAccountRepository
 
 StoreMessageHandler --> StoreService
 StoreMessageHandler --> UserManagementService
@@ -242,5 +323,8 @@ StoreMessageHandler --> UserManagementService
 RemoteStoreService ..> StoreQueryCommand : creates
 RemoteStoreService ..> StorePurchaseCommand : creates
 RemoteStoreService ..> StoreOrderQueryCommand : creates
+RemoteStoreService ..> StoreAccountQueryCommand : creates
+RemoteStoreService ..> StoreAccountRechargeCommand : creates
+RemoteStoreService ..> StoreAccountAdjustCommand : creates
 
 @enduml
