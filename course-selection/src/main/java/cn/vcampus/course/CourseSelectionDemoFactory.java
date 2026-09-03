@@ -29,8 +29,12 @@ public final class CourseSelectionDemoFactory {
                 new TrainingPlanCourse("DB101", 1, SelectionType.ELECTIVE, false))));
         plans.create(new TrainingPlan("PLAN-CN-2026", "汉语言文学", 2026, Arrays.asList(
                 new TrainingPlanCourse("GE101", 1, SelectionType.ELECTIVE, true))));
+        plans.create(new TrainingPlan("PLAN-SE-2023", "软件工程", 2023, Arrays.asList(
+                new TrainingPlanCourse("JAVA101", 7, SelectionType.REQUIRED, false),
+                new TrainingPlanCourse("DB101", 7, SelectionType.ELECTIVE, false))));
         plans.changeStatus("PLAN-CS-2026", TrainingPlanStatus.PUBLISHED);
         plans.changeStatus("PLAN-CN-2026", TrainingPlanStatus.PUBLISHED);
+        plans.changeStatus("PLAN-SE-2023", TrainingPlanStatus.PUBLISHED);
 
         LocalDateTime now = LocalDateTime.now();
         InMemorySelectionRoundService rounds = new InMemorySelectionRoundService(Arrays.asList(

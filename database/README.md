@@ -29,17 +29,25 @@
 账号由系统管理员创建、批量导入或由初始化脚本预置。学生/教师档案可以先由对应子系统导入或维护，再通过 `student_id` / `teacher_id` 绑定 `user_id`；注册/开户注册流程不负责生成学生历史成绩。学籍审查需要的数据由教务管理员维护或由演示数据导入：
 
 - `tblStudent`：学生基础学籍信息，保存学号、姓名、院系、专业、班级、入学年份、学籍状态和联系方式，可通过 `user_id` 关联登录账号。
+- `tblClass`：班级基础信息，保存班级名称、所属院系、专业和年级，学生档案通过 `class_id` 关联。
 - `tblTeacher`：教师基础信息，保存教师编号、姓名、院系和职称，可通过 `user_id` 关联登录账号。
 - `tblCourseOffering`：具体学期开课记录，保存课程、任课教师、学期、显示用上课时间、地点、必修/选修/跨专业容量和状态。重修学生保留重修身份，但占用必修容量。
 - `tblCourseMeeting`：具体教学班的结构化上课时间，用于恢复并执行选课时间冲突检测。
 - `tblCourseResult`：历史课程结果，保存学生每次首修/重修记录、成绩、是否通过和获得学分。
 - `tblAcademicReview`：学业审查结果快照，保存累计学分、挂科门数、重修门数、是否满足毕业要求和审核人。
 
+学籍服务的 `latestReview(studentId)` 读取该表最近一次快照；`review(studentId, requiredCredits)` 根据 `tblCourseResult` 实时计算，不会覆盖历史快照。快照中的通过课程数由课程结果按课程号去重计算。
+
 ## 商店模块表
 
 - `tblProduct`：商品、库存、价格和分类；`active` 表示是否上架。
 - `tblOrder`：订单记录，保存用户、商品快照、数量和金额。
+- `tblBankAccount`：校园钱包账户，`user_id` 为主键，`balance_cents` 以「分」为单位存 `BIGINT NOT NULL`；余额扣减/入账由应用层补偿保证一致性，不依赖数据库事务。
 
 查询、购物车和购买只处理 `tblProduct.active=1` 的商品。全新数据库按 `schema.sql` 创建 `active` 字段；已有按旧 `004_store` 建立的数据库先执行 `database/migrations/007_store_product_active.up.sql`，回滚使用同名 `.down.sql`，不要对新库重复执行该迁移。
 
+校园钱包表 `tblBankAccount` 由 `database/migrations/009_store_bank_account.up.sql` 建表、`.down.sql` 回滚（编号 009，不碰 008 的 `tblCartItem`）。⚠️ 数据库必须按最新 `schema.sql` 重建：本次新增 `tblBankAccount` 且 `balance_cents` 为 `BIGINT`，旧 `.accdb` 不含该表、与本次改动不兼容，沿用旧库会导致账户相关功能报错。
+
 身份字段分工如下：`tblUser.user_id` 是登录身份；`tblStudent.student_id` 是学生学号；`tblTeacher.teacher_id` 是教师工号；`tblStudent.user_id` 和 `tblTeacher.user_id` 是档案与登录账号之间的一对一绑定字段，可为空但绑定后应保持唯一。如果账号尚未关联 `tblStudent` 或 `tblTeacher`，相关页面应提示“暂无对应档案，请联系管理员维护”；学业审查、课程历史和授课关系不能根据账号信息凭空生成。
+
+学籍表由 `migrations/010_student_academic.up.sql` 创建；回滚使用同目录下的 `010_student_academic.down.sql`。编号 009 已由商店钱包占用，学籍迁移顺延为 010。

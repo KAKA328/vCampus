@@ -71,6 +71,17 @@ CREATE INDEX idx_tblCourseSelection_status ON tblCourseSelection(status);
 -- 学籍审查与后续教务管理规划表。
 -- 账号由系统管理员开户注册或由初始化脚本预置；学生/教师账号应同步创建或绑定对应档案。
 -- 学生历史选课、首修/重修和学分通过情况由教务维护或演示数据导入，不由开户注册流程凭空生成。
+CREATE TABLE tblClass (
+    class_id VARCHAR(32) NOT NULL,
+    class_name VARCHAR(64) NOT NULL,
+    department_name VARCHAR(64),
+    major_name VARCHAR(64),
+    grade_year INTEGER,
+    PRIMARY KEY (class_id)
+);
+
+CREATE INDEX idx_tblClass_department ON tblClass(department_name);
+
 CREATE TABLE tblStudent (
     student_id VARCHAR(32) NOT NULL,
     user_id VARCHAR(32),
@@ -223,3 +234,23 @@ CREATE TABLE tblOrder (
 
 CREATE INDEX idx_tblOrder_user ON tblOrder(user_id);
 CREATE INDEX idx_tblOrder_product ON tblOrder(product_id);
+
+CREATE TABLE tblCartItem (
+    cart_item_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(32) NOT NULL,
+    product_id VARCHAR(32) NOT NULL,
+    quantity INTEGER NOT NULL,
+    added_at DATETIME NOT NULL,
+    PRIMARY KEY (cart_item_id),
+    CONSTRAINT uk_tblCartItem_user_product UNIQUE (user_id, product_id)
+);
+
+CREATE INDEX idx_tblCartItem_user ON tblCartItem(user_id);
+CREATE INDEX idx_tblCartItem_product ON tblCartItem(product_id);
+
+-- 校园钱包账户：余额以「分」为单位存 BIGINT，user_id 为主键（懒创建 upsert 依赖主键去重，不另建唯一索引以规避 UCanAccess 4.0.4 的 CREATE UNIQUE INDEX 限制）。
+CREATE TABLE tblBankAccount (
+    user_id VARCHAR(32) NOT NULL,
+    balance_cents BIGINT NOT NULL,
+    PRIMARY KEY (user_id)
+);

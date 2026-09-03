@@ -28,6 +28,9 @@ INSERT INTO tblCourse(course_id, course_name, credits, status)
 VALUES ('NET101', '计算机网络', 3, 'ACTIVE');
 
 -- 学籍与学业审查演示数据：演示账号已预先绑定档案；正式历史成绩由教务维护或导入。
+INSERT INTO tblClass(class_id, class_name, department_name, major_name, grade_year)
+VALUES ('SE2023-01', '软件工程2023级1班', '计算机科学与工程学院', '软件工程', 2023);
+
 INSERT INTO tblStudent(student_id, user_id, student_name, gender, department_name, major_name, class_id, enrollment_year, status, phone, email)
 VALUES ('demo_student', 'demo_student', 'Demo Student', '未知', '计算机科学与工程学院', '软件工程', 'SE2023-01', 2023, '在读', '', '');
 
@@ -84,3 +87,23 @@ VALUES ('demo-order-002', 'demo_student', 'P003', 2, 3.0, NOW(), '矿泉水 550m
 
 INSERT INTO tblOrder(order_id, user_id, product_id, quantity, total_price, order_date, product_name, unit_price)
 VALUES ('demo-order-003', 'demo_teacher', 'P002', 3, 15.0, NOW(), '笔记本 A5', 5.0);
+
+-- 商店模块演示购物车条目。
+INSERT INTO tblCartItem(cart_item_id, user_id, product_id, quantity, added_at)
+VALUES ('demo-cart-001', 'demo_student', 'P001', 2, NOW());
+
+INSERT INTO tblCartItem(cart_item_id, user_id, product_id, quantity, added_at)
+VALUES ('demo-cart-002', 'demo_student', 'P003', 1, NOW());
+
+-- 校园钱包演示余额（单位：分）。100 元 = 10000 分；低余额账号 0.5 元 = 50 分，用于演示「余额不足」。
+INSERT INTO tblBankAccount(user_id, balance_cents)
+VALUES ('demo_student', 10000);
+
+INSERT INTO tblBankAccount(user_id, balance_cents)
+VALUES ('demo_teacher', 10000);
+
+INSERT INTO tblBankAccount(user_id, balance_cents)
+VALUES ('demo_admin', 10000);
+
+INSERT INTO tblBankAccount(user_id, balance_cents)
+VALUES ('demo_store_manager', 50);

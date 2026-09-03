@@ -6,6 +6,12 @@ import java.util.List;
 /** Student records contract owned by the student-management team. */
 public interface StudentManagementService {
     ServiceResult<StudentRecord> findById(String studentId);
+    ServiceResult<StudentRecord> findByUserId(String userId);
+    /** Alias used by server adapters after the token has been resolved to userId. */
+    default ServiceResult<StudentRecord> findMyStudentProfile(String userId) {
+        return findByUserId(userId);
+    }
     ServiceResult<List<StudentRecord>> findByClass(String classId);
+    ServiceResult<List<StudentRecord>> findByMajor(String majorName);
     ServiceResult<StudentRecord> save(StudentRecord record);
 }

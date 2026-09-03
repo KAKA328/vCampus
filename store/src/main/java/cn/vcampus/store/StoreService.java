@@ -33,10 +33,19 @@ public interface StoreService {
 
     ServiceResult<Void> checkout(String userId);
 
-    // P1: 增值功能
+    // 增值功能
     ServiceResult<List<Order>> findAllOrders();
 
     ServiceResult<List<Product>> listHotProducts(int limit);
 
     ServiceResult<List<Product>> listProducts(String category);
+
+    // 账户：查询余额（分），无账户返回 0
+    long getBalance(String userId);
+
+    // 账户：本人充值（分），仅增加，cents 必须为正
+    ServiceResult<Void> recharge(String userId, long cents);
+
+    // 账户：管理员校正余额（分），目标余额非负，绝对设置
+    ServiceResult<Void> adjustBalance(String adminId, String userId, long newBalanceCents);
 }
