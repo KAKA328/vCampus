@@ -1,5 +1,6 @@
 package cn.vcampus.server;
 
+import cn.vcampus.store.BankAccount;
 import cn.vcampus.store.CartItem;
 import cn.vcampus.store.Order;
 import cn.vcampus.store.Product;
@@ -27,6 +28,7 @@ class AccessStoreRepositoryTest {
     private AccessProductRepository products;
     private AccessOrderRepository orders;
     private AccessCartRepository carts;
+    private AccessBankAccountRepository bankAccounts;
     private Path database;
 
     @BeforeEach
@@ -64,12 +66,17 @@ class AccessStoreRepositoryTest {
                     + "added_at DATETIME NOT NULL,"
                     + "PRIMARY KEY (cart_item_id),"
                     + "CONSTRAINT uk_tblCartItem_user_product UNIQUE (user_id, product_id))");
+            statement.execute("CREATE TABLE tblBankAccount ("
+                    + "user_id VARCHAR(32) NOT NULL,"
+                    + "balance_cents BIGINT NOT NULL,"
+                    + "PRIMARY KEY (user_id))");
             insertProduct(connection, "P001", "黑色签字笔", 200, 2.0, "0.5mm 中性笔", "文具");
             insertProduct(connection, "P002", "笔记本 A5", 150, 5.0, "80页横线本", "文具");
         }
         products = new AccessProductRepository(database);
         orders = new AccessOrderRepository(database);
         carts = new AccessCartRepository(database);
+        bankAccounts = new AccessBankAccountRepository(database);
     }
 
     @Test
@@ -304,6 +311,53 @@ class AccessStoreRepositoryTest {
         List<CartItem> rows = carts.findByUserId("student001");
         assertEquals(1, rows.size());
         assertTrue(rows.get(0).getQuantity() >= 1);
+    }
+
+    @Test
+    void testAccessDeductStockSuccess() {
+        assertTrue(products.deductStock("P001", 50));
+        assertEquals(150, products.findById("P001").getStock());
+    }
+
+    @Test
+    void testAccessDeductStockGuardRejectsInsufficient() {
+        assertFalse(products.deductStock("P001", 201));// 库存 200，扣 201 被守卫拒绝
+        assertEquals(200, products.findById("P001").getStock());// 库存不变
+    }
+
+    @Test
+    void testAccessBankAccountUpsertOnFirstCredit() {
+        assertEquals(null, bankAccounts.findByUserId("student001"));// 前置：账户不存在
+        assertTrue(bankAccounts.credit("student001", 10000L));// 首次入账懒创建
+        BankAccount account = bankAccounts.findByUserId("student001");
+        assertNotNull(account);
+        assertEquals(10000L, account.getBalanceCents());
+    }
+
+    @Test
+    void testAccessCreditAccumulates() {
+        bankAccounts.credit("student001", 10000L);
+        bankAccounts.credit("student001", 5000L);
+        assertEquals(15000L, bankAccounts.findByUserId("student001").getBalanceCents());
+    }
+
+    @Test
+    void testAccessDebitGuardInsufficientUnchanged() {
+        bankAccounts.credit("student001", 10000L);
+        assertFalse(bankAccounts.debit("student001", 20000L));// 余额不足
+        assertEquals(10000L, bankAccounts.findByUserId("student001").getBalanceCents());// 不变
+        assertTrue(bankAccounts.debit("student001", 3000L));// 余额充足
+        assertEquals(7000L, bankAccounts.findByUserId("student001").getBalanceCents());
+    }
+
+    @Test
+    void testAccessSetBalancePersists() {
+        bankAccounts.credit("student001", 10000L);
+        assertTrue(bankAccounts.setBalance("student001", 250L));
+        assertEquals(250L, bankAccounts.findByUserId("student001").getBalanceCents());
+        // 重开仓库验证已落盘
+        AccessBankAccountRepository reopened = new AccessBankAccountRepository(database);
+        assertEquals(250L, reopened.findByUserId("student001").getBalanceCents());
     }
 
     private void insertCart(String cartItemId, String userId, String productId, int quantity)

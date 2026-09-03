@@ -24,6 +24,7 @@ final class StoreServiceFactory {
         return new DefaultStoreService(
                 new AccessProductRepository(databasePath),
                 new AccessOrderRepository(databasePath),
-                new AccessCartRepository(databasePath));
+                new AccessCartRepository(databasePath),
+                new AccessBankAccountRepository(databasePath));
     }
 }

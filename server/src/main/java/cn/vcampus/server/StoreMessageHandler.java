@@ -2,8 +2,10 @@ package cn.vcampus.server;
 
 import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
+import cn.vcampus.common.Role;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
+import cn.vcampus.common.User;
 import cn.vcampus.store.StoreQueryCommand;
 import cn.vcampus.store.StorePurchaseCommand;
 import cn.vcampus.store.StoreService;
@@ -19,6 +21,9 @@ import cn.vcampus.store.CartQueryCommand;
 import cn.vcampus.store.CartCheckoutCommand;
 import cn.vcampus.store.StoreOrderListAllCommand;
 import cn.vcampus.store.StoreHotProductsCommand;
+import cn.vcampus.store.StoreAccountQueryCommand;
+import cn.vcampus.store.StoreAccountRechargeCommand;
+import cn.vcampus.store.StoreAccountAdjustCommand;
 import cn.vcampus.user.Session;
 
 class StoreMessageHandler {
@@ -48,7 +53,8 @@ class StoreMessageHandler {
                         break;
                     }
                     result = payload.getCategory() == null || payload.getCategory().trim().isEmpty()
-                            ? store.listProducts() : store.listProducts(payload.getCategory());
+                            ? store.listProducts()
+                            : store.listProducts(payload.getCategory());
                     break;
                 // 仓库购买请求
                 case STORE_PURCHASE:
@@ -93,13 +99,15 @@ class StoreMessageHandler {
                     StoreRestockCommand restock = payload(request, StoreRestockCommand.class);
                     ServiceResult<Void> restockAuth = requirePermission(restock.getToken(), "STORE_MANAGE");
                     result = restockAuth.getStatus() != StatusCode.OK ? restockAuth
-                            : store.restock(requireUserId(restock.getToken()), restock.getProductId(), restock.getAdditionalStock());
+                            : store.restock(requireUserId(restock.getToken()), restock.getProductId(),
+                                    restock.getAdditionalStock());
                     break;
                 case STORE_PRODUCT_ADD:
                     StoreProductAddCommand add = payload(request, StoreProductAddCommand.class);
                     ServiceResult<Void> addAuth = requirePermission(add.getToken(), "STORE_MANAGE");
                     result = addAuth.getStatus() != StatusCode.OK ? addAuth
-                            : store.addProduct(add.getName(), add.getPrice(), add.getStock(), add.getDescription(), add.getCategory());
+                            : store.addProduct(add.getName(), add.getPrice(), add.getStock(), add.getDescription(),
+                                    add.getCategory());
                     break;
                 case STORE_PRODUCT_UPDATE:
                     StoreProductUpdateCommand update = payload(request, StoreProductUpdateCommand.class);
@@ -118,7 +126,8 @@ class StoreMessageHandler {
                     CartAddCommand cartAdd = payload(request, CartAddCommand.class);
                     ServiceResult<Void> cartAddAuth = requirePermission(cartAdd.getToken(), "STORE_PURCHASE");
                     result = cartAddAuth.getStatus() != StatusCode.OK ? cartAddAuth
-                            : store.addToCart(requireUserId(cartAdd.getToken()), cartAdd.getProductId(), cartAdd.getQuantity());
+                            : store.addToCart(requireUserId(cartAdd.getToken()), cartAdd.getProductId(),
+                                    cartAdd.getQuantity());
                     break;
                 case STORE_CART_REMOVE:
                     CartRemoveCommand cartRemove = payload(request, CartRemoveCommand.class);
@@ -148,6 +157,42 @@ class StoreMessageHandler {
                     ServiceResult<Void> hotAuth = requirePermission(hot.getToken(), "STORE_READ");
                     result = hotAuth.getStatus() != StatusCode.OK ? hotAuth : store.listHotProducts(hot.getLimit());
                     break;
+                // 账户查询：STORE_READ 权限，userId 取自 token，返回余额（分）
+                case STORE_ACCOUNT_QUERY:
+                    StoreAccountQueryCommand accountQuery = payload(request, StoreAccountQueryCommand.class);
+                    ServiceResult<Void> accountQueryAuth = requirePermission(accountQuery.getToken(), "STORE_READ");
+                    result = accountQueryAuth.getStatus() != StatusCode.OK ? accountQueryAuth
+                            : ServiceResult.ok(store.getBalance(requireUserId(accountQuery.getToken())));
+                    break;
+                // 本人充值：STORE_PURCHASE 权限，userId 取自 token，仅增加余额
+                case STORE_ACCOUNT_RECHARGE:
+                    StoreAccountRechargeCommand recharge = payload(request, StoreAccountRechargeCommand.class);
+                    ServiceResult<Void> rechargeAuth = requirePermission(recharge.getToken(), "STORE_PURCHASE");
+                    result = rechargeAuth.getStatus() != StatusCode.OK ? rechargeAuth
+                            : store.recharge(requireUserId(recharge.getToken()), recharge.getAmountCents());
+                    break;
+                // 管理员校正：STORE_MANAGE 权限 + 角色 ∈ {ADMIN, STORE_MANAGER} 双重门槛，targetUserId 取自
+                // payload
+                case STORE_ACCOUNT_ADJUST:
+                    StoreAccountAdjustCommand adjust = payload(request, StoreAccountAdjustCommand.class);
+                    ServiceResult<Void> adjustAuth = requirePermission(adjust.getToken(), "STORE_MANAGE");
+                    if (adjustAuth.getStatus() != StatusCode.OK) {
+                        result = adjustAuth;
+                        break;
+                    }
+                    ServiceResult<Session> adjustSession = users.currentSession(adjust.getToken());
+                    if (adjustSession.getStatus() != StatusCode.OK) {
+                        result = adjustSession;
+                        break;
+                    }
+                    User adjustAdmin = adjustSession.getData().getUser();
+                    if (adjustAdmin.getRole() != Role.ADMIN && adjustAdmin.getRole() != Role.STORE_MANAGER) {
+                        result = ServiceResult.failure(StatusCode.FORBIDDEN, "role not allowed to adjust balance");
+                        break;
+                    }
+                    result = store.adjustBalance(adjustAdmin.getUserId(), adjust.getTargetUserId(),
+                            adjust.getNewBalanceCents());
+                    break;
                 default:
                     result = ServiceResult.failure(StatusCode.NOT_FOUND, "not implemented");
             }
@@ -165,7 +210,8 @@ class StoreMessageHandler {
 
     private String requireUserId(String token) {
         ServiceResult<Session> session = users.currentSession(token);
-        if (session.getStatus() != StatusCode.OK) throw new IllegalArgumentException("invalid session");
+        if (session.getStatus() != StatusCode.OK)
+            throw new IllegalArgumentException("invalid session");
         return session.getData().getUser().getUserId();
     }
 
