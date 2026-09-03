@@ -186,3 +186,10 @@ CREATE TABLE tblCartItem (
 
 CREATE INDEX idx_tblCartItem_user ON tblCartItem(user_id);
 CREATE INDEX idx_tblCartItem_product ON tblCartItem(product_id);
+
+-- 校园钱包账户：余额以「分」为单位存 BIGINT，user_id 为主键（懒创建 upsert 依赖主键去重，不另建唯一索引以规避 UCanAccess 4.0.4 的 CREATE UNIQUE INDEX 限制）。
+CREATE TABLE tblBankAccount (
+    user_id VARCHAR(32) NOT NULL,
+    balance_cents BIGINT NOT NULL,
+    PRIMARY KEY (user_id)
+);

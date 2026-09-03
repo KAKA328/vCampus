@@ -146,7 +146,7 @@ Message response = Message.response(request, StatusCode.OK, data);
 | 学生学籍 | `STUDENT_QUERY`、`STUDENT_UPDATE` |
 | 选课系统 | 旧协议保留：`COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP`；完整选课 V2：`COURSE_SELECTION_QUERY_V2`、`COURSE_SELECT_OFFERING_V2`、`COURSE_DROP_RECORD_V2`；课程维护：`COURSE_MANAGE` + `CourseManagementCommand`，含课程目录、教学班创建、状态/容量调整，以及 `UPDATE_OFFERING_TEACHING_INFO(offeringId, teacherId, location)` |
 | 图书馆 | `LIBRARY_QUERY`、`LIBRARY_BORROW`、`LIBRARY_RETURN` |
-| 商店 | `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY`、`STORE_RESTOCK`、`STORE_PRODUCT_ADD`、`STORE_PRODUCT_UPDATE`、`STORE_PRODUCT_DEACTIVATE`、`STORE_CART_ADD`、`STORE_CART_REMOVE`、`STORE_CART_QUERY`、`STORE_CART_CHECKOUT`、`STORE_ORDER_LIST_ALL`、`STORE_HOT_PRODUCTS` |
+| 商店 | `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY`、`STORE_RESTOCK`、`STORE_PRODUCT_ADD`、`STORE_PRODUCT_UPDATE`、`STORE_PRODUCT_DEACTIVATE`、`STORE_CART_ADD`、`STORE_CART_REMOVE`、`STORE_CART_QUERY`、`STORE_CART_CHECKOUT`、`STORE_ORDER_LIST_ALL`、`STORE_HOT_PRODUCTS`、`STORE_ACCOUNT_QUERY`、`STORE_ACCOUNT_RECHARGE`、`STORE_ACCOUNT_ADJUST` |
 
 如果需要新增消息类型，必须同步修改：
 
@@ -157,6 +157,8 @@ docs/MODULE_INTEGRATION_GUIDE.md
 ```
 
 新增消息类型不能只改枚举。合并前必须同时确认：请求 payload、响应 payload、服务端 Handler、`ServerApplication` 分发、客户端远程调用、权限校验、接口文档和测试是否一起补齐。商店命令均携带 token；服务器端必须按 token 和角色判断数据范围，不能只靠客户端隐藏按钮。`STORE_ORDER_QUERY` 只返回本人订单，`STORE_ORDER_LIST_ALL` 才允许商店管理员查看全量订单。
+
+商店钱包（`STORE_ACCOUNT_*`）与购买/结账对接：`DefaultStoreService` 注入第 4 个依赖 `BankAccountRepository`，`purchase`/`checkout` 走「预检(仅提示) → 原子 `deductStock` → 原子 `debit` → 建单(UUID) → 清空购物车」的补偿顺序，任一步失败按序回滚此前已扣项，每个补偿都检查返回值，补偿失败仍返回 `CONFLICT`；这是单 JVM 下的补偿一致性，不是数据库事务。余额以「分」为单位存 `long`（`balance_cents BIGINT`），支付边界 `Math.round(totalPrice * 100)` 换算一次。`--db` 分支下账户走 `AccessBankAccountRepository`（每仓储独立 JDBC 连接，无跨表事务），内存分支走 `InMemoryBankAccountRepository`，两种模式接口一致。`STORE_ACCOUNT_ADJUST` 在服务端做双重门槛校验（`STORE_MANAGE` 权限 + 角色 ∈ {`ADMIN`, `STORE_MANAGER`}），客户端隐藏校正按钮只是 UX。
 
 完整选课流程现在已升级为显式 V2 Socket 协议。旧 `COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP` 只作为早期课程级协议保留，不再承载轮次、教学班和选课记录流程。新客户端必须使用：
 
@@ -241,7 +243,8 @@ return ServiceResult.failure(StatusCode.NOT_FOUND, "course not found");
 | `UNAUTHORIZED` | 未登录、token 无效 |
 | `FORBIDDEN` | 已登录但没有权限 |
 | `NOT_FOUND` | 数据不存在 |
-| `CONFLICT` | 数据冲突，例如重复选课、重复账号 |
+| `CONFLICT` | 数据冲突，例如重复选课、重复账号、库存/余额并发变化导致补偿失败 |
+| `PAYMENT_REQUIRED` | 余额不足，需先充值（商店钱包购买/结账） |
 | `SERVER_ERROR` | 服务器内部错误 |
 
 ## 8. 服务器端如何接入模块
@@ -361,6 +364,9 @@ private Message dispatch(Message request) {
         case STORE_CART_CHECKOUT:
         case STORE_ORDER_LIST_ALL:
         case STORE_HOT_PRODUCTS:
+        case STORE_ACCOUNT_QUERY:
+        case STORE_ACCOUNT_RECHARGE:
+        case STORE_ACCOUNT_ADJUST:
             return storeMessages.handle(request);
         case STUDENT_QUERY:
         case STUDENT_UPDATE:

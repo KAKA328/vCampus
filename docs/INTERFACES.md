@@ -50,6 +50,11 @@
 - `STORE_RESTOCK`、`STORE_PRODUCT_ADD`、`STORE_PRODUCT_UPDATE`、`STORE_PRODUCT_DEACTIVATE`：商品和库存维护，使用对应 `Store*Command`；均要求 `STORE_MANAGE`。
 - `STORE_ORDER_LIST_ALL` + `StoreOrderListAllCommand(token)`：管理员全量订单；要求 `STORE_MANAGE`。
 - `STORE_HOT_PRODUCTS` + `StoreHotProductsCommand(token, limit)`：热销商品排行；要求 `STORE_READ`。
+- `STORE_ACCOUNT_QUERY` + `StoreAccountQueryCommand(token)`：查询本人钱包余额，响应 payload 为 `long`（单位「分」）；要求 `STORE_READ`，`userId` 取自 token，无账户时返回 0。
+- `STORE_ACCOUNT_RECHARGE` + `StoreAccountRechargeCommand(token, amountCents)`：本人充值，`amountCents` 必须为正（单位「分」）；要求 `STORE_PURCHASE`，`userId` 取自 token，账户不存在时懒创建。
+- `STORE_ACCOUNT_ADJUST` + `StoreAccountAdjustCommand(token, targetUserId, newBalanceCents)`：管理员把指定用户余额校正为绝对值 `newBalanceCents`（非负，单位「分」）；要求 `STORE_MANAGE` 且角色 ∈ {`ADMIN`, `STORE_MANAGER`}（双重门槛）；`targetUserId` 取自 payload，仅管理员可指定他人，普通用户身份一律取自 token。
+
+商店钱包余额一律以「分」为单位的 `long` 存储和传输（实体 `BankAccount.balanceCents`、数据库列 `balance_cents BIGINT`、服务/命令/仓储接口全传 `long` 分），禁止 `double` 余额；`Product.price`、`Order.totalPrice`/`unitPrice` 仍是 `double`，只在支付边界 `Math.round(totalPrice * 100)` 换算一次，误差不进余额账本。购买/结账时余额不足返回 `PAYMENT_REQUIRED`；库存或余额在并发下变化、补偿失败时返回 `CONFLICT`。钱包只有余额校正，暂无账户流水/审计表。扣库存和扣款走应用层补偿（每个补偿都检查返回值），这是单 JVM 下的补偿一致性，不是数据库事务。
 
 用户批量导入使用 `USER_IMPORT`。请求 payload 为 `UserImportCommand(token, rows)`，其中 `rows` 是 `UserImportRow(userId, password, displayName, roleCode)` 列表；响应 payload 为 `UserImportResult(importBatchId, totalCount, successCount, failures)`，失败明细为 `UserImportFailure(rowNumber, userId, message)`。客户端用户管理页可从 `.xlsx`、`.csv`、`.tsv` 外部表格读取账号清单并转为 `rows`；这些表格只是导入源文件，不替代 Access 运行数据库。该能力要求 `USER_MANAGE`，服务端会记录导入管理员、导入时间、导入批次，并为每个成功创建的账号写入 `IMPORT_USER` 审计记录。单行失败不会影响同批次其它有效账号。
 

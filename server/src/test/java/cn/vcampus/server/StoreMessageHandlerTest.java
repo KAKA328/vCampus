@@ -19,6 +19,9 @@ import cn.vcampus.store.CartAddCommand;
 import cn.vcampus.store.CartCheckoutCommand;
 import cn.vcampus.store.StoreOrderListAllCommand;
 import cn.vcampus.store.StoreHotProductsCommand;
+import cn.vcampus.store.StoreAccountQueryCommand;
+import cn.vcampus.store.StoreAccountRechargeCommand;
+import cn.vcampus.store.StoreAccountAdjustCommand;
 import cn.vcampus.store.StoreService;
 import cn.vcampus.user.InMemoryUserManagementService;
 import cn.vcampus.user.Session;
@@ -39,6 +42,7 @@ class StoreMessageHandlerTest {
     private Session studentSession;
     private Session managerSession;
     private Session librarianSession;
+    private Session adminSession;
 
     @BeforeEach
     void setUp() {
@@ -58,6 +62,11 @@ class StoreMessageHandlerTest {
                 "librarian001", "password", "图书馆员", Role.LIBRARIAN.name());
         users.register(librarian);
         librarianSession = users.login(librarian).getData();
+        // 系统管理员，用于校正余额的角色授权对照组
+        UserCredentials admin = new UserCredentials(
+                "admin001", "password", "系统管理员", Role.ADMIN.name());
+        users.register(admin);
+        adminSession = users.login(admin).getData();
     }
 
     @Test
@@ -245,6 +254,96 @@ class StoreMessageHandlerTest {
         assertEquals(5, store.lastHotLimit);
     }
 
+    @Test
+    void testAccountQueryAuthorized() {
+        store.balanceToReturn = 12345L;
+        Message response = handler.handle(Message.request(
+                "account-query", MessageType.STORE_ACCOUNT_QUERY,
+                new StoreAccountQueryCommand(studentSession.getToken())));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertTrue(store.getBalanceCalled);
+        assertEquals("student001", store.lastBalanceUserId);
+    }
+
+    @Test
+    void testAccountQueryUnauthorized() {
+        Message response = handler.handle(Message.request(
+                "account-query-forbidden", MessageType.STORE_ACCOUNT_QUERY,
+                new StoreAccountQueryCommand(librarianSession.getToken())));
+
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
+        assertFalse(store.getBalanceCalled);
+    }
+
+    @Test
+    void testAccountRechargeAuthorized() {
+        Message response = handler.handle(Message.request(
+                "account-recharge", MessageType.STORE_ACCOUNT_RECHARGE,
+                new StoreAccountRechargeCommand(studentSession.getToken(), 5000L)));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertTrue(store.rechargeCalled);
+        assertEquals("student001", store.lastRechargeUserId);
+        assertEquals(5000L, store.lastRechargeCents);
+    }
+
+    @Test
+    void testAccountRechargeUnauthorized() {
+        Message response = handler.handle(Message.request(
+                "account-recharge-forbidden", MessageType.STORE_ACCOUNT_RECHARGE,
+                new StoreAccountRechargeCommand(librarianSession.getToken(), 5000L)));
+
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
+        assertFalse(store.rechargeCalled);
+    }
+
+    @Test
+    void testAccountAdjustByStoreManagerAuthorized() {
+        Message response = handler.handle(Message.request(
+                "account-adjust-manager", MessageType.STORE_ACCOUNT_ADJUST,
+                new StoreAccountAdjustCommand(managerSession.getToken(), "student001", 8888L)));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertTrue(store.adjustCalled);
+        assertEquals("manager001", store.lastAdjustAdminId);
+        assertEquals("student001", store.lastAdjustTargetUserId);
+        assertEquals(8888L, store.lastAdjustNewBalanceCents);
+    }
+
+    @Test
+    void testAccountAdjustByAdminAuthorized() {
+        Message response = handler.handle(Message.request(
+                "account-adjust-admin", MessageType.STORE_ACCOUNT_ADJUST,
+                new StoreAccountAdjustCommand(adminSession.getToken(), "student001", 6666L)));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertTrue(store.adjustCalled);
+        assertEquals("admin001", store.lastAdjustAdminId);
+        assertEquals("student001", store.lastAdjustTargetUserId);
+    }
+
+    @Test
+    void testAccountAdjustByStudentForbidden() {
+        Message response = handler.handle(Message.request(
+                "account-adjust-student", MessageType.STORE_ACCOUNT_ADJUST,
+                new StoreAccountAdjustCommand(studentSession.getToken(), "student001", 100L)));
+
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
+        assertFalse(store.adjustCalled);
+    }
+
+    @Test
+    void testAccountAdjustTargetOtherUserByNonAdminRejected() {
+        // 普通学生指定他人 targetUserId，被 STORE_MANAGE 权限门槛拦下（服务端为准，客户端隐藏按钮只是 UX）
+        Message response = handler.handle(Message.request(
+                "account-adjust-other", MessageType.STORE_ACCOUNT_ADJUST,
+                new StoreAccountAdjustCommand(studentSession.getToken(), "manager001", 1L)));
+
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
+        assertFalse(store.adjustCalled);
+    }
+
     private static final class CapturingStoreService implements StoreService {
         private boolean listCalled;
         private int listCallCount;
@@ -281,6 +380,16 @@ class StoreMessageHandlerTest {
         private boolean findAllOrdersCalled;
         private boolean hotProductsCalled;
         private int lastHotLimit;
+        private boolean getBalanceCalled;
+        private String lastBalanceUserId;
+        private long balanceToReturn;
+        private boolean rechargeCalled;
+        private String lastRechargeUserId;
+        private long lastRechargeCents;
+        private boolean adjustCalled;
+        private String lastAdjustAdminId;
+        private String lastAdjustTargetUserId;
+        private long lastAdjustNewBalanceCents;
 
         @Override
         public ServiceResult<List<Product>> listProducts() {
@@ -387,6 +496,30 @@ class StoreMessageHandlerTest {
             hotProductsCalled = true;
             lastHotLimit = limit;
             return ServiceResult.ok(Collections.<Product>emptyList());
+        }
+
+        @Override
+        public long getBalance(String userId) {
+            getBalanceCalled = true;
+            lastBalanceUserId = userId;
+            return balanceToReturn;
+        }
+
+        @Override
+        public ServiceResult<Void> recharge(String userId, long cents) {
+            rechargeCalled = true;
+            lastRechargeUserId = userId;
+            lastRechargeCents = cents;
+            return ServiceResult.ok(null);
+        }
+
+        @Override
+        public ServiceResult<Void> adjustBalance(String adminId, String userId, long newBalanceCents) {
+            adjustCalled = true;
+            lastAdjustAdminId = adminId;
+            lastAdjustTargetUserId = userId;
+            lastAdjustNewBalanceCents = newBalanceCents;
+            return ServiceResult.ok(null);
         }
 
     }
