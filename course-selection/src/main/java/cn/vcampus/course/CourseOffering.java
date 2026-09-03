@@ -125,7 +125,7 @@ public final class CourseOffering implements Serializable {
     /**
      * 返回可用于时间冲突检测的结构化上课时间表。
      *
-     * <p>旧教学班尚未配置时返回空时间表；原有的 {@link #getSchedule()} 继续用于显示文本。</p>
+     * <p>尚未排定上课时间时返回空时间表；{@link #getSchedule()} 用于显示文本。</p>
      */
     public CourseSchedule getMeetingSchedule() {
         return meetingSchedule;

@@ -144,7 +144,7 @@ Message response = Message.response(request, StatusCode.OK, data);
 |---|---|
 | 用户管理 | `REGISTER`、`USER_IMPORT`、`UNREGISTER`、`LOGIN`、`LOGOUT`、`AUTHORIZE` |
 | 学生学籍 | `STUDENT_QUERY`、`STUDENT_UPDATE` |
-| 选课系统 | 旧协议保留：`COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP`；完整选课 V2：`COURSE_SELECTION_QUERY_V2`、`COURSE_SELECT_OFFERING_V2`、`COURSE_DROP_RECORD_V2`；课程维护：`COURSE_MANAGE` + `CourseManagementCommand`，含课程目录、教学班创建、`CHANGE_OFFERING_STATUS`、`CHANGE_OFFERING_CAPACITIES`，以及 `UPDATE_OFFERING_TEACHING_INFO(offeringId, teacherId, location)` |
+| 选课系统 | 完整选课 V2：`COURSE_SELECTION_QUERY_V2`、`COURSE_SELECT_OFFERING_V2`、`COURSE_DROP_RECORD_V2`；课程维护：`COURSE_MANAGE` + `CourseManagementCommand`，含课程目录、教学班创建、教学信息维护和选课轮次管理 |
 | 图书馆 | `LIBRARY_QUERY`、`LIBRARY_BORROW`、`LIBRARY_RETURN` |
 | 商店 | `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY`、`STORE_RESTOCK`、`STORE_PRODUCT_ADD`、`STORE_PRODUCT_UPDATE`、`STORE_PRODUCT_DEACTIVATE`、`STORE_CART_ADD`、`STORE_CART_REMOVE`、`STORE_CART_QUERY`、`STORE_CART_CHECKOUT`、`STORE_ORDER_LIST_ALL`、`STORE_HOT_PRODUCTS`、`STORE_ACCOUNT_QUERY`、`STORE_ACCOUNT_RECHARGE`、`STORE_ACCOUNT_ADJUST` |
 
@@ -160,7 +160,7 @@ docs/MODULE_INTEGRATION_GUIDE.md
 
 商店钱包（`STORE_ACCOUNT_*`）与购买/结账对接：`DefaultStoreService` 注入第 4 个依赖 `BankAccountRepository`，`purchase`/`checkout` 走「预检(仅提示) → 原子 `deductStock` → 原子 `debit` → 建单(UUID) → 清空购物车」的补偿顺序，任一步失败按序回滚此前已扣项，每个补偿都检查返回值，补偿失败仍返回 `CONFLICT`；这是单 JVM 下的补偿一致性，不是数据库事务。余额以「分」为单位存 `long`（`balance_cents BIGINT`），支付边界 `Math.round(totalPrice * 100)` 换算一次。`--db` 分支下账户走 `AccessBankAccountRepository`（每仓储独立 JDBC 连接，无跨表事务），内存分支走 `InMemoryBankAccountRepository`，两种模式接口一致。`STORE_ACCOUNT_ADJUST` 在服务端做双重门槛校验（`STORE_MANAGE` 权限 + 角色 ∈ {`ADMIN`, `STORE_MANAGER`}），客户端隐藏校正按钮只是 UX。
 
-完整选课流程现在已升级为显式 V2 Socket 协议。旧 `COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP` 只作为早期课程级协议保留，不再承载轮次、教学班和选课记录流程。新客户端必须使用：
+完整选课流程统一使用显式 V2 Socket 协议。客户端必须使用：
 
 - `COURSE_SELECTION_QUERY_V2` + `CourseSelectionQueryV2Command(token, roundId?)`
 - `COURSE_SELECT_OFFERING_V2` + `CourseSelectOfferingV2Command(token, roundId, offeringId)`
@@ -206,7 +206,7 @@ public final class CourseSelectOfferingV2Command implements Serializable {
 }
 ```
 
-退选使用 `CourseDropRecordV2Command(token, recordId)`。如果当前代码为了兼容旧页面暂时保留旧课程级命令，也应由服务器通过 token 查到当前 `user_id`，再查询绑定的 `student_id` 后比对；不一致时返回 `FORBIDDEN`。
+退选使用 `CourseDropRecordV2Command(token, recordId)`。服务器必须通过 token 查到当前 `user_id`，再查询绑定的 `student_id`，不能信任客户端提供的学生身份。
 
 ## 7. ServiceResult 返回规范
 
@@ -262,58 +262,7 @@ LibraryMessageHandler.java
 StoreMessageHandler.java
 ```
 
-处理器的基本结构参考：
-
-```java
-final class CourseMessageHandler {
-    private final CourseSelectionService service;
-    private final UserManagementService users;
-
-    CourseMessageHandler(CourseSelectionService service, UserManagementService users) {
-        this.service = service;
-        this.users = users;
-    }
-
-    Message handle(Message request) {
-        try {
-            ServiceResult<?> result;
-            switch (request.getType()) {
-                case COURSE_QUERY:
-                    result = service.listCourses();
-                    break;
-                case COURSE_SELECT:
-                    CourseSelectionCommand select = payload(request, CourseSelectionCommand.class);
-                    ServiceResult<Boolean> auth = users.authorize(select.getToken(), "COURSE_SELECT");
-                    if (auth.getStatus() != StatusCode.OK) {
-                        return Message.response(request, auth.getStatus(), null);
-                    }
-                    ServiceResult<Session> current = users.currentSession(select.getToken());
-                    if (current.getStatus() != StatusCode.OK) {
-                        return Message.response(request, current.getStatus(), null);
-                    }
-                    // 正式接入时应通过 user_id 查询绑定的 student_id，而不是信任客户端传入的学号。
-                    String studentId = studentProfiles.findStudentIdByUserId(
-                            current.getData().getUser().getUserId());
-                    result = service.select(studentId, select.getCourseId());
-                    break;
-                default:
-                    return Message.response(request, StatusCode.NOT_FOUND, "course handler does not support this message");
-            }
-            return Message.response(request, result.getStatus(), result.getData());
-        } catch (IllegalArgumentException invalidPayload) {
-            return Message.response(request, StatusCode.BAD_REQUEST, "request payload is invalid");
-        }
-    }
-
-    private static <T> T payload(Message request, Class<T> type) {
-        Object payload = request.getPayload();
-        if (!type.isInstance(payload)) {
-            throw new IllegalArgumentException("unexpected payload type");
-        }
-        return type.cast(payload);
-    }
-}
-```
+选课处理器以 `CourseMessageHandler` 为唯一入口：学生查询、选课、退选命令先按 token 校验权限，再由 `user_id` 查询学生档案；教务管理命令则要求 `COURSE_MANAGE` 权限。不要重新引入由客户端传递 `studentId` 和 `courseId` 的课程级简化请求。
 
 接入 `ServerApplication` 时，建议由组长统一整合 `dispatch`，避免多人同时修改同一个文件造成冲突。
 
@@ -333,11 +282,6 @@ private Message dispatch(Message request) {
         case COURSE_SELECT_OFFERING_V2:
         case COURSE_DROP_RECORD_V2:
         case COURSE_MANAGE:
-            return courseMessages.handle(request);
-        case COURSE_QUERY:
-        case COURSE_SELECT:
-        case COURSE_DROP:
-            // 早期课程级协议只返回 V2 升级提示，不承载完整选课流程。
             return courseMessages.handle(request);
         case LIBRARY_QUERY:
         case LIBRARY_BORROW:

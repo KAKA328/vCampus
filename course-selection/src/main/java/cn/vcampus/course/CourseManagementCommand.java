@@ -1,6 +1,7 @@
 package cn.vcampus.course;
 
 import java.io.Serializable;
+import java.time.LocalDateTime;
 
 /** 教务管理员维护课程目录和教学班的 Socket 请求。 */
 public final class CourseManagementCommand implements Serializable {
@@ -15,7 +16,11 @@ public final class CourseManagementCommand implements Serializable {
         CREATE_OFFERING,
         CHANGE_OFFERING_STATUS,
         CHANGE_OFFERING_CAPACITIES,
-        UPDATE_OFFERING_TEACHING_INFO
+        UPDATE_OFFERING_TEACHING_INFO,
+        LIST_SELECTION_ROUNDS_BY_TERM,
+        CREATE_SELECTION_ROUND,
+        UPDATE_SELECTION_ROUND_TIME_WINDOW,
+        CHANGE_SELECTION_ROUND_STATUS
     }
 
     private final String token;
@@ -33,13 +38,18 @@ public final class CourseManagementCommand implements Serializable {
     private final CourseOfferingStatus offeringStatus;
     private final String teacherId;
     private final String location;
+    private final SelectionRound selectionRound;
+    private final LocalDateTime startsAt;
+    private final LocalDateTime endsAt;
+    private final SelectionRoundStatus selectionRoundStatus;
 
     private CourseManagementCommand(String token, Operation operation, Course course,
             CourseOffering offering, String targetId, String term, String name, int credits,
             int requiredCapacity, int electiveCapacity, int crossMajorCapacity,
             CourseStatus courseStatus, CourseOfferingStatus offeringStatus) {
         this(token, operation, course, offering, targetId, term, name, credits, requiredCapacity,
-                electiveCapacity, crossMajorCapacity, courseStatus, offeringStatus, null, null);
+                electiveCapacity, crossMajorCapacity, courseStatus, offeringStatus, null, null,
+                null, null, null, null);
     }
 
     private CourseManagementCommand(String token, Operation operation, Course course,
@@ -47,6 +57,17 @@ public final class CourseManagementCommand implements Serializable {
             int requiredCapacity, int electiveCapacity, int crossMajorCapacity,
             CourseStatus courseStatus, CourseOfferingStatus offeringStatus, String teacherId,
             String location) {
+        this(token, operation, course, offering, targetId, term, name, credits, requiredCapacity,
+                electiveCapacity, crossMajorCapacity, courseStatus, offeringStatus, teacherId, location,
+                null, null, null, null);
+    }
+
+    private CourseManagementCommand(String token, Operation operation, Course course,
+            CourseOffering offering, String targetId, String term, String name, int credits,
+            int requiredCapacity, int electiveCapacity, int crossMajorCapacity,
+            CourseStatus courseStatus, CourseOfferingStatus offeringStatus, String teacherId,
+            String location, SelectionRound selectionRound, LocalDateTime startsAt,
+            LocalDateTime endsAt, SelectionRoundStatus selectionRoundStatus) {
         this.token = requireText(token, "token");
         if (operation == null) {
             throw new IllegalArgumentException("operation must not be null");
@@ -65,6 +86,10 @@ public final class CourseManagementCommand implements Serializable {
         this.offeringStatus = offeringStatus;
         this.teacherId = teacherId;
         this.location = location;
+        this.selectionRound = selectionRound;
+        this.startsAt = startsAt;
+        this.endsAt = endsAt;
+        this.selectionRoundStatus = selectionRoundStatus;
     }
 
     public static CourseManagementCommand listCourses(String token) {
@@ -128,6 +153,36 @@ public final class CourseManagementCommand implements Serializable {
                 requireText(teacherId, "teacherId"), requireText(location, "location"));
     }
 
+    public static CourseManagementCommand listSelectionRoundsByTerm(String token, String term) {
+        return new CourseManagementCommand(token, Operation.LIST_SELECTION_ROUNDS_BY_TERM, null,
+                null, null, requireText(term, "term"), null, 0, 0, 0, 0, null, null, null, null,
+                null, null, null, null);
+    }
+
+    public static CourseManagementCommand createSelectionRound(String token, SelectionRound round) {
+        if (round == null) throw new IllegalArgumentException("selection round must not be null");
+        return new CourseManagementCommand(token, Operation.CREATE_SELECTION_ROUND, null, null,
+                null, null, null, 0, 0, 0, 0, null, null, null, null, round, null, null, null);
+    }
+
+    public static CourseManagementCommand updateSelectionRoundTimeWindow(String token,
+            String roundId, LocalDateTime startsAt, LocalDateTime endsAt) {
+        if (startsAt == null || endsAt == null) {
+            throw new IllegalArgumentException("startsAt and endsAt must not be null");
+        }
+        return new CourseManagementCommand(token, Operation.UPDATE_SELECTION_ROUND_TIME_WINDOW,
+                null, null, requireText(roundId, "roundId"), null, null, 0, 0, 0, 0, null, null,
+                null, null, null, startsAt, endsAt, null);
+    }
+
+    public static CourseManagementCommand changeSelectionRoundStatus(String token, String roundId,
+            SelectionRoundStatus status) {
+        if (status == null) throw new IllegalArgumentException("selection round status must not be null");
+        return new CourseManagementCommand(token, Operation.CHANGE_SELECTION_ROUND_STATUS, null,
+                null, requireText(roundId, "roundId"), null, null, 0, 0, 0, 0, null, null, null,
+                null, null, null, null, status);
+    }
+
     public String getToken() { return token; }
     public Operation getOperation() { return operation; }
     public Course getCourse() { return course; }
@@ -143,6 +198,10 @@ public final class CourseManagementCommand implements Serializable {
     public CourseOfferingStatus getOfferingStatus() { return offeringStatus; }
     public String getTeacherId() { return teacherId; }
     public String getLocation() { return location; }
+    public SelectionRound getSelectionRound() { return selectionRound; }
+    public LocalDateTime getStartsAt() { return startsAt; }
+    public LocalDateTime getEndsAt() { return endsAt; }
+    public SelectionRoundStatus getSelectionRoundStatus() { return selectionRoundStatus; }
 
     private static String requireText(String value, String fieldName) {
         if (value == null || value.trim().isEmpty()) {

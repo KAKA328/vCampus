@@ -37,9 +37,7 @@
 
 | `MessageType` | 要求权限 | 用途 |
 |---|---|---|
-| `COURSE_CREATE` | `COURSE_MANAGE` | 创建课程或开课记录 |
-| `COURSE_UPDATE` | `COURSE_MANAGE` | 修改课程信息、容量或开课状态 |
-| `COURSE_DEACTIVATE` | `COURSE_MANAGE` | 停开课程；存在选课或历史记录时不得直接物理删除 |
+| `COURSE_MANAGE` | `COURSE_MANAGE` | 创建、修改、停开课程、教学班和选课轮次；存在选课或历史记录时不得直接物理删除 |
 
 具体命令对象和业务实现由选课模块提供。所有改变状态的请求都必须携带会话 token，并由服务器在调用 Service/Repository 之前授权。
 

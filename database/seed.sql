@@ -18,14 +18,14 @@ INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, for
 VALUES ('demo_teacher', 'cSoOs3pVGxBnmJO0OZy1Rg==:qmNTtyQn+Lprr8EEzSRs/ZNxtQKgSEzVy3WOSl7VYdQ=', 'Demo Teacher', 'TEACHER', 1, 0);
 
 -- 选课模块演示课程。
-INSERT INTO tblCourse(course_id, course_name, credits, capacity)
-VALUES ('JAVA101', 'Java 程序设计', 3, 40);
+INSERT INTO tblCourse(course_id, course_name, credits, status)
+VALUES ('JAVA101', 'Java 程序设计', 3, 'ACTIVE');
 
-INSERT INTO tblCourse(course_id, course_name, credits, capacity)
-VALUES ('DB101', '数据库原理', 3, 40);
+INSERT INTO tblCourse(course_id, course_name, credits, status)
+VALUES ('DB101', '数据库原理', 3, 'ACTIVE');
 
-INSERT INTO tblCourse(course_id, course_name, credits, capacity)
-VALUES ('NET101', '计算机网络', 3, 30);
+INSERT INTO tblCourse(course_id, course_name, credits, status)
+VALUES ('NET101', '计算机网络', 3, 'ACTIVE');
 
 -- 学籍与学业审查演示数据：演示账号已预先绑定档案；正式历史成绩由教务维护或导入。
 INSERT INTO tblClass(class_id, class_name, department_name, major_name, grade_year)
@@ -37,8 +37,18 @@ VALUES ('demo_student', 'demo_student', 'Demo Student', '未知', '计算机科�
 INSERT INTO tblTeacher(teacher_id, user_id, teacher_name, department_name, title)
 VALUES ('demo_teacher', 'demo_teacher', 'Demo Teacher', '计算机科学与工程学院', '讲师');
 
-INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, semester, course_type, total_capacity, major_capacity, cross_major_capacity, active)
-VALUES ('offering-java-2025a', 'JAVA101', 'demo_teacher', '2025-2026-1', '必修', 40, 35, 5, 1);
+INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, term, schedule, location, required_capacity, elective_capacity, cross_major_capacity, status)
+VALUES ('offering-java-2025a', 'JAVA101', 'demo_teacher', '2025-2026-1', '周一第1-2节', '教学楼A201', 35, 0, 5, 'OPEN');
+
+INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, location)
+VALUES ('offering-java-2025a', 1, 1, 2, '教学楼A201');
+
+INSERT INTO tblTrainingPlan(plan_id, major_name, enrollment_year, status)
+VALUES ('plan-se-2026', '软件工程', 2026, 'PUBLISHED');
+INSERT INTO tblTrainingPlanCourse(plan_id, course_id, recommended_term, selection_type, cross_major_allowed)
+VALUES ('plan-se-2026', 'JAVA101', 1, 'REQUIRED', 0);
+INSERT INTO tblTrainingPlanCourse(plan_id, course_id, recommended_term, selection_type, cross_major_allowed)
+VALUES ('plan-se-2026', 'DB101', 1, 'ELECTIVE', 0);
 
 INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at)
 VALUES ('result-java-demo-1', 'demo_student', 'JAVA101', 'offering-java-2025a', '2025-2026-1', 1, '首修', 86, 1, 3, NOW());

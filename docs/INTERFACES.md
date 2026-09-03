@@ -55,13 +55,25 @@ AcademicReviewService.pendingRetakes(String studentId)
 7. 正常、异常、权限拒绝测试；
 8. 本文档中的接口说明。
 
-完整选课流程已经升级为显式 V2 Socket 协议。早期 `COURSE_QUERY`、`COURSE_SELECT`、`COURSE_DROP` 只表示“课程级简化选课”遗留入口，不再承载带轮次和教学班的完整流程；当前服务端收到旧选课消息会返回清晰的升级提示。新客户端必须使用：
+完整选课流程统一使用以下 Socket 协议：
 
 - `COURSE_SELECTION_QUERY_V2` + `CourseSelectionQueryV2Command(token, roundId?)`：查询可用选课轮次、指定轮次的教学班、本人已选教学班；
 - `COURSE_SELECT_OFFERING_V2` + `CourseSelectOfferingV2Command(token, roundId, offeringId)`：在指定轮次选择具体教学班；
 - `COURSE_DROP_RECORD_V2` + `CourseDropRecordV2Command(token, recordId)`：按选课记录编号退选。
 
-这次变更是公共协议升级。客户端不再提交 `studentId` 作为本人身份，服务端必须根据 `token -> user_id -> student_id` 推导学生档案；退选也不再使用 `courseId`，而是使用已选记录的 `recordId`。如果后续需要兼容旧客户端，应由组内另行实现旧消息的简化流程，不能再把旧消息类型偷偷改成 V2 字段。
+客户端不提交 `studentId` 作为本人身份，服务端必须根据 `token -> user_id -> student_id` 推导学生档案；退选使用已选记录的 `recordId`。
+
+教务人员维护课程目录、教学班和选课轮次统一使用 `COURSE_MANAGE` 与
+`CourseManagementCommand`，服务端要求 `COURSE_MANAGE` 权限。选课轮次相关操作为：
+
+- `LIST_SELECTION_ROUNDS_BY_TERM`：查询某学期全部轮次；
+- `CREATE_SELECTION_ROUND`：创建首修或重修轮次；同一学期每种类型最多一个；
+- `UPDATE_SELECTION_ROUND_TIME_WINDOW`：仅修改轮次起止时间，不改变学期和轮次类型；
+- `CHANGE_SELECTION_ROUND_STATUS`：在草稿、开放、关闭状态之间切换。
+
+轮次操作不新增 `MessageType`，仍由现有 `COURSE_MANAGE` 分发；响应 payload 为
+`SelectionRound` 或其列表。数据库表为 `tblSelectionRound`，项目直接按最新版
+`schema.sql` 创建数据库，不保留旧表迁移要求。
 
 商店当前使用以下 token-only 命令，服务端必须从 token 对应会话取得 `userId`，不得相信客户端传入的学生/用户编号：
 
@@ -107,6 +119,6 @@ AcademicReviewService.pendingRetakes(String studentId)
   - `CHANGE_OFFERING_STATUS(offeringId, offeringStatus)`：开放或关闭教学班，响应 `CourseOffering`；
   - `CHANGE_OFFERING_CAPACITIES(offeringId, requiredCapacity, electiveCapacity, crossMajorCapacity)`：修改三类容量，响应 `CourseOffering`；
   - `UPDATE_OFFERING_TEACHING_INFO(offeringId, teacherId, location)`：仅修改任课教师和上课地点，响应 `CourseOffering`，不得修改既有 `schedule` 文本或 `meetingSchedule` 结构化上课时间。
-  历史 `COURSE_CREATE`、`COURSE_UPDATE`、`COURSE_DEACTIVATE` 仅作为早期枚举保留。
-- `COURSE_DEACTIVATE` 表示停开；存在选课或历史记录时不得直接删除关联数据。
+- 停开课程或教学班时，存在选课或历史记录不得直接物理删除关联数据。
+- 选课轮次同样通过 `COURSE_MANAGE` + `CourseManagementCommand` 维护，支持查询某学期轮次、创建首修/重修轮次、修改轮次时间窗口和切换轮次状态；同一学期每种轮次类型最多一个。
 - 客户端只负责按角色隐藏无权入口，服务器 Handler 必须在调用业务接口前执行 `authorize`，拒绝时返回 `FORBIDDEN`。

@@ -30,7 +30,6 @@ package "common 模块（通信协议与共享类型）" as PCOM {
         REGISTER / UNREGISTER / LOGIN / LOGOUT
         AUTHORIZE / USER_IMPORT
         STUDENT_QUERY / STUDENT_UPDATE
-        COURSE_QUERY / COURSE_SELECT / COURSE_DROP（早期协议）
         COURSE_SELECTION_QUERY_V2 / COURSE_SELECT_OFFERING_V2 / COURSE_DROP_RECORD_V2
         COURSE_MANAGE
         LIBRARY_QUERY / LIBRARY_BORROW / LIBRARY_RETURN
@@ -249,15 +248,11 @@ package "user-management 模块" as PUSER {
 ' =====================================================================
 package "course-selection 模块" as PCO {
     interface CourseSelectionService {
-        + listCourses(): ServiceResult<List<Course>>
-        + select(studentId, courseId): ServiceResult<Void>
-        + drop(studentId, courseId): ServiceResult<Void>
-        + selectedCourses(studentId): ServiceResult<List<Course>>
-    }
-
-    class InMemoryCourseSelectionService {
-        - coursesById: Map<String, Course>
-        - courseIdsByStudent: Map<String, Set<String>>
+        + listAvailableRounds(student, time): ServiceResult<List<SelectionRound>>
+        + listAvailableOfferings(student, roundId, time): ServiceResult<List<SelectableCourseOffering>>
+        + select(student, roundId, offeringId, time): ServiceResult<CourseSelectionRecord>
+        + drop(student, recordId, time): ServiceResult<CourseSelectionRecord>
+        + listSelectedOfferings(student): ServiceResult<List<SelectedCourseOffering>>
     }
 
     interface SelectionRoundService {
@@ -276,7 +271,6 @@ package "course-selection 模块" as PCO {
         - courseId: String
         - name: String
         - credits: int
-        - capacity: int
     }
 
     class CourseOffering <<Value Object>> {
@@ -336,23 +330,6 @@ package "course-selection 模块" as PCO {
         CLOSED（关闭）
     }
 
-    class CourseQueryCommand <<Command>> {
-        - queryType: QueryType
-        - studentId: String
-        + {static} allCourses(): CourseQueryCommand
-        + {static} selectedCourses(studentId): CourseQueryCommand
-    }
-
-    class CourseSelectionCommand <<Command>> {
-        - studentId: String
-        - courseId: String
-    }
-
-    class CourseDropCommand <<Command>> {
-        - studentId: String
-        - courseId: String
-    }
-
     class CourseSelectionQueryV2Command <<Command>> {
         - queryType: QueryType
         - token: String
@@ -373,9 +350,7 @@ package "course-selection 模块" as PCO {
         - recordId: String
     }
 
-    CourseSelectionService <|.. InMemoryCourseSelectionService
     SelectionRoundService <|.. InMemorySelectionRoundService
-    InMemoryCourseSelectionService o-- Course
     InMemorySelectionRoundService o-- SelectionRound
 
     CourseOffering --> CourseOfferingStatus
@@ -717,7 +692,7 @@ package "server 模块" as PSV {
     note right of ServerApplication
         dispatch 路由：
         COURSE_*（V2）→ CourseMessageHandler
-        早期 COURSE_QUERY/SELECT/DROP → V2 升级提示
+        当前 COURSE_* 选课协议 → CourseMessageHandler
         STORE_* → StoreMessageHandler
         其余 → UserMessageHandler
     end note

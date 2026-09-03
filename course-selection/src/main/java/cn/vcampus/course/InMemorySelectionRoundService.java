@@ -37,6 +37,10 @@ public final class InMemorySelectionRoundService implements SelectionRoundServic
             if (roundsById.put(round.getRoundId(), round) != null) {
                 throw new IllegalArgumentException("duplicate roundId: " + round.getRoundId());
             }
+            if (hasSameTermAndType(round.getTerm(), round.getType(), round.getRoundId())) {
+                throw new IllegalArgumentException("duplicate selection round type for term: "
+                        + round.getTerm());
+            }
         }
     }
 
@@ -48,8 +52,33 @@ public final class InMemorySelectionRoundService implements SelectionRoundServic
         if (roundsById.containsKey(round.getRoundId())) {
             return ServiceResult.failure(StatusCode.CONFLICT, "selection round already exists");
         }
+        if (hasSameTermAndType(round.getTerm(), round.getType(), null)) {
+            return ServiceResult.failure(StatusCode.CONFLICT,
+                    "selection round type already exists for this term");
+        }
         roundsById.put(round.getRoundId(), round);
         return ServiceResult.ok(round);
+    }
+
+    @Override
+    public synchronized ServiceResult<SelectionRound> updateTimeWindow(String roundId,
+            LocalDateTime startsAt, LocalDateTime endsAt) {
+        String normalizedRoundId = normalize(roundId);
+        if (normalizedRoundId == null || startsAt == null || endsAt == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "roundId, startsAt and endsAt must not be null");
+        }
+        SelectionRound existing = roundsById.get(normalizedRoundId);
+        if (existing == null) {
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "selection round not found");
+        }
+        try {
+            SelectionRound changed = existing.withTimeWindow(startsAt, endsAt);
+            roundsById.put(normalizedRoundId, changed);
+            return ServiceResult.ok(changed);
+        } catch (IllegalArgumentException invalid) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, invalid.getMessage());
+        }
     }
 
     @Override
@@ -118,5 +147,15 @@ public final class InMemorySelectionRoundService implements SelectionRoundServic
         }
         String normalized = value.trim();
         return normalized.isEmpty() ? null : normalized;
+    }
+
+    private boolean hasSameTermAndType(String term, SelectionRoundType type, String excludedRoundId) {
+        for (SelectionRound existing : roundsById.values()) {
+            if (existing.getTerm().equals(term) && existing.getType() == type
+                    && !existing.getRoundId().equals(excludedRoundId)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

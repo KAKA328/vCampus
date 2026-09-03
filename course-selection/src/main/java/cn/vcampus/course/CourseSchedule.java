@@ -28,7 +28,7 @@ public final class CourseSchedule implements Serializable {
         this.meetings = Collections.unmodifiableList(copiedMeetings);
     }
 
-    /** 返回用于兼容尚未配置结构化时间的旧教学班的空时间表。 */
+    /** 返回尚未排定具体上课时间时使用的空时间表。 */
     public static CourseSchedule empty() {
         return EMPTY;
     }

@@ -22,10 +22,8 @@ class MessageTest {
     }
 
     @Test
-    void messageTypesExposeCourseManagementContract() {
-        assertEquals("COURSE_CREATE", MessageType.valueOf("COURSE_CREATE").name());
-        assertEquals("COURSE_UPDATE", MessageType.valueOf("COURSE_UPDATE").name());
-        assertEquals("COURSE_DEACTIVATE", MessageType.valueOf("COURSE_DEACTIVATE").name());
+    void messageTypesExposeUnifiedCourseManagementContract() {
+        assertEquals("COURSE_MANAGE", MessageType.valueOf("COURSE_MANAGE").name());
     }
 
     @Test

@@ -14,5 +14,8 @@ public interface SelectionRoundService {
     ServiceResult<SelectionRound> findById(String roundId);
     ServiceResult<List<SelectionRound>> listByTerm(String term);
     ServiceResult<List<SelectionRound>> listOpenRounds(String term, LocalDateTime time);
+    /** 仅调整轮次的起止时间，不改变所属学期和轮次类型。 */
+    ServiceResult<SelectionRound> updateTimeWindow(String roundId, LocalDateTime startsAt,
+            LocalDateTime endsAt);
     ServiceResult<SelectionRound> changeStatus(String roundId, SelectionRoundStatus status);
 }

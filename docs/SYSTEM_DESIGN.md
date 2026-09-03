@@ -258,7 +258,6 @@ database                 vCampus.accdb、schema.sql、seed.sql
 | `LOGOUT` | `String token` | 已登录 |
 | `AUTHORIZE` | `AuthorizationRequest` | 已登录 |
 | `STUDENT_QUERY/UPDATE` | 学生查询/更新请求 | 按角色和数据范围 |
-| `COURSE_QUERY/SELECT/DROP` | 早期课程级请求（兼容入口） | 当前返回 V2 升级提示；不得承载轮次、教学班或选课记录字段 |
 | `COURSE_SELECTION_QUERY_V2` | `CourseSelectionQueryV2Command(token, roundId?)` | `COURSE_READ`，服务端按 token 推导学生档案 |
 | `COURSE_SELECT_OFFERING_V2` | `CourseSelectOfferingV2Command(token, roundId, offeringId)` | `COURSE_SELECT`，服务端按 token 推导学生档案 |
 | `COURSE_DROP_RECORD_V2` | `CourseDropRecordV2Command(token, recordId)` | `COURSE_SELECT`，服务端按 token 推导学生档案 |

@@ -7,6 +7,7 @@ import cn.vcampus.course.CourseSelectionModule;
 import cn.vcampus.course.CourseSelectionService;
 import cn.vcampus.course.CourseCatalogService;
 import cn.vcampus.course.CourseOfferingService;
+import cn.vcampus.course.SelectionRoundService;
 import cn.vcampus.course.StudentSelectionProfileProvider;
 import cn.vcampus.store.StoreService;
 import cn.vcampus.store.InMemoryStoreService;
@@ -51,8 +52,16 @@ public final class ServerApplication implements Closeable {
     private ServerApplication(int port, UserManagementService users, CourseSelectionModule module,
             StudentServices studentServices, StoreService store) {
         this(port, users, module.getSelectionService(), module.getCatalogService(),
-                module.getOfferingService(), studentServices.profiles, store,
+                module.getOfferingService(), module.getSelectionRoundService(), studentServices.profiles, store,
                 studentServices.students);
+    }
+
+    private ServerApplication(int port, UserManagementService users, CourseSelectionModule module,
+            StudentSelectionProfileProvider profiles, StoreService store,
+            StudentManagementService students) {
+        this(port, users, module.getSelectionService(), module.getCatalogService(),
+                module.getOfferingService(), module.getSelectionRoundService(), profiles, store,
+                students);
     }
 
     public ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
@@ -63,13 +72,21 @@ public final class ServerApplication implements Closeable {
 
     ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
             CourseCatalogService catalog, CourseOfferingService offerings,
-            StudentSelectionProfileProvider profiles, StoreService store,
-            StudentManagementService students) {
+            SelectionRoundService selectionRounds, StudentSelectionProfileProvider profiles,
+            StoreService store, StudentManagementService students) {
         this.port = port;
         this.userMessages = new UserMessageHandler(users);
-        this.courseMessages = new CourseMessageHandler(courses, catalog, offerings, profiles, users);
+        this.courseMessages = new CourseMessageHandler(courses, catalog, offerings, selectionRounds,
+                profiles, users);
         this.storeMessages = new StoreMessageHandler(store, users);
         this.studentMessages = new StudentMessageHandler(students, users);
+    }
+
+    ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
+            CourseCatalogService catalog, CourseOfferingService offerings,
+            StudentSelectionProfileProvider profiles, StoreService store,
+            StudentManagementService students) {
+        this(port, users, courses, catalog, offerings, null, profiles, store, students);
     }
 
     public void start() throws IOException {
@@ -134,13 +151,7 @@ public final class ServerApplication implements Closeable {
     }
 
     private static boolean isCourseMessage(MessageType type) {
-        return type == MessageType.COURSE_QUERY
-                || type == MessageType.COURSE_SELECT
-                || type == MessageType.COURSE_DROP
-                || type == MessageType.COURSE_CREATE
-                || type == MessageType.COURSE_UPDATE
-                || type == MessageType.COURSE_DEACTIVATE
-                || type == MessageType.COURSE_MANAGE
+        return type == MessageType.COURSE_MANAGE
                 || type == MessageType.COURSE_SELECTION_QUERY_V2
                 || type == MessageType.COURSE_SELECT_OFFERING_V2
                 || type == MessageType.COURSE_DROP_RECORD_V2;
@@ -165,11 +176,12 @@ public final class ServerApplication implements Closeable {
     public static void main(String[] args) throws IOException {
         int port = parsePort(args);
         Path databasePath = UserServiceFactory.databasePath(args);
-        CourseSelectionModule module = CourseSelectionDemoFactory.createModule();
+        CourseServiceFactory.CourseRuntime courses = CourseServiceFactory.create(databasePath);
         StudentServices studentServices = databasePath == null
                 ? memoryStudentServices() : accessStudentServices(databasePath);
-        new ServerApplication(port, UserServiceFactory.create(args), module,
-                studentServices, StoreServiceFactory.create(databasePath)).start();
+        new ServerApplication(port, UserServiceFactory.create(args), courses.getModule(),
+                courses.getProfiles(), StoreServiceFactory.create(databasePath),
+                studentServices.students).start();
     }
 
     private static StudentServices memoryStudentServices() {
