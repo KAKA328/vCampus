@@ -22,7 +22,7 @@
   - `COURSE_DROP_RECORD_V2`
 - 选课协议只保留当前完整流程：查询轮次/教学班、选择教学班、按选课记录退选，以及教务管理命令；不保留早期课程级选课入口。
 - 商店已补齐商品查询/分类、购买、本人订单、购物车、商品维护、全量订单、热销排行协议；服务端分发、权限校验、内存服务和 Access 商品/订单仓储已同步。
-- `--db` 模式下用户、商店商品和订单，以及选课的课程目录、教学班、培养方案、轮次、选课记录与学生选课资料均使用 Access；购物车仍为进程内实现。
+- `--db` 模式下用户、学生/教师档案、商店商品、订单、购物车、钱包，以及选课的课程目录、教学班、培养方案、轮次、选课记录与学生选课资料均使用同一个 Access 数据库。
 - `VCampusTheme` 已覆盖登录、主界面、用户管理、商店、选课页面；`CourseSelectionPanel` 与 `CourseManagementPanel` 已统一按钮、表格、字体、边框和状态色。
 - 数据库迁移已修正为：全新数据库由 `schema.sql` 创建 `active`，旧商店库使用 `007_store_product_active.up.sql`；不要同时在 `004_store.up.sql` 和 `007` 重复添加字段。
 
@@ -35,10 +35,10 @@
 
 ## 仍需处理的问题
 
-- 学生学籍模块应优先由 `origin/feature/student-management` 的正式分支承接。该分支新增了 `StudentRepository`、`DefaultStudentManagementService`、`AccessStudentRepository`、学生查询/更新命令、`tblClass`/学籍迁移和后端测试，但暂未接入 Swing 学籍页面。当前直接合并会在 `server/src/main/java/cn/vcampus/server/ServerApplication.java` 发生内容冲突，需要按当前 main 的 PR25 后路由和启动工厂形状重新整理。
+- 学生学籍模块已通过 PR33 合入主线，包含 Repository、Access 持久化、Token 身份映射、服务器 Handler、选课资料适配、Swing 学籍页面和权限测试；后续在新功能分支继续完善学业审查口径与教师授课范围。
 - 图书馆仍缺少完整 Handler、Access 仓储、远程客户端服务和 Swing 页面。
 - 选课 V2 仍需并发选课和客户端刷新竞态验证。
-- 商店客户端目前只暴露查询、购买和本人订单；商店管理员页面、购物车页面、Access 购物车持久化和严格跨 JDBC 连接事务仍待后续 PR。
+- 商店客户端目前只暴露查询、购买和本人订单；商店管理员页面仍待补齐。Access 购物车持久化已接入，但结账跨 JDBC 连接仍采用应用层补偿，不是数据库跨表事务。
 - 还需要用真实服务器进程 + Swing 客户端 + 机房 `.accdb` 文件做人工演示截图。
 
 ## 下一步建议

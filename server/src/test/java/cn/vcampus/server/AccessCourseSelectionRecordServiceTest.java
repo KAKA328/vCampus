@@ -160,6 +160,12 @@ class AccessCourseSelectionRecordServiceTest {
         statement.execute("CREATE TABLE tblCourseOfferingCapacityUsage ("
                 + "offering_id VARCHAR(36) NOT NULL,capacity_bucket VARCHAR(16) NOT NULL,"
                 + "used_count INTEGER NOT NULL,PRIMARY KEY (offering_id,capacity_bucket))");
+        statement.execute("CREATE TABLE tblTeacher ("
+                + "teacher_id VARCHAR(32) NOT NULL,user_id VARCHAR(32),"
+                + "teacher_name VARCHAR(64) NOT NULL,department_name VARCHAR(64),"
+                + "title VARCHAR(32),active BIT NOT NULL,PRIMARY KEY (teacher_id))");
+        statement.execute("INSERT INTO tblTeacher(teacher_id,teacher_name,active) "
+                + "VALUES ('T001','教师一',1)");
     }
 
     @SuppressWarnings("unchecked")

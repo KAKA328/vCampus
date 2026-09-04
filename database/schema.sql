@@ -13,8 +13,6 @@ CREATE TABLE tblUser (
     PRIMARY KEY (user_id),
     CONSTRAINT uk_tblUser_display_name UNIQUE (display_name)
 );
-
-
 CREATE TABLE tblAuditLog (
     log_id VARCHAR(36) NOT NULL,
     actor_user_id VARCHAR(32) NOT NULL,
@@ -24,7 +22,6 @@ CREATE TABLE tblAuditLog (
     created_at DATETIME NOT NULL,
     PRIMARY KEY (log_id)
 );
-
 
 CREATE TABLE tblPasswordResetApplication (
     user_id VARCHAR(32) NOT NULL,
@@ -37,7 +34,6 @@ CREATE TABLE tblPasswordResetApplication (
     reviewed_at DATETIME,
     PRIMARY KEY (user_id)
 );
-
 
 CREATE TABLE tblCourse (
     course_id VARCHAR(32) NOT NULL,
@@ -58,7 +54,6 @@ CREATE TABLE tblCourseSelection (
     dropped_at DATETIME,
     PRIMARY KEY (selection_id)
 );
-
 
 -- 仅保存当前有效选课的占用键。退选时删除对应行，完整历史仍保留在 tblCourseSelection。
 -- 复合主键由 Access 保证：同一学生不能同时重复选择同一教学班。
@@ -89,7 +84,6 @@ CREATE TABLE tblClass (
     PRIMARY KEY (class_id)
 );
 
-
 CREATE TABLE tblStudent (
     student_id VARCHAR(32) NOT NULL,
     user_id VARCHAR(32),
@@ -106,17 +100,16 @@ CREATE TABLE tblStudent (
     CONSTRAINT uk_tblStudent_user UNIQUE (user_id)
 );
 
-
 CREATE TABLE tblTeacher (
     teacher_id VARCHAR(32) NOT NULL,
     user_id VARCHAR(32),
     teacher_name VARCHAR(64) NOT NULL,
     department_name VARCHAR(64),
     title VARCHAR(32),
+    active BIT NOT NULL,
     PRIMARY KEY (teacher_id),
     CONSTRAINT uk_tblTeacher_user UNIQUE (user_id)
 );
-
 
 CREATE TABLE tblCourseOffering (
     offering_id VARCHAR(36) NOT NULL,
@@ -132,7 +125,6 @@ CREATE TABLE tblCourseOffering (
     PRIMARY KEY (offering_id)
 );
 
-
 -- 一个教学班可包含多次上课安排，用于选课时的时间冲突检测。
 CREATE TABLE tblCourseMeeting (
     offering_id VARCHAR(36) NOT NULL,
@@ -143,7 +135,6 @@ CREATE TABLE tblCourseMeeting (
     PRIMARY KEY (offering_id, day_of_week, start_period)
 );
 
-
 CREATE TABLE tblTrainingPlan (
     plan_id VARCHAR(36) NOT NULL,
     major_name VARCHAR(64) NOT NULL,
@@ -151,7 +142,6 @@ CREATE TABLE tblTrainingPlan (
     status VARCHAR(16) NOT NULL,
     PRIMARY KEY (plan_id)
 );
-
 
 CREATE TABLE tblTrainingPlanCourse (
     plan_id VARCHAR(36) NOT NULL,
@@ -161,7 +151,6 @@ CREATE TABLE tblTrainingPlanCourse (
     cross_major_allowed BIT NOT NULL,
     PRIMARY KEY (plan_id, course_id)
 );
-
 
 -- 教务人员维护的选课轮次。每个学期至多配置一个首修轮次和一个重修轮次。
 CREATE TABLE tblSelectionRound (
@@ -196,7 +185,6 @@ CREATE TABLE tblCourseResult (
     PRIMARY KEY (result_id)
 );
 
-
 CREATE TABLE tblAcademicReview (
     review_id VARCHAR(36) NOT NULL,
     student_id VARCHAR(32) NOT NULL,
@@ -210,7 +198,6 @@ CREATE TABLE tblAcademicReview (
     remark VARCHAR(255),
     PRIMARY KEY (review_id)
 );
-
 
 CREATE TABLE tblProduct (
     product_id VARCHAR(32) NOT NULL,
@@ -235,7 +222,6 @@ CREATE TABLE tblOrder (
     PRIMARY KEY (order_id)
 );
 
-
 CREATE TABLE tblCartItem (
     cart_item_id VARCHAR(36) NOT NULL,
     user_id VARCHAR(32) NOT NULL,
@@ -246,10 +232,44 @@ CREATE TABLE tblCartItem (
     CONSTRAINT uk_tblCartItem_user_product UNIQUE (user_id, product_id)
 );
 
-
 -- 校园钱包账户：余额以「分」为单位存 BIGINT，user_id 为主键（懒创建 upsert 依赖主键去重，不另建唯一索引以规避 UCanAccess 4.0.4 的 CREATE UNIQUE INDEX 限制）。
 CREATE TABLE tblBankAccount (
     user_id VARCHAR(32) NOT NULL,
     balance_cents BIGINT NOT NULL,
     PRIMARY KEY (user_id)
+);
+
+CREATE TABLE tblBook (
+    book_id VARCHAR(32) NOT NULL,
+    title VARCHAR(120) NOT NULL,
+    author VARCHAR(100) NOT NULL,
+    isbn VARCHAR(32),
+    category VARCHAR(64),
+    publisher VARCHAR(100),
+    total_copies INTEGER NOT NULL,
+    available_copies INTEGER NOT NULL,
+    location VARCHAR(64),
+    PRIMARY KEY (book_id)
+);
+
+CREATE TABLE tblBorrowRecord (
+    record_id VARCHAR(40) NOT NULL,
+    order_id VARCHAR(40) NOT NULL,
+    user_id VARCHAR(32) NOT NULL,
+    book_id VARCHAR(32) NOT NULL,
+    borrow_date DATETIME NOT NULL,
+    due_date DATETIME NOT NULL,
+    return_date DATETIME,
+    status VARCHAR(16) NOT NULL,
+    PRIMARY KEY (record_id)
+);
+
+CREATE TABLE tblBorrowRenew (
+    renew_id VARCHAR(40) NOT NULL,
+    record_id VARCHAR(40) NOT NULL,
+    previous_due_date DATETIME NOT NULL,
+    renewed_due_date DATETIME NOT NULL,
+    renewed_at DATETIME NOT NULL,
+    renewed_by VARCHAR(32) NOT NULL,
+    PRIMARY KEY (renew_id)
 );

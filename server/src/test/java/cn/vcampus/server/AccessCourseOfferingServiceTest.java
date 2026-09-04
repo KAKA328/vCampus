@@ -42,6 +42,7 @@ class AccessCourseOfferingServiceTest {
             createCurrentOfferingTable(statement);
             createCurrentMeetingTable(statement);
             createCurrentSelectionRecordTable(statement);
+            createTeacherTable(statement);
         }
         catalog = new AccessCourseCatalogService(database);
         catalog.create(new Course("CS101", "程序设计基础", 3));
@@ -107,6 +108,24 @@ class AccessCourseOfferingServiceTest {
                 service.create(offering("OFFER-001", "CS102", CourseOfferingStatus.DRAFT)).getStatus());
     }
 
+    @Test
+    void rejectsUnknownOrInactiveTeacherForCreateAndUpdate() {
+        assertEquals(StatusCode.NOT_FOUND,
+                service.create(offering("UNKNOWN-TEACHER", "CS101", "T999",
+                        CourseOfferingStatus.DRAFT)).getStatus());
+        assertEquals(StatusCode.CONFLICT,
+                service.create(offering("INACTIVE-TEACHER", "CS101", "T003",
+                        CourseOfferingStatus.DRAFT)).getStatus());
+
+        assertEquals(StatusCode.OK,
+                service.create(offering("OFFER-001", CourseOfferingStatus.DRAFT)).getStatus());
+        assertEquals(StatusCode.NOT_FOUND,
+                service.updateTeachingInfo("OFFER-001", "T999", "教学楼B302").getStatus());
+        assertEquals(StatusCode.CONFLICT,
+                service.updateTeachingInfo("OFFER-001", "T003", "教学楼B302").getStatus());
+        assertEquals("T001", service.findById("OFFER-001").getData().getTeacherId());
+    }
+
     private static final String TERM = "2026-2027-1";
 
     private static CourseOffering offering(String offeringId, CourseOfferingStatus status) {
@@ -115,7 +134,12 @@ class AccessCourseOfferingServiceTest {
 
     private static CourseOffering offering(String offeringId, String courseId,
             CourseOfferingStatus status) {
-        return new CourseOffering(offeringId, courseId, TERM, "T001", "周一第1-2节", "教学楼A201",
+        return offering(offeringId, courseId, "T001", status);
+    }
+
+    private static CourseOffering offering(String offeringId, String courseId, String teacherId,
+            CourseOfferingStatus status) {
+        return new CourseOffering(offeringId, courseId, TERM, teacherId, "周一第1-2节", "教学楼A201",
                 30, 5, 4, status).withMeetingSchedule(new CourseSchedule(Arrays.asList(
                         new CourseMeeting(DayOfWeek.MONDAY, 1, 2, "教学楼A201"),
                         new CourseMeeting(DayOfWeek.WEDNESDAY, 3, 4, "教学楼A201"))));
@@ -159,6 +183,19 @@ class AccessCourseOfferingServiceTest {
                 + "start_period INTEGER NOT NULL,end_period INTEGER NOT NULL,"
                 + "location VARCHAR(64) NOT NULL,"
                 + "PRIMARY KEY (offering_id,day_of_week,start_period))");
+    }
+
+    private static void createTeacherTable(Statement statement) throws Exception {
+        statement.execute("CREATE TABLE tblTeacher ("
+                + "teacher_id VARCHAR(32) NOT NULL,user_id VARCHAR(32),"
+                + "teacher_name VARCHAR(64) NOT NULL,department_name VARCHAR(64),"
+                + "title VARCHAR(32),active BIT NOT NULL,PRIMARY KEY (teacher_id))");
+        statement.execute("INSERT INTO tblTeacher(teacher_id,teacher_name,active) "
+                + "VALUES ('T001','教师一',1)");
+        statement.execute("INSERT INTO tblTeacher(teacher_id,teacher_name,active) "
+                + "VALUES ('T002','教师二',1)");
+        statement.execute("INSERT INTO tblTeacher(teacher_id,teacher_name,active) "
+                + "VALUES ('T003','离职教师',0)");
     }
 
 }

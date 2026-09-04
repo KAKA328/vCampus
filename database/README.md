@@ -1,6 +1,6 @@
 # 数据库目录
 
-最终提交时放入机房兼容版本的 `vCampus.accdb`，并补充 `schema.sql` 与 `seed.sql`。本项目当前只支持**全新数据库**：创建或重置数据库时必须按最新版 `schema.sql` 建表，再按需执行 `seed.sql` 导入演示数据；不提供旧 `.accdb` 的迁移、修复或兼容逻辑。
+最终提交时放入机房兼容版本的 `vCampus.accdb`，并补充 `schema.sql` 与 `seed.sql`。当前脚本已使用 UCanAccess 4.0.4 实测：全新 `.accdb` 可以按顺序执行两份脚本完成建库和种子数据导入。本阶段允许弃用旧 `.accdb`，验收和部署统一按最新 `schema.sql` + `seed.sql` 重建数据库；不再承诺把历史库逐条迁移到最新结构。
 
 当前服务器使用 UCanAccess 4.0.4。该驱动不支持执行独立 `CREATE INDEX` 语句，因此 `schema.sql` 只保留主键和表内唯一约束来保证数据正确性；查询索引不是本项目演示环境的必要条件。
 
@@ -10,6 +10,7 @@
 
 - `tblUser`：用户账号表，保存登录账号、密码哈希、显示名、角色、启停状态。批量导入账号时额外记录 `created_by`、`created_at`、`import_batch_id`，用于追踪导入人、导入时间和批次。
 - `tblAuditLog`：敏感用户操作审计表。批量导入每成功创建一个账号都会写入 `IMPORT_USER` 记录，`actor_user_id` 为导入管理员，`target_id` 为被创建账号。
+- `tblAuditLog` 还记录成功的 `LOGIN` / `LOGOUT`，不记录密码、token 或临时密码。
 - `tblPasswordResetApplication`：密码重置申请表。用户在登录前提交账号和新密码，系统只保存新密码哈希与待审批状态；管理员审批通过后将哈希写回 `tblUser.password_hash`，审批拒绝则只更新申请状态。
 
 用户批量导入表格的推荐列名为：`账号`、`姓名`、`初始密码`、`角色`。英文模板也可使用 `userId`、`displayName`、`password`、`roleCode`。角色值使用系统角色编码，例如 `STUDENT`、`TEACHER`、`ADMIN`、`ACADEMIC_ADMIN`、`LIBRARIAN`、`STORE_MANAGER`。
@@ -34,7 +35,7 @@
 
 - `tblStudent`：学生基础学籍信息，保存学号、姓名、院系、专业、班级、入学年份、学籍状态和联系方式，可通过 `user_id` 关联登录账号。
 - `tblClass`：班级基础信息，保存班级名称、所属院系、专业和年级，学生档案通过 `class_id` 关联。
-- `tblTeacher`：教师基础信息，保存教师编号、姓名、院系和职称，可通过 `user_id` 关联登录账号。
+- `tblTeacher`：教师基础信息，保存教师编号、姓名、院系、职称和在职状态，可通过 `user_id` 关联登录账号。`active=0` 的教师保留历史授课关系，但不能再被指定到新教学班。
 - `tblCourseOffering`：具体学期开课记录，保存课程、任课教师、学期、显示用上课时间、地点、必修/选修/跨专业容量和状态。重修学生保留重修身份，但占用必修容量。
 - `tblCourseMeeting`：具体教学班的结构化上课时间，用于恢复并执行选课时间冲突检测。
 - `tblCourseResult`：历史课程结果，保存学生每次首修/重修记录、成绩、是否通过和获得学分。
@@ -50,6 +51,24 @@
 
 查询、购物车和购买只处理 `tblProduct.active=1` 的商品。校园钱包余额字段 `balance_cents` 已包含在最新版 `schema.sql` 中；请使用全新数据库，不执行历史迁移脚本。
 
-身份字段分工如下：`tblUser.user_id` 是登录身份；`tblStudent.student_id` 是学生学号；`tblTeacher.teacher_id` 是教师工号；`tblStudent.user_id` 和 `tblTeacher.user_id` 是档案与登录账号之间的一对一绑定字段，可为空但绑定后应保持唯一。如果账号尚未关联 `tblStudent` 或 `tblTeacher`，相关页面应提示“暂无对应档案，请联系管理员维护”；学业审查、课程历史和授课关系不能根据账号信息凭空生成。
+## 图书馆模块表
 
-学籍表也已包含在最新版 `schema.sql` 中。项目开发阶段统一以该文件作为全新数据库的唯一建表来源。
+- `tblBook`：图书目录与库存快照，`available_copies` 必须保持在 `0..total_copies` 范围内。
+- `tblBorrowRecord`：每本书一条借阅流水；批量借阅共享 `order_id`，每条流水拥有独立 `record_id`。
+- `tblBorrowRenew`：为后续续借功能预留，当前业务代码尚未启用。
+
+借阅和归还由服务器在事务中同时更新 `tblBook.available_copies` 与 `tblBorrowRecord`，客户端只提交会话 token 和书号/借阅记录号。全新数据库直接按最新版 `schema.sql` 建表。
+
+身份字段分工如下：`tblUser.user_id` 是登录身份；`tblStudent.student_id` 是学生学号；`tblTeacher.teacher_id` 是教师工号；`tblStudent.user_id` 和 `tblTeacher.user_id` 是档案与登录账号之间的一对一绑定字段，可为空但绑定后应保持唯一。新建或导入 `STUDENT` / `TEACHER` 账号时，服务端强制要求对应档案已存在、未被占用，并在绑定失败时删除已创建的账号，避免半成功数据。如果账号尚未关联档案，相关页面应提示“暂无对应档案，请联系管理员维护”；学业审查、课程历史和授课关系不能根据账号信息凭空生成。
+
+历史迁移脚本仅作为旧分支和增量实验记录保留。当前验收数据库以 `schema.sql` 为准：其中已经包含教师档案表和 `active` 在职状态字段。若本地已有旧库，请先备份需要保留的数据，再删除旧 `.accdb` 并按最新 `schema.sql` + `seed.sql` 重建；不要把 `013_teacher_profile.up.sql` 当作推荐升级路径重复执行到已含 `tblTeacher` 的数据库上。
+
+## 全新数据库验证
+
+在仓库根目录执行：
+
+```powershell
+mvn -q -pl server -am "-Dtest=AccessDatabaseSchemaTest" "-Dsurefire.failIfNoSpecifiedTests=false" test
+```
+
+该测试会创建临时 `.accdb`，执行完整 `schema.sql` 和 `seed.sql`，并检查演示账号、学生档案、教师档案和商品已经写入。当前 UCanAccess 4.0.4 不支持独立 `CREATE INDEX` DDL，因此正式 schema 使用主键和建表内联 `CONSTRAINT ... UNIQUE`，普通性能索引需另行确认驱动版本后再增加。

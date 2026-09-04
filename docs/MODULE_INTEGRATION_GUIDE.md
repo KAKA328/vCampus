@@ -11,10 +11,10 @@
 - 用户管理模块基础实现；
 - Swing 登录、主界面总控框架；开户注册入口收敛到管理员用户管理页面；
 - `Message` 消息协议、`ServiceResult` 返回格式和 `StatusCode` 状态码；
-- 学生学籍、选课、图书馆、商店四个模块的基础接口和实体；商店服务已补齐内存业务、Access 商品/订单仓储及管理/购物车协议处理；
+- 学生学籍、选课、图书馆、商店四个模块的基础接口和实体；图书馆已补齐内存业务、Access 馆藏/借阅仓储、V2 协议和 Swing 页面；商店服务已补齐内存业务、Access 商品/订单仓储及管理/购物车协议处理；
 - 选课模块的轮次查询、教学班查询、学生选课、退选和本人已选教学班查询已接入服务器和学生客户端页面，完整流程使用显式 V2 协议。
 
-当前学生学籍已完成服务器分发、Access 仓储、Token 身份映射和基础 Swing 页面；学业审查已提供历史课程、待重修和实时审查接口。图书馆仍需完整接入服务器分发和客户端页面；商店服务器分发已覆盖查询、购买、购物车、钱包、商品维护、订单管理和热销排行，客户端已覆盖商品查询、购买、本人订单、购物车和钱包操作，管理员商品维护页面仍待补齐；选课模块仍需补充真实 Access 选课数据、教师成绩录入和教务复核等管理功能。
+当前图书馆已接入目录/详情查询、原子批量借阅、按记录归还、本人/全量记录及新增馆藏的客户端、服务器和 Access 仓储。学生学籍已完成服务器分发、Access 仓储、Token 身份映射和基础 Swing 页面；学业审查已提供历史课程、待重修和实时审查接口。商店服务器分发已覆盖查询、购买、购物车、钱包、商品维护、订单管理和热销排行，客户端已覆盖商品查询、购买、本人订单、购物车和钱包操作，管理员商品维护页面仍待补齐；选课模块仍需补充教师成绩录入和教务复核等管理功能。
 
 ## 2. 队友开始开发前要做什么
 
@@ -145,7 +145,7 @@ Message response = Message.response(request, StatusCode.OK, data);
 | 用户管理 | `REGISTER`、`USER_IMPORT`、`UNREGISTER`、`LOGIN`、`LOGOUT`、`AUTHORIZE` |
 | 学生学籍 | `STUDENT_QUERY`、`STUDENT_UPDATE` |
 | 选课系统 | 完整选课 V2：`COURSE_SELECTION_QUERY_V2`、`COURSE_SELECT_OFFERING_V2`、`COURSE_DROP_RECORD_V2`；课程维护：`COURSE_MANAGE` + `CourseManagementCommand`，含课程目录、教学班创建、教学信息维护和选课轮次管理 |
-| 图书馆 | `LIBRARY_QUERY`、`LIBRARY_BORROW`、`LIBRARY_RETURN` |
+| 图书馆 | 旧协议保留：`LIBRARY_QUERY`、`LIBRARY_BORROW`、`LIBRARY_RETURN`；完整 V2：`LIBRARY_QUERY_V2`、`LIBRARY_DETAIL_V2`、`LIBRARY_BORROW_V2`、`LIBRARY_RETURN_V2`、`LIBRARY_HISTORY_V2`、`LIBRARY_ADD_BOOK_V2` |
 | 商店 | `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY`、`STORE_RESTOCK`、`STORE_PRODUCT_ADD`、`STORE_PRODUCT_UPDATE`、`STORE_PRODUCT_DEACTIVATE`、`STORE_CART_ADD`、`STORE_CART_REMOVE`、`STORE_CART_QUERY`、`STORE_CART_CHECKOUT`、`STORE_ORDER_LIST_ALL`、`STORE_HOT_PRODUCTS`、`STORE_ACCOUNT_QUERY`、`STORE_ACCOUNT_RECHARGE`、`STORE_ACCOUNT_ADJUST` |
 
 如果需要新增消息类型，必须同步修改：
@@ -283,9 +283,12 @@ private Message dispatch(Message request) {
         case COURSE_DROP_RECORD_V2:
         case COURSE_MANAGE:
             return courseMessages.handle(request);
-        case LIBRARY_QUERY:
-        case LIBRARY_BORROW:
-        case LIBRARY_RETURN:
+        case LIBRARY_QUERY_V2:
+        case LIBRARY_DETAIL_V2:
+        case LIBRARY_BORROW_V2:
+        case LIBRARY_RETURN_V2:
+        case LIBRARY_HISTORY_V2:
+        case LIBRARY_ADD_BOOK_V2:
             return libraryMessages.handle(request);
         case STORE_QUERY:
         case STORE_PURCHASE:
@@ -496,7 +499,7 @@ PR 标题建议：
 ```text
 选课：接入学生选课与退课功能
 学籍：新增学生档案查询与保存接口
-图书馆：接入图书借阅与归还功能
+图书馆：接入馆藏查询、批量借阅、归还、借阅记录与馆藏维护
 商店：接入商品购买与订单查询功能
 用户管理：补充账号与学生教师档案绑定规范
 ```

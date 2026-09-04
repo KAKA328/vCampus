@@ -13,6 +13,9 @@ import cn.vcampus.course.CourseSelectionRecord;
 import cn.vcampus.course.CourseSelectionRecordService;
 import cn.vcampus.course.CapacityBucket;
 import cn.vcampus.course.SelectionType;
+import cn.vcampus.student.DefaultTeacherProfileService;
+import cn.vcampus.student.TeacherProfile;
+import cn.vcampus.student.TeacherProfileService;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -29,6 +32,7 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
     private final Path databasePath;
     private final CourseCatalogService courseCatalog;
     private final CourseSelectionRecordService selectionRecords;
+    private final TeacherProfileService teacherProfiles;
 
     public AccessCourseOfferingService(Path databasePath, CourseCatalogService courseCatalog) {
         this(databasePath, courseCatalog, null);
@@ -42,12 +46,20 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
      */
     public AccessCourseOfferingService(Path databasePath, CourseCatalogService courseCatalog,
             CourseSelectionRecordService selectionRecords) {
-        if (databasePath == null || courseCatalog == null) {
-            throw new IllegalArgumentException("databasePath and courseCatalog must not be null");
+        this(databasePath, courseCatalog, selectionRecords,
+                defaultTeacherProfiles(databasePath));
+    }
+
+    AccessCourseOfferingService(Path databasePath, CourseCatalogService courseCatalog,
+            CourseSelectionRecordService selectionRecords, TeacherProfileService teacherProfiles) {
+        if (databasePath == null || courseCatalog == null || teacherProfiles == null) {
+            throw new IllegalArgumentException(
+                    "databasePath, courseCatalog and teacherProfiles must not be null");
         }
         this.databasePath = databasePath.toAbsolutePath().normalize();
         this.courseCatalog = courseCatalog;
         this.selectionRecords = selectionRecords;
+        this.teacherProfiles = teacherProfiles;
     }
 
     @Override
@@ -58,6 +70,10 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
         ServiceResult<Void> courseResult = requireActiveCourse(offering.getCourseId());
         if (courseResult.getStatus() != StatusCode.OK) {
             return ServiceResult.failure(courseResult.getStatus(), courseResult.getMessage());
+        }
+        ServiceResult<Void> teacherResult = requireActiveTeacher(offering.getTeacherId());
+        if (teacherResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(teacherResult.getStatus(), teacherResult.getMessage());
         }
         ServiceResult<CourseOffering> existing = findById(offering.getOfferingId());
         if (existing.getStatus() == StatusCode.OK) {
@@ -216,6 +232,10 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
         if (existing.getStatus() != StatusCode.OK) {
             return existing;
         }
+        ServiceResult<Void> teacherResult = requireActiveTeacher(normalizedTeacherId);
+        if (teacherResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(teacherResult.getStatus(), teacherResult.getMessage());
+        }
         CourseOffering changed = existing.getData().withTeachingInfo(normalizedTeacherId,
                 normalizedLocation);
         String sql = "UPDATE tblCourseOffering SET teacher_id=?,location=? WHERE offering_id=?";
@@ -259,6 +279,21 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
         ServiceResult<Course> result = courseCatalog.findActiveById(courseId);
         return result.getStatus() == StatusCode.OK ? ServiceResult.ok(null)
                 : ServiceResult.<Void>failure(result.getStatus(), result.getMessage());
+    }
+
+    private ServiceResult<Void> requireActiveTeacher(String teacherId) {
+        ServiceResult<TeacherProfile> result = teacherProfiles.findById(teacherId);
+        if (result.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(result.getStatus(), result.getMessage());
+        }
+        if (!result.getData().isActive()) {
+            return ServiceResult.failure(StatusCode.CONFLICT, "teacher is not active");
+        }
+        return ServiceResult.ok(null);
+    }
+
+    private static TeacherProfileService defaultTeacherProfiles(Path databasePath) {
+        return new DefaultTeacherProfileService(new AccessTeacherRepository(databasePath));
     }
 
     private ServiceResult<Void> verifyCapacityNotBelowActiveSelections(CourseOffering existing,

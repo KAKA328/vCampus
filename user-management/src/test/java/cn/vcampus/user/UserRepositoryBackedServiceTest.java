@@ -85,10 +85,14 @@ class UserRepositoryBackedServiceTest {
         assertEquals(StatusCode.OK, service.login(
                 new UserCredentials("imp_stu001", "Demo123", "Imported Student", Role.STUDENT.name())).getStatus());
 
-        assertEquals(2, auditLog.findAll().size());
-        assertEquals("IMPORT_USER", auditLog.findAll().get(0).getAction());
-        assertEquals("admin002", auditLog.findAll().get(0).getActorUserId());
-        assertEquals("imp_stu001", auditLog.findAll().get(0).getTargetId());
+        assertTrue(auditLog.findAll().stream().anyMatch(event ->
+                "IMPORT_USER".equals(event.getAction())
+                        && "admin002".equals(event.getActorUserId())
+                        && "imp_stu001".equals(event.getTargetId())));
+        assertTrue(auditLog.findAll().stream().anyMatch(event ->
+                "LOGIN".equals(event.getAction())
+                        && "imp_stu001".equals(event.getActorUserId())
+                        && "imp_stu001".equals(event.getTargetId())));
     }
 
     @Test
@@ -234,6 +238,51 @@ class UserRepositoryBackedServiceTest {
         assertEquals(StatusCode.BAD_REQUEST, service.register(
                 new UserCredentials("bind_required001", "Demo123", "缺少档案", Role.STUDENT.name())).getStatus());
         assertEquals(null, users.findById("bind_required001"));
+    }
+
+    @Test
+    void failedProfileBindingDoesNotLeaveAnOrphanAccount() {
+        InMemoryUserRepository users = new InMemoryUserRepository();
+        ProfileBindingRepository failingBindings = new ProfileBindingRepository() {
+            @Override public ProfileBindingResult validate(Role role, String profileId, String userId) {
+                return ProfileBindingResult.OK;
+            }
+
+            @Override public ProfileBindingResult bind(Role role, String profileId, String userId) {
+                return ProfileBindingResult.PROFILE_ALREADY_BOUND;
+            }
+
+            @Override public String findProfileId(Role role, String userId) {
+                return "";
+            }
+        };
+        UserManagementService service = new DefaultUserManagementService(users, new SessionManager(),
+                new InMemoryAuditLogRepository(), new InMemoryPasswordResetApplicationRepository(),
+                failingBindings);
+
+        assertEquals(StatusCode.BAD_REQUEST, service.register(new UserCredentials(
+                "bind_rollback001", "Demo123", "绑定失败", Role.STUDENT.name(), "S-ROLLBACK"))
+                .getStatus());
+        assertEquals(null, users.findById("bind_rollback001"));
+    }
+
+    @Test
+    void boundProfileAccountCannotChangeToAnotherRole() {
+        InMemoryUserRepository users = new InMemoryUserRepository();
+        InMemoryAuditLogRepository auditLog = new InMemoryAuditLogRepository();
+        SessionManager sessions = new SessionManager();
+        InMemoryProfileBindingRepository profiles = new InMemoryProfileBindingRepository();
+        profiles.addStudentProfile("S-ROLE-001");
+        UserManagementService service = new DefaultUserManagementService(users, sessions, auditLog,
+                new InMemoryPasswordResetApplicationRepository(), profiles);
+        assertEquals(StatusCode.OK, service.register(new UserCredentials(
+                "bound_role001", "Demo123", "已绑定学生", Role.STUDENT.name(), "S-ROLE-001"))
+                .getStatus());
+        Session admin = sessions.create(new User("admin_bound_role", "Admin", Role.ADMIN));
+
+        assertEquals(StatusCode.FORBIDDEN, service.changeUserRole(new UserRoleChangeCommand(
+                admin.getToken(), "bound_role001", Role.ADMIN.name())).getStatus());
+        assertEquals(Role.STUDENT, users.findById("bound_role001").getUser().getRole());
     }
 
     @Test

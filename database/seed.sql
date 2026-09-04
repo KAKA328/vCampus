@@ -34,8 +34,8 @@ VALUES ('SE2023-01', '软件工程2023级1班', '计算机科学与工程学院'
 INSERT INTO tblStudent(student_id, user_id, student_name, gender, department_name, major_name, class_id, enrollment_year, status, phone, email)
 VALUES ('demo_student', 'demo_student', 'Demo Student', '未知', '计算机科学与工程学院', '软件工程', 'SE2023-01', 2023, '在读', '', '');
 
-INSERT INTO tblTeacher(teacher_id, user_id, teacher_name, department_name, title)
-VALUES ('demo_teacher', 'demo_teacher', 'Demo Teacher', '计算机科学与工程学院', '讲师');
+INSERT INTO tblTeacher(teacher_id, user_id, teacher_name, department_name, title, active)
+VALUES ('demo_teacher', 'demo_teacher', 'Demo Teacher', '计算机科学与工程学院', '讲师', 1);
 
 INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, term, schedule, location, required_capacity, elective_capacity, cross_major_capacity, status)
 VALUES ('offering-java-2025a', 'JAVA101', 'demo_teacher', '2025-2026-1', '周一第1-2节', '教学楼A201', 35, 0, 5, 'OPEN');
@@ -115,3 +115,19 @@ VALUES ('demo_admin', 10000);
 
 INSERT INTO tblBankAccount(user_id, balance_cents)
 VALUES ('demo_store_manager', 50);
+
+-- 图书馆模块演示馆藏。
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, total_copies, available_copies, location)
+VALUES ('B001', 'Java核心技术（卷I）', 'Cay S. Horstmann', '9787115547392', '计算机', '机械工业出版社', 3, 3, 'A-01');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, total_copies, available_copies, location)
+VALUES ('B002', '算法导论', 'Thomas H. Cormen', '9787111407010', '计算机', '机械工业出版社', 2, 2, 'A-02');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, total_copies, available_copies, location)
+VALUES ('B003', '红楼梦', '曹雪芹', '9787020002207', '文学', '人民文学出版社', 2, 2, 'B-01');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, total_copies, available_copies, location)
+VALUES ('B004', '三体', '刘慈欣', '9787536692930', '科幻', '重庆出版社', 4, 4, 'B-02');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, total_copies, available_copies, location)
+VALUES ('B005', '高等数学（第七版）', '同济大学数学系', '9787040396638', '教材', '高等教育出版社', 5, 5, 'C-01');

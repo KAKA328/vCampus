@@ -68,3 +68,54 @@
 - [x] 查询失败时通过 `loadedRecord=false` 保证保存按钮保持禁用
 - [x] 增加清空编辑区后不可保存的客户端回归测试
 - [ ] 等待用户明确指令后再推送并更新 PR33
+
+## Follow-up: 2026-09-04 最新主线学籍完善
+- [x] 更新本地 `main` 到 `origin/main@496b7e3`，确认 PR33、PR35 已合并
+- [x] 从最新主线创建 `feature/student-academic-hardening`
+- [x] 确认 `--db` 已接入选课 V2 Access 服务，学籍迁移已统一为 010
+- [x] 统一课程历史必填字段校验和内存/Access 空学号语义
+- [x] 修复内存审查丢失 `requiredCredits` 的问题并增加学分缺口 getter
+- [x] 基于最新 Access 教学班/选课记录实现教师授课范围校验
+- [x] 移除 `userId == studentId` 的学生本人绑定旁路
+- [x] 运行相关模块验证并复核差异（学籍 14 项、服务器 118 项通过）
+- [x] 运行全项目 `mvn clean test package`（359 项通过，失败 0）
+- [ ] 等待学分聚合和最终毕业口径确认后再做下一阶段重构
+
+## Follow-up: 2026-09-04 学籍类图提取与讲解
+- [x] 解析根目录 `类图.drawio.html`，定位 `student_management` 区域
+- [x] 提取原图中的五个学籍核心类及三条关系
+- [x] 生成 Mermaid 源码、Markdown 讲解和 PNG 静态预览
+- [x] 对照最新代码补充身份、Repository、Access、Handler、页面和选课对接说明
+- [x] 使用 Mermaid CLI 验证语法并完成图片可读性检查
+
+## Follow-up: 2026-09-04 教师档案与成绩审核对接第一阶段
+- [x] 新增教师档案实体、Service、Repository 及内存实现
+- [x] 实现 Access 教师档案查询、保存、账号唯一绑定与在职状态
+- [x] 为学生档案增加按学号批量查询能力
+- [x] 增加 `tblTeacher.active` 数据库迁移并同步 schema、seed、README
+- [x] 编写选课模块调用所需的成绩审核档案接口对接文档
+- [x] 补充内存、Access、异常与绑定冲突测试
+- [x] 运行相关模块和全项目验证（367 项通过）
+
+### 本阶段边界
+- 选课模块负责成绩草稿、文件导入、审核状态机和 `tblCourseResult` 正式成绩写入。
+- 学籍模块本阶段只提供教师/学生档案接口，不实现成绩审核流程。
+
+### 本阶段错误记录
+- UCanAccess 4.0.4 在临时测试库中不支持动态执行 `CREATE UNIQUE INDEX`；测试改为验证 Repository 的事务内重复绑定检查，正式 schema 继续保留唯一索引定义。
+- UCanAccess 4.0.4 测试库对 `BIT` 字段使用 `true` 字面量会报类型转换错误；测试初始化已改用与正式 Access 种子一致的 `1`/`0` 写法。
+
+### 本阶段验证结果
+- `mvn -pl server -am -Dtest=AccessTeacherRepositoryTest test`：3 项通过。
+- `mvn clean test package`：全项目 367 项通过，失败 0；server 122 项、client 47 项均通过，并生成服务器和客户端可执行包。
+
+## Follow-up: 2026-09-04 组长视角审查修复
+- [x] 将 `TeacherProfileService` 注入 Access 课程服务组装流程
+- [x] 创建教学班和更换任课教师前校验教师档案存在且在职
+- [x] 补充未知教师、非在职教师和教师档案联动回归测试
+- [x] 加强学生批量查询的返回学号集合与重复记录校验
+- [x] 在数据库唯一索引拒绝并发重复绑定后恢复 `CONFLICT` 业务语义
+- [x] 在对接文档中明确档案接口为服务端同进程 Java 契约
+- [x] 相关模块测试通过：学籍 19 项、服务器 123 项
+- [x] 运行全项目构建并完成最终差异检查（369 项通过，0 失败）
+- [x] 明确本阶段允许弃用旧 `.accdb`，验收和部署统一使用最新 `schema.sql` + `seed.sql` 重建数据库

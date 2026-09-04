@@ -170,6 +170,11 @@ public final class MainFrame extends JFrame {
             refreshContent();
             return;
         }
+        if (useLibraryPanel(session.getUser().getRole(), module)) {
+            content.add(new LibraryPanel(host, port, session), BorderLayout.CENTER);
+            refreshContent();
+            return;
+        }
         JPanel panel = new JPanel(new BorderLayout(0, 18));
         panel.setOpaque(false);
         panel.add(sectionTitle(module.getTitle(), module.getSummary()), BorderLayout.NORTH);
@@ -242,6 +247,13 @@ public final class MainFrame extends JFrame {
         return (role == Role.STUDENT || role == Role.TEACHER || role == Role.STORE_MANAGER)
                 && module != null
                 && "商店".equals(module.getTitle());
+    }
+
+    static boolean useLibraryPanel(Role role, ModuleDescriptor module) {
+        if (module == null) return false;
+        if (role == Role.ADMIN) return "图书管理".equals(module.getTitle());
+        return (role == Role.STUDENT || role == Role.TEACHER || role == Role.LIBRARIAN)
+                && "图书馆".equals(module.getTitle());
     }
 
     static boolean useStudentManagementPanel(Role role, ModuleDescriptor module) {

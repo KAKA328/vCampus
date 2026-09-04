@@ -10,7 +10,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /** Access-backed student repository using parameterized JDBC statements. */
 public final class AccessStudentRepository implements StudentRepository {
@@ -87,6 +91,45 @@ public final class AccessStudentRepository implements StudentRepository {
             }
         } catch (SQLException failure) {
             throw databaseFailure("find students by major", failure);
+        }
+    }
+
+    @Override
+    public List<StudentRecord> findByIds(List<String> studentIds) {
+        if (studentIds == null) throw new IllegalArgumentException("studentIds must not be null");
+        Set<String> normalizedIds = new LinkedHashSet<String>();
+        for (String studentId : studentIds) {
+            normalizedIds.add(requireText(studentId, "studentId"));
+        }
+        if (normalizedIds.isEmpty()) return new ArrayList<StudentRecord>();
+
+        StringBuilder sql = new StringBuilder("SELECT ").append(COLUMNS)
+                .append(" FROM tblStudent WHERE student_id IN (");
+        for (int index = 0; index < normalizedIds.size(); index++) {
+            if (index > 0) sql.append(',');
+            sql.append('?');
+        }
+        sql.append(')');
+
+        try (Connection connection = open();
+             PreparedStatement statement = connection.prepareStatement(sql.toString())) {
+            int parameter = 1;
+            for (String studentId : normalizedIds) statement.setString(parameter++, studentId);
+            Map<String, StudentRecord> byId = new LinkedHashMap<String, StudentRecord>();
+            try (ResultSet results = statement.executeQuery()) {
+                while (results.next()) {
+                    StudentRecord record = readRecord(results);
+                    byId.put(record.getStudentId(), record);
+                }
+            }
+            List<StudentRecord> ordered = new ArrayList<StudentRecord>();
+            for (String studentId : normalizedIds) {
+                StudentRecord record = byId.get(studentId);
+                if (record != null) ordered.add(record);
+            }
+            return ordered;
+        } catch (SQLException failure) {
+            throw databaseFailure("find students by ids", failure);
         }
     }
 

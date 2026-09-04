@@ -17,13 +17,20 @@ import cn.vcampus.user.UserManagementService;
 final class StudentMessageHandler {
     private final StudentManagementService students;
     private final UserManagementService users;
+    private final TeacherStudentAccessPolicy teacherAccess;
 
     StudentMessageHandler(StudentManagementService students, UserManagementService users) {
-        if (students == null || users == null) {
-            throw new IllegalArgumentException("students and users must not be null");
+        this(students, users, new DenyTeacherStudentAccessPolicy());
+    }
+
+    StudentMessageHandler(StudentManagementService students, UserManagementService users,
+            TeacherStudentAccessPolicy teacherAccess) {
+        if (students == null || users == null || teacherAccess == null) {
+            throw new IllegalArgumentException("student handler dependencies must not be null");
         }
         this.students = students;
         this.users = users;
+        this.teacherAccess = teacherAccess;
     }
 
     Message handle(Message request) {
@@ -79,6 +86,16 @@ final class StudentMessageHandler {
         if (role == Role.STUDENT && !owns(scope.getData(), record.getData())) {
             return ServiceResult.failure(StatusCode.FORBIDDEN, "student scope denied");
         }
+        if (role == Role.TEACHER) {
+            ServiceResult<Boolean> allowed = teacherAccess.canRead(
+                    scope.getData().getUser().getUserId(), record.getData().getStudentId());
+            if (allowed.getStatus() != StatusCode.OK) {
+                return ServiceResult.failure(allowed.getStatus(), allowed.getMessage());
+            }
+            if (!Boolean.TRUE.equals(allowed.getData())) {
+                return ServiceResult.failure(StatusCode.FORBIDDEN, "teacher student scope denied");
+            }
+        }
         return record;
     }
 
@@ -116,8 +133,7 @@ final class StudentMessageHandler {
     }
 
     private static boolean owns(Session session, StudentRecord record) {
-        return session.getUser().getUserId().equals(record.getUserId())
-                || session.getUser().getUserId().equals(record.getStudentId());
+        return session.getUser().getUserId().equals(record.getUserId());
     }
 
     private static boolean contactOnly(StudentRecord oldRecord, StudentRecord newRecord) {
