@@ -238,9 +238,9 @@ return ServiceResult.failure(StatusCode.NOT_FOUND, "course not found");
 | `UNAUTHORIZED` | 未登录、token 无效 |
 | `FORBIDDEN` | 已登录但没有权限 |
 | `NOT_FOUND` | 数据不存在 |
-| `CONFLICT` | 数据冲突，例如重复选课、重复账号、库存/余额并发变化导致补偿失败 |
+| `CONFLICT` | 数据冲突，例如重复选课、重复账号、库存/余额并发变化；购买/结账已扣项按序回滚**成功**时也返回 `CONFLICT`（可重试） |
 | `PAYMENT_REQUIRED` | 余额不足，需先充值（商店钱包购买/结账） |
-| `SERVER_ERROR` | 服务器内部错误 |
+| `SERVER_ERROR` | 服务器内部错误；购买/结账**补偿失败**（退款/回补/撤单未完成、状态可能不一致）升级为此码，并记 `CompensationFailure` 留痕待人工对账 |
 
 ## 8. 服务器端如何接入模块
 

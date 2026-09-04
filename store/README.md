@@ -75,7 +75,7 @@ long totalCents = Math.round(order.getTotalPrice() * 100);
 ```
 
 - **预检只作提示**：库存/余额预检只用来改善提示信息（`NOT_FOUND`/`CONFLICT`/`PAYMENT_REQUIRED`），真正成功由原子 `deductStock`（`WHERE stock >= qty`）和原子 `debit`（`WHERE balance_cents >= ?`）决定。并发下预检结果会过期，不能作为成功依据。
-- **每个补偿都检查返回值**：退款 `credit`、回补库存 `addStock`、撤单 `deleteById` 都要判断是否成功；**任一补偿失败仍返回 `CONFLICT`** 并记日志，**绝不返回成功**。
+- **每个补偿都检查返回值**：退款 `credit`、回补库存 `addStock`、撤单 `deleteById` 都要判断是否成功。补偿**全部成功**才按可重试的 `CONFLICT` 返回；**任一步补偿失败**说明状态已无法自动收敛（如「扣款成功、建单失败、退款又失败」），服务层记录一条 `CompensationFailure` 留痕（结构化告警日志 + 进程内可查询列表）并升级返回 `SERVER_ERROR`，**绝不返回成功、也绝不用 `CONFLICT` 掩盖不一致**。
 - **`purchase`/`checkout` 共用一把 `synchronized` 锁**：在单 JVM 内串行化复合操作，避免「查余额→算→写」之间的竞态。跨进程仍依赖数据库层的守卫式 UPDATE。
 - **订单唯一业务编号 = 现有 UUID `orderId`**：`tblOrder` 以 `order_id` 为主键，重试是全新 UUID，不会与回滚残留的订单撞号。
 
