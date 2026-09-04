@@ -2,7 +2,7 @@
 
 ## 1. 实验目标
 
-本阶段围绕组长负责的用户管理模块推进，覆盖开户注册、登录、授权、登出、注销、角色权限、数据持久化接口、审计记录、服务器通信和 Swing 客户端入口。范围仍限定在用户管理与总控框架，不实现学生学籍、选课、图书馆、商店四个成员模块的具体业务逻辑。
+本阶段围绕组长负责的用户管理模块推进，覆盖开户注册、登录、授权、登出、注销、角色权限、Access 数据持久化、档案绑定、审计记录、服务器通信和 Swing 客户端入口。本文前半部分保留 E1-E3 历史演进，文末“当前验收补充”以最新实现和测试结果为准。
 
 说明：本报告记录 E1-E3 阶段的演进过程；当前最新设计已将开户注册入口收敛到管理员端，登录页不再提供公开自助注册。
 
@@ -13,8 +13,8 @@
 | 操作系统 | Windows |
 | Java | `25.0.2`，项目源码按 Java 8 兼容方式编写 |
 | Maven | Apache Maven 3.9.16，已可执行 `mvn clean test` |
-| Git 分支 | `feature/user-management` |
-| 数据库目标 | Microsoft Access，已预留 `tblUser`、`tblAuditLog` 表结构与 UCanAccess 接入代码 |
+| Git 分支 | `main` 基线及 `codex/user-management-access-hardening` 验证分支 |
+| 数据库目标 | Microsoft Access，当前 `--db` 模式已接入用户、学生/教师档案、商店和选课相关 Access 仓储 |
 | GUI 技术 | Java Swing，已完成登录页、管理员开户注册页、主界面工作台式布局优化和输入提示优化 |
 | Socket 演示端口 | 临时端口 `19192` / GUI 验证端口 `19195` |
 
@@ -47,7 +47,7 @@ E1 已完成用户管理核心流程，确保在不依赖数据库和 GUI 的情
 
 ## 4. E2 完成情况：持久化接口、审计与管理员注销
 
-E2 已完成用户管理服务的分层改造，为 Access 数据库接入做好准备。
+E2 已完成用户管理服务的分层改造，并已在临时全新 Access 数据库上完成真实读写验证。
 
 | 项目 | 完成内容 |
 |---|---|
@@ -58,7 +58,7 @@ E2 已完成用户管理服务的分层改造，为 Access 数据库接入做好
 | 默认业务服务 | 新增 `DefaultUserManagementService`，统一承载注册、登录、授权、注销逻辑 |
 | 会话管理 | 新增 `SessionManager`，管理 token 与用户会话 |
 | 管理员注销 | 支持管理员注销他人账号，并清理该用户全部会话 |
-| Access 接入代码 | 新增 `AccessUserRepository`、`AccessAuditLogRepository`、`UserServiceFactory` |
+| Access 接入代码 | `AccessUserRepository`、`AccessAuditLogRepository`、`AccessProfileBindingRepository`、`UserServiceFactory` |
 | 数据库脚本 | 更新 `database/schema.sql`，新增迁移脚本 `001_user_audit.up.sql` / `001_user_audit.down.sql` |
 
 E2 新增自动化测试：
@@ -174,7 +174,7 @@ mvn clean test
 
 | 阶段 | 后续事项 |
 |---|---|
-| E2 | 准备实际 `.accdb` 文件后，使用 `--db 数据库路径` 启动服务器，进行真实 Access 读写验证 |
+| E2 | 已通过临时全新 `.accdb` 执行 `schema.sql + seed.sql` 并完成用户真实读写验证 |
 | E3 | 启动服务器后运行客户端 GUI，人工检查登录、注册、角色菜单、退出登录体验 |
 | E4 | 打包可运行程序，补充用户使用说明书、最终测试截图和验收清单 |
 | 集成 | 等其他组员模块完成后，把学籍、选课、图书馆、商店页面替换到主界面占位面板中 |
@@ -239,3 +239,32 @@ mvn test
 | 支持中文表头与英文表头，并拒绝 `.accdb/.mdb` 作为导入源 | 通过 |
 | 用户管理页顶部说明、左侧单账号卡片和右侧批量导入区域结构稳定 | 通过 |
 | 页面同时提供创建单个账号、选择 Excel/CSV 文件和导入文件账号入口 | 通过 |
+
+## 13. 当前验收补充：Access 建库与账号一致性
+
+本节覆盖 2026-09-04 当前实现，优先级高于前文 E1-E3 的阶段性描述。
+
+| 验证项 | 结果 |
+|---|---|
+| 全新 Access 数据库执行完整 `database/schema.sql` | 通过 |
+| 全新 Access 数据库执行完整 `database/seed.sql`，演示账号、学生/教师档案和商品可读取 | 通过 |
+| Access 创建学生账号时必须绑定已存在且未占用的学生档案 | 通过 |
+| Access 创建学生/教师账号时缺少档案不会留下 `tblUser` 记录 | 通过 |
+| Access 服务重开后新账号仍可登录，证明数据已落盘 | 通过 |
+| Access 禁用账号后重开服务仍无法登录 | 通过 |
+| 已绑定学生/教师档案的账号不能直接切换为另一类角色 | 通过 |
+| 登录和登出写入 `tblAuditLog` 的 `LOGIN` / `LOGOUT` 事件 | 通过 |
+| 绑定写入失败时补偿删除已创建账号 | 通过 |
+
+新增测试类：
+
+- `server/src/test/java/cn/vcampus/server/AccessDatabaseSchemaTest.java`
+- `server/src/test/java/cn/vcampus/server/AccessUserManagementIntegrationTest.java`
+
+验证命令：
+
+```powershell
+mvn -q -pl server -am "-Dtest=AccessDatabaseSchemaTest,AccessUserManagementIntegrationTest" "-Dsurefire.failIfNoSpecifiedTests=false" test
+```
+
+数据库说明：UCanAccess 4.0.4 不支持独立 `CREATE INDEX` DDL；当前全新库脚本保留主键和建表内联唯一约束，未在 `schema.sql` 中执行独立性能索引语句。

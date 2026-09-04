@@ -67,6 +67,17 @@ public final class AccessUserRepository implements UserRepository {
         }
     }
 
+    @Override public boolean deleteById(String userId) {
+        String sql = "DELETE FROM tblUser WHERE user_id=?";
+        try (Connection connection = open();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, userId);
+            return statement.executeUpdate() > 0;
+        } catch (SQLException failure) {
+            throw new IllegalStateException("failed to delete user account", failure);
+        }
+    }
+
     @Override public boolean deactivateById(String userId) {
         return setActive(userId, false);
     }
@@ -135,6 +146,7 @@ public final class AccessUserRepository implements UserRepository {
     }
 
     private Connection open() throws SQLException {
-        return DriverManager.getConnection("jdbc:ucanaccess://" + databasePath);
+        return DriverManager.getConnection(
+                "jdbc:ucanaccess://" + databasePath + ";immediatelyReleaseResources=true");
     }
 }

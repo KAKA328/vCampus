@@ -9,7 +9,7 @@
 | 教师档案 | `TeacherProfileService` | `findById`、`findByUserId`、`save`；提供教师工号、账号绑定、院系、职称和在职状态 |
 | 学业审查 | `AcademicReviewService` | `historyFor`、`pendingRetakes`、`review`、`latestReview` |
 | 选课 | `CourseSelectionService` | 完整选课流程使用 V2 消息：查询轮次/教学班/已选记录、按教学班选课、按选课记录退选；课程维护消息见下文 |
-| 图书馆 | `LibraryService` | `search`、`borrow`、`returnBook` |
+| 图书馆 | `LibraryService` | `search`/分类筛选、`getBook`、原子 `borrowBatch`、按记录 `returnBook`、本人/全量 `borrowHistory`、`addBook` |
 | 商店 | `StoreService` | 商品查询/分类、购买、购物车、钱包、本人/全量订单、热销排行和商品维护；商店消息使用 token-only 命令，用户编号由服务器会话解析 |
 
 所有服务方法返回 `ServiceResult<T>`，由服务器统一映射为 `Message` 响应。服务端必须再次校验会话和权限。
@@ -54,6 +54,8 @@ StudentManagementService.findByIds(List<String> studentIds)
 账号、学生档案和教师档案的身份字段必须分开使用：`user_id` 是登录身份，`student_id` 是学生学号，`teacher_id` 是教师工号。推荐流程为：先由学籍/教师信息模块建立学生或教师档案，再由管理员创建或批量导入账号，最后通过 `student_id` / `teacher_id` 把档案绑定到 `user_id`。
 
 学生、教师本人操作时，客户端只携带 `token` 和具体业务参数，服务器根据 `token -> user_id` 查出当前账号，再通过 `tblStudent.user_id` 或 `tblTeacher.user_id` 转换为业务档案编号。选课、成绩录入、学籍查询等模块不得直接信任客户端传入的 `studentId`、`teacherId` 或 `userId`。商店订单和图书借阅继续以 `user_id` 作为当前用户身份。
+
+图书馆完整流程使用显式 V2 协议：`LIBRARY_QUERY_V2`、`LIBRARY_DETAIL_V2`、`LIBRARY_BORROW_V2`、`LIBRARY_RETURN_V2`、`LIBRARY_HISTORY_V2` 和 `LIBRARY_ADD_BOOK_V2`。借阅、归还和本人记录中的用户身份仅由服务器根据命令内的 token 解析；查询其他用户或全部借阅记录、增加馆藏需要 `LIBRARY_MANAGE` 权限。
 
 详细对接规范见 [`ACCOUNT_PROFILE_INTEGRATION.md`](ACCOUNT_PROFILE_INTEGRATION.md)。
 
