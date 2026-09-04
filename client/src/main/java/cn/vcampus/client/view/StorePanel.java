@@ -592,7 +592,7 @@ public final class StorePanel extends JPanel {
 
     private static String statusMessage(StatusCode statusCode) {
         if (statusCode == StatusCode.BAD_REQUEST) {
-            return "请求数据不正确，或库存不足";
+            return "请求数据不正确，请检查填写的数量或金额";
         }
         if (statusCode == StatusCode.UNAUTHORIZED) {
             return "登录状态已失效，请重新登录";
@@ -601,13 +601,13 @@ public final class StorePanel extends JPanel {
             return "当前账号没有访问商店功能的权限";
         }
         if (statusCode == StatusCode.NOT_FOUND) {
-            return "商品或订单不存在";
+            return "商品、订单或购物车条目不存在";
         }
         if (statusCode == StatusCode.PAYMENT_REQUIRED) {
             return "余额不足，请先充值";
         }
         if (statusCode == StatusCode.CONFLICT) {
-            return "操作冲突，库存或余额已变化，请刷新后重试";
+            return "操作冲突：库存不足或余额已变化，请刷新后重试";
         }
         return "服务器处理请求失败";
     }
