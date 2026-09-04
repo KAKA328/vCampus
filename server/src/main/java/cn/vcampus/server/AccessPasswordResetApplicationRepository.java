@@ -110,6 +110,7 @@ public final class AccessPasswordResetApplicationRepository implements PasswordR
     }
 
     private Connection open() throws SQLException {
-        return DriverManager.getConnection("jdbc:ucanaccess://" + databasePath);
+        return DriverManager.getConnection(
+                "jdbc:ucanaccess://" + databasePath + ";immediatelyReleaseResources=true");
     }
 }

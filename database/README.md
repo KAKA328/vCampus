@@ -1,6 +1,6 @@
 # 数据库目录
 
-最终提交时放入机房兼容版本的 `vCampus.accdb`，并补充 `schema.sql` 与 `seed.sql`（如 Access 版本不支持某条 SQL，以实际建库结果为准）。
+最终提交时放入机房兼容版本的 `vCampus.accdb`，并补充 `schema.sql` 与 `seed.sql`。当前脚本已使用 UCanAccess 4.0.4 实测：全新 `.accdb` 可以按顺序执行两份脚本完成建库和种子数据导入。
 
 运行数据库统一使用 Access：服务器通过 `--db database/vCampus.accdb` 连接该文件，客户端不直接连接数据库。用户批量导入的外部源文件可以使用 `.xlsx`、`.csv` 或 `.tsv` 表格模板；这些文件只负责把账号清单读入系统，最终账号、导入人、导入时间和导入批次仍写入 `vCampus.accdb`。不建议把另一个 `.accdb/.mdb` 文件作为用户导入源，避免导入源表结构与系统运行数据库结构混淆。
 
@@ -8,6 +8,7 @@
 
 - `tblUser`：用户账号表，保存登录账号、密码哈希、显示名、角色、启停状态。批量导入账号时额外记录 `created_by`、`created_at`、`import_batch_id`，用于追踪导入人、导入时间和批次。
 - `tblAuditLog`：敏感用户操作审计表。批量导入每成功创建一个账号都会写入 `IMPORT_USER` 记录，`actor_user_id` 为导入管理员，`target_id` 为被创建账号。
+- `tblAuditLog` 还记录成功的 `LOGIN` / `LOGOUT`，不记录密码、token 或临时密码。
 - `tblPasswordResetApplication`：密码重置申请表。用户在登录前提交账号和新密码，系统只保存新密码哈希与待审批状态；管理员审批通过后将哈希写回 `tblUser.password_hash`，审批拒绝则只更新申请状态。
 
 用户批量导入表格的推荐列名为：`账号`、`姓名`、`初始密码`、`角色`。英文模板也可使用 `userId`、`displayName`、`password`、`roleCode`。角色值使用系统角色编码，例如 `STUDENT`、`TEACHER`、`ADMIN`、`ACADEMIC_ADMIN`、`LIBRARIAN`、`STORE_MANAGER`。
@@ -48,6 +49,16 @@
 
 校园钱包表 `tblBankAccount` 由 `database/migrations/009_store_bank_account.up.sql` 建表、`.down.sql` 回滚（编号 009，不碰 008 的 `tblCartItem`）。⚠️ 数据库必须按最新 `schema.sql` 重建：本次新增 `tblBankAccount` 且 `balance_cents` 为 `BIGINT`，旧 `.accdb` 不含该表、与本次改动不兼容，沿用旧库会导致账户相关功能报错。
 
-身份字段分工如下：`tblUser.user_id` 是登录身份；`tblStudent.student_id` 是学生学号；`tblTeacher.teacher_id` 是教师工号；`tblStudent.user_id` 和 `tblTeacher.user_id` 是档案与登录账号之间的一对一绑定字段，可为空但绑定后应保持唯一。如果账号尚未关联 `tblStudent` 或 `tblTeacher`，相关页面应提示“暂无对应档案，请联系管理员维护”；学业审查、课程历史和授课关系不能根据账号信息凭空生成。
+身份字段分工如下：`tblUser.user_id` 是登录身份；`tblStudent.student_id` 是学生学号；`tblTeacher.teacher_id` 是教师工号；`tblStudent.user_id` 和 `tblTeacher.user_id` 是档案与登录账号之间的一对一绑定字段，可为空但绑定后应保持唯一。新建或导入 `STUDENT` / `TEACHER` 账号时，服务端强制要求对应档案已存在、未被占用，并在绑定失败时删除已创建的账号，避免半成功数据。如果账号尚未关联档案，相关页面应提示“暂无对应档案，请联系管理员维护”；学业审查、课程历史和授课关系不能根据账号信息凭空生成。
 
 学籍表由 `migrations/010_student_academic.up.sql` 创建；回滚使用同目录下的 `010_student_academic.down.sql`。编号 009 已由商店钱包占用，学籍迁移顺延为 010。
+
+## 全新数据库验证
+
+在仓库根目录执行：
+
+```powershell
+mvn -q -pl server -am "-Dtest=AccessDatabaseSchemaTest" "-Dsurefire.failIfNoSpecifiedTests=false" test
+```
+
+该测试会创建临时 `.accdb`，执行完整 `schema.sql` 和 `seed.sql`，并检查演示账号、学生档案、教师档案和商品已经写入。当前 UCanAccess 4.0.4 不支持独立 `CREATE INDEX` DDL，因此正式 schema 使用主键和建表内联 `CONSTRAINT ... UNIQUE`，普通性能索引需另行确认驱动版本后再增加。

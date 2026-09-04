@@ -6,6 +6,7 @@ import java.util.List;
 public interface UserRepository {
     boolean create(UserAccount account);
     UserAccount findById(String userId);
+    boolean deleteById(String userId);
     boolean deactivateById(String userId);
     boolean setActive(String userId, boolean active);
     boolean updatePasswordHash(String userId, String passwordHash);
