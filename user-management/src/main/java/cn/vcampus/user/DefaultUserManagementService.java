@@ -144,8 +144,21 @@ public final class DefaultUserManagementService implements UserManagementService
         } catch (IllegalArgumentException invalidRole) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "invalid role");
         }
-        if (users.findById(command.getUserId()) == null) {
+        UserAccount target = users.findById(command.getUserId());
+        if (target == null) {
             return ServiceResult.failure(StatusCode.NOT_FOUND, "user not found");
+        }
+        Role currentRole = target.getUser().getRole();
+        if ((currentRole == Role.STUDENT || currentRole == Role.TEACHER)
+                && currentRole != newRole
+                && !profileBindings.findProfileId(currentRole, command.getUserId()).isEmpty()) {
+            return ServiceResult.failure(StatusCode.FORBIDDEN,
+                    "已有学生或教师档案绑定，不能直接切换为其他角色");
+        }
+        if ((newRole == Role.STUDENT || newRole == Role.TEACHER)
+                && profileBindings.findProfileId(newRole, command.getUserId()).isEmpty()) {
+            return ServiceResult.failure(StatusCode.FORBIDDEN,
+                    "学生或教师角色必须绑定对应档案");
         }
         if (!users.changeRole(command.getUserId(), newRole)) {
             return ServiceResult.failure(StatusCode.NOT_FOUND, "user not found");
@@ -286,8 +299,15 @@ public final class DefaultUserManagementService implements UserManagementService
         if (!users.create(account)) {
             return ServiceResult.failure(StatusCode.CONFLICT, "user already exists");
         }
-        ProfileBindingResult binding = profileBindings.bind(role, c.getProfileId(), c.getUserId());
+        ProfileBindingResult binding;
+        try {
+            binding = profileBindings.bind(role, c.getProfileId(), c.getUserId());
+        } catch (RuntimeException failure) {
+            rollbackCreatedAccount(c.getUserId(), failure);
+            throw failure;
+        }
         if (binding != ProfileBindingResult.OK && binding != ProfileBindingResult.NOT_REQUIRED) {
+            rollbackCreatedAccount(c.getUserId(), null);
             return ServiceResult.failure(StatusCode.BAD_REQUEST, bindingMessage(binding));
         }
         return ServiceResult.ok(null);
@@ -342,6 +362,8 @@ public final class DefaultUserManagementService implements UserManagementService
             return ServiceResult.failure(StatusCode.UNAUTHORIZED, "invalid credentials");
         }
         Session session = sessions.create(account.getUser(), account.isForcePasswordChange());
+        auditLog.record(new AuditEvent(account.getUser().getUserId(), "LOGIN", "USER",
+                account.getUser().getUserId(), Instant.now()));
         return ServiceResult.ok(session);
     }
 
@@ -352,7 +374,12 @@ public final class DefaultUserManagementService implements UserManagementService
     }
 
     @Override public ServiceResult<Void> logout(String token) {
-        if (!sessions.invalidate(token)) return ServiceResult.failure(StatusCode.UNAUTHORIZED, "invalid session");
+        Session session = sessions.find(token);
+        if (session == null || !sessions.invalidate(token)) {
+            return ServiceResult.failure(StatusCode.UNAUTHORIZED, "invalid session");
+        }
+        auditLog.record(new AuditEvent(session.getUser().getUserId(), "LOGOUT", "USER",
+                session.getUser().getUserId(), Instant.now()));
         return ServiceResult.ok(null);
     }
 
@@ -392,6 +419,12 @@ public final class DefaultUserManagementService implements UserManagementService
             return "账号已绑定其他档案";
         }
         return "档案绑定失败";
+    }
+
+    private void rollbackCreatedAccount(String userId, RuntimeException cause) {
+        if (!users.deleteById(userId)) {
+            throw new IllegalStateException("failed to rollback account after profile binding failure", cause);
+        }
     }
 
     private String temporaryPassword() {
