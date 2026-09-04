@@ -97,7 +97,8 @@ class ModuleNavigationModelTest {
 
         assertTrue(MainFrame.useUserManagementPanel(Role.ADMIN, model.findModule(Role.ADMIN, "用户管理")));
         assertFalse(MainFrame.useUserManagementPanel(Role.STUDENT, model.findModule(Role.STUDENT, "用户管理")));
-        assertFalse(MainFrame.useUserManagementPanel(Role.ACADEMIC_ADMIN, model.findModule(Role.ACADEMIC_ADMIN, "用户管理")));
+        assertFalse(
+                MainFrame.useUserManagementPanel(Role.ACADEMIC_ADMIN, model.findModule(Role.ACADEMIC_ADMIN, "用户管理")));
     }
 
     @Test
@@ -108,6 +109,17 @@ class ModuleNavigationModelTest {
         assertTrue(MainFrame.useStorePanel(Role.TEACHER, model.findModule(Role.TEACHER, "商店")));
         assertTrue(MainFrame.useStorePanel(Role.STORE_MANAGER, model.findModule(Role.STORE_MANAGER, "商店")));
         assertFalse(MainFrame.useStorePanel(Role.ACADEMIC_ADMIN, model.findModule(Role.ACADEMIC_ADMIN, "商店")));
+    }
+
+    @Test
+    void adminUsesStorePanelViaManagementEntry() {
+        ModuleNavigationModel model = new ModuleNavigationModel();
+
+        // ADMIN 导航里的商店入口标题是“商店管理”，必须同样路由到 StorePanel，
+        // 否则管理员会掉进占位面板，用不到商品维护、全部订单和余额校正能力。
+        assertTrue(MainFrame.useStorePanel(Role.ADMIN, model.findModule(Role.ADMIN, "商店管理")));
+        // 管理员看到的不是买家的“商店”标题，用买家标题查不到模块，自然也不该进 StorePanel。
+        assertFalse(MainFrame.useStorePanel(Role.ADMIN, model.findModule(Role.ADMIN, "商店")));
     }
 
     @Test

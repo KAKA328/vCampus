@@ -207,11 +207,27 @@ CREATE TABLE tblCartItem (
     CONSTRAINT uk_tblCartItem_user_product UNIQUE (user_id, product_id)
 );
 
--- 校园钱包账户：余额以「分」为单位存 BIGINT，user_id 为主键（懒创建 upsert 依赖主键去重，不另建唯一索引以规避 UCanAccess 4.0.4 的 CREATE UNIQUE INDEX 限制）。
+-- 校园钱包账户：余额以「分」为单位存 BIGINT，user_id 为主键（懒创建 upsert 依赖主键去重，不另建唯一索引以规避 UCanAccess 4.0.4 对 CREATE INDEX 的限制）。
 CREATE TABLE tblBankAccount (
     user_id VARCHAR(32) NOT NULL,
     balance_cents BIGINT NOT NULL,
     PRIMARY KEY (user_id)
+);
+
+-- 校园钱包流水：只追加、不修改、不删除。amount_cents 带符号（入账为正、扣款为负、校正为差额），
+-- balance_after_cents 是余额写入后回读的实际余额，operator_id 记录操作者（管理员校正时为管理员编号）。
+-- 余额与流水由 AccessWalletRepository 在同一 JDBC 事务内原子写入：流水写失败即回滚余额，绝不出现「余额已变、流水缺失」。
+-- 本文件只建表不建索引：UCanAccess 4.0.4 对 CREATE INDEX（含非唯一）抛 FeatureNotSupportedException，迁移 012 亦不含索引，以保证可在该流程完整执行。
+CREATE TABLE tblWalletTransaction (
+    transaction_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(32) NOT NULL,
+    transaction_type VARCHAR(16) NOT NULL,
+    amount_cents BIGINT NOT NULL,
+    balance_after_cents BIGINT NOT NULL,
+    operator_id VARCHAR(32) NOT NULL,
+    note VARCHAR(200),
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (transaction_id)
 );
 
 CREATE TABLE tblBook (

@@ -43,11 +43,11 @@
 
 - `tblProduct`：商品、库存、价格和分类；`active` 表示是否上架。
 - `tblOrder`：订单记录，保存用户、商品快照、数量和金额。
-- `tblBankAccount`：校园钱包账户，`user_id` 为主键，`balance_cents` 以「分」为单位存 `BIGINT NOT NULL`；余额扣减/入账由应用层补偿保证一致性，不依赖数据库事务。
+- `tblBankAccount`：校园钱包账户，`user_id` 为主键，`balance_cents` 以「分」为单位存 `BIGINT NOT NULL`；余额与流水（`tblWalletTransaction`）由 `AccessWalletRepository` 在同一 JDBC 事务内原子提交（流水写失败即回滚余额），库存/订单/购物车跨资源仍走应用层补偿。
 
-查询、购物车和购买只处理 `tblProduct.active=1` 的商品。全新数据库按 `schema.sql` 创建 `active` 字段；已有按旧 `004_store` 建立的数据库先执行 `database/migrations/007_store_product_active.up.sql`，回滚使用同名 `.down.sql`，不要对新库重复执行该迁移。
+查询、购物车和购买只处理 `tblProduct.active=1` 的商品；`active` 字段由最新 `schema.sql` 建表时直接创建，无需再单独执行历史迁移。
 
-校园钱包表 `tblBankAccount` 由 `database/migrations/009_store_bank_account.up.sql` 建表、`.down.sql` 回滚（编号 009，不碰 008 的 `tblCartItem`）。⚠️ 数据库必须按最新 `schema.sql` 重建：本次新增 `tblBankAccount` 且 `balance_cents` 为 `BIGINT`，旧 `.accdb` 不含该表、与本次改动不兼容，沿用旧库会导致账户相关功能报错。
+⚠️ 数据库一律按最新 `schema.sql` + `seed.sql` 全新重建：本轮商店钱包改动包含 `tblBankAccount`（`balance_cents` 为 `BIGINT`）与流水表 `tblWalletTransaction`，旧 `.accdb` 不含这些表、与本次改动不兼容，沿用旧库会导致钱包相关功能报错。`database/migrations/` 下的商店迁移（如 `012_store_wallet_transaction`）只各自新建单表，**不构成从旧库平滑升级的完整迁移链**，因此不再提供“已有旧库先执行 `007` / `009`”这类增量迁移指引。
 
 ## 图书馆模块表
 

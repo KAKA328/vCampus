@@ -28,15 +28,15 @@ class StoreConcurrencyTest {
     void scenario1ConcurrentPurchaseNeverOversells() throws Exception {
         final InMemoryProductRepository products = new InMemoryProductRepository();
         final InMemoryOrderRepository orders = new InMemoryOrderRepository();
-        final InMemoryBankAccountRepository bank = new InMemoryBankAccountRepository();
+        final InMemoryWalletRepository wallet = new InMemoryWalletRepository();
         final InMemoryCartRepository cart = new InMemoryCartRepository();
         products.save(new Product("HOT", "限量商品", 2, 10.0, "", "test"));
         final String[] users = { "u1", "u2", "u3" };
         final int[] qtys = { 1, 2, 3 };
         for (String user : users) {
-            bank.credit(user, 100_000L);// 余额充足，排除余额干扰，专测库存竞态
+            wallet.save(new BankAccount(user, 100_000L));// 余额充足，排除余额干扰，专测库存竞态
         }
-        final DefaultStoreService service = new DefaultStoreService(products, orders, cart, bank);
+        final DefaultStoreService service = new DefaultStoreService(products, orders, cart, wallet);
 
         final CountDownLatch start = new CountDownLatch(1);
         final AtomicInteger okCount = new AtomicInteger();
@@ -77,16 +77,16 @@ class StoreConcurrencyTest {
     void scenario2MixedPurchaseAndCheckoutStaysConsistent() throws Exception {
         final InMemoryProductRepository products = new InMemoryProductRepository();
         final InMemoryOrderRepository orders = new InMemoryOrderRepository();
-        final InMemoryBankAccountRepository bank = new InMemoryBankAccountRepository();
+        final InMemoryWalletRepository wallet = new InMemoryWalletRepository();
         final InMemoryCartRepository cart = new InMemoryCartRepository();
         products.save(new Product("HOT", "限量商品", 3, 10.0, "", "test"));
         for (String user : new String[] { "u1", "u2", "u3" }) {
-            bank.credit(user, 100_000L);
+            wallet.save(new BankAccount(user, 100_000L));
         }
         // u1、u2 走购物车结账，各 2 件
         cart.addItem(new CartItem("c1", "u1", "HOT", 2, LocalDateTime.now()));
         cart.addItem(new CartItem("c2", "u2", "HOT", 2, LocalDateTime.now()));
-        final DefaultStoreService service = new DefaultStoreService(products, orders, cart, bank);
+        final DefaultStoreService service = new DefaultStoreService(products, orders, cart, wallet);
 
         final CountDownLatch start = new CountDownLatch(1);
         ExecutorService pool = Executors.newFixedThreadPool(3);
@@ -133,7 +133,7 @@ class StoreConcurrencyTest {
             for (Order order : orders.findByUserId(user)) {
                 spent += Math.round(order.getTotalPrice() * 100);
             }
-            assertEquals(100_000L - spent, bank.findByUserId(user).getBalanceCents(),
+            assertEquals(100_000L - spent, wallet.findByUserId(user).getBalanceCents(),
                     user + " 余额扣减应与成功订单总额相符");
         }
         // 结账失败方购物车保留（成功才清空）
@@ -148,13 +148,13 @@ class StoreConcurrencyTest {
     void scenario3InsufficientBalanceDoesNotOversellOrOverdraw() throws Exception {
         final InMemoryProductRepository products = new InMemoryProductRepository();
         final InMemoryOrderRepository orders = new InMemoryOrderRepository();
-        final InMemoryBankAccountRepository bank = new InMemoryBankAccountRepository();
+        final InMemoryWalletRepository wallet = new InMemoryWalletRepository();
         final InMemoryCartRepository cart = new InMemoryCartRepository();
         products.save(new Product("HOT", "限量商品", 3, 10.0, "", "test"));
-        bank.credit("u1", 100_000L);
-        bank.credit("u2", 100_000L);
+        wallet.save(new BankAccount("u1", 100_000L));
+        wallet.save(new BankAccount("u2", 100_000L));
         // u3 余额 0，买 10 元商品必然余额不足
-        final DefaultStoreService service = new DefaultStoreService(products, orders, cart, bank);
+        final DefaultStoreService service = new DefaultStoreService(products, orders, cart, wallet);
 
         final CountDownLatch start = new CountDownLatch(1);
         final AtomicInteger u3Status = new AtomicInteger();
@@ -190,7 +190,7 @@ class StoreConcurrencyTest {
 
         assertEquals(1, u3Status.get(), "u3 余额不足应返回 PAYMENT_REQUIRED");
         assertTrue(orders.findByUserId("u3").isEmpty(), "u3 不应产生订单");
-        assertEquals(0L, bank.findByUserId("u3") == null ? 0L : bank.findByUserId("u3").getBalanceCents(),
+        assertEquals(0L, wallet.findByUserId("u3") == null ? 0L : wallet.findByUserId("u3").getBalanceCents(),
                 "u3 余额不应被透支");
         int finalStock = products.findById("HOT").getStock();
         assertTrue(finalStock >= 0, "库存不能为负");
@@ -199,6 +199,64 @@ class StoreConcurrencyTest {
             orderedQty += order.getQuantity();
         }
         assertEquals(3 - finalStock, orderedQty, "订单总数量应等于库存扣减量");
+    }
+
+    // 场景4：多个管理员并发把同一账户校正到不同目标值，断言每轮「流水累加 == 最终余额」且余额是某个目标值。
+    // 复现评审举例：0→100 与 0→200 并发，旧实现在锁外读旧值算差额，流水合计 300≠余额 200；
+    // 修复后 setBalance 在同一把锁内读实际旧值算差额，并发校正被串行化，逐笔流水累加恒等于最终余额。
+    @Test
+    void scenario4ConcurrentAdjustBalanceKeepsLedgerReconcilable() throws Exception {
+        final long[] targets = { 100L, 200L, 300L, 400L };
+        for (int round = 0; round < 20; round++) {
+            final InMemoryWalletRepository wallet = new InMemoryWalletRepository();
+            final DefaultStoreService service = new DefaultStoreService(new InMemoryProductRepository(),
+                    new InMemoryOrderRepository(), new InMemoryCartRepository(), wallet);
+            final String user = "u1";
+            wallet.save(new BankAccount(user, 0L));// 显式从 0 开始，save 不记流水
+
+            final CountDownLatch start = new CountDownLatch(1);
+            final AtomicInteger okCount = new AtomicInteger();
+            ExecutorService pool = Executors.newFixedThreadPool(targets.length);
+            List<Future<?>> futures = new ArrayList<Future<?>>();
+            for (int i = 0; i < targets.length; i++) {
+                final long target = targets[i];
+                futures.add(pool.submit(new Runnable() {
+                    @Override
+                    public void run() {
+                        await(start);
+                        if (service.adjustBalance("admin", user, target).getStatus() == StatusCode.OK)
+                            okCount.incrementAndGet();
+                    }
+                }));
+            }
+            start.countDown();// 同时放行
+            for (Future<?> future : futures) {
+                future.get();
+            }
+            pool.shutdown();
+
+            assertEquals(targets.length, okCount.get(), "第 " + round + " 轮：全部校正都应成功");
+            List<WalletTransaction> ledger = wallet.findTransactionsByUserId(user);
+            // 不变量1：每次校正记一笔流水
+            assertEquals(targets.length, ledger.size(), "第 " + round + " 轮：每次校正应记一笔流水");
+            // 不变量2：逐笔流水 amountCents 累加 == 最终余额（对账恒等）
+            long ledgerSum = 0L;
+            for (WalletTransaction entry : ledger) {
+                ledgerSum += entry.getAmountCents();
+            }
+            long finalBalance = wallet.findByUserId(user).getBalanceCents();
+            assertEquals(finalBalance, ledgerSum, "第 " + round + " 轮：流水累加应恒等于最终余额");
+            // 不变量3：最终余额必是最后落地的那次校正目标值
+            assertTrue(contains(targets, finalBalance), "第 " + round + " 轮：最终余额应是某个校正目标值");
+        }
+    }
+
+    private static boolean contains(long[] values, long target) {
+        for (long value : values) {
+            if (value == target)
+                return true;
+        }
+        return false;
     }
 
     private static void await(CountDownLatch latch) {

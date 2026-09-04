@@ -17,6 +17,7 @@ import cn.vcampus.store.StoreProductUpdateCommand;
 import cn.vcampus.store.StoreProductDeactivateCommand;
 import cn.vcampus.store.CartAddCommand;
 import cn.vcampus.store.CartRemoveCommand;
+import cn.vcampus.store.CartUpdateCommand;
 import cn.vcampus.store.CartQueryCommand;
 import cn.vcampus.store.CartCheckoutCommand;
 import cn.vcampus.store.StoreOrderListAllCommand;
@@ -99,8 +100,7 @@ class StoreMessageHandler {
                     StoreRestockCommand restock = payload(request, StoreRestockCommand.class);
                     ServiceResult<Void> restockAuth = requirePermission(restock.getToken(), "STORE_MANAGE");
                     result = restockAuth.getStatus() != StatusCode.OK ? restockAuth
-                            : store.restock(requireUserId(restock.getToken()), restock.getProductId(),
-                                    restock.getAdditionalStock());
+                            : store.restock(restock.getProductId(), restock.getAdditionalStock());
                     break;
                 case STORE_PRODUCT_ADD:
                     StoreProductAddCommand add = payload(request, StoreProductAddCommand.class);
@@ -120,7 +120,7 @@ class StoreMessageHandler {
                     StoreProductDeactivateCommand deactivate = payload(request, StoreProductDeactivateCommand.class);
                     ServiceResult<Void> deactivateAuth = requirePermission(deactivate.getToken(), "STORE_MANAGE");
                     result = deactivateAuth.getStatus() != StatusCode.OK ? deactivateAuth
-                            : store.deactivateProduct(requireUserId(deactivate.getToken()), deactivate.getProductId());
+                            : store.deactivateProduct(deactivate.getProductId());
                     break;
                 case STORE_CART_ADD:
                     CartAddCommand cartAdd = payload(request, CartAddCommand.class);
@@ -135,11 +135,26 @@ class StoreMessageHandler {
                     result = cartRemoveAuth.getStatus() != StatusCode.OK ? cartRemoveAuth
                             : store.removeFromCart(requireUserId(cartRemove.getToken()), cartRemove.getCartItemId());
                     break;
+                // 改数量：STORE_PURCHASE 权限，userId 取自 token，服务层再校验条目归属，防指定他人条目越权
+                case STORE_CART_UPDATE:
+                    CartUpdateCommand cartUpdate = payload(request, CartUpdateCommand.class);
+                    ServiceResult<Void> cartUpdateAuth = requirePermission(cartUpdate.getToken(), "STORE_PURCHASE");
+                    result = cartUpdateAuth.getStatus() != StatusCode.OK ? cartUpdateAuth
+                            : store.updateCartQuantity(requireUserId(cartUpdate.getToken()),
+                                    cartUpdate.getCartItemId(), cartUpdate.getNewQuantity());
+                    break;
                 case STORE_CART_QUERY:
                     CartQueryCommand cartQuery = payload(request, CartQueryCommand.class);
                     ServiceResult<Void> cartQueryAuth = requirePermission(cartQuery.getToken(), "STORE_READ");
                     result = cartQueryAuth.getStatus() != StatusCode.OK ? cartQueryAuth
                             : store.getCart(requireUserId(cartQuery.getToken()));
+                    break;
+                // 购物车明细：复用 CartQueryCommand，返回读取时联表商品后的 CartLine 列表
+                case STORE_CART_DETAIL:
+                    CartQueryCommand cartDetail = payload(request, CartQueryCommand.class);
+                    ServiceResult<Void> cartDetailAuth = requirePermission(cartDetail.getToken(), "STORE_READ");
+                    result = cartDetailAuth.getStatus() != StatusCode.OK ? cartDetailAuth
+                            : store.getCartDetails(requireUserId(cartDetail.getToken()));
                     break;
                 case STORE_CART_CHECKOUT:
                     CartCheckoutCommand checkout = payload(request, CartCheckoutCommand.class);
@@ -192,6 +207,13 @@ class StoreMessageHandler {
                     }
                     result = store.adjustBalance(adjustAdmin.getUserId(), adjust.getTargetUserId(),
                             adjust.getNewBalanceCents());
+                    break;
+                // 本人流水：STORE_READ 权限，userId 取自 token，只能查自己的账，无法查他人流水
+                case STORE_ACCOUNT_LEDGER:
+                    StoreAccountQueryCommand ledgerQuery = payload(request, StoreAccountQueryCommand.class);
+                    ServiceResult<Void> ledgerAuth = requirePermission(ledgerQuery.getToken(), "STORE_READ");
+                    result = ledgerAuth.getStatus() != StatusCode.OK ? ledgerAuth
+                            : store.listTransactions(requireUserId(ledgerQuery.getToken()));
                     break;
                 default:
                     result = ServiceResult.failure(StatusCode.NOT_FOUND, "not implemented");

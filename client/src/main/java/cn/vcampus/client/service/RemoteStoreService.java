@@ -12,6 +12,7 @@ import cn.vcampus.store.StoreProductUpdateCommand;
 import cn.vcampus.store.StoreProductDeactivateCommand;
 import cn.vcampus.store.CartAddCommand;
 import cn.vcampus.store.CartRemoveCommand;
+import cn.vcampus.store.CartUpdateCommand;
 import cn.vcampus.store.CartQueryCommand;
 import cn.vcampus.store.CartCheckoutCommand;
 import cn.vcampus.store.StoreOrderListAllCommand;
@@ -93,9 +94,20 @@ public final class RemoteStoreService implements Closeable {
         return send(MessageType.STORE_CART_REMOVE, new CartRemoveCommand(token, cartItemId));
     }
 
+    /** 修改当前用户购物车条目数量；条目归属由服务端校验。 */
+    public Message updateCart(String token, String cartItemId, int newQuantity)
+            throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_CART_UPDATE, new CartUpdateCommand(token, cartItemId, newQuantity));
+    }
+
     /** 查询当前用户购物车。 */
     public Message cart(String token) throws IOException, ClassNotFoundException {
         return send(MessageType.STORE_CART_QUERY, new CartQueryCommand(token));
+    }
+
+    /** 查询当前用户购物车明细；服务端读取时与商品联表，响应为 List&lt;CartLine&gt;。 */
+    public Message cartDetail(String token) throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_CART_DETAIL, new CartQueryCommand(token));
     }
 
     /** 结算当前用户购物车。 */
@@ -128,6 +140,11 @@ public final class RemoteStoreService implements Closeable {
             throws IOException, ClassNotFoundException {
         return send(MessageType.STORE_ACCOUNT_ADJUST,
                 new StoreAccountAdjustCommand(token, targetUserId, newBalanceCents));
+    }
+
+    /** 查询当前用户钱包流水（分）；只能查本人，响应为 List&lt;WalletTransaction&gt;。 */
+    public Message ledger(String token) throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_ACCOUNT_LEDGER, new StoreAccountQueryCommand(token));
     }
 
     private Message send(MessageType type, Object payload) throws IOException, ClassNotFoundException {

@@ -281,20 +281,28 @@ public final class MainFrame extends JFrame {
     }
 
     static boolean useStorePanel(Role role, ModuleDescriptor module) {
+        if (module == null)
+            return false;
+        // ADMIN 导航里的商店入口标题是“商店管理”，与买家角色的“商店”不同，两边都要接住，
+        // 否则管理员会掉进占位面板，永远用不到商品维护能力（对齐 useLibraryPanel 的处理方式）。
+        if (role == Role.ADMIN)
+            return "商店管理".equals(module.getTitle());
         return (role == Role.STUDENT || role == Role.TEACHER || role == Role.STORE_MANAGER)
-                && module != null
                 && "商店".equals(module.getTitle());
     }
 
     static boolean useLibraryPanel(Role role, ModuleDescriptor module) {
-        if (module == null) return false;
-        if (role == Role.ADMIN) return "图书管理".equals(module.getTitle());
+        if (module == null)
+            return false;
+        if (role == Role.ADMIN)
+            return "图书管理".equals(module.getTitle());
         return (role == Role.STUDENT || role == Role.TEACHER || role == Role.LIBRARIAN)
                 && "图书馆".equals(module.getTitle());
     }
 
     static boolean useStudentManagementPanel(Role role, ModuleDescriptor module) {
-        if (module == null) return false;
+        if (module == null)
+            return false;
         String title = module.getTitle();
         return (role == Role.ADMIN || role == Role.ACADEMIC_ADMIN || role == Role.TEACHER
                 || role == Role.STUDENT)
