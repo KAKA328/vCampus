@@ -25,7 +25,6 @@ final class StoreServiceFactory {
                 new AccessProductRepository(databasePath),
                 new AccessOrderRepository(databasePath),
                 new AccessCartRepository(databasePath),
-                new AccessBankAccountRepository(databasePath),
-                new AccessWalletTransactionRepository(databasePath));
+                new AccessWalletRepository(databasePath));
     }
 }
