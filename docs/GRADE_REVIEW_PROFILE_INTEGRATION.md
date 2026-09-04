@@ -86,14 +86,14 @@ offeringId
 active BIT NOT NULL
 ```
 
-迁移文件：
+历史迁移草案：
 
 ```text
 database/migrations/013_teacher_profile.up.sql
 database/migrations/013_teacher_profile.down.sql
 ```
 
-升级已有数据库时，现有教师默认设为在职。停用教师只阻止新教学安排，不删除历史教学班、选课和成绩。
+本阶段验收允许弃用旧 `.accdb`，教师档案表以最新 `database/schema.sql` 为准，部署时按 `schema.sql` + `seed.sql` 重建数据库。停用教师只阻止新教学安排和授课范围读取，不删除历史教学班、选课和成绩。
 
 ## 4. 仍由选课模块负责
 

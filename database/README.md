@@ -1,6 +1,6 @@
 # 数据库目录
 
-最终提交时放入机房兼容版本的 `vCampus.accdb`，并补充 `schema.sql` 与 `seed.sql`。当前脚本已使用 UCanAccess 4.0.4 实测：全新 `.accdb` 可以按顺序执行两份脚本完成建库和种子数据导入。
+最终提交时放入机房兼容版本的 `vCampus.accdb`，并补充 `schema.sql` 与 `seed.sql`。当前脚本已使用 UCanAccess 4.0.4 实测：全新 `.accdb` 可以按顺序执行两份脚本完成建库和种子数据导入。本阶段允许弃用旧 `.accdb`，验收和部署统一按最新 `schema.sql` + `seed.sql` 重建数据库；不再承诺把历史库逐条迁移到最新结构。
 
 运行数据库统一使用 Access：服务器通过 `--db database/vCampus.accdb` 连接该文件，客户端不直接连接数据库。用户批量导入的外部源文件可以使用 `.xlsx`、`.csv` 或 `.tsv` 表格模板；这些文件只负责把账号清单读入系统，最终账号、导入人、导入时间和导入批次仍写入 `vCampus.accdb`。不建议把另一个 `.accdb/.mdb` 文件作为用户导入源，避免导入源表结构与系统运行数据库结构混淆。
 
@@ -59,9 +59,7 @@
 
 身份字段分工如下：`tblUser.user_id` 是登录身份；`tblStudent.student_id` 是学生学号；`tblTeacher.teacher_id` 是教师工号；`tblStudent.user_id` 和 `tblTeacher.user_id` 是档案与登录账号之间的一对一绑定字段，可为空但绑定后应保持唯一。新建或导入 `STUDENT` / `TEACHER` 账号时，服务端强制要求对应档案已存在、未被占用，并在绑定失败时删除已创建的账号，避免半成功数据。如果账号尚未关联档案，相关页面应提示“暂无对应档案，请联系管理员维护”；学业审查、课程历史和授课关系不能根据账号信息凭空生成。
 
-学籍表由 `migrations/010_student_academic.up.sql` 创建；回滚使用同目录下的 `010_student_academic.down.sql`。编号 009 已由商店钱包占用，学籍迁移顺延为 010。
-
-已有数据库按 `migrations/013_teacher_profile.up.sql` 创建教师档案表（含在职状态）；回滚使用同名 `.down.sql`。编号 `011` 已由图书馆模块使用，`012` 预留给其他模块的钱包流水迁移。
+历史迁移脚本仅作为旧分支和增量实验记录保留。当前验收数据库以 `schema.sql` 为准：其中已经包含教师档案表和 `active` 在职状态字段。若本地已有旧库，请先备份需要保留的数据，再删除旧 `.accdb` 并按最新 `schema.sql` + `seed.sql` 重建；不要把 `013_teacher_profile.up.sql` 当作推荐升级路径重复执行到已含 `tblTeacher` 的数据库上。
 
 ## 全新数据库验证
 
