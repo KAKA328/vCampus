@@ -687,9 +687,9 @@ class StoreServiceTest {
         assertTrue(o.findByUserId("u").isEmpty());
     }
 
-    // 补偿失败4：退款 credit 本身失败 → 仍返回 CONFLICT（余额被扣未退，记日志供人工对账）
+    // 补偿失败4：退款 credit 本身失败 → 补偿不完整，升级 SERVER_ERROR 并留痕待人工对账（余额被扣未退）
     @Test
-    void testRefundCreditFailureReturnsConflict() {
+    void testRefundCreditFailureReturnsServerError() {
         InMemoryProductRepository p = new InMemoryProductRepository();
         p.save(new Product("A", "A", 5, 2.0, "", "test"));
         FailingOrderRepository o = new FailingOrderRepository(true);// create 抛异常 → 触发退款
@@ -702,14 +702,21 @@ class StoreServiceTest {
 
         ServiceResult<Void> result = svc.checkout("u");
 
-        assertEquals(StatusCode.CONFLICT, result.getStatus());
+        assertEquals(StatusCode.SERVER_ERROR, result.getStatus());// 补偿不完整不再伪装成可重试的 CONFLICT
         assertEquals(5, p.findById("A").getStock());// 库存回补成功
         assertEquals(99_600L, b.findByUserId("u").getBalanceCents());// 退款失败，余额停留在已扣状态
+        // 落一条待人工对账的记录：refund 步骤失败，含受影响用户与待退金额
+        List<CompensationFailure> failures = svc.compensationFailures();
+        assertEquals(1, failures.size());
+        assertEquals("checkout", failures.get(0).getOperation());
+        assertEquals("refund", failures.get(0).getFailedStep());
+        assertEquals("u", failures.get(0).getUserId());
+        assertEquals(400L, failures.get(0).getAmountCents());
     }
 
-    // 补偿失败5：回补库存本身失败 → 仍返回 CONFLICT
+    // 补偿失败5：回补库存本身失败 → 补偿不完整，升级 SERVER_ERROR 并留痕待人工对账
     @Test
-    void testRestoreStockFailureReturnsConflict() {
+    void testRestoreStockFailureReturnsServerError() {
         FailingProductRepository p = new FailingProductRepository();
         p.save(new Product("A", "A", 5, 2.0, "", "test"));
         p.failOnAddStock = true;// 回补库存失败
@@ -721,8 +728,39 @@ class StoreServiceTest {
 
         ServiceResult<Void> result = svc.purchase("u", "A", 2);
 
-        assertEquals(StatusCode.CONFLICT, result.getStatus());
+        assertEquals(StatusCode.SERVER_ERROR, result.getStatus());// 回补失败不再伪装成可重试的 CONFLICT
         assertTrue(o.findByUserId("u").isEmpty());
+        // 落一条待人工对账的记录：restore_stock 步骤失败，含商品与待回补数量
+        List<CompensationFailure> failures = svc.compensationFailures();
+        assertEquals(1, failures.size());
+        assertEquals("purchase", failures.get(0).getOperation());
+        assertEquals("restore_stock", failures.get(0).getFailedStep());
+        assertEquals("A", failures.get(0).getProductId());
+        assertEquals(2, failures.get(0).getQuantity());
+    }
+
+    // 补偿失败6：购买建单抛异常触发退款，但退款 credit 失败 → 补偿不完整，升级 SERVER_ERROR 并留痕
+    @Test
+    void testPurchaseRefundFailureReturnsServerError() {
+        InMemoryProductRepository p = new InMemoryProductRepository();
+        p.save(new Product("A", "A", 5, 2.0, "", "test"));
+        FailingOrderRepository o = new FailingOrderRepository(true);// create 抛异常 → 触发退款 + 回补
+        FailingWalletRepository b = new FailingWalletRepository();
+        b.save(new BankAccount("u", 100_000L));// 真实余额
+        b.failOnCredit = true;// 退款 credit 失败
+        DefaultStoreService svc = new DefaultStoreService(p, o, new InMemoryCartRepository(), b);
+
+        ServiceResult<Void> result = svc.purchase("u", "A", 2);
+
+        assertEquals(StatusCode.SERVER_ERROR, result.getStatus());
+        assertTrue(o.findByUserId("u").isEmpty());// 订单未建成
+        assertEquals(5, p.findById("A").getStock());// 库存已回补
+        assertEquals(99_600L, b.findByUserId("u").getBalanceCents());// 扣款成功但退款失败，余额停留在已扣状态
+        List<CompensationFailure> failures = svc.compensationFailures();
+        assertEquals(1, failures.size());
+        assertEquals("purchase", failures.get(0).getOperation());
+        assertEquals("refund", failures.get(0).getFailedStep());
+        assertEquals(400L, failures.get(0).getAmountCents());
     }
 
     // 唯一业务编号：建单成功但清空购物车失败 → 回滚 → 重试，无重复 orderId，库存/余额只按成功次数扣减

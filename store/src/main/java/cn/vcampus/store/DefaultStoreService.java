@@ -10,10 +10,14 @@ import java.util.UUID;
 
 // 默认商店业务，通过提供商品仓库和订单仓库以实现业务逻辑
 public final class DefaultStoreService implements StoreService {
+    // 补偿失败留痕上限：超出丢弃最旧一条，避免长期运行内存无限增长
+    private static final int MAX_COMPENSATION_FAILURES = 500;
     private final ProductRepository products;// 商品仓库
     private final OrderRepository orders;// 订单仓库
     private final CartRepository cart;// 购物车仓库
     private final WalletRepository wallet;// 钱包仓库：余额与流水在同一事务/锁内原子读写
+    // 补偿失败留痕：只在 purchase/checkout 的 synchronized 锁内写入，读取用快照，供运维人工对账或后续重试
+    private final List<CompensationFailure> compensationFailures = new ArrayList<CompensationFailure>();
 
     // 依赖注入：2 参构造默认内存购物车 + 内存钱包
     public DefaultStoreService(ProductRepository products, OrderRepository orders) {
@@ -84,44 +88,89 @@ public final class DefaultStoreService implements StoreService {
             debit = wallet.debit(userId, totalCents, WalletTransactionType.PURCHASE, userId, "order " + orderId);
         } catch (IllegalStateException storageFailure) {
             // 余额与流水已一起回滚，但库存是独立资源，需回补，避免半成功
-            if (!products.addStock(productId, quantity))
-                return ServiceResult.failure(StatusCode.CONFLICT, "Wallet storage failed and stock restore failed");
+            if (!products.addStock(productId, quantity)) {
+                // 回补失败即库存永久偏低，留痕并升级 SERVER_ERROR，不再当成可重试的普通 CONFLICT
+                recordCompensationFailure("purchase", userId, orderId, productId, quantity, totalCents,
+                        "restore_stock", "addStock returned false after wallet storage failure");
+                return ServiceResult.failure(StatusCode.SERVER_ERROR,
+                        "Wallet storage failed and stock restore failed; manual reconciliation required");
+            }
             return ServiceResult.failure(StatusCode.SERVER_ERROR, "Wallet storage failed; purchase rolled back");
         }
         // applied=false 即余额不足：回补库存
         if (!debit.isApplied()) {
-            if (!products.addStock(productId, quantity))
-                return ServiceResult.failure(StatusCode.CONFLICT, "Insufficient balance and stock restore failed");
+            if (!products.addStock(productId, quantity)) {
+                // 扣款未发生但库存已扣且回补失败，留痕并升级 SERVER_ERROR 交人工对账
+                recordCompensationFailure("purchase", userId, orderId, productId, quantity, totalCents,
+                        "restore_stock", "addStock returned false after debit rejected");
+                return ServiceResult.failure(StatusCode.SERVER_ERROR,
+                        "Insufficient balance and stock restore failed; manual reconciliation required");
+            }
             return ServiceResult.failure(StatusCode.PAYMENT_REQUIRED, "Insufficient balance");
         }
         // 建单：UUID 唯一业务编号；false/异常则退款 + 回补库存
         try {
             Order newOrder = new Order(orderId, userId, productId, quantity, totalPrice,
                     LocalDateTime.now(), toBuy.getName(), toBuy.getPrice());
-            if (!orders.create(newOrder)) {
-                refundAndRestore(userId, productId, quantity, totalCents);
-                return ServiceResult.failure(StatusCode.CONFLICT, "Could not create order");
-            }
+            if (!orders.create(newOrder))
+                return compensatePurchase(userId, orderId, productId, quantity, totalCents, "Could not create order");
             return ServiceResult.ok(null);
         } catch (RuntimeException failure) {
-            refundAndRestore(userId, productId, quantity, totalCents);
-            return ServiceResult.failure(StatusCode.CONFLICT, "Could not create order");
+            return compensatePurchase(userId, orderId, productId, quantity, totalCents, "Could not create order");
         }
     }
 
-    // 购买失败的补偿：退款（原子入账 + 记 REFUND 流水）+ 回补库存，逐个检查返回值，任一失败记日志
-    private void refundAndRestore(String userId, String productId, int quantity, long cents) {
+    // 购买失败的补偿：退款（原子入账 + 记 REFUND 流水）+ 回补库存，逐步检查返回值。
+    // 返回 true 表示补偿全部成功，调用方可按普通 CONFLICT 让用户重试；
+    // 返回 false 表示至少一步失败并已留痕，调用方须升级为 SERVER_ERROR 交人工对账，绝不静默吞掉不一致
+    private boolean refundAndRestore(String userId, String orderId, String productId, int quantity, long cents) {
+        boolean complete = true;
         try {
             WalletMutation refund = wallet.credit(userId, cents, WalletTransactionType.REFUND, userId,
                     "purchase compensation");
-            if (!refund.isApplied())
-                System.err.println("[compensation] refund rejected for user " + userId + ", cents=" + cents);
+            if (!refund.isApplied()) {
+                recordCompensationFailure("purchase", userId, orderId, productId, quantity, cents, "refund",
+                        "credit returned applied=false");
+                complete = false;
+            }
         } catch (IllegalStateException storageFailure) {
-            System.err.println("[compensation] refund failed for user " + userId + ", cents=" + cents + ": "
-                    + storageFailure.getMessage());
+            recordCompensationFailure("purchase", userId, orderId, productId, quantity, cents, "refund",
+                    storageFailure.getMessage());
+            complete = false;
         }
-        if (!products.addStock(productId, quantity))
-            System.err.println("[compensation] restore stock failed for product " + productId + ", qty=" + quantity);
+        if (!products.addStock(productId, quantity)) {
+            recordCompensationFailure("purchase", userId, orderId, productId, quantity, cents, "restore_stock",
+                    "addStock returned false");
+            complete = false;
+        }
+        return complete;
+    }
+
+    // 购买补偿的统一出口：补偿成功按 cleanMessage 返回 CONFLICT（可重试）；补偿不完整则升级 SERVER_ERROR
+    // 并点明需人工对账，避免「扣款成功、建单失败、退款又失败」的永久不一致被当成普通冲突静默放过
+    private ServiceResult<Void> compensatePurchase(String userId, String orderId, String productId, int quantity,
+            long cents, String cleanMessage) {
+        return refundAndRestore(userId, orderId, productId, quantity, cents)
+                ? ServiceResult.failure(StatusCode.CONFLICT, cleanMessage)
+                : ServiceResult.failure(StatusCode.SERVER_ERROR,
+                        cleanMessage + "; compensation incomplete, manual reconciliation required");
+    }
+
+    // 记录一步补偿失败：写入进程内有界留痕列表 + 打印结构化告警行（含全量对账字段）。
+    // 只在 purchase/checkout 的 synchronized 锁内被调用，故对列表的写入天然串行
+    private void recordCompensationFailure(String operation, String userId, String orderId, String productId,
+            int quantity, long amountCents, String failedStep, String reason) {
+        CompensationFailure failure = new CompensationFailure(operation, userId, orderId, productId, quantity,
+                amountCents, failedStep, reason, LocalDateTime.now());
+        if (compensationFailures.size() >= MAX_COMPENSATION_FAILURES)
+            compensationFailures.remove(0);
+        compensationFailures.add(failure);
+        System.err.println(failure);
+    }
+
+    // 供运维/测试查询的补偿失败留痕快照（不可变），用于人工对账或后续重试
+    public synchronized List<CompensationFailure> compensationFailures() {
+        return Collections.unmodifiableList(new ArrayList<CompensationFailure>(compensationFailures));
     }
 
     // 根据用户ID查询订单
@@ -282,8 +331,8 @@ public final class DefaultStoreService implements StoreService {
             Product product = products.findById(item.getProductId());
             // 原子扣库存
             if (!products.deductStock(item.getProductId(), item.getQuantity())) {
-                rollbackCheckout(userId, created, deducted, debitedCents);
-                return ServiceResult.failure(StatusCode.CONFLICT, "Product stock changed; checkout rolled back");
+                return rollbackCheckoutResult(userId, created, deducted, debitedCents, StatusCode.CONFLICT,
+                        "Product stock changed; checkout rolled back");
             }
             deducted.add(item);
             // 订单编号提前生成，供流水备注引用
@@ -295,12 +344,12 @@ public final class DefaultStoreService implements StoreService {
                 debit = wallet.debit(userId, itemCents, WalletTransactionType.CHECKOUT, userId, "order " + orderId);
             } catch (IllegalStateException storageFailure) {
                 // 余额与流水已一起回滚，但订单/库存是独立资源，需一并撤销，避免半成功
-                rollbackCheckout(userId, created, deducted, debitedCents);
-                return ServiceResult.failure(StatusCode.SERVER_ERROR, "Wallet storage failed; checkout rolled back");
+                return rollbackCheckoutResult(userId, created, deducted, debitedCents, StatusCode.SERVER_ERROR,
+                        "Wallet storage failed; checkout rolled back");
             }
             if (!debit.isApplied()) {
-                rollbackCheckout(userId, created, deducted, debitedCents);
-                return ServiceResult.failure(StatusCode.CONFLICT, "Insufficient balance; checkout rolled back");
+                return rollbackCheckoutResult(userId, created, deducted, debitedCents, StatusCode.CONFLICT,
+                        "Insufficient balance; checkout rolled back");
             }
             debitedCents += itemCents;
             // 建单
@@ -309,47 +358,70 @@ public final class DefaultStoreService implements StoreService {
                         item.getQuantity(), product.getPrice() * item.getQuantity(), LocalDateTime.now(),
                         product.getName(), product.getPrice());
                 if (!orders.create(order)) {
-                    rollbackCheckout(userId, created, deducted, debitedCents);
-                    return ServiceResult.failure(StatusCode.CONFLICT, "Could not create order; checkout rolled back");
+                    return rollbackCheckoutResult(userId, created, deducted, debitedCents, StatusCode.CONFLICT,
+                            "Could not create order; checkout rolled back");
                 }
                 created.add(order);
             } catch (RuntimeException failure) {
-                rollbackCheckout(userId, created, deducted, debitedCents);
-                return ServiceResult.failure(StatusCode.CONFLICT, "Could not create order; checkout rolled back");
+                return rollbackCheckoutResult(userId, created, deducted, debitedCents, StatusCode.CONFLICT,
+                        "Could not create order; checkout rolled back");
             }
         }
         // 清空购物车失败也要回滚，否则用户重试会重复下单
         try {
             cart.clearByUserId(userId);
         } catch (RuntimeException failure) {
-            rollbackCheckout(userId, created, deducted, debitedCents);
-            return ServiceResult.failure(StatusCode.CONFLICT, "Could not clear cart; checkout rolled back");
+            return rollbackCheckoutResult(userId, created, deducted, debitedCents, StatusCode.CONFLICT,
+                    "Could not clear cart; checkout rolled back");
         }
         return ServiceResult.ok(null);
     }
 
-    // 结账补偿：撤销订单 + 回补库存 + 退款，逐个检查返回值，任一失败记日志（调用方仍返回 CONFLICT）
-    private void rollbackCheckout(String userId, List<Order> created, List<CartItem> deducted, long debitedCents) {
+    // 结账补偿：撤销订单 + 回补库存 + 退款，逐步检查返回值。
+    // 返回 true 表示补偿全部成功，调用方可按 cleanStatus 让用户重试；
+    // 返回 false 表示至少一步失败并已留痕，调用方须升级为 SERVER_ERROR 交人工对账
+    private boolean rollbackCheckout(String userId, List<Order> created, List<CartItem> deducted, long debitedCents) {
+        boolean complete = true;
         for (Order order : created) {
-            if (!orders.deleteById(order.getOrderId()))
-                System.err.println("[compensation] delete order failed: " + order.getOrderId());
+            if (!orders.deleteById(order.getOrderId())) {
+                recordCompensationFailure("checkout", userId, order.getOrderId(), order.getProductId(),
+                        order.getQuantity(), 0L, "delete_order", "deleteById returned false");
+                complete = false;
+            }
         }
         for (CartItem item : deducted) {
-            if (!products.addStock(item.getProductId(), item.getQuantity()))
-                System.err.println("[compensation] restore stock failed: " + item.getProductId());
+            if (!products.addStock(item.getProductId(), item.getQuantity())) {
+                recordCompensationFailure("checkout", userId, null, item.getProductId(), item.getQuantity(), 0L,
+                        "restore_stock", "addStock returned false");
+                complete = false;
+            }
         }
         if (debitedCents > 0) {
             try {
                 WalletMutation refund = wallet.credit(userId, debitedCents, WalletTransactionType.REFUND, userId,
                         "checkout compensation");
-                if (!refund.isApplied())
-                    System.err.println(
-                            "[compensation] refund rejected for user " + userId + ", cents=" + debitedCents);
+                if (!refund.isApplied()) {
+                    recordCompensationFailure("checkout", userId, null, null, 0, debitedCents, "refund",
+                            "credit returned applied=false");
+                    complete = false;
+                }
             } catch (IllegalStateException storageFailure) {
-                System.err.println("[compensation] refund failed for user " + userId + ", cents=" + debitedCents + ": "
-                        + storageFailure.getMessage());
+                recordCompensationFailure("checkout", userId, null, null, 0, debitedCents, "refund",
+                        storageFailure.getMessage());
+                complete = false;
             }
         }
+        return complete;
+    }
+
+    // 结账补偿的统一出口：补偿成功按 cleanStatus/cleanMessage 返回（多为可重试的 CONFLICT）；补偿不完整则升级
+    // SERVER_ERROR 并点明需人工对账，避免不一致被当成普通冲突静默放过
+    private ServiceResult<Void> rollbackCheckoutResult(String userId, List<Order> created, List<CartItem> deducted,
+            long debitedCents, StatusCode cleanStatus, String cleanMessage) {
+        return rollbackCheckout(userId, created, deducted, debitedCents)
+                ? ServiceResult.failure(cleanStatus, cleanMessage)
+                : ServiceResult.failure(StatusCode.SERVER_ERROR,
+                        cleanMessage + "; rollback incomplete, manual reconciliation required");
     }
 
     // 查询所有订单
