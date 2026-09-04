@@ -215,9 +215,8 @@ CREATE TABLE tblBankAccount (
 
 -- 校园钱包流水：只追加、不修改、不删除。amount_cents 带符号（入账为正、扣款为负、校正为差额），
 -- balance_after_cents 是余额写入后回读的实际余额，operator_id 记录操作者（管理员校正时为管理员编号）。
--- 流水与余额写入不在同一事务内（Access 无跨表事务），记账失败只记日志，不回滚已成功的资金变动。
--- 本文件只建表不建索引：UCanAccess 4.0.4 对 CREATE INDEX（含非唯一）抛 FeatureNotSupportedException，
--- 按用户查流水的加速索引只写在迁移 012_store_wallet_transaction.up.sql 里，供真 Access 环境使用。
+-- 余额与流水由 AccessWalletRepository 在同一 JDBC 事务内原子写入：流水写失败即回滚余额，绝不出现「余额已变、流水缺失」。
+-- 本文件只建表不建索引：UCanAccess 4.0.4 对 CREATE INDEX（含非唯一）抛 FeatureNotSupportedException，迁移 012 亦不含索引，以保证可在该流程完整执行。
 CREATE TABLE tblWalletTransaction (
     transaction_id VARCHAR(36) NOT NULL,
     user_id VARCHAR(32) NOT NULL,

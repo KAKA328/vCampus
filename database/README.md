@@ -43,7 +43,7 @@
 
 - `tblProduct`：商品、库存、价格和分类；`active` 表示是否上架。
 - `tblOrder`：订单记录，保存用户、商品快照、数量和金额。
-- `tblBankAccount`：校园钱包账户，`user_id` 为主键，`balance_cents` 以「分」为单位存 `BIGINT NOT NULL`；余额扣减/入账由应用层补偿保证一致性，不依赖数据库事务。
+- `tblBankAccount`：校园钱包账户，`user_id` 为主键，`balance_cents` 以「分」为单位存 `BIGINT NOT NULL`；余额与流水（`tblWalletTransaction`）由 `AccessWalletRepository` 在同一 JDBC 事务内原子提交（流水写失败即回滚余额），库存/订单/购物车跨资源仍走应用层补偿。
 
 查询、购物车和购买只处理 `tblProduct.active=1` 的商品。全新数据库按 `schema.sql` 创建 `active` 字段；已有按旧 `004_store` 建立的数据库先执行 `database/migrations/007_store_product_active.up.sql`，回滚使用同名 `.down.sql`，不要对新库重复执行该迁移。
 
