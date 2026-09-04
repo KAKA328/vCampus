@@ -1,6 +1,8 @@
 # 数据库目录
 
-最终提交时放入机房兼容版本的 `vCampus.accdb`，并补充 `schema.sql` 与 `seed.sql`（如 Access 版本不支持某条 SQL，以实际建库结果为准）。
+最终提交时放入机房兼容版本的 `vCampus.accdb`，并补充 `schema.sql` 与 `seed.sql`。本项目当前只支持**全新数据库**：创建或重置数据库时必须按最新版 `schema.sql` 建表，再按需执行 `seed.sql` 导入演示数据；不提供旧 `.accdb` 的迁移、修复或兼容逻辑。
+
+当前服务器使用 UCanAccess 4.0.4。该驱动不支持执行独立 `CREATE INDEX` 语句，因此 `schema.sql` 只保留主键和表内唯一约束来保证数据正确性；查询索引不是本项目演示环境的必要条件。
 
 运行数据库统一使用 Access：服务器通过 `--db database/vCampus.accdb` 连接该文件，客户端不直接连接数据库。用户批量导入的外部源文件可以使用 `.xlsx`、`.csv` 或 `.tsv` 表格模板；这些文件只负责把账号清单读入系统，最终账号、导入人、导入时间和导入批次仍写入 `vCampus.accdb`。不建议把另一个 `.accdb/.mdb` 文件作为用户导入源，避免导入源表结构与系统运行数据库结构混淆。
 
@@ -16,13 +18,15 @@
 
 - `tblCourse`：课程目录，保存课程号、课程名称、学分和启用/停用状态；实际可选人数由 `tblCourseOffering` 的具体教学班容量决定。
 - `tblCourseSelection`：学生选课记录，包含学生、教学班、选课轮次、选课身份、选课/退选时间和状态。已退选记录会保留，但不计入容量和名单。
+- `tblActiveCourseSelection`：当前有效选课的唯一占用键，保证同一学生、同一教学班最多只有一条有效记录；退选时删除该占用键。
+- `tblCourseOfferingCapacityUsage`：教学班三个容量池当前已占用人数。选课通过数据库条件更新预留名额，避免多人同时选课时超额。
 - `tblSelectionRound`：教务人员维护的选课轮次，保存学期、首修/重修类型、起止时间和状态；同一学期每种轮次类型最多一条。
 - `tblTrainingPlan`、`tblTrainingPlanCourse`：教务人员维护的培养方案及课程要求，按专业和入学年份确定学生首修阶段可见的课程。
 - `tblCourseMeeting`：教学班的结构化上课时间，保存星期、起止节次和实际上课地点；同一教学班可有多条记录，用于时间冲突检测。
 
-服务端会阻止同一学生重复选择同一个教学班；教学班容量根据 `tblCourseSelection` 中状态为 `ACTIVE` 的记录统计，已退选记录不会占用容量。已选人数不单独存入 `tblCourse`，避免人数数据不一致。
+服务端会通过数据库唯一键阻止同一学生重复选择同一个教学班，并通过容量占用表原子预留名额；已退选记录不会占用容量。已选人数不存入 `tblCourse`，避免课程目录与教学班人数数据不一致。
 
-使用 `--db` 启动时，选课服务会从 `tblStudent` 按登录 `user_id` 读取学生资料，从 `tblCourseResult` 计算待重修课程，并从 `tblSelectionRound` 确定当前学期。因此教务人员需要先维护学生档案、培养方案和选课轮次，学生才会看到可选择的教学班。
+使用 `--db` 启动时，选课服务会从 `tblStudent` 按登录 `user_id` 读取学生资料，从 `tblCourseResult` 计算待重修课程，并从 `tblSelectionRound` 确定当前学期。因此教务人员需要先维护学生档案、培养方案、教学班和选课轮次，学生才会看到可选择的教学班。`seed.sql` 不预置开放轮次；如需演示选课，应由教务管理员先创建并开放首修或重修轮次。
 
 ## 学籍审查规划表
 
@@ -44,10 +48,8 @@
 - `tblOrder`：订单记录，保存用户、商品快照、数量和金额。
 - `tblBankAccount`：校园钱包账户，`user_id` 为主键，`balance_cents` 以「分」为单位存 `BIGINT NOT NULL`；余额扣减/入账由应用层补偿保证一致性，不依赖数据库事务。
 
-查询、购物车和购买只处理 `tblProduct.active=1` 的商品。全新数据库按 `schema.sql` 创建 `active` 字段；已有按旧 `004_store` 建立的数据库先执行 `database/migrations/007_store_product_active.up.sql`，回滚使用同名 `.down.sql`，不要对新库重复执行该迁移。
-
-校园钱包表 `tblBankAccount` 由 `database/migrations/009_store_bank_account.up.sql` 建表、`.down.sql` 回滚（编号 009，不碰 008 的 `tblCartItem`）。⚠️ 数据库必须按最新 `schema.sql` 重建：本次新增 `tblBankAccount` 且 `balance_cents` 为 `BIGINT`，旧 `.accdb` 不含该表、与本次改动不兼容，沿用旧库会导致账户相关功能报错。
+查询、购物车和购买只处理 `tblProduct.active=1` 的商品。校园钱包余额字段 `balance_cents` 已包含在最新版 `schema.sql` 中；请使用全新数据库，不执行历史迁移脚本。
 
 身份字段分工如下：`tblUser.user_id` 是登录身份；`tblStudent.student_id` 是学生学号；`tblTeacher.teacher_id` 是教师工号；`tblStudent.user_id` 和 `tblTeacher.user_id` 是档案与登录账号之间的一对一绑定字段，可为空但绑定后应保持唯一。如果账号尚未关联 `tblStudent` 或 `tblTeacher`，相关页面应提示“暂无对应档案，请联系管理员维护”；学业审查、课程历史和授课关系不能根据账号信息凭空生成。
 
-学籍表由 `migrations/010_student_academic.up.sql` 创建；回滚使用同目录下的 `010_student_academic.down.sql`。编号 009 已由商店钱包占用，学籍迁移顺延为 010。
+学籍表也已包含在最新版 `schema.sql` 中。项目开发阶段统一以该文件作为全新数据库的唯一建表来源。
