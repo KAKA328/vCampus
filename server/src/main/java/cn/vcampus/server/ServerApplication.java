@@ -9,6 +9,8 @@ import cn.vcampus.course.CourseCatalogService;
 import cn.vcampus.course.CourseOfferingService;
 import cn.vcampus.course.SelectionRoundService;
 import cn.vcampus.course.StudentSelectionProfileProvider;
+import cn.vcampus.library.LibraryService;
+import cn.vcampus.library.InMemoryLibraryService;
 import cn.vcampus.store.StoreService;
 import cn.vcampus.store.InMemoryStoreService;
 import cn.vcampus.student.AcademicReviewService;
@@ -41,6 +43,7 @@ public final class ServerApplication implements Closeable {
     private final CourseMessageHandler courseMessages;
     private final StoreMessageHandler storeMessages;
     private final StudentMessageHandler studentMessages;
+    private final LibraryMessageHandler libraryMessages;
     private final ExecutorService clients = Executors.newCachedThreadPool();
     private ServerSocket serverSocket;
 
@@ -58,10 +61,10 @@ public final class ServerApplication implements Closeable {
 
     private ServerApplication(int port, UserManagementService users, CourseSelectionModule module,
             StudentSelectionProfileProvider profiles, StoreService store,
-            StudentManagementService students) {
+            StudentManagementService students, LibraryService library) {
         this(port, users, module.getSelectionService(), module.getCatalogService(),
                 module.getOfferingService(), module.getSelectionRoundService(), profiles, store,
-                students);
+                students, library);
     }
 
     public ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
@@ -74,12 +77,21 @@ public final class ServerApplication implements Closeable {
             CourseCatalogService catalog, CourseOfferingService offerings,
             SelectionRoundService selectionRounds, StudentSelectionProfileProvider profiles,
             StoreService store, StudentManagementService students) {
+        this(port, users, courses, catalog, offerings, selectionRounds, profiles, store,
+                students, new InMemoryLibraryService());
+    }
+
+    ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
+            CourseCatalogService catalog, CourseOfferingService offerings,
+            SelectionRoundService selectionRounds, StudentSelectionProfileProvider profiles,
+            StoreService store, StudentManagementService students, LibraryService library) {
         this.port = port;
         this.userMessages = new UserMessageHandler(users);
         this.courseMessages = new CourseMessageHandler(courses, catalog, offerings, selectionRounds,
                 profiles, users);
         this.storeMessages = new StoreMessageHandler(store, users);
         this.studentMessages = new StudentMessageHandler(students, users);
+        this.libraryMessages = new LibraryMessageHandler(library, users);
     }
 
     ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
@@ -147,6 +159,9 @@ public final class ServerApplication implements Closeable {
         if (request != null && isStudentMessage(request.getType())) {
             return studentMessages.handle(request);
         }
+        if (request != null && isLibraryMessage(request.getType())) {
+            return libraryMessages.handle(request);
+        }
         return userMessages.handle(request);
     }
 
@@ -173,6 +188,12 @@ public final class ServerApplication implements Closeable {
         return type == MessageType.STUDENT_QUERY || type == MessageType.STUDENT_UPDATE;
     }
 
+    private static boolean isLibraryMessage(MessageType type) {
+        return type == MessageType.LIBRARY_QUERY_V2 || type == MessageType.LIBRARY_DETAIL_V2
+                || type == MessageType.LIBRARY_BORROW_V2 || type == MessageType.LIBRARY_RETURN_V2
+                || type == MessageType.LIBRARY_HISTORY_V2 || type == MessageType.LIBRARY_ADD_BOOK_V2;
+    }
+
     public static void main(String[] args) throws IOException {
         int port = parsePort(args);
         Path databasePath = UserServiceFactory.databasePath(args);
@@ -181,7 +202,7 @@ public final class ServerApplication implements Closeable {
                 ? memoryStudentServices() : accessStudentServices(databasePath);
         new ServerApplication(port, UserServiceFactory.create(args), courses.getModule(),
                 courses.getProfiles(), StoreServiceFactory.create(databasePath),
-                studentServices.students).start();
+                studentServices.students, LibraryServiceFactory.create(databasePath)).start();
     }
 
     private static StudentServices memoryStudentServices() {

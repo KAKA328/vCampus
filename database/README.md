@@ -49,6 +49,14 @@
 
 校园钱包表 `tblBankAccount` 由 `database/migrations/009_store_bank_account.up.sql` 建表、`.down.sql` 回滚（编号 009，不碰 008 的 `tblCartItem`）。⚠️ 数据库必须按最新 `schema.sql` 重建：本次新增 `tblBankAccount` 且 `balance_cents` 为 `BIGINT`，旧 `.accdb` 不含该表、与本次改动不兼容，沿用旧库会导致账户相关功能报错。
 
+## 图书馆模块表
+
+- `tblBook`：图书目录与库存快照，`available_copies` 必须保持在 `0..total_copies` 范围内。
+- `tblBorrowRecord`：每本书一条借阅流水；批量借阅共享 `order_id`，每条流水拥有独立 `record_id`。
+- `tblBorrowRenew`：为后续续借功能预留，当前业务代码尚未启用。
+
+借阅和归还由服务器在事务中同时更新 `tblBook.available_copies` 与 `tblBorrowRecord`，客户端只提交会话 token 和书号/借阅记录号。已有数据库使用 `database/migrations/011_library.up.sql` 增量建表；回滚前应确认没有需要保留的借阅数据。
+
 身份字段分工如下：`tblUser.user_id` 是登录身份；`tblStudent.student_id` 是学生学号；`tblTeacher.teacher_id` 是教师工号；`tblStudent.user_id` 和 `tblTeacher.user_id` 是档案与登录账号之间的一对一绑定字段，可为空但绑定后应保持唯一。新建或导入 `STUDENT` / `TEACHER` 账号时，服务端强制要求对应档案已存在、未被占用，并在绑定失败时删除已创建的账号，避免半成功数据。如果账号尚未关联档案，相关页面应提示“暂无对应档案，请联系管理员维护”；学业审查、课程历史和授课关系不能根据账号信息凭空生成。
 
 学籍表由 `migrations/010_student_academic.up.sql` 创建；回滚使用同目录下的 `010_student_academic.down.sql`。编号 009 已由商店钱包占用，学籍迁移顺延为 010。
