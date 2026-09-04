@@ -10,10 +10,6 @@ CREATE TABLE tblBook (
     location VARCHAR(64),
     PRIMARY KEY (book_id)
 );
-
-CREATE INDEX idx_tblBook_title ON tblBook(title);
-CREATE INDEX idx_tblBook_category ON tblBook(category);
-
 CREATE TABLE tblBorrowRecord (
     record_id VARCHAR(40) NOT NULL,
     order_id VARCHAR(40) NOT NULL,
@@ -26,10 +22,6 @@ CREATE TABLE tblBorrowRecord (
     PRIMARY KEY (record_id)
 );
 
-CREATE INDEX idx_tblBorrowRecord_user ON tblBorrowRecord(user_id, status);
-CREATE INDEX idx_tblBorrowRecord_book ON tblBorrowRecord(book_id, status);
-CREATE INDEX idx_tblBorrowRecord_order ON tblBorrowRecord(order_id);
-
 CREATE TABLE tblBorrowRenew (
     renew_id VARCHAR(40) NOT NULL,
     record_id VARCHAR(40) NOT NULL,
@@ -39,5 +31,3 @@ CREATE TABLE tblBorrowRenew (
     renewed_by VARCHAR(32) NOT NULL,
     PRIMARY KEY (renew_id)
 );
-
-CREATE INDEX idx_tblBorrowRenew_record ON tblBorrowRenew(record_id);

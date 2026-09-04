@@ -111,7 +111,8 @@ public final class AccessProfileBindingRepository implements ProfileBindingRepos
     }
 
     private Connection open() throws SQLException {
-        return DriverManager.getConnection("jdbc:ucanaccess://" + databasePath);
+        return DriverManager.getConnection(
+                "jdbc:ucanaccess://" + databasePath + ";immediatelyReleaseResources=true");
     }
 
     private static final class BindingTable {

@@ -17,6 +17,10 @@ public final class InMemoryUserRepository implements UserRepository {
         return accounts.get(userId);
     }
 
+    @Override public boolean deleteById(String userId) {
+        return accounts.remove(userId) != null;
+    }
+
     @Override public boolean deactivateById(String userId) {
         return setActive(userId, false);
     }

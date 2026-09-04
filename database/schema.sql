@@ -9,13 +9,9 @@ CREATE TABLE tblUser (
     created_by VARCHAR(32),
     created_at DATETIME,
     import_batch_id VARCHAR(36),
-    PRIMARY KEY (user_id)
+    PRIMARY KEY (user_id),
+    CONSTRAINT uk_tblUser_display_name UNIQUE (display_name)
 );
-
-CREATE UNIQUE INDEX uk_tblUser_display_name ON tblUser(display_name);
-CREATE INDEX idx_tblUser_created_by ON tblUser(created_by);
-CREATE INDEX idx_tblUser_import_batch ON tblUser(import_batch_id);
-
 CREATE TABLE tblAuditLog (
     log_id VARCHAR(36) NOT NULL,
     actor_user_id VARCHAR(32) NOT NULL,
@@ -25,9 +21,6 @@ CREATE TABLE tblAuditLog (
     created_at DATETIME NOT NULL,
     PRIMARY KEY (log_id)
 );
-
-CREATE INDEX idx_tblAuditLog_actor ON tblAuditLog(actor_user_id);
-CREATE INDEX idx_tblAuditLog_target ON tblAuditLog(target_type, target_id);
 
 CREATE TABLE tblPasswordResetApplication (
     user_id VARCHAR(32) NOT NULL,
@@ -40,9 +33,6 @@ CREATE TABLE tblPasswordResetApplication (
     reviewed_at DATETIME,
     PRIMARY KEY (user_id)
 );
-
-CREATE INDEX idx_tblPasswordResetApplication_status ON tblPasswordResetApplication(status);
-CREATE INDEX idx_tblPasswordResetApplication_submitted ON tblPasswordResetApplication(submitted_at);
 
 CREATE TABLE tblCourse (
     course_id VARCHAR(32) NOT NULL,
@@ -64,10 +54,6 @@ CREATE TABLE tblCourseSelection (
     PRIMARY KEY (selection_id)
 );
 
-CREATE INDEX idx_tblCourseSelection_student ON tblCourseSelection(student_id);
-CREATE INDEX idx_tblCourseSelection_offering ON tblCourseSelection(offering_id);
-CREATE INDEX idx_tblCourseSelection_status ON tblCourseSelection(status);
-
 -- 学籍审查与后续教务管理规划表。
 -- 账号由系统管理员开户注册或由初始化脚本预置；学生/教师账号应同步创建或绑定对应档案。
 -- 学生历史选课、首修/重修和学分通过情况由教务维护或演示数据导入，不由开户注册流程凭空生成。
@@ -79,8 +65,6 @@ CREATE TABLE tblClass (
     grade_year INTEGER,
     PRIMARY KEY (class_id)
 );
-
-CREATE INDEX idx_tblClass_department ON tblClass(department_name);
 
 CREATE TABLE tblStudent (
     student_id VARCHAR(32) NOT NULL,
@@ -94,11 +78,9 @@ CREATE TABLE tblStudent (
     status VARCHAR(16) NOT NULL,
     phone VARCHAR(32),
     email VARCHAR(100),
-    PRIMARY KEY (student_id)
+    PRIMARY KEY (student_id),
+    CONSTRAINT uk_tblStudent_user UNIQUE (user_id)
 );
-
-CREATE UNIQUE INDEX uk_tblStudent_user ON tblStudent(user_id);
-CREATE INDEX idx_tblStudent_class ON tblStudent(class_id);
 
 CREATE TABLE tblTeacher (
     teacher_id VARCHAR(32) NOT NULL,
@@ -106,10 +88,9 @@ CREATE TABLE tblTeacher (
     teacher_name VARCHAR(64) NOT NULL,
     department_name VARCHAR(64),
     title VARCHAR(32),
-    PRIMARY KEY (teacher_id)
+    PRIMARY KEY (teacher_id),
+    CONSTRAINT uk_tblTeacher_user UNIQUE (user_id)
 );
-
-CREATE UNIQUE INDEX uk_tblTeacher_user ON tblTeacher(user_id);
 
 CREATE TABLE tblCourseOffering (
     offering_id VARCHAR(36) NOT NULL,
@@ -125,10 +106,6 @@ CREATE TABLE tblCourseOffering (
     PRIMARY KEY (offering_id)
 );
 
-CREATE INDEX idx_tblCourseOffering_course ON tblCourseOffering(course_id);
-CREATE INDEX idx_tblCourseOffering_teacher ON tblCourseOffering(teacher_id);
-CREATE INDEX idx_tblCourseOffering_term ON tblCourseOffering(term);
-
 -- 一个教学班可包含多次上课安排，用于选课时的时间冲突检测。
 CREATE TABLE tblCourseMeeting (
     offering_id VARCHAR(36) NOT NULL,
@@ -139,8 +116,6 @@ CREATE TABLE tblCourseMeeting (
     PRIMARY KEY (offering_id, day_of_week, start_period)
 );
 
-CREATE INDEX idx_tblCourseMeeting_offering ON tblCourseMeeting(offering_id);
-
 CREATE TABLE tblTrainingPlan (
     plan_id VARCHAR(36) NOT NULL,
     major_name VARCHAR(64) NOT NULL,
@@ -148,8 +123,6 @@ CREATE TABLE tblTrainingPlan (
     status VARCHAR(16) NOT NULL,
     PRIMARY KEY (plan_id)
 );
-
-CREATE INDEX idx_tblTrainingPlan_scope ON tblTrainingPlan(major_name, enrollment_year);
 
 CREATE TABLE tblTrainingPlanCourse (
     plan_id VARCHAR(36) NOT NULL,
@@ -159,8 +132,6 @@ CREATE TABLE tblTrainingPlanCourse (
     cross_major_allowed BIT NOT NULL,
     PRIMARY KEY (plan_id, course_id)
 );
-
-CREATE INDEX idx_tblTrainingPlanCourse_plan ON tblTrainingPlanCourse(plan_id);
 
 -- 教务人员维护的选课轮次。每个学期至多配置一个首修轮次和一个重修轮次。
 CREATE TABLE tblSelectionRound (
@@ -172,8 +143,6 @@ CREATE TABLE tblSelectionRound (
     status VARCHAR(16) NOT NULL,
     PRIMARY KEY (round_id)
 );
-
-CREATE INDEX idx_tblSelectionRound_term ON tblSelectionRound(term);
 
 CREATE TABLE tblCourseResult (
     result_id VARCHAR(36) NOT NULL,
@@ -190,9 +159,6 @@ CREATE TABLE tblCourseResult (
     PRIMARY KEY (result_id)
 );
 
-CREATE INDEX idx_tblCourseResult_student ON tblCourseResult(student_id);
-CREATE INDEX idx_tblCourseResult_course ON tblCourseResult(course_id);
-
 CREATE TABLE tblAcademicReview (
     review_id VARCHAR(36) NOT NULL,
     student_id VARCHAR(32) NOT NULL,
@@ -206,8 +172,6 @@ CREATE TABLE tblAcademicReview (
     remark VARCHAR(255),
     PRIMARY KEY (review_id)
 );
-
-CREATE INDEX idx_tblAcademicReview_student ON tblAcademicReview(student_id);
 
 CREATE TABLE tblProduct (
     product_id VARCHAR(32) NOT NULL,
@@ -232,9 +196,6 @@ CREATE TABLE tblOrder (
     PRIMARY KEY (order_id)
 );
 
-CREATE INDEX idx_tblOrder_user ON tblOrder(user_id);
-CREATE INDEX idx_tblOrder_product ON tblOrder(product_id);
-
 CREATE TABLE tblCartItem (
     cart_item_id VARCHAR(36) NOT NULL,
     user_id VARCHAR(32) NOT NULL,
@@ -244,9 +205,6 @@ CREATE TABLE tblCartItem (
     PRIMARY KEY (cart_item_id),
     CONSTRAINT uk_tblCartItem_user_product UNIQUE (user_id, product_id)
 );
-
-CREATE INDEX idx_tblCartItem_user ON tblCartItem(user_id);
-CREATE INDEX idx_tblCartItem_product ON tblCartItem(product_id);
 
 -- 校园钱包账户：余额以「分」为单位存 BIGINT，user_id 为主键（懒创建 upsert 依赖主键去重，不另建唯一索引以规避 UCanAccess 4.0.4 的 CREATE UNIQUE INDEX 限制）。
 CREATE TABLE tblBankAccount (
@@ -268,9 +226,6 @@ CREATE TABLE tblBook (
     PRIMARY KEY (book_id)
 );
 
-CREATE INDEX idx_tblBook_title ON tblBook(title);
-CREATE INDEX idx_tblBook_category ON tblBook(category);
-
 CREATE TABLE tblBorrowRecord (
     record_id VARCHAR(40) NOT NULL,
     order_id VARCHAR(40) NOT NULL,
@@ -283,10 +238,6 @@ CREATE TABLE tblBorrowRecord (
     PRIMARY KEY (record_id)
 );
 
-CREATE INDEX idx_tblBorrowRecord_user ON tblBorrowRecord(user_id, status);
-CREATE INDEX idx_tblBorrowRecord_book ON tblBorrowRecord(book_id, status);
-CREATE INDEX idx_tblBorrowRecord_order ON tblBorrowRecord(order_id);
-
 CREATE TABLE tblBorrowRenew (
     renew_id VARCHAR(40) NOT NULL,
     record_id VARCHAR(40) NOT NULL,
@@ -296,5 +247,3 @@ CREATE TABLE tblBorrowRenew (
     renewed_by VARCHAR(32) NOT NULL,
     PRIMARY KEY (renew_id)
 );
-
-CREATE INDEX idx_tblBorrowRenew_record ON tblBorrowRenew(record_id);
