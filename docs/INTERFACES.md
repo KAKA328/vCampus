@@ -5,7 +5,8 @@
 | 模块 | 核心接口 | 初始操作 |
 |---|---|---|
 | 用户管理 | `UserManagementService` | `register`、`importUsers`、`unregister`、`login`、`currentSession`、`logout`、`authorize`；`register` 作为管理员端开户注册能力，批量导入使用 `USER_IMPORT`，载荷见 `UserCredentials`、`UserImportCommand`、`UserCommand`、`AuthorizationRequest` |
-| 学生学籍 | `StudentManagementService` | `findById`、`findByUserId`、`findMyStudentProfile`、`findByClass`、`findByMajor`、`save` |
+| 学生学籍 | `StudentManagementService` | `findById`、`findByUserId`、`findMyStudentProfile`、`findByClass`、`findByMajor`、`findByIds`、`save` |
+| 教师档案 | `TeacherProfileService` | `findById`、`findByUserId`、`save`；提供教师工号、账号绑定、院系、职称和在职状态 |
 | 学业审查 | `AcademicReviewService` | `historyFor`、`pendingRetakes`、`review`、`latestReview` |
 | 选课 | `CourseSelectionService` | 完整选课流程使用 V2 消息：查询轮次/教学班/已选记录、按教学班选课、按选课记录退选；课程维护消息见下文 |
 | 图书馆 | `LibraryService` | `search`、`borrow`、`returnBook` |
@@ -21,6 +22,16 @@
 StudentManagementService.findByUserId(String userId)
 AcademicReviewService.pendingRetakes(String studentId)
 ```
+
+成绩录入与审核对接还使用：
+
+```java
+TeacherProfileService.findById(String teacherId)
+TeacherProfileService.findByUserId(String userId)
+StudentManagementService.findByIds(List<String> studentIds)
+```
+
+教师档案查询用于教学班任课教师校验和 Token 到 `teacherId` 的映射；`active=false` 的教师不能被安排到新教学班。学生批量查询用于一次加载完整教学班名单，输入去重并保持首次出现顺序；任一学号不存在时返回 `NOT_FOUND`。
 
 `findByUserId` 用于把登录账号映射为学生档案。账号已绑定时返回 `OK + StudentRecord`；未绑定时返回 `NOT_FOUND`，选课模块应提示联系学籍管理员；参数为空返回 `BAD_REQUEST`。
 

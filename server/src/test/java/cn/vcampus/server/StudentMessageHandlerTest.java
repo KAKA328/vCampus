@@ -127,6 +127,17 @@ class StudentMessageHandlerTest {
             return ServiceResult.ok(Arrays.asList(records.get(0), records.get(1)));
         }
 
+        @Override public ServiceResult<List<StudentRecord>> findByIds(List<String> studentIds) {
+            List<StudentRecord> found = new ArrayList<StudentRecord>();
+            for (String studentId : studentIds) {
+                ServiceResult<StudentRecord> record = findById(studentId);
+                if (record.getStatus() == StatusCode.OK) found.add(record.getData());
+            }
+            return found.size() == studentIds.size() ? ServiceResult.ok(found)
+                    : ServiceResult.<List<StudentRecord>>failure(StatusCode.NOT_FOUND,
+                            "student not found");
+        }
+
         @Override public ServiceResult<StudentRecord> save(StudentRecord record) {
             for (int i = 0; i < records.size(); i++) {
                 if (records.get(i).getStudentId().equals(record.getStudentId())) records.set(i, record);

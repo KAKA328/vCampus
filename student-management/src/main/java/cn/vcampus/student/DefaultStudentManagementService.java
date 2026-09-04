@@ -4,6 +4,8 @@ import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import java.util.Collections;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /** Repository-backed student service shared by Access and in-memory deployments. */
 public final class DefaultStudentManagementService implements StudentManagementService {
@@ -67,6 +69,48 @@ public final class DefaultStudentManagementService implements StudentManagementS
             return ServiceResult.failure(StatusCode.BAD_REQUEST, failure.getMessage());
         } catch (IllegalStateException failure) {
             return ServiceResult.failure(StatusCode.SERVER_ERROR, "failed to find students by major");
+        }
+    }
+
+    @Override
+    public ServiceResult<List<StudentRecord>> findByIds(List<String> studentIds) {
+        try {
+            if (studentIds == null) {
+                return ServiceResult.failure(StatusCode.BAD_REQUEST, "studentIds must not be null");
+            }
+            if (studentIds.isEmpty()) {
+                return ServiceResult.ok(Collections.<StudentRecord>emptyList());
+            }
+            Set<String> expectedIds = new LinkedHashSet<String>();
+            for (String studentId : studentIds) {
+                if (studentId == null || studentId.trim().isEmpty()) {
+                    return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                            "studentId must not be blank");
+                }
+                expectedIds.add(studentId.trim());
+            }
+            List<StudentRecord> records = students.findByIds(
+                    new java.util.ArrayList<String>(expectedIds));
+            if (records == null || records.size() != expectedIds.size()) {
+                return ServiceResult.failure(StatusCode.NOT_FOUND,
+                        "one or more student profiles were not found");
+            }
+            Set<String> actualIds = new LinkedHashSet<String>();
+            for (StudentRecord record : records) {
+                if (record == null || !actualIds.add(record.getStudentId())) {
+                    return ServiceResult.failure(StatusCode.NOT_FOUND,
+                            "one or more student profiles were not found");
+                }
+            }
+            if (!actualIds.equals(expectedIds)) {
+                return ServiceResult.failure(StatusCode.NOT_FOUND,
+                        "one or more student profiles were not found");
+            }
+            return ServiceResult.ok(records);
+        } catch (IllegalArgumentException failure) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, failure.getMessage());
+        } catch (IllegalStateException failure) {
+            return ServiceResult.failure(StatusCode.SERVER_ERROR, "failed to find students by ids");
         }
     }
 

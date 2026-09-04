@@ -5,6 +5,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /** Small thread-safe repository used when the server runs without an Access file. */
 public final class InMemoryStudentRepository implements StudentRepository {
@@ -43,6 +45,21 @@ public final class InMemoryStudentRepository implements StudentRepository {
             if (normalized.equals(record.getMajorName())) result.add(record);
         }
         Collections.sort(result, (left, right) -> left.getStudentId().compareTo(right.getStudentId()));
+        return result;
+    }
+
+    @Override
+    public synchronized List<StudentRecord> findByIds(List<String> studentIds) {
+        if (studentIds == null) throw new IllegalArgumentException("studentIds must not be null");
+        Set<String> normalizedIds = new LinkedHashSet<String>();
+        for (String studentId : studentIds) {
+            normalizedIds.add(requireText(studentId, "studentId"));
+        }
+        List<StudentRecord> result = new ArrayList<StudentRecord>();
+        for (String studentId : normalizedIds) {
+            StudentRecord record = records.get(studentId);
+            if (record != null) result.add(record);
+        }
         return result;
     }
 
