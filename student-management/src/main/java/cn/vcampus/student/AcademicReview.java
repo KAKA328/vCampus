@@ -63,6 +63,9 @@ public final class AcademicReview implements Serializable {
     public String getReviewId() { return reviewId; }
     public int getTotalEarnedCredits() { return totalEarnedCredits; }
     public int getRequiredEarnedCredits() { return requiredEarnedCredits; }
+    public int getCreditShortfall() {
+        return Math.max(0, requiredEarnedCredits - totalEarnedCredits);
+    }
     public int getPassedCourseCount() { return passedCourseCount; }
     public int getFailedCourseCount() { return failedCourseCount; }
     public int getRetakeCourseCount() { return retakeCourseCount; }

@@ -13,5 +13,7 @@ public interface StudentManagementService {
     }
     ServiceResult<List<StudentRecord>> findByClass(String classId);
     ServiceResult<List<StudentRecord>> findByMajor(String majorName);
+    /** Loads a complete teaching roster without repeated per-student service calls. */
+    ServiceResult<List<StudentRecord>> findByIds(List<String> studentIds);
     ServiceResult<StudentRecord> save(StudentRecord record);
 }

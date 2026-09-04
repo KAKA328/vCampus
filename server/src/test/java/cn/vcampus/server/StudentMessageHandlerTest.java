@@ -36,7 +36,8 @@ class StudentMessageHandlerTest {
                 .getData().getToken();
         teacherToken = users.login(new UserCredentials("teacher001", "Demo123", "教师", Role.TEACHER.name()))
                 .getData().getToken();
-        handler = new StudentMessageHandler(students, users);
+        handler = new StudentMessageHandler(students, users,
+                (teacherUserId, studentId) -> ServiceResult.ok("S002".equals(studentId)));
     }
 
     @Test
@@ -52,7 +53,17 @@ class StudentMessageHandlerTest {
         assertEquals(StatusCode.OK, handler.handle(request(
                 StudentQueryCommand.byId(teacherToken, "S002"))).getStatusCode());
         assertEquals(StatusCode.FORBIDDEN, handler.handle(request(
+                StudentQueryCommand.byId(teacherToken, "S001"))).getStatusCode());
+        assertEquals(StatusCode.FORBIDDEN, handler.handle(request(
                 new StudentUpdateCommand(teacherToken, students.records.get(0)))).getStatusCode());
+    }
+
+    @Test
+    void matchingStudentIdDoesNotBypassAccountBinding() {
+        students.records.add(student("stu001", null, "未绑定学生", ""));
+
+        assertEquals(StatusCode.FORBIDDEN, handler.handle(request(
+                StudentQueryCommand.byId(studentToken, "stu001"))).getStatusCode());
     }
 
     @Test
@@ -114,6 +125,17 @@ class StudentMessageHandlerTest {
 
         @Override public ServiceResult<List<StudentRecord>> findByMajor(String majorName) {
             return ServiceResult.ok(Arrays.asList(records.get(0), records.get(1)));
+        }
+
+        @Override public ServiceResult<List<StudentRecord>> findByIds(List<String> studentIds) {
+            List<StudentRecord> found = new ArrayList<StudentRecord>();
+            for (String studentId : studentIds) {
+                ServiceResult<StudentRecord> record = findById(studentId);
+                if (record.getStatus() == StatusCode.OK) found.add(record.getData());
+            }
+            return found.size() == studentIds.size() ? ServiceResult.ok(found)
+                    : ServiceResult.<List<StudentRecord>>failure(StatusCode.NOT_FOUND,
+                            "student not found");
         }
 
         @Override public ServiceResult<StudentRecord> save(StudentRecord record) {
