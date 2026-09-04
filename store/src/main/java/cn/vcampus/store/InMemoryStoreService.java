@@ -19,19 +19,13 @@ public final class InMemoryStoreService implements StoreService {
     }
 
     InMemoryStoreService(ProductRepository products, OrderRepository orders, CartRepository cart) {
-        this(products, orders, cart, new InMemoryBankAccountRepository());
+        this(products, orders, cart, new InMemoryWalletRepository());
     }
 
-    // 4 参构造：注入银行账户仓库
+    // 4 参构造：注入钱包仓库（余额 + 流水原子读写）
     InMemoryStoreService(ProductRepository products, OrderRepository orders, CartRepository cart,
-            BankAccountRepository bank) {
-        this(products, orders, cart, bank, new InMemoryWalletTransactionRepository());
-    }
-
-    // 5 参构造：注入钱包流水仓库
-    InMemoryStoreService(ProductRepository products, OrderRepository orders, CartRepository cart,
-            BankAccountRepository bank, WalletTransactionRepository ledger) {
-        this.delegate = new DefaultStoreService(products, orders, cart, bank, ledger);
+            WalletRepository wallet) {
+        this.delegate = new DefaultStoreService(products, orders, cart, wallet);
     }
 
     @Override
