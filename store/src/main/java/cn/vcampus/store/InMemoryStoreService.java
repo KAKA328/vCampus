@@ -25,7 +25,13 @@ public final class InMemoryStoreService implements StoreService {
     // 4 参构造：注入银行账户仓库
     InMemoryStoreService(ProductRepository products, OrderRepository orders, CartRepository cart,
             BankAccountRepository bank) {
-        this.delegate = new DefaultStoreService(products, orders, cart, bank);
+        this(products, orders, cart, bank, new InMemoryWalletTransactionRepository());
+    }
+
+    // 5 参构造：注入钱包流水仓库
+    InMemoryStoreService(ProductRepository products, OrderRepository orders, CartRepository cart,
+            BankAccountRepository bank, WalletTransactionRepository ledger) {
+        this.delegate = new DefaultStoreService(products, orders, cart, bank, ledger);
     }
 
     @Override
@@ -44,8 +50,8 @@ public final class InMemoryStoreService implements StoreService {
     }
 
     @Override
-    public final ServiceResult<Void> restock(String userId, String productId, int additionalStock) {
-        return delegate.restock(userId, productId, additionalStock);
+    public final ServiceResult<Void> restock(String productId, int additionalStock) {
+        return delegate.restock(productId, additionalStock);
     }
 
     @Override
@@ -61,8 +67,8 @@ public final class InMemoryStoreService implements StoreService {
     }
 
     @Override
-    public final ServiceResult<Void> deactivateProduct(String userId, String productId) {
-        return delegate.deactivateProduct(userId, productId);
+    public final ServiceResult<Void> deactivateProduct(String productId) {
+        return delegate.deactivateProduct(productId);
     }
 
     @Override
@@ -78,6 +84,16 @@ public final class InMemoryStoreService implements StoreService {
     @Override
     public final ServiceResult<List<CartItem>> getCart(String userId) {
         return delegate.getCart(userId);
+    }
+
+    @Override
+    public final ServiceResult<Void> updateCartQuantity(String userId, String cartItemId, int newQuantity) {
+        return delegate.updateCartQuantity(userId, cartItemId, newQuantity);
+    }
+
+    @Override
+    public final ServiceResult<List<CartLine>> getCartDetails(String userId) {
+        return delegate.getCartDetails(userId);
     }
 
     @Override
@@ -113,5 +129,10 @@ public final class InMemoryStoreService implements StoreService {
     @Override
     public final ServiceResult<Void> adjustBalance(String adminId, String userId, long newBalanceCents) {
         return delegate.adjustBalance(adminId, userId, newBalanceCents);
+    }
+
+    @Override
+    public final ServiceResult<List<WalletTransaction>> listTransactions(String userId) {
+        return delegate.listTransactions(userId);
     }
 }

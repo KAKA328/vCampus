@@ -17,7 +17,9 @@ class StoreServiceTest {
     private final InMemoryOrderRepository orders = new InMemoryOrderRepository();
     private final InMemoryCartRepository cartRepo = new InMemoryCartRepository();
     private final InMemoryBankAccountRepository bankRepo = new InMemoryBankAccountRepository();
-    private final InMemoryStoreService service = new InMemoryStoreService(products, orders, cartRepo, bankRepo);
+    private final InMemoryWalletTransactionRepository ledgerRepo = new InMemoryWalletTransactionRepository();
+    private final InMemoryStoreService service = new InMemoryStoreService(products, orders, cartRepo, bankRepo,
+            ledgerRepo);
 
     StoreServiceTest() {
         products.save(new Product("00001", "Apple", 100, 2.5, "A delicious apple", "Fruit"));
@@ -69,12 +71,12 @@ class StoreServiceTest {
         assertEquals(StatusCode.NOT_FOUND, testResult.getStatus());
     }
 
-    // 测试购买商品数量超过库存
+    // 测试购买商品数量超过库存：库存不足是资源状态冲突，与原子扣减失败统一返回 CONFLICT
     @Test
     void testPurchaseExceedsStock() {
         int toBuy = products.findById("00004").getStock() + 1;
         ServiceResult<Void> testResult = service.purchase("0120", "00004", toBuy);
-        assertEquals(StatusCode.BAD_REQUEST, testResult.getStatus());
+        assertEquals(StatusCode.CONFLICT, testResult.getStatus());
     }
 
     // 测试没有订单的学生查询订单不会报错
@@ -244,7 +246,7 @@ class StoreServiceTest {
     @Test
     void testRestockSuccess() {
         int formerNum = products.findById("00001").getStock();
-        ServiceResult<Void> testResult = service.restock("admin", "00001", 100);
+        ServiceResult<Void> testResult = service.restock("00001", 100);
 
         assertEquals(StatusCode.OK, testResult.getStatus());
         assertEquals(formerNum + 100, products.findById("00001").getStock());
@@ -253,14 +255,14 @@ class StoreServiceTest {
     // 测试补货商品不存在
     @Test
     void testRestockProductNotFound() {
-        ServiceResult<Void> testResult = service.restock("admin", "99999999999", 100);
+        ServiceResult<Void> testResult = service.restock("99999999999", 100);
         assertEquals(StatusCode.NOT_FOUND, testResult.getStatus());
     }
 
     // 测试补货数量为负数
     @Test
     void testRestockNegativeAmount() {
-        ServiceResult<Void> testResult = service.restock("admin", "00001", -100);
+        ServiceResult<Void> testResult = service.restock("00001", -100);
         assertEquals(StatusCode.BAD_REQUEST, testResult.getStatus());
     }
 
@@ -306,7 +308,7 @@ class StoreServiceTest {
     // 测试下架商品
     @Test
     void testDeactivateProduct() {
-        ServiceResult<Void> testResult = service.deactivateProduct("admin", "00001");
+        ServiceResult<Void> testResult = service.deactivateProduct("00001");
         assertEquals(StatusCode.OK, testResult.getStatus());
         assertFalse(products.findById("00001").isActive());
     }
@@ -314,7 +316,7 @@ class StoreServiceTest {
     // 测试下架商品不在列表
     @Test
     void testDeactivatedProductNotListed() {
-        service.deactivateProduct("admin", "00001");
+        service.deactivateProduct("00001");
         ServiceResult<List<Product>> testResult = service.listProducts();
         assertEquals(StatusCode.OK, testResult.getStatus());
         assertNotNull(testResult.getData());
@@ -409,13 +411,13 @@ class StoreServiceTest {
         assertTrue(bananaOrderFound);
     }
 
-    // 测试结账库存不足
+    // 测试结账库存不足：库存不足统一返回 CONFLICT，购物车与库存均不得被修改
     @Test
     void testCheckoutInsufficientStock() {
         int stock = products.findById("00001").getStock();
         service.addToCart("0120", "00001", stock + 1);
         ServiceResult<Void> testResult = service.checkout("0120");
-        assertEquals(StatusCode.BAD_REQUEST, testResult.getStatus());
+        assertEquals(StatusCode.CONFLICT, testResult.getStatus());
         assertEquals(1, cartRepo.findByUserId("0120").size());
         assertEquals(stock + 1, cartRepo.findByUserId("0120").get(0).getQuantity());
         assertEquals(stock, products.findById("00001").getStock());
@@ -466,7 +468,7 @@ class StoreServiceTest {
         assertEquals("00002", testResult.getData().get(1).getProductId());
 
         // 下架后榜单不再包含它
-        service.deactivateProduct("admin", "00001");
+        service.deactivateProduct("00001");
         ServiceResult<List<Product>> afterDeactivate = service.listHotProducts(10);
         assertEquals(2, afterDeactivate.getData().size());
         assertEquals("00002", afterDeactivate.getData().get(0).getProductId());
@@ -753,6 +755,288 @@ class StoreServiceTest {
         assertEquals(100_000L - 400L, b.findByUserId("u").getBalanceCents());// 余额只按成功一次扣减
     }
 
+    // 修改购物车条目数量：改自己的条目成功，仓库中数量同步更新
+    @Test
+    void testUpdateCartQuantitySuccess() {
+        service.addToCart("0120", "00001", 2);
+        String cartItemId = service.getCart("0120").getData().get(0).getCartItemId();
+
+        ServiceResult<Void> testResult = service.updateCartQuantity("0120", cartItemId, 5);
+
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertEquals(5, cartRepo.findByUserId("0120").get(0).getQuantity());
+    }
+
+    // 越权防护：拿他人 cartItemId 改数量一律按不存在处理，且他人购物车不得被改动
+    @Test
+    void testUpdateCartQuantityRejectsOtherUsersItem() {
+        service.addToCart("0120", "00001", 2);
+        String victimItemId = service.getCart("0120").getData().get(0).getCartItemId();
+
+        ServiceResult<Void> testResult = service.updateCartQuantity("0121", victimItemId, 99);
+
+        assertEquals(StatusCode.NOT_FOUND, testResult.getStatus());
+        assertEquals(2, cartRepo.findByUserId("0120").get(0).getQuantity());
+        assertTrue(cartRepo.findByUserId("0121").isEmpty());
+    }
+
+    // 新数量必须为正，否则 BAD_REQUEST 且不触碰仓库
+    @Test
+    void testUpdateCartQuantityRejectsNonPositive() {
+        service.addToCart("0120", "00001", 2);
+        String cartItemId = service.getCart("0120").getData().get(0).getCartItemId();
+
+        assertEquals(StatusCode.BAD_REQUEST, service.updateCartQuantity("0120", cartItemId, 0).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.updateCartQuantity("0120", cartItemId, -3).getStatus());
+        assertEquals(2, cartRepo.findByUserId("0120").get(0).getQuantity());
+    }
+
+    // 条目编号不存在时返回 NOT_FOUND，与 removeFromCart 的语义保持一致
+    @Test
+    void testUpdateCartQuantityRejectsUnknownItem() {
+        ServiceResult<Void> testResult = service.updateCartQuantity("0120", "cart-does-not-exist", 3);
+
+        assertEquals(StatusCode.NOT_FOUND, testResult.getStatus());
+    }
+
+    // 购物车明细携带商品名、单价（分）与小计（分），前端无需再查一次商品
+    @Test
+    void testCartDetailsCarryProductNameAndSubtotal() {
+        service.addToCart("0120", "00001", 3);
+
+        ServiceResult<List<CartLine>> testResult = service.getCartDetails("0120");
+
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertEquals(1, testResult.getData().size());
+        CartLine line = testResult.getData().get(0);
+        assertEquals("00001", line.getProductId());
+        assertEquals("Apple", line.getProductName());
+        assertEquals(250L, line.getUnitPriceCents());
+        assertEquals(3, line.getQuantity());
+        assertEquals(750L, line.getSubtotalCents());
+        assertTrue(line.isActive());
+    }
+
+    // 读取时联表的核心价值：商品调价后购物车明细立刻显示新价，无需数据迁移
+    @Test
+    void testCartDetailsReflectPriceChangeImmediately() {
+        service.addToCart("0120", "00001", 2);
+        service.updateProduct("00001", "Apple", 3.0, "A delicious apple", "Fruit");
+
+        CartLine line = service.getCartDetails("0120").getData().get(0);
+
+        assertEquals(300L, line.getUnitPriceCents());
+        assertEquals(600L, line.getSubtotalCents());
+    }
+
+    // 明细带在售标记，前端可据此灰显已下架商品，无需额外一次商品查询
+    @Test
+    void testCartDetailsMarksDeactivatedProduct() {
+        service.addToCart("0120", "00001", 1);
+        service.deactivateProduct("00001");
+
+        CartLine line = service.getCartDetails("0120").getData().get(0);
+
+        assertFalse(line.isActive());
+    }
+
+    // 商品被物理删除后明细行直接跳过：没有名称与价格可用，留一行空壳反而误导
+    @Test
+    void testCartDetailsSkipDeletedProduct() {
+        service.addToCart("0120", "00001", 1);
+        products.deleteById("00001");
+
+        assertEquals(1, cartRepo.findByUserId("0120").size());
+        assertTrue(service.getCartDetails("0120").getData().isEmpty());
+    }
+
+    // 对账口径：明细小计必须等于结账实扣金额；unitPriceCents × quantity 会因四舍五入少一分，
+    // 因此前端合计只能累加 subtotalCents
+    @Test
+    void testCartDetailsSubtotalMatchesCheckoutDebit() {
+        products.save(new Product("ROUND", "Rounding item", 10, 1.005, "", "test"));
+        bankRepo.credit("round_user", 100_000L);
+        service.addToCart("round_user", "ROUND", 3);
+
+        CartLine line = service.getCartDetails("round_user").getData().get(0);
+        assertEquals(100L, line.getUnitPriceCents());
+        assertEquals(301L, line.getSubtotalCents());
+        assertEquals(300L, line.getUnitPriceCents() * line.getQuantity());// 单价乘数量少一分，不可用于合计
+
+        long balanceBefore = bankRepo.findByUserId("round_user").getBalanceCents();
+        assertEquals(StatusCode.OK, service.checkout("round_user").getStatus());
+        assertEquals(balanceBefore - line.getSubtotalCents(), bankRepo.findByUserId("round_user").getBalanceCents());
+    }
+
+    // 充值成功后记一笔 RECHARGE 流水：金额为正，操作者是本人，余额快照与账户一致
+    @Test
+    void testRechargeRecordsLedgerEntry() {
+        ServiceResult<Void> testResult = service.recharge("ledger_user", 5000L);
+
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        List<WalletTransaction> entries = ledgerRepo.findByUserId("ledger_user");
+        assertEquals(1, entries.size());
+        WalletTransaction entry = entries.get(0);
+        assertEquals(WalletTransactionType.RECHARGE, entry.getType());
+        assertEquals(5000L, entry.getAmountCents());
+        assertEquals(5000L, entry.getBalanceAfterCents());
+        assertEquals("ledger_user", entry.getOperatorId());
+    }
+
+    // 购买成功后记一笔 PURCHASE 流水：金额为负，备注带上订单编号，可双向追溯
+    @Test
+    void testPurchaseRecordsLedgerEntryWithOrderReference() {
+        bankRepo.credit("ledger_user", 100_000L);
+
+        assertEquals(StatusCode.OK, service.purchase("ledger_user", "00001", 2).getStatus());
+
+        List<WalletTransaction> entries = ledgerRepo.findByUserId("ledger_user");
+        assertEquals(1, entries.size());
+        WalletTransaction entry = entries.get(0);
+        assertEquals(WalletTransactionType.PURCHASE, entry.getType());
+        assertEquals(-500L, entry.getAmountCents());// Apple 2.5 元 × 2 件
+        assertEquals(100_000L - 500L, entry.getBalanceAfterCents());
+        String orderId = orders.findByUserId("ledger_user").get(0).getOrderId();
+        assertEquals("order " + orderId, entry.getNote());
+    }
+
+    // 管理员校正余额：流水记下操作者编号，让「谁改的」不再随参数被丢弃
+    @Test
+    void testAdjustBalanceRecordsOperatorId() {
+        bankRepo.credit("ledger_user", 10_000L);
+
+        ServiceResult<Void> testResult = service.adjustBalance("admin001", "ledger_user", 25_000L);
+
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        List<WalletTransaction> entries = ledgerRepo.findByUserId("ledger_user");
+        assertEquals(1, entries.size());
+        assertEquals(WalletTransactionType.ADJUST, entries.get(0).getType());
+        assertEquals(15_000L, entries.get(0).getAmountCents());// 25000 - 10000 的差额
+        assertEquals(25_000L, entries.get(0).getBalanceAfterCents());
+        assertEquals("admin001", entries.get(0).getOperatorId());
+    }
+
+    // 操作者编号为空即拒绝，避免出现一条查不到责任人的校正流水
+    @Test
+    void testAdjustBalanceRejectsBlankAdminId() {
+        assertEquals(StatusCode.BAD_REQUEST, service.adjustBalance("  ", "0120", 100L).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.adjustBalance(null, "0120", 100L).getStatus());
+    }
+
+    // 补偿留痕：建单失败后流水留下一正一负两笔，累加为 0，余额复原
+    @Test
+    void testCompensationLeavesOffsettingLedgerEntries() {
+        InMemoryProductRepository p = new InMemoryProductRepository();
+        p.save(new Product("A", "A", 5, 2.0, "", "test"));
+        FailingOrderRepository o = new FailingOrderRepository(true);
+        InMemoryBankAccountRepository b = new InMemoryBankAccountRepository();
+        b.credit("u", 100_000L);
+        InMemoryWalletTransactionRepository ledger = new InMemoryWalletTransactionRepository();
+        DefaultStoreService svc = new DefaultStoreService(p, o, new InMemoryCartRepository(), b, ledger);
+
+        assertEquals(StatusCode.CONFLICT, svc.purchase("u", "A", 2).getStatus());
+
+        List<WalletTransaction> entries = ledger.findByUserId("u");
+        assertEquals(2, entries.size());
+        // 同毫秒内的两笔流水排序不保证与业务顺序一致，故按类型查找而不是按下标
+        WalletTransaction purchaseEntry = null;
+        WalletTransaction refundEntry = null;
+        long netCents = 0L;
+        for (WalletTransaction entry : entries) {
+            netCents += entry.getAmountCents();
+            if (entry.getType() == WalletTransactionType.PURCHASE)
+                purchaseEntry = entry;
+            if (entry.getType() == WalletTransactionType.REFUND)
+                refundEntry = entry;
+        }
+        assertNotNull(purchaseEntry);
+        assertNotNull(refundEntry);
+        assertEquals(-400L, purchaseEntry.getAmountCents());
+        assertEquals(400L, refundEntry.getAmountCents());
+        assertEquals(0L, netCents);// 账面正负相抵
+        assertEquals(100_000L, b.findByUserId("u").getBalanceCents());// 余额已复原
+    }
+
+    // 结账逐件记账：两件商品产生两笔 CHECKOUT 流水，金额之和等于实际扣款
+    @Test
+    void testCheckoutRecordsOneLedgerEntryPerItem() {
+        bankRepo.credit("ledger_user", 100_000L);
+        service.addToCart("ledger_user", "00001", 2);
+        service.addToCart("ledger_user", "00002", 3);
+
+        assertEquals(StatusCode.OK, service.checkout("ledger_user").getStatus());
+
+        List<WalletTransaction> entries = ledgerRepo.findByUserId("ledger_user");
+        assertEquals(2, entries.size());
+        long totalCents = 0L;
+        for (WalletTransaction entry : entries) {
+            assertEquals(WalletTransactionType.CHECKOUT, entry.getType());
+            totalCents += entry.getAmountCents();
+        }
+        assertEquals(-950L, totalCents);// Apple 2.5×2=500 分，Banana 1.5×3=450 分
+        assertEquals(100_000L - 950L, bankRepo.findByUserId("ledger_user").getBalanceCents());
+    }
+
+    // 记账失败不得影响业务：流水仓库写不进去时购买照样成功、余额照样扣，只留一条错误日志
+    @Test
+    void testLedgerFailureDoesNotBreakPurchase() {
+        InMemoryProductRepository p = new InMemoryProductRepository();
+        p.save(new Product("A", "A", 5, 2.0, "", "test"));
+        InMemoryOrderRepository o = new InMemoryOrderRepository();
+        InMemoryBankAccountRepository b = new InMemoryBankAccountRepository();
+        b.credit("u", 100_000L);
+        DefaultStoreService svc = new DefaultStoreService(p, o, new InMemoryCartRepository(), b,
+                new FailingWalletTransactionRepository());
+
+        assertEquals(StatusCode.OK, svc.purchase("u", "A", 2).getStatus());
+        assertEquals(1, o.findByUserId("u").size());
+        assertEquals(100_000L - 400L, b.findByUserId("u").getBalanceCents());
+    }
+
+    // 流水按用户隔离：查自己的账看不到别人的流水
+    @Test
+    void testListTransactionsIsolatedPerUser() {
+        service.recharge("ledger_a", 1000L);
+        service.recharge("ledger_b", 2000L);
+
+        ServiceResult<List<WalletTransaction>> testResult = service.listTransactions("ledger_a");
+
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertEquals(1, testResult.getData().size());
+        assertEquals("ledger_a", testResult.getData().get(0).getUserId());
+    }
+
+    // 用户编号为空即拒绝，避免返回全表流水
+    @Test
+    void testListTransactionsRejectsBlankUserId() {
+        assertEquals(StatusCode.BAD_REQUEST, service.listTransactions("  ").getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.listTransactions(null).getStatus());
+    }
+
+    // 无流水的用户返回空列表而非 null，前端可直接遍历
+    @Test
+    void testListTransactionsReturnsEmptyForUnknownUser() {
+        ServiceResult<List<WalletTransaction>> testResult = service.listTransactions("nobody");
+
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertTrue(testResult.getData().isEmpty());
+    }
+
+    // 防御性拷贝：查询结果不可被调用方改写，避免绕过服务层直接篡改仓库数据
+    @Test
+    void testQueryResultsAreUnmodifiable() {
+        service.addToCart("0120", "00001", 1);
+        service.purchase("0120", "00002", 1);
+        service.recharge("0120", 100L);
+
+        assertThrows(UnsupportedOperationException.class, () -> service.getCart("0120").getData().clear());
+        assertThrows(UnsupportedOperationException.class, () -> service.getCartDetails("0120").getData().clear());
+        assertThrows(UnsupportedOperationException.class,
+                () -> service.findOrdersByUserId("0120").getData().clear());
+        assertThrows(UnsupportedOperationException.class, () -> service.findAllOrders().getData().clear());
+        assertThrows(UnsupportedOperationException.class, () -> service.listTransactions("0120").getData().clear());
+    }
+
     private static final class FailingOrderRepository implements OrderRepository {
         private final InMemoryOrderRepository delegate = new InMemoryOrderRepository();
         private int createCount;
@@ -915,6 +1199,19 @@ class StoreServiceTest {
         @Override
         public boolean deductStock(String productId, int qty) {
             return delegate.deductStock(productId, qty);
+        }
+    }
+
+    // 可控流水替身：注入 append 失败，用于验证记账失败不会影响业务结果
+    private static final class FailingWalletTransactionRepository implements WalletTransactionRepository {
+        @Override
+        public boolean append(WalletTransaction transaction) {
+            return false;
+        }
+
+        @Override
+        public List<WalletTransaction> findByUserId(String userId) {
+            return new java.util.ArrayList<WalletTransaction>();
         }
     }
 }

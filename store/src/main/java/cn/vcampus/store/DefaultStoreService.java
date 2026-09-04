@@ -14,32 +14,42 @@ public final class DefaultStoreService implements StoreService {
     private final OrderRepository orders;// 订单仓库
     private final CartRepository cart;// 购物车仓库
     private final BankAccountRepository bank;// 银行账户仓库
+    private final WalletTransactionRepository ledger;// 钱包流水仓库
 
-    // 依赖注入：2 参构造默认内存购物车 + 内存银行账户
+    // 依赖注入：2 参构造默认内存购物车 + 内存银行账户 + 内存流水
     public DefaultStoreService(ProductRepository products, OrderRepository orders) {
         this(products, orders, new InMemoryCartRepository());
     }
 
-    // 3 参构造默认内存银行账户
+    // 3 参构造默认内存银行账户 + 内存流水
     public DefaultStoreService(ProductRepository products, OrderRepository orders, CartRepository cart) {
         this(products, orders, cart, new InMemoryBankAccountRepository());
     }
 
-    // 4 参主构造：注入全部依赖
+    // 4 参构造默认内存流水
     public DefaultStoreService(ProductRepository products, OrderRepository orders, CartRepository cart,
             BankAccountRepository bank) {
-        if (products == null || orders == null || cart == null || bank == null) {
+        this(products, orders, cart, bank, new InMemoryWalletTransactionRepository());
+    }
+
+    // 5 参主构造：注入全部依赖
+    public DefaultStoreService(ProductRepository products, OrderRepository orders, CartRepository cart,
+            BankAccountRepository bank, WalletTransactionRepository ledger) {
+        if (products == null || orders == null || cart == null || bank == null || ledger == null) {
             throw new IllegalArgumentException("store repositories must not be null");
         }
         this.products = products;
         this.orders = orders;
         this.cart = cart;
         this.bank = bank;
+        this.ledger = ledger;
     }
 
     // 列出所有商品，使用serviceresult类的ok方法打包返回
+    // 只读方法不与 purchase/checkout 抢写锁：商品仓库自身已保证读取安全（内存版返回新列表，
+    // Access 版每次独立连接），加锁只会让浏览商品被一次慢购买阻塞
     @Override
-    public synchronized final ServiceResult<List<Product>> listProducts() {
+    public final ServiceResult<List<Product>> listProducts() {
         List<Product> result = new ArrayList<Product>();
         for (Product product : products.findAll()) {
             if (product.isActive())
@@ -61,8 +71,9 @@ public final class DefaultStoreService implements StoreService {
         if (quantity <= 0)
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "Quantity must be positive");
         // 预检（仅提示）：库存是否充足，真正裁决由原子 deductStock 决定
+        // 库存不足属于「请求合法但资源状态冲突」，与原子扣减失败统一返回 CONFLICT
         if (toBuy.getStock() < quantity)
-            return ServiceResult.failure(StatusCode.BAD_REQUEST, "No enough stock");
+            return ServiceResult.failure(StatusCode.CONFLICT, "Insufficient stock");
         // 支付边界一次性换算：double 元 → long 分
         double totalPrice = toBuy.getPrice() * quantity;
         long totalCents = Math.round(totalPrice * 100);
@@ -73,15 +84,19 @@ public final class DefaultStoreService implements StoreService {
         // 原子扣库存：锁内 stock>=qty 才扣，false 说明被并发抢先
         if (!products.deductStock(productId, quantity))
             return ServiceResult.failure(StatusCode.CONFLICT, "Product stock changed; retry purchase");
+        // 订单编号提前生成，供流水备注引用，实现「这笔扣款对应哪张订单」的双向追溯
+        String orderId = UUID.randomUUID().toString();
         // 原子扣款：锁内 balance>=cents 才扣，false 则回补库存
         if (!bank.debit(userId, totalCents)) {
             if (!products.addStock(productId, quantity))
                 return ServiceResult.failure(StatusCode.CONFLICT, "Insufficient balance and stock restore failed");
             return ServiceResult.failure(StatusCode.PAYMENT_REQUIRED, "Insufficient balance");
         }
+        // 钱已实际扣走，立即记账；后续建单失败会再记一笔 REFUND，账面上正负相抵
+        recordLedger(userId, WalletTransactionType.PURCHASE, -totalCents, userId, "order " + orderId);
         // 建单：UUID 唯一业务编号；false/异常则退款 + 回补库存
         try {
-            Order newOrder = new Order(UUID.randomUUID().toString(), userId, productId, quantity, totalPrice,
+            Order newOrder = new Order(orderId, userId, productId, quantity, totalPrice,
                     LocalDateTime.now(), toBuy.getName(), toBuy.getPrice());
             if (!orders.create(newOrder)) {
                 refundAndRestore(userId, productId, quantity, totalCents);
@@ -98,19 +113,39 @@ public final class DefaultStoreService implements StoreService {
     private void refundAndRestore(String userId, String productId, int quantity, long cents) {
         if (!bank.credit(userId, cents))
             System.err.println("[compensation] refund failed for user " + userId + ", cents=" + cents);
+        else
+            recordLedger(userId, WalletTransactionType.REFUND, cents, userId, "purchase compensation");
         if (!products.addStock(productId, quantity))
             System.err.println("[compensation] restore stock failed for product " + productId + ", qty=" + quantity);
+    }
+
+    // 记一笔流水（尽力而为）：记账失败只记日志，绝不因审计写不进去而回滚一笔已成功的资金变动；
+    // balanceAfterCents 在余额写入后回读，并发下可能不等于「变动前 + 本次金额」，仅作展示
+    private void recordLedger(String userId, WalletTransactionType type, long amountCents, String operatorId,
+            String note) {
+        try {
+            BankAccount after = bank.findByUserId(userId);
+            long balanceAfterCents = after == null ? 0L : after.getBalanceCents();
+            WalletTransaction entry = new WalletTransaction(UUID.randomUUID().toString(), userId, type, amountCents,
+                    balanceAfterCents, operatorId, note, LocalDateTime.now());
+            if (!ledger.append(entry))
+                System.err.println("[ledger] append rejected for user " + userId + ", type=" + type);
+        } catch (RuntimeException failure) {
+            System.err.println(
+                    "[ledger] append failed for user " + userId + ", type=" + type + ": " + failure.getMessage());
+        }
     }
 
     // 根据用户ID查询订单
     @Override
     public final ServiceResult<List<Order>> findOrdersByUserId(String userId) {
-        return ServiceResult.ok(orders.findByUserId(userId));
+        return ServiceResult.ok(
+                Collections.unmodifiableList(new ArrayList<Order>(orders.findByUserId(userId))));
     }
 
-    // 补货
+    // 补货：操作者身份由通信层 STORE_MANAGE 权限门槛保证，服务层不再接收无用参数
     @Override
-    public final ServiceResult<Void> restock(String userId, String productId, int additionalStock) {
+    public final ServiceResult<Void> restock(String productId, int additionalStock) {
         if (additionalStock <= 0)
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "additionalStock must be positive");
         return products.addStock(productId, additionalStock)
@@ -151,9 +186,9 @@ public final class DefaultStoreService implements StoreService {
         }
     }
 
-    // 下架商品
+    // 下架商品：操作者身份由通信层 STORE_MANAGE 权限门槛保证，服务层不再接收无用参数
     @Override
-    public final ServiceResult<Void> deactivateProduct(String userId, String productId) {
+    public final ServiceResult<Void> deactivateProduct(String productId) {
         Product existing = products.findById(productId);
         if (existing == null)
             return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
@@ -188,10 +223,47 @@ public final class DefaultStoreService implements StoreService {
         return ServiceResult.failure(StatusCode.NOT_FOUND, "Cart item not found");
     }
 
+    // 修改购物车条目数量：先按归属校验，条目不属于本人一律按不存在处理，避免指定他人 cartItemId 越权改数量
+    @Override
+    public final ServiceResult<Void> updateCartQuantity(String userId, String cartItemId, int newQuantity) {
+        if (userId == null || userId.trim().isEmpty())
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId must not be blank");
+        if (cartItemId == null || cartItemId.trim().isEmpty())
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "cartItemId must not be blank");
+        if (newQuantity <= 0)
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "newQuantity must be positive");
+        for (CartItem item : cart.findByUserId(userId)) {
+            if (item.getCartItemId().equals(cartItemId)) {
+                return cart.updateQuantity(cartItemId, newQuantity) ? ServiceResult.ok(null)
+                        : ServiceResult.failure(StatusCode.NOT_FOUND, "Cart item not found");
+            }
+        }
+        return ServiceResult.failure(StatusCode.NOT_FOUND, "Cart item not found");
+    }
+
     // 查询购物车
     @Override
     public final ServiceResult<List<CartItem>> getCart(String userId) {
-        return ServiceResult.ok(cart.findByUserId(userId));
+        return ServiceResult.ok(Collections.unmodifiableList(new ArrayList<CartItem>(cart.findByUserId(userId))));
+    }
+
+    // 购物车明细：读取时与商品实时联表，商品已被物理删除的行直接跳过（无名称与价格可用）；
+    // 小计与 checkout 实扣同式，保证前端展示的合计与实际扣款一致
+    @Override
+    public final ServiceResult<List<CartLine>> getCartDetails(String userId) {
+        if (userId == null || userId.trim().isEmpty())
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId must not be blank");
+        List<CartLine> lines = new ArrayList<CartLine>();
+        for (CartItem item : cart.findByUserId(userId)) {
+            Product product = products.findById(item.getProductId());
+            if (product == null)
+                continue;
+            long unitPriceCents = Math.round(product.getPrice() * 100);
+            long subtotalCents = Math.round(product.getPrice() * item.getQuantity() * 100);
+            lines.add(new CartLine(item.getCartItemId(), product.getProductId(), product.getName(), unitPriceCents,
+                    item.getQuantity(), subtotalCents, product.isActive(), item.getAddedAt()));
+        }
+        return ServiceResult.ok(Collections.unmodifiableList(lines));
     }
 
     // 购物车结账：加锁，与 purchase 共用同一把锁；逐项 原子扣库存 → 原子扣款 → 建单 → 清空
@@ -204,8 +276,11 @@ public final class DefaultStoreService implements StoreService {
         long estimatedCents = 0L;
         for (CartItem item : items) {
             Product product = products.findById(item.getProductId());
-            if (product == null || !product.isActive() || product.getStock() < item.getQuantity())
-                return ServiceResult.failure(StatusCode.BAD_REQUEST, "Cart contains unavailable stock");
+            // 商品不存在或已下架是 NOT_FOUND，库存不足是 CONFLICT，两种语义分开返回
+            if (product == null || !product.isActive())
+                return ServiceResult.failure(StatusCode.NOT_FOUND, "Cart contains unavailable product");
+            if (product.getStock() < item.getQuantity())
+                return ServiceResult.failure(StatusCode.CONFLICT, "Insufficient stock in cart");
             estimatedCents += Math.round(product.getPrice() * item.getQuantity() * 100);
         }
         BankAccount account = bank.findByUserId(userId);
@@ -223,6 +298,8 @@ public final class DefaultStoreService implements StoreService {
                 return ServiceResult.failure(StatusCode.CONFLICT, "Product stock changed; checkout rolled back");
             }
             deducted.add(item);
+            // 订单编号提前生成，供流水备注引用
+            String orderId = UUID.randomUUID().toString();
             // 原子扣款
             long itemCents = Math.round(product.getPrice() * item.getQuantity() * 100);
             if (!bank.debit(userId, itemCents)) {
@@ -230,9 +307,11 @@ public final class DefaultStoreService implements StoreService {
                 return ServiceResult.failure(StatusCode.CONFLICT, "Insufficient balance; checkout rolled back");
             }
             debitedCents += itemCents;
+            // 钱已实际扣走，逐笔记账；回滚时会再记一笔合计 REFUND，账面正负相抵
+            recordLedger(userId, WalletTransactionType.CHECKOUT, -itemCents, userId, "order " + orderId);
             // 建单
             try {
-                Order order = new Order(UUID.randomUUID().toString(), userId, product.getProductId(),
+                Order order = new Order(orderId, userId, product.getProductId(),
                         item.getQuantity(), product.getPrice() * item.getQuantity(), LocalDateTime.now(),
                         product.getName(), product.getPrice());
                 if (!orders.create(order)) {
@@ -265,14 +344,18 @@ public final class DefaultStoreService implements StoreService {
             if (!products.addStock(item.getProductId(), item.getQuantity()))
                 System.err.println("[compensation] restore stock failed: " + item.getProductId());
         }
-        if (debitedCents > 0 && !bank.credit(userId, debitedCents))
-            System.err.println("[compensation] refund failed for user " + userId + ", cents=" + debitedCents);
+        if (debitedCents > 0) {
+            if (!bank.credit(userId, debitedCents))
+                System.err.println("[compensation] refund failed for user " + userId + ", cents=" + debitedCents);
+            else
+                recordLedger(userId, WalletTransactionType.REFUND, debitedCents, userId, "checkout compensation");
+        }
     }
 
     // 查询所有订单
     @Override
     public final ServiceResult<List<Order>> findAllOrders() {
-        return ServiceResult.ok(orders.findAll());
+        return ServiceResult.ok(Collections.unmodifiableList(new ArrayList<Order>(orders.findAll())));
     }
 
     // 热销商品排行
@@ -314,28 +397,45 @@ public final class DefaultStoreService implements StoreService {
         return account == null ? 0L : account.getBalanceCents();
     }
 
-    // 本人充值：仅增加，cents 必须为正，走 credit（懒建户）
+    // 本人充值：仅增加，cents 必须为正，走 credit（懒建户），入账后记一笔 RECHARGE 流水
     @Override
     public final ServiceResult<Void> recharge(String userId, long cents) {
         if (userId == null || userId.trim().isEmpty())
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId must not be blank");
         if (cents <= 0)
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "recharge amount must be positive");
-        return bank.credit(userId, cents)
-                ? ServiceResult.ok(null)
-                : ServiceResult.failure(StatusCode.CONFLICT, "Could not recharge account");
+        if (!bank.credit(userId, cents))
+            return ServiceResult.failure(StatusCode.CONFLICT, "Could not recharge account");
+        recordLedger(userId, WalletTransactionType.RECHARGE, cents, userId, null);
+        return ServiceResult.ok(null);
     }
 
-    // 管理员校正余额：目标余额非负，走 setBalance（绝对设置）；权限校验在 StoreMessageHandler
+    // 管理员校正余额：目标余额非负，走 setBalance（绝对设置）；权限校验在 StoreMessageHandler，
+    // 流水记差额并留下操作者编号，让「谁改的」不再丢失
     @Override
     public final ServiceResult<Void> adjustBalance(String adminId, String userId, long newBalanceCents) {
+        if (adminId == null || adminId.trim().isEmpty())
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "adminId must not be blank");
         if (userId == null || userId.trim().isEmpty())
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId must not be blank");
         if (newBalanceCents < 0)
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "balance must not be negative");
-        return bank.setBalance(userId, newBalanceCents)
-                ? ServiceResult.ok(null)
-                : ServiceResult.failure(StatusCode.CONFLICT, "Could not adjust balance");
+        // 差额由校正前读到的余额推算；并发校正下可能与实际差额不符，以 balanceAfterCents 回读值为准
+        BankAccount before = bank.findByUserId(userId);
+        long beforeCents = before == null ? 0L : before.getBalanceCents();
+        if (!bank.setBalance(userId, newBalanceCents))
+            return ServiceResult.failure(StatusCode.CONFLICT, "Could not adjust balance");
+        recordLedger(userId, WalletTransactionType.ADJUST, newBalanceCents - beforeCents, adminId, null);
+        return ServiceResult.ok(null);
+    }
+
+    // 本人流水：按记账时间升序，无流水返回空列表
+    @Override
+    public final ServiceResult<List<WalletTransaction>> listTransactions(String userId) {
+        if (userId == null || userId.trim().isEmpty())
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId must not be blank");
+        return ServiceResult.ok(Collections.unmodifiableList(
+                new ArrayList<WalletTransaction>(ledger.findByUserId(userId))));
     }
 
     private static boolean validPrice(double price) {
