@@ -149,10 +149,12 @@ class AccessUserManagementIntegrationTest {
     private void insertUnboundTeacher(String teacherId, String name) throws SQLException {
         try (Connection connection = open();
              java.sql.PreparedStatement statement = connection.prepareStatement(
-                     "INSERT INTO tblTeacher(teacher_id,user_id,teacher_name) VALUES(?,?,?)")) {
+                     "INSERT INTO tblTeacher(teacher_id,user_id,teacher_name,active) "
+                             + "VALUES(?,?,?,?)")) {
             statement.setString(1, teacherId);
             statement.setNull(2, java.sql.Types.VARCHAR);
             statement.setString(3, name);
+            statement.setBoolean(4, true);
             statement.executeUpdate();
         }
     }

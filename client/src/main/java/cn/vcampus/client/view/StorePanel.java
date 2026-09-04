@@ -11,6 +11,7 @@ import cn.vcampus.store.WalletTransaction;
 import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.io.IOException;
@@ -123,9 +124,7 @@ public final class StorePanel extends JPanel {
         setLayout(new BorderLayout(0, 18));
         setOpaque(false);
         add(header(), BorderLayout.NORTH);
-        add(tabs(), BorderLayout.CENTER);
-        status.setForeground(VCampusTheme.MUTED);
-        add(status, BorderLayout.SOUTH);
+        add(VCampusTheme.pageScroll(body()), BorderLayout.CENTER);
 
         searchButton.addActionListener(event -> loadProducts());
         hotButton.addActionListener(event -> toggleHotView());
@@ -160,6 +159,26 @@ public final class StorePanel extends JPanel {
 
         updateButtonState();
         loadBalance();
+    }
+
+    /**
+     * 页面主体：把功能页签包进可垂直滚动的 {@link ScrollablePagePanel}，窗口高度不足时整页滚动，
+     * 与图书馆/选课等面板共用统一的页面级滚动结构（对齐 PR #41 的前端刷新）。
+     */
+    private JPanel body() {
+        JPanel panel = new ScrollablePagePanel(new BorderLayout(0, 12));
+        panel.setOpaque(false);
+        JTabbedPane tabs = tabs();
+        tabs.setPreferredSize(new Dimension(0, 430));
+        tabs.setMinimumSize(new Dimension(0, 300));
+        panel.add(tabs, BorderLayout.CENTER);
+
+        JPanel statusPanel = new JPanel(new BorderLayout());
+        VCampusTheme.panel(statusPanel);
+        status.setForeground(VCampusTheme.MUTED);
+        statusPanel.add(status, BorderLayout.CENTER);
+        panel.add(statusPanel, BorderLayout.SOUTH);
+        return panel;
     }
 
     private JPanel header() {

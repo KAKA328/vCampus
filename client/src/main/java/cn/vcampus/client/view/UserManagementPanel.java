@@ -16,8 +16,6 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Frame;
-import java.awt.GridLayout;
-import java.awt.Rectangle;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -31,7 +29,6 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.ListSelectionModel;
-import javax.swing.Scrollable;
 import javax.swing.SwingWorker;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -110,13 +107,7 @@ final class UserManagementPanel extends JPanel {
     }
 
     private JScrollPane scrollingBody() {
-        JScrollPane scroller = new JScrollPane(body());
-        scroller.setBorder(null);
-        scroller.setOpaque(false);
-        scroller.getViewport().setOpaque(false);
-        scroller.getVerticalScrollBar().setUnitIncrement(16);
-        scroller.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        return scroller;
+        return VCampusTheme.pageScroll(body());
     }
 
     private JPanel header() {
@@ -133,16 +124,14 @@ final class UserManagementPanel extends JPanel {
     }
 
     private JPanel body() {
-        JPanel panel = new VerticalScrollPanel(new BorderLayout(0, 0));
+        JPanel panel = new ScrollablePagePanel(new BorderLayout(0, 0));
         panel.setOpaque(false);
 
-        JPanel accountActions = new JPanel(new BorderLayout(18, 0));
-        accountActions.setOpaque(false);
-        accountActions.add(singleAccountCard(), BorderLayout.WEST);
-        accountActions.add(importCard(), BorderLayout.CENTER);
+        ResponsiveCardRowPanel accountActions = new ResponsiveCardRowPanel(300, 18);
+        accountActions.add(singleAccountCard());
+        accountActions.add(importCard());
 
-        JPanel lowerCards = new JPanel(new GridLayout(1, 2, 18, 0));
-        lowerCards.setOpaque(false);
+        ResponsiveCardRowPanel lowerCards = new ResponsiveCardRowPanel(300, 18);
         lowerCards.add(passwordResetCard());
         lowerCards.add(auditCard());
 
@@ -162,20 +151,24 @@ final class UserManagementPanel extends JPanel {
     private JPanel singleAccountCard() {
         JPanel card = new JPanel(new BorderLayout(0, 14));
         VCampusTheme.panel(card);
-        card.setPreferredSize(new Dimension(260, 0));
-        card.setMinimumSize(new Dimension(220, 180));
+        card.setPreferredSize(new Dimension(300, 260));
+        card.setMinimumSize(new Dimension(260, 220));
 
         JLabel title = new JLabel("单个账号注册");
         title.setFont(VCampusTheme.font(Font.BOLD, 18));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
 
-        JPanel action = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        JPanel action = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, 0, 0));
         action.setOpaque(false);
         VCampusTheme.primaryButton(createButton);
         action.add(createButton);
 
+        JLabel hint = new JLabel("<html>适合为已有学生/教师档案或管理岗位创建单个账号。</html>");
+        hint.setForeground(VCampusTheme.MUTED);
+
         card.add(title, BorderLayout.NORTH);
-        card.add(action, BorderLayout.CENTER);
+        card.add(hint, BorderLayout.CENTER);
+        card.add(action, BorderLayout.SOUTH);
         return card;
     }
 
@@ -190,12 +183,11 @@ final class UserManagementPanel extends JPanel {
         title.setForeground(VCampusTheme.PRIMARY_DARK);
 
         configureAccountTable();
-        JScrollPane tableScroll = new JScrollPane(accountTable);
-        tableScroll.setBorder(javax.swing.BorderFactory.createLineBorder(VCampusTheme.BORDER));
+        JScrollPane tableScroll = VCampusTheme.scrollPane(accountTable);
 
         JPanel footer = new JPanel(new BorderLayout(0, 10));
         footer.setOpaque(false);
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, 8, 4));
         actions.setOpaque(false);
         VCampusTheme.secondaryButton(refreshAccountsButton);
         VCampusTheme.primaryButton(enableAccountButton);
@@ -226,12 +218,11 @@ final class UserManagementPanel extends JPanel {
         title.setForeground(VCampusTheme.PRIMARY_DARK);
 
         configureResetTable();
-        JScrollPane tableScroll = new JScrollPane(resetTable);
-        tableScroll.setBorder(javax.swing.BorderFactory.createLineBorder(VCampusTheme.BORDER));
+        JScrollPane tableScroll = VCampusTheme.scrollPane(resetTable);
 
         JPanel footer = new JPanel(new BorderLayout(0, 10));
         footer.setOpaque(false);
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, 8, 4));
         actions.setOpaque(false);
         VCampusTheme.secondaryButton(refreshResetButton);
         VCampusTheme.primaryButton(approveResetButton);
@@ -252,7 +243,8 @@ final class UserManagementPanel extends JPanel {
     private JPanel importCard() {
         JPanel card = new JPanel(new BorderLayout(0, 12));
         VCampusTheme.panel(card);
-        card.setMinimumSize(new Dimension(420, 260));
+        card.setPreferredSize(new Dimension(620, 260));
+        card.setMinimumSize(new Dimension(300, 260));
 
         JPanel titlePanel = new JPanel(new BorderLayout(0, 4));
         titlePanel.setOpaque(false);
@@ -265,8 +257,7 @@ final class UserManagementPanel extends JPanel {
         titlePanel.add(hint, BorderLayout.SOUTH);
 
         configureTable();
-        JScrollPane tableScroll = new JScrollPane(importTable);
-        tableScroll.setBorder(javax.swing.BorderFactory.createLineBorder(VCampusTheme.BORDER));
+        JScrollPane tableScroll = VCampusTheme.scrollPane(importTable);
 
         card.add(titlePanel, BorderLayout.NORTH);
         card.add(tableScroll, BorderLayout.CENTER);
@@ -285,12 +276,11 @@ final class UserManagementPanel extends JPanel {
         title.setForeground(VCampusTheme.PRIMARY_DARK);
 
         configureAuditTable();
-        JScrollPane tableScroll = new JScrollPane(auditTable);
-        tableScroll.setBorder(javax.swing.BorderFactory.createLineBorder(VCampusTheme.BORDER));
+        JScrollPane tableScroll = VCampusTheme.scrollPane(auditTable);
 
         JPanel footer = new JPanel(new BorderLayout(0, 10));
         footer.setOpaque(false);
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, 8, 4));
         actions.setOpaque(false);
         VCampusTheme.secondaryButton(refreshAuditButton);
         actions.add(refreshAuditButton);
@@ -305,11 +295,8 @@ final class UserManagementPanel extends JPanel {
     }
 
     private void configureTable() {
-        importTable.setRowHeight(30);
+        VCampusTheme.table(importTable);
         importTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        importTable.getTableHeader().setReorderingAllowed(false);
-        importTable.setGridColor(VCampusTheme.BORDER);
-        importTable.setShowVerticalLines(false);
         importTable.getColumnModel().getColumn(0).setPreferredWidth(120);
         importTable.getColumnModel().getColumn(1).setPreferredWidth(160);
         importTable.getColumnModel().getColumn(2).setPreferredWidth(120);
@@ -318,12 +305,9 @@ final class UserManagementPanel extends JPanel {
     }
 
     private void configureAccountTable() {
-        accountTable.setRowHeight(30);
+        VCampusTheme.table(accountTable);
         accountTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         accountTable.getSelectionModel().addListSelectionListener(event -> updateButtonState());
-        accountTable.getTableHeader().setReorderingAllowed(false);
-        accountTable.setGridColor(VCampusTheme.BORDER);
-        accountTable.setShowVerticalLines(false);
         accountTable.getColumnModel().getColumn(0).setPreferredWidth(120);
         accountTable.getColumnModel().getColumn(1).setPreferredWidth(120);
         accountTable.getColumnModel().getColumn(2).setPreferredWidth(110);
@@ -334,23 +318,17 @@ final class UserManagementPanel extends JPanel {
     }
 
     private void configureResetTable() {
-        resetTable.setRowHeight(30);
+        VCampusTheme.table(resetTable);
         resetTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         resetTable.getSelectionModel().addListSelectionListener(event -> updateButtonState());
-        resetTable.getTableHeader().setReorderingAllowed(false);
-        resetTable.setGridColor(VCampusTheme.BORDER);
-        resetTable.setShowVerticalLines(false);
         resetTable.getColumnModel().getColumn(0).setPreferredWidth(90);
         resetTable.getColumnModel().getColumn(1).setPreferredWidth(150);
         resetTable.getColumnModel().getColumn(2).setPreferredWidth(70);
     }
 
     private void configureAuditTable() {
-        auditTable.setRowHeight(30);
+        VCampusTheme.table(auditTable);
         auditTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        auditTable.getTableHeader().setReorderingAllowed(false);
-        auditTable.setGridColor(VCampusTheme.BORDER);
-        auditTable.setShowVerticalLines(false);
         auditTable.getColumnModel().getColumn(0).setPreferredWidth(150);
         auditTable.getColumnModel().getColumn(1).setPreferredWidth(100);
         auditTable.getColumnModel().getColumn(2).setPreferredWidth(140);
@@ -361,7 +339,7 @@ final class UserManagementPanel extends JPanel {
         JPanel panel = new JPanel(new BorderLayout(0, 10));
         panel.setOpaque(false);
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, 10, 4));
         actions.setOpaque(false);
         VCampusTheme.secondaryButton(chooseFileButton);
         VCampusTheme.primaryButton(importButton);
@@ -776,29 +754,4 @@ final class UserManagementPanel extends JPanel {
         return "服务器处理请求失败";
     }
 
-    private static final class VerticalScrollPanel extends JPanel implements Scrollable {
-        VerticalScrollPanel(BorderLayout layout) {
-            super(layout);
-        }
-
-        @Override public Dimension getPreferredScrollableViewportSize() {
-            return getPreferredSize();
-        }
-
-        @Override public int getScrollableUnitIncrement(Rectangle visibleRect, int orientation, int direction) {
-            return 16;
-        }
-
-        @Override public int getScrollableBlockIncrement(Rectangle visibleRect, int orientation, int direction) {
-            return Math.max(16, visibleRect.height - 32);
-        }
-
-        @Override public boolean getScrollableTracksViewportWidth() {
-            return true;
-        }
-
-        @Override public boolean getScrollableTracksViewportHeight() {
-            return false;
-        }
-    }
 }

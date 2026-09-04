@@ -2,9 +2,9 @@
 
 ## 当前状态
 
-当前 `main` 已包含 PR25 的协议整理、商店修复、数据库说明和主题接入工作。后续继续遵守 `AGENTS.md`：不得直接提交或强推 `main`，所有主线更新都通过短分支和 Pull Request 进入。
+当前 `main` 已包含 PR40 的学生/教师档案、授课范围校验和数据库重建策略说明。后续继续遵守 `AGENTS.md`：不得直接提交或强推 `main`，所有主线更新都通过短分支和 Pull Request 进入。
 
-当前文档修正分支为 `codex/update-handoff-pr25-status`，只更新交接状态，不携带此前临时补出的学籍兜底代码。
+当前本地整理分支为 `codex/ui-refresh-current-features`，主要更新 Swing 桌面端体验、角色工作台、本地功能助手和最新进度报告。
 
 ## PR 与分支状态
 
@@ -13,6 +13,7 @@
 - PR26 已关闭，基于较旧 `feature/store`，其商店功能已由 PR25/main 覆盖。
 - PR27 已关闭。PR27 是主线联调时临时补出的“学籍基础闭环”草稿，不再作为合并入口，避免影响学生学籍子系统同学的正式分支合并；如需参考，可在本地分支 `codex/mainline-access-integration` 查看。
 - `origin/feature/student-management` 当前没有打开的 PR；它相对 `origin/main` 是 main 侧多 37 个提交、学生分支多 1 个提交，说明该分支基于较早主线，需要先整理冲突再发 PR。
+- PR40 已于 2026-09-04 合并到 `main`，合并前 GitHub `Java CI / build` 通过。数据库验收策略已明确为允许弃用旧 `.accdb`，统一使用最新 `schema.sql` + `seed.sql` 重建。
 
 ## 已进入 main 的主要工作
 
@@ -25,6 +26,7 @@
 - `--db` 模式下用户、学生/教师档案、商店商品、订单、购物车、钱包，以及选课的课程目录、教学班、培养方案、轮次、选课记录与学生选课资料均使用同一个 Access 数据库。
 - `VCampusTheme` 已覆盖登录、主界面、用户管理、商店、选课页面；`CourseSelectionPanel` 与 `CourseManagementPanel` 已统一按钮、表格、字体、边框和状态色。
 - 数据库迁移已修正为：全新数据库由 `schema.sql` 创建 `active`，旧商店库使用 `007_store_product_active.up.sql`；不要同时在 `004_store.up.sql` 和 `007` 重复添加字段。
+- 桌面端 UI 刷新已在本地分支完成主要实现：工作台状态卡、快捷操作、统一表格/滚动样式、自适应页面布局和本地功能助手。
 
 ## 已验证内容
 
@@ -35,11 +37,12 @@
 
 ## 仍需处理的问题
 
-- 学生学籍模块应优先由 `origin/feature/student-management` 的正式分支承接。该分支新增了 `StudentRepository`、`DefaultStudentManagementService`、`AccessStudentRepository`、学生查询/更新命令、`tblClass`/学籍迁移和后端测试，但暂未接入 Swing 学籍页面。当前直接合并会在 `server/src/main/java/cn/vcampus/server/ServerApplication.java` 发生内容冲突，需要按当前 main 的 PR25 后路由和启动工厂形状重新整理。
+- 学生学籍模块已通过 PR33 合入主线，包含 Repository、Access 持久化、Token 身份映射、服务器 Handler、选课资料适配、Swing 学籍页面和权限测试；后续在新功能分支继续完善学业审查口径与教师授课范围。
 - 图书馆仍缺少完整 Handler、Access 仓储、远程客户端服务和 Swing 页面。
 - 选课 V2 仍需并发选课和客户端刷新竞态验证。
 - 商店客户端目前只暴露查询、购买和本人订单；商店管理员页面仍待补齐。Access 购物车持久化已接入，但结账跨 JDBC 连接仍采用应用层补偿，不是数据库跨表事务。
 - 还需要用真实服务器进程 + Swing 客户端 + 机房 `.accdb` 文件做人工演示截图。
+- 最新进度报告见 `docs/PROGRESS_REPORT_2026-09-04.md`，Word 版报告由同一内容生成，避免文档口径分叉。
 
 ## 下一步建议
 

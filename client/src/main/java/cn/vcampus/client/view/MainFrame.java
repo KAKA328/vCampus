@@ -5,18 +5,19 @@ import cn.vcampus.common.Role;
 import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
-import java.awt.GridLayout;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import javax.swing.JButton;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.SwingConstants;
 
 /** Main dashboard shell after login. */
@@ -41,8 +42,8 @@ public final class MainFrame extends JFrame {
     private void build() {
         VCampusTheme.install();
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setMinimumSize(new Dimension(980, 620));
-        setSize(980, 620);
+        setMinimumSize(new Dimension(1024, 640));
+        setSize(1080, 680);
         setLocationRelativeTo(null);
 
         JPanel root = new JPanel(new BorderLayout(0, 0));
@@ -50,21 +51,55 @@ public final class MainFrame extends JFrame {
         root.add(header(), BorderLayout.NORTH);
         root.add(nav(), BorderLayout.WEST);
         root.add(contentPanel(), BorderLayout.CENTER);
-        setContentPane(root);
+        final AssistantPanel[] assistantRef = new AssistantPanel[1];
+        javax.swing.JLayeredPane layered = new javax.swing.JLayeredPane() {
+            @Override public void doLayout() {
+                root.setBounds(0, 0, getWidth(), getHeight());
+                int margin = Math.max(14, getWidth() / 70);
+                AssistantPanel current = assistantRef[0];
+                if (current != null) {
+                    java.awt.Dimension size = current.getPreferredSize();
+                    current.setBounds(Math.max(0, getWidth() - size.width - margin),
+                            Math.max(0, getHeight() - size.height - margin), size.width, size.height);
+                }
+            }
+        };
+        AssistantPanel assistant = new AssistantPanel(session.getUser().getRole(),
+                navigationModel.visibleModuleCards(session.getUser().getRole()), this::showModule);
+        assistantRef[0] = assistant;
+        layered.add(root, javax.swing.JLayeredPane.DEFAULT_LAYER);
+        layered.add(assistant, javax.swing.JLayeredPane.PALETTE_LAYER);
+        layered.addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override public void componentResized(java.awt.event.ComponentEvent event) {
+                assistant.resizeForWindow(layered.getWidth(), layered.getHeight());
+                layered.revalidate();
+            }
+        });
+        setContentPane(layered);
         showHome();
     }
 
     private JPanel header() {
         JPanel panel = new JPanel(new BorderLayout());
-        panel.setBackground(VCampusTheme.PRIMARY_DARK);
-        panel.setBorder(VCampusTheme.padding(16, 24, 16, 24));
+        panel.setBackground(VCampusTheme.HEADER_BACKGROUND);
+        panel.setBorder(javax.swing.BorderFactory.createCompoundBorder(
+                javax.swing.BorderFactory.createMatteBorder(0, 0, 1, 0, VCampusTheme.HEADER_BACKGROUND.darker()),
+                VCampusTheme.padding(16, 28, 16, 28)));
 
-        JLabel title = new JLabel("vCampus 虚拟校园综合管理系统");
+        JLabel title = new JLabel("vCampus");
         title.setForeground(Color.WHITE);
-        title.setFont(VCampusTheme.font(Font.BOLD, 18));
+        title.setFont(VCampusTheme.font(Font.BOLD, 22));
+
+        JLabel subtitle = new JLabel("虚拟校园综合管理系统");
+        subtitle.setForeground(new Color(219, 234, 254));
+
+        JPanel brand = new JPanel(new BorderLayout(0, 2));
+        brand.setOpaque(false);
+        brand.add(title, BorderLayout.NORTH);
+        brand.add(subtitle, BorderLayout.SOUTH);
 
         JLabel user = new JLabel(session.getUser().getDisplayName() + "  /  " + session.getUser().getRole());
-        user.setForeground(new Color(223, 236, 248));
+        user.setForeground(Color.WHITE);
         user.setHorizontalAlignment(SwingConstants.RIGHT);
 
         JButton logout = new JButton("退出登录");
@@ -76,7 +111,7 @@ public final class MainFrame extends JFrame {
         right.add(user, BorderLayout.CENTER);
         right.add(logout, BorderLayout.EAST);
 
-        panel.add(title, BorderLayout.WEST);
+        panel.add(brand, BorderLayout.WEST);
         panel.add(right, BorderLayout.EAST);
         return panel;
     }
@@ -84,15 +119,18 @@ public final class MainFrame extends JFrame {
     private JPanel nav() {
         JPanel outer = new JPanel(new BorderLayout(0, 14));
         outer.setBackground(VCampusTheme.SIDEBAR);
-        outer.setBorder(VCampusTheme.padding(20, 16, 20, 16));
-        outer.setPreferredSize(new Dimension(190, 0));
+        outer.setBorder(javax.swing.BorderFactory.createCompoundBorder(
+                javax.swing.BorderFactory.createMatteBorder(0, 0, 0, 1, VCampusTheme.BORDER),
+                VCampusTheme.padding(22, 18, 22, 18)));
+        outer.setPreferredSize(new Dimension(226, 0));
 
         JLabel title = new JLabel("功能导航");
-        title.setForeground(VCampusTheme.PRIMARY_DARK);
+        title.setForeground(VCampusTheme.PRIMARY);
         title.setFont(VCampusTheme.font(Font.BOLD, 16));
         outer.add(title, BorderLayout.NORTH);
 
-        JPanel buttons = new JPanel(new GridLayout(0, 1, 0, 10));
+        JPanel buttons = new JPanel();
+        buttons.setLayout(new BoxLayout(buttons, BoxLayout.Y_AXIS));
         buttons.setOpaque(false);
         addNavButton(buttons, HOME, e -> showHome());
         for (ModuleDescriptor module : navigationModel.visibleModuleCards(session.getUser().getRole())) {
@@ -106,8 +144,10 @@ public final class MainFrame extends JFrame {
         JButton button = new JButton(title);
         VCampusTheme.navButton(button, false);
         button.addActionListener(listener);
+        button.setAlignmentX(Component.LEFT_ALIGNMENT);
         navButtons.put(title, button);
         panel.add(button);
+        panel.add(Box.createVerticalStrut(8));
     }
 
     private JPanel contentPanel() {
@@ -128,17 +168,14 @@ public final class MainFrame extends JFrame {
         panel.setOpaque(false);
         panel.add(sectionTitle("工作台", "选择当前账号可访问的业务功能。"), BorderLayout.NORTH);
 
-        ResponsiveModuleGridPanel grid = new ResponsiveModuleGridPanel();
         List<ModuleDescriptor> modules = navigationModel.visibleModuleCards(session.getUser().getRole());
-        for (ModuleDescriptor module : modules) {
-            grid.add(new ModuleCardPanel(module, e -> showModule(module)));
-        }
-        JScrollPane scroller = new JScrollPane(grid);
-        scroller.setBorder(null);
-        scroller.setOpaque(false);
-        scroller.getViewport().setOpaque(false);
-        scroller.getVerticalScrollBar().setUnitIncrement(16);
-        panel.add(scroller, BorderLayout.CENTER);
+        panel.add(new DashboardWorkbenchPanel(
+                session.getUser().getDisplayName(),
+                session.getUser().getRole().name(),
+                modules,
+                module -> new ModuleCardPanel(module, e -> showModule(module)),
+                this::showModule),
+                BorderLayout.CENTER);
         return panel;
     }
 

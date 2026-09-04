@@ -27,6 +27,11 @@ public final class CourseHistoryRecord implements Serializable {
             boolean passed,
             int earnedCredits
     ) {
+        this.studentId = requireText(studentId, "studentId");
+        this.courseId = requireText(courseId, "courseId");
+        this.courseName = normalize(courseName);
+        this.semester = requireText(semester, "semester");
+        this.attemptType = requireText(attemptType, "attemptType");
         if (attemptNo < 1) {
             throw new IllegalArgumentException("attemptNo must be positive");
         }
@@ -36,12 +41,7 @@ public final class CourseHistoryRecord implements Serializable {
         if (earnedCredits < 0) {
             throw new IllegalArgumentException("earnedCredits cannot be negative");
         }
-        this.studentId = studentId;
-        this.courseId = courseId;
-        this.courseName = courseName;
-        this.semester = semester;
         this.attemptNo = attemptNo;
-        this.attemptType = attemptType;
         this.score = score;
         this.passed = passed;
         this.earnedCredits = earnedCredits;
@@ -56,4 +56,20 @@ public final class CourseHistoryRecord implements Serializable {
     public int getScore() { return score; }
     public boolean isPassed() { return passed; }
     public int getEarnedCredits() { return earnedCredits; }
+
+    private static String requireText(String value, String field) {
+        String normalized = normalize(value);
+        if (normalized == null) {
+            throw new IllegalArgumentException(field + " must not be blank");
+        }
+        return normalized;
+    }
+
+    private static String normalize(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
 }

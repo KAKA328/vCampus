@@ -88,6 +88,7 @@ CREATE TABLE tblTeacher (
     teacher_name VARCHAR(64) NOT NULL,
     department_name VARCHAR(64),
     title VARCHAR(32),
+    active BIT NOT NULL,
     PRIMARY KEY (teacher_id),
     CONSTRAINT uk_tblTeacher_user UNIQUE (user_id)
 );
