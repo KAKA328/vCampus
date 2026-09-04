@@ -146,7 +146,7 @@ Message response = Message.response(request, StatusCode.OK, data);
 | 学生学籍 | `STUDENT_QUERY`、`STUDENT_UPDATE` |
 | 选课系统 | 完整选课 V2：`COURSE_SELECTION_QUERY_V2`、`COURSE_SELECT_OFFERING_V2`、`COURSE_DROP_RECORD_V2`；课程维护：`COURSE_MANAGE` + `CourseManagementCommand`，含课程目录、教学班创建、教学信息维护和选课轮次管理 |
 | 图书馆 | `LIBRARY_QUERY`、`LIBRARY_BORROW`、`LIBRARY_RETURN` |
-| 商店 | `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY`、`STORE_RESTOCK`、`STORE_PRODUCT_ADD`、`STORE_PRODUCT_UPDATE`、`STORE_PRODUCT_DEACTIVATE`、`STORE_CART_ADD`、`STORE_CART_REMOVE`、`STORE_CART_QUERY`、`STORE_CART_CHECKOUT`、`STORE_ORDER_LIST_ALL`、`STORE_HOT_PRODUCTS`、`STORE_ACCOUNT_QUERY`、`STORE_ACCOUNT_RECHARGE`、`STORE_ACCOUNT_ADJUST` |
+| 商店 | `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY`、`STORE_RESTOCK`、`STORE_PRODUCT_ADD`、`STORE_PRODUCT_UPDATE`、`STORE_PRODUCT_DEACTIVATE`、`STORE_CART_ADD`、`STORE_CART_REMOVE`、`STORE_CART_UPDATE`、`STORE_CART_QUERY`、`STORE_CART_DETAIL`、`STORE_CART_CHECKOUT`、`STORE_ORDER_LIST_ALL`、`STORE_HOT_PRODUCTS`、`STORE_ACCOUNT_QUERY`、`STORE_ACCOUNT_RECHARGE`、`STORE_ACCOUNT_ADJUST`、`STORE_ACCOUNT_LEDGER` |
 
 如果需要新增消息类型，必须同步修改：
 
@@ -158,7 +158,11 @@ docs/MODULE_INTEGRATION_GUIDE.md
 
 新增消息类型不能只改枚举。合并前必须同时确认：请求 payload、响应 payload、服务端 Handler、`ServerApplication` 分发、客户端远程调用、权限校验、接口文档和测试是否一起补齐。商店命令均携带 token；服务器端必须按 token 和角色判断数据范围，不能只靠客户端隐藏按钮。`STORE_ORDER_QUERY` 只返回本人订单，`STORE_ORDER_LIST_ALL` 才允许商店管理员查看全量订单。
 
-商店钱包（`STORE_ACCOUNT_*`）与购买/结账对接：`DefaultStoreService` 注入第 4 个依赖 `BankAccountRepository`，`purchase`/`checkout` 走「预检(仅提示) → 原子 `deductStock` → 原子 `debit` → 建单(UUID) → 清空购物车」的补偿顺序，任一步失败按序回滚此前已扣项，每个补偿都检查返回值，补偿失败仍返回 `CONFLICT`；这是单 JVM 下的补偿一致性，不是数据库事务。余额以「分」为单位存 `long`（`balance_cents BIGINT`），支付边界 `Math.round(totalPrice * 100)` 换算一次。`--db` 分支下账户走 `AccessBankAccountRepository`（每仓储独立 JDBC 连接，无跨表事务），内存分支走 `InMemoryBankAccountRepository`，两种模式接口一致。`STORE_ACCOUNT_ADJUST` 在服务端做双重门槛校验（`STORE_MANAGE` 权限 + 角色 ∈ {`ADMIN`, `STORE_MANAGER`}），客户端隐藏校正按钮只是 UX。
+商店钱包（`STORE_ACCOUNT_*`）与购买/结账对接：`DefaultStoreService` 注入 5 个依赖（第 4 个 `BankAccountRepository`、第 5 个 `WalletTransactionRepository`），`purchase`/`checkout` 走「预检(仅提示) → 原子 `deductStock` → 原子 `debit` → 建单(UUID) → 清空购物车」的补偿顺序，任一步失败按序回滚此前已扣项，每个补偿都检查返回值，补偿失败仍返回 `CONFLICT`；这是单 JVM 下的补偿一致性，不是数据库事务。余额以「分」为单位存 `long`（`balance_cents BIGINT`），支付边界 `Math.round(totalPrice * 100)` 换算一次。`--db` 分支下账户走 `AccessBankAccountRepository`、流水走 `AccessWalletTransactionRepository`（每仓储独立 JDBC 连接，无跨表事务），内存分支走对应 `InMemory*Repository`，两种模式接口一致。`STORE_ACCOUNT_ADJUST` 在服务端做双重门槛校验（`STORE_MANAGE` 权限 + 角色 ∈ {`ADMIN`, `STORE_MANAGER`}），客户端隐藏校正按钮只是 UX。
+
+商店钱包流水（`STORE_ACCOUNT_LEDGER`）是**尽力而为的审计副产物**：每次资金变动（充值/购买/结账/补偿退款/管理员校正）在钱**已实际变动之后**追加一条 `tblWalletTransaction`，`append` 返回 `false` 或抛 `RuntimeException` 都只记日志，**绝不因审计写不进去而回滚一笔已成功的资金变动**；流水与余额写入不在同一事务内。`amountCents` 带符号（入账为正、扣款为负、校正为差额）可直接累加对账；`balanceAfterCents` 是写入后回读值，并发下**仅作展示、不作对账依据**；`operatorId` 让管理员校正不再丢失「谁改的」。
+
+商店购物车的 `STORE_CART_UPDATE`（改数量）与 `STORE_CART_DETAIL`（明细）：两者 `userId` 均取自 token，改数量额外在服务层校验条目归属本人（不属于本人返回 `NOT_FOUND`，不区分「不存在」与「不是你的」）；明细返回 `CartLine` 读模型，是**读取时与商品实时联表**的结果，`CartItem` 未加快照字段、`tblCartItem` 未加列，旧库无需迁移。
 
 完整选课流程统一使用显式 V2 Socket 协议。客户端必须使用：
 
@@ -296,13 +300,16 @@ private Message dispatch(Message request) {
         case STORE_PRODUCT_DEACTIVATE:
         case STORE_CART_ADD:
         case STORE_CART_REMOVE:
+        case STORE_CART_UPDATE:
         case STORE_CART_QUERY:
+        case STORE_CART_DETAIL:
         case STORE_CART_CHECKOUT:
         case STORE_ORDER_LIST_ALL:
         case STORE_HOT_PRODUCTS:
         case STORE_ACCOUNT_QUERY:
         case STORE_ACCOUNT_RECHARGE:
         case STORE_ACCOUNT_ADJUST:
+        case STORE_ACCOUNT_LEDGER:
             return storeMessages.handle(request);
         case STUDENT_QUERY:
         case STUDENT_UPDATE:
