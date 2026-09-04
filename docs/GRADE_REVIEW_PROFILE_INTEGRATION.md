@@ -89,8 +89,8 @@ active BIT NOT NULL
 迁移文件：
 
 ```text
-database/migrations/011_teacher_profile_active.up.sql
-database/migrations/011_teacher_profile_active.down.sql
+database/migrations/012_teacher_profile_active.up.sql
+database/migrations/012_teacher_profile_active.down.sql
 ```
 
 升级已有数据库时，现有教师默认设为在职。停用教师只阻止新教学安排，不删除历史教学班、选课和成绩。

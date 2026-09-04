@@ -61,7 +61,7 @@
 
 学籍表由 `migrations/010_student_academic.up.sql` 创建；回滚使用同目录下的 `010_student_academic.down.sql`。编号 009 已由商店钱包占用，学籍迁移顺延为 010。
 
-已有数据库使用 `migrations/011_teacher_profile_active.up.sql` 为教师档案补充在职状态；迁移时现有教师默认设为在职。回滚使用同名 `.down.sql`。
+已有数据库使用 `migrations/012_teacher_profile_active.up.sql` 为教师档案补充在职状态；迁移时现有教师默认设为在职。回滚使用同名 `.down.sql`。编号 `011` 已由图书馆模块使用。
 
 ## 全新数据库验证
 
