@@ -1,0 +1,58 @@
+classDiagram
+    direction LR
+
+    class StudentManagementService {
+        <<interface>>
+        +findById(studentId) ServiceResult~StudentRecord~
+        +findByClass(classId) ServiceResult~List~StudentRecord~~
+        +save(record) ServiceResult~StudentRecord~
+    }
+
+    class StudentRecord {
+        <<Value Object>>
+        -studentId : String
+        -name : String
+        -gender : String
+        -departmentName : String
+        -majorName : String
+        -classId : String
+        -enrollmentYear : int
+        -status : String
+        -phone : String
+        -email : String
+    }
+
+    class InMemoryAcademicReviewService {
+        -historiesByStudentId : Map
+        +addHistory(record) ServiceResult~Void~
+        +historyFor(studentId) ServiceResult~List~CourseHistoryRecord~~
+        +review(studentId, requiredCredits) ServiceResult~AcademicReview~
+    }
+
+    class CourseHistoryRecord {
+        <<Value Object>>
+        -studentId : String
+        -courseId : String
+        -courseName : String
+        -semester : String
+        -attemptNo : int
+        -attemptType : String
+        -score : int
+        -passed : boolean
+        -earnedCredits : int
+    }
+
+    class AcademicReview {
+        <<Value Object>>
+        -studentId : String
+        -totalEarnedCredits : int
+        -passedCourseCount : int
+        -failedCourseCount : int
+        -retakeCourseCount : int
+        -graduationReady : boolean
+        -remark : String
+    }
+
+    StudentManagementService ..> StudentRecord : returns and saves
+    InMemoryAcademicReviewService o-- CourseHistoryRecord : stores
+    InMemoryAcademicReviewService ..> AcademicReview : computes

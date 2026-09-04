@@ -15,6 +15,9 @@ public final class InMemoryAcademicReviewService implements AcademicReviewServic
     private final Map<String, AcademicReview> latestReviewsByStudentId = new LinkedHashMap<String, AcademicReview>();
 
     public synchronized ServiceResult<Void> addHistory(CourseHistoryRecord record) {
+        if (record == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "record must not be null");
+        }
         List<CourseHistoryRecord> records = historiesByStudentId.get(record.getStudentId());
         if (records == null) {
             records = new ArrayList<CourseHistoryRecord>();
@@ -26,7 +29,11 @@ public final class InMemoryAcademicReviewService implements AcademicReviewServic
 
     @Override
     public synchronized ServiceResult<List<CourseHistoryRecord>> historyFor(String studentId) {
-        List<CourseHistoryRecord> records = historiesByStudentId.get(studentId);
+        String normalizedStudentId = normalize(studentId);
+        if (normalizedStudentId == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "studentId must not be blank");
+        }
+        List<CourseHistoryRecord> records = historiesByStudentId.get(normalizedStudentId);
         if (records == null) {
             return ServiceResult.ok(Collections.<CourseHistoryRecord>emptyList());
         }
@@ -110,14 +117,9 @@ public final class InMemoryAcademicReviewService implements AcademicReviewServic
 
         boolean graduationReady = totalEarnedCredits >= requiredCredits && failedCourseCount == 0;
         String remark = records.isEmpty() ? "暂无课程成绩记录" : (graduationReady ? "达到阶段学分要求" : "未达到阶段学分要求");
-        AcademicReview review = new AcademicReview(
-                normalizedStudentId,
-                totalEarnedCredits,
-                passedCourseCount,
-                failedCourseCount,
-                retakeCourseCount,
-                graduationReady,
-                remark);
+        AcademicReview review = new AcademicReview(null, normalizedStudentId,
+                totalEarnedCredits, requiredCredits, passedCourseCount, failedCourseCount,
+                retakeCourseCount, graduationReady, null, null, remark);
         latestReviewsByStudentId.put(normalizedStudentId, review);
         return ServiceResult.ok(review);
     }
@@ -139,5 +141,13 @@ public final class InMemoryAcademicReviewService implements AcademicReviewServic
         private boolean retake;
         private int maxEarnedCredits;
         private CourseHistoryRecord latestFailed;
+    }
+
+    private static String normalize(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 }

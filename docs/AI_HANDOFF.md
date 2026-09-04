@@ -37,7 +37,7 @@
 
 ## 仍需处理的问题
 
-- 学生学籍模块应优先由 `origin/feature/student-management` 的正式分支承接。该分支新增了 `StudentRepository`、`DefaultStudentManagementService`、`AccessStudentRepository`、学生查询/更新命令、`tblClass`/学籍迁移和后端测试，但暂未接入 Swing 学籍页面。当前直接合并会在 `server/src/main/java/cn/vcampus/server/ServerApplication.java` 发生内容冲突，需要按当前 main 的 PR25 后路由和启动工厂形状重新整理。
+- 学生学籍模块已通过 PR33 合入主线，包含 Repository、Access 持久化、Token 身份映射、服务器 Handler、选课资料适配、Swing 学籍页面和权限测试；后续在新功能分支继续完善学业审查口径与教师授课范围。
 - 图书馆仍缺少完整 Handler、Access 仓储、远程客户端服务和 Swing 页面。
 - 选课 V2 仍需并发选课和客户端刷新竞态验证。
 - 商店客户端目前只暴露查询、购买和本人订单；商店管理员页面仍待补齐。Access 购物车持久化已接入，但结账跨 JDBC 连接仍采用应用层补偿，不是数据库跨表事务。

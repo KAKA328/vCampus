@@ -5,7 +5,8 @@
 | 模块 | 核心接口 | 初始操作 |
 |---|---|---|
 | 用户管理 | `UserManagementService` | `register`、`importUsers`、`unregister`、`login`、`currentSession`、`logout`、`authorize`；`register` 作为管理员端开户注册能力，批量导入使用 `USER_IMPORT`，载荷见 `UserCredentials`、`UserImportCommand`、`UserCommand`、`AuthorizationRequest` |
-| 学生学籍 | `StudentManagementService` | `findById`、`findByUserId`、`findMyStudentProfile`、`findByClass`、`findByMajor`、`save` |
+| 学生学籍 | `StudentManagementService` | `findById`、`findByUserId`、`findMyStudentProfile`、`findByClass`、`findByMajor`、`findByIds`、`save` |
+| 教师档案 | `TeacherProfileService` | `findById`、`findByUserId`、`save`；提供教师工号、账号绑定、院系、职称和在职状态 |
 | 学业审查 | `AcademicReviewService` | `historyFor`、`pendingRetakes`、`review`、`latestReview` |
 | 选课 | `CourseSelectionService` | 完整选课流程使用 V2 消息：查询轮次/教学班/已选记录、按教学班选课、按选课记录退选；课程维护消息见下文 |
 | 图书馆 | `LibraryService` | `search`/分类筛选、`getBook`、原子 `borrowBatch`、按记录 `returnBook`、本人/全量 `borrowHistory`、`addBook` |
@@ -22,6 +23,16 @@ StudentManagementService.findByUserId(String userId)
 AcademicReviewService.pendingRetakes(String studentId)
 ```
 
+成绩录入与审核对接还使用：
+
+```java
+TeacherProfileService.findById(String teacherId)
+TeacherProfileService.findByUserId(String userId)
+StudentManagementService.findByIds(List<String> studentIds)
+```
+
+教师档案查询用于教学班任课教师校验和 Token 到 `teacherId` 的映射；`active=false` 的教师不能被安排到新教学班。学生批量查询用于一次加载完整教学班名单，输入去重并保持首次出现顺序；任一学号不存在时返回 `NOT_FOUND`。
+
 `findByUserId` 用于把登录账号映射为学生档案。账号已绑定时返回 `OK + StudentRecord`；未绑定时返回 `NOT_FOUND`，选课模块应提示联系学籍管理员；参数为空返回 `BAD_REQUEST`。
 
 `pendingRetakes` 按 `studentId + courseId` 汇总课程历史：某课程只要有一次 `passed=true` 就不再重修；只有全部尝试均未通过时才返回该课程最新一次失败记录。没有待重修课程返回 `OK + empty list`，参数为空返回 `BAD_REQUEST`。课程历史来源为 `tblCourseResult` 与 `tblCourse`，写入责任仍归选课/教务模块，学籍模块只提供查询和判断。
@@ -32,7 +43,11 @@ AcademicReviewService.pendingRetakes(String studentId)
 
 教务端学籍查询还支持 `findByMajor(majorName)`，仅允许 `ADMIN` 和 `ACADEMIC_ADMIN` 角色调用；学生本人和教师不能按专业批量查询。`findMyStudentProfile(userId)` 是服务器完成 Token 解析后的兼容别名，等价于 `findByUserId(userId)`。
 
+教师按学号查询时，服务器通过 `tblTeacher.user_id -> tblCourseOffering.teacher_id -> tblCourseSelection.student_id` 校验授课范围，并且只认可 `ACTIVE` 选课记录。内存模式没有授课关系数据，默认拒绝教师按学号查询。学生本人权限只认可 `tblStudent.user_id` 的显式绑定，不再使用 `userId == studentId` 作为兼容旁路。
+
 `AcademicReviewService.review(studentId, requiredCredits)` 根据课程结果实时计算学分、挂科和重修统计；`latestReview(studentId)` 读取 `tblAcademicReview` 中按审核时间倒序的最新快照。实时计算不会覆盖历史快照。
+
+`AcademicReview.getCreditShortfall()` 返回 `max(0, requiredEarnedCredits - totalEarnedCredits)`。内存和 Access 模式对空学号统一返回 `BAD_REQUEST`；课程历史的学号、课程号、学期和尝试类型不能为空。
 
 ## 账号与档案绑定公共契约
 

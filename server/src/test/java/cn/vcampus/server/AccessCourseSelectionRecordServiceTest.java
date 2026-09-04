@@ -108,6 +108,12 @@ class AccessCourseSelectionRecordServiceTest {
                 + "round_id VARCHAR(36) NOT NULL,selection_type VARCHAR(16) NOT NULL,"
                 + "selected_at DATETIME NOT NULL,status VARCHAR(16) NOT NULL,dropped_at DATETIME,"
                 + "PRIMARY KEY (selection_id))");
+        statement.execute("CREATE TABLE tblTeacher ("
+                + "teacher_id VARCHAR(32) NOT NULL,user_id VARCHAR(32),"
+                + "teacher_name VARCHAR(64) NOT NULL,department_name VARCHAR(64),"
+                + "title VARCHAR(32),active BIT NOT NULL,PRIMARY KEY (teacher_id))");
+        statement.execute("INSERT INTO tblTeacher(teacher_id,teacher_name,active) "
+                + "VALUES ('T001','教师一',1)");
     }
 
 }

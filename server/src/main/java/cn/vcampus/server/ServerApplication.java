@@ -56,15 +56,31 @@ public final class ServerApplication implements Closeable {
             StudentServices studentServices, StoreService store) {
         this(port, users, module.getSelectionService(), module.getCatalogService(),
                 module.getOfferingService(), module.getSelectionRoundService(), studentServices.profiles, store,
-                studentServices.students);
+                studentServices.students, new InMemoryLibraryService(),
+                new DenyTeacherStudentAccessPolicy());
     }
 
     private ServerApplication(int port, UserManagementService users, CourseSelectionModule module,
             StudentSelectionProfileProvider profiles, StoreService store,
             StudentManagementService students, LibraryService library) {
+        this(port, users, module, profiles, store, students, library,
+                new DenyTeacherStudentAccessPolicy());
+    }
+
+    private ServerApplication(int port, UserManagementService users, CourseSelectionModule module,
+            StudentSelectionProfileProvider profiles, StoreService store,
+            StudentManagementService students, TeacherStudentAccessPolicy teacherAccess) {
+        this(port, users, module, profiles, store, students, new InMemoryLibraryService(),
+                teacherAccess);
+    }
+
+    private ServerApplication(int port, UserManagementService users, CourseSelectionModule module,
+            StudentSelectionProfileProvider profiles, StoreService store,
+            StudentManagementService students, LibraryService library,
+            TeacherStudentAccessPolicy teacherAccess) {
         this(port, users, module.getSelectionService(), module.getCatalogService(),
                 module.getOfferingService(), module.getSelectionRoundService(), profiles, store,
-                students, library);
+                students, library, teacherAccess);
     }
 
     public ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
@@ -77,20 +93,21 @@ public final class ServerApplication implements Closeable {
             CourseCatalogService catalog, CourseOfferingService offerings,
             SelectionRoundService selectionRounds, StudentSelectionProfileProvider profiles,
             StoreService store, StudentManagementService students) {
-        this(port, users, courses, catalog, offerings, selectionRounds, profiles, store,
-                students, new InMemoryLibraryService());
+        this(port, users, courses, catalog, offerings, selectionRounds, profiles, store, students,
+                new InMemoryLibraryService(), new DenyTeacherStudentAccessPolicy());
     }
 
     ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
             CourseCatalogService catalog, CourseOfferingService offerings,
             SelectionRoundService selectionRounds, StudentSelectionProfileProvider profiles,
-            StoreService store, StudentManagementService students, LibraryService library) {
+            StoreService store, StudentManagementService students, LibraryService library,
+            TeacherStudentAccessPolicy teacherAccess) {
         this.port = port;
         this.userMessages = new UserMessageHandler(users);
         this.courseMessages = new CourseMessageHandler(courses, catalog, offerings, selectionRounds,
                 profiles, users);
         this.storeMessages = new StoreMessageHandler(store, users);
-        this.studentMessages = new StudentMessageHandler(students, users);
+        this.studentMessages = new StudentMessageHandler(students, users, teacherAccess);
         this.libraryMessages = new LibraryMessageHandler(library, users);
     }
 
@@ -202,7 +219,8 @@ public final class ServerApplication implements Closeable {
                 ? memoryStudentServices() : accessStudentServices(databasePath);
         new ServerApplication(port, UserServiceFactory.create(args), courses.getModule(),
                 courses.getProfiles(), StoreServiceFactory.create(databasePath),
-                studentServices.students, LibraryServiceFactory.create(databasePath)).start();
+                studentServices.students, LibraryServiceFactory.create(databasePath),
+                teacherAccess(databasePath)).start();
     }
 
     private static StudentServices memoryStudentServices() {
@@ -222,6 +240,11 @@ public final class ServerApplication implements Closeable {
         AcademicReviewService academicReviews = new AccessAcademicReviewService(databasePath);
         return new StudentServices(students, new StudentSelectionProfileAdapter(
                 students, academicReviews, CourseSelectionDemoFactory.DEMO_TERM));
+    }
+
+    private static TeacherStudentAccessPolicy teacherAccess(Path databasePath) {
+        return databasePath == null ? new DenyTeacherStudentAccessPolicy()
+                : new AccessTeacherStudentAccessPolicy(databasePath);
     }
 
     private static final class StudentServices {

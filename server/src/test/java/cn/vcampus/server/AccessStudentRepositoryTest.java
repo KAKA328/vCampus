@@ -14,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** 使用临时 Access 数据库验证学生学籍记录的真实持久化行为。 */
 class AccessStudentRepositoryTest {
@@ -68,6 +69,17 @@ class AccessStudentRepositoryTest {
         assertEquals(2, records.size());
         assertEquals("S001", records.get(0).getStudentId());
         assertEquals("S002", records.get(1).getStudentId());
+    }
+
+    @Test
+    void batchQueryPreservesRequestedOrderAndDeduplicatesIds() {
+        List<StudentRecord> records = repository.findByIds(
+                java.util.Arrays.asList("S002", "S001", "S002", "MISSING"));
+
+        assertEquals(2, records.size());
+        assertEquals("S002", records.get(0).getStudentId());
+        assertEquals("S001", records.get(1).getStudentId());
+        assertTrue(repository.findByIds(java.util.Collections.<String>emptyList()).isEmpty());
     }
 
     @Test
