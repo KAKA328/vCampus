@@ -1,0 +1,2 @@
+DROP INDEX idx_tblWalletTransaction_user ON tblWalletTransaction;
+DROP TABLE tblWalletTransaction;
