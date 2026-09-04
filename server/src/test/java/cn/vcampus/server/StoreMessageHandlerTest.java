@@ -6,8 +6,13 @@ import cn.vcampus.common.Role;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.store.CartItem;
+import cn.vcampus.store.CartLine;
+import cn.vcampus.store.CartQueryCommand;
+import cn.vcampus.store.CartUpdateCommand;
 import cn.vcampus.store.Order;
 import cn.vcampus.store.Product;
+import cn.vcampus.store.WalletTransaction;
+import cn.vcampus.store.WalletTransactionType;
 import cn.vcampus.store.StoreOrderQueryCommand;
 import cn.vcampus.store.StoreRestockCommand;
 import cn.vcampus.store.StorePurchaseCommand;
@@ -26,6 +31,7 @@ import cn.vcampus.store.StoreService;
 import cn.vcampus.user.InMemoryUserManagementService;
 import cn.vcampus.user.Session;
 import cn.vcampus.user.UserCredentials;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -137,7 +143,7 @@ class StoreMessageHandlerTest {
                 new StoreRestockCommand(managerSession.getToken(), "P001", 10)));
 
         assertEquals(StatusCode.OK, response.getStatusCode());
-        assertEquals("manager001", store.lastRestockUserId);
+        assertTrue(store.restockCalled);
         assertEquals("P001", store.lastRestockProductId);
         assertEquals(10, store.lastRestockAmount);
     }
@@ -195,7 +201,6 @@ class StoreMessageHandlerTest {
 
         assertEquals(StatusCode.OK, response.getStatusCode());
         assertTrue(store.deactivateCalled);
-        assertEquals("manager001", store.lastDeactivateUserId);
         assertEquals("P001", store.lastDeactivateProductId);
     }
 
@@ -344,6 +349,92 @@ class StoreMessageHandlerTest {
         assertFalse(store.adjustCalled);
     }
 
+    @Test
+    void testCartUpdateUsesUserIdResolvedFromSession() {
+        Message response = handler.handle(Message.request(
+                "store-cart-update", MessageType.STORE_CART_UPDATE,
+                new CartUpdateCommand(studentSession.getToken(), "C001", 5)));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertTrue(store.cartUpdateCalled);
+        assertEquals("student001", store.lastCartUpdateUserId);
+        assertEquals("C001", store.lastCartUpdateItemId);
+        assertEquals(5, store.lastCartUpdateQuantity);
+    }
+
+    @Test
+    void testCartUpdateUnauthorized() {
+        Message response = handler.handle(Message.request(
+                "store-cart-update-forbidden", MessageType.STORE_CART_UPDATE,
+                new CartUpdateCommand(librarianSession.getToken(), "C001", 5)));
+
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
+        assertFalse(store.cartUpdateCalled);
+    }
+
+    @Test
+    void testCartDetailReturnsJoinedProductSnapshot() {
+        Message response = handler.handle(Message.request(
+                "store-cart-detail", MessageType.STORE_CART_DETAIL,
+                new CartQueryCommand(studentSession.getToken())));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertTrue(store.cartDetailCalled);
+        assertEquals("student001", store.lastCartDetailUserId);
+        @SuppressWarnings("unchecked")
+        List<CartLine> lines = (List<CartLine>) response.getPayload();
+        assertEquals(1, lines.size());
+        assertEquals("笔记本", lines.get(0).getProductName());
+        assertEquals(1980L, lines.get(0).getSubtotalCents());
+    }
+
+    @Test
+    void testCartDetailUnauthorized() {
+        Message response = handler.handle(Message.request(
+                "store-cart-detail-forbidden", MessageType.STORE_CART_DETAIL,
+                new CartQueryCommand(librarianSession.getToken())));
+
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
+        assertFalse(store.cartDetailCalled);
+    }
+
+    @Test
+    void testAccountLedgerReturnsOwnTransactionsOnly() {
+        Message response = handler.handle(Message.request(
+                "account-ledger", MessageType.STORE_ACCOUNT_LEDGER,
+                new StoreAccountQueryCommand(studentSession.getToken())));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertTrue(store.ledgerCalled);
+        // 流水只能查自己：payload 只有 token，userId 一律从 token 解析，客户端无法指定他人
+        assertEquals("student001", store.lastLedgerUserId);
+        @SuppressWarnings("unchecked")
+        List<WalletTransaction> ledger = (List<WalletTransaction>) response.getPayload();
+        assertEquals(1, ledger.size());
+        assertEquals(WalletTransactionType.RECHARGE, ledger.get(0).getType());
+    }
+
+    @Test
+    void testAccountLedgerUnauthorized() {
+        Message response = handler.handle(Message.request(
+                "account-ledger-forbidden", MessageType.STORE_ACCOUNT_LEDGER,
+                new StoreAccountQueryCommand(librarianSession.getToken())));
+
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
+        assertFalse(store.ledgerCalled);
+    }
+
+    @Test
+    void testCartUpdateRejectsUnexpectedPayloadType() {
+        // payload 类型不符时抛 IllegalArgumentException，Handler 外层统一转 BAD_REQUEST，不进业务层
+        Message response = handler.handle(Message.request(
+                "store-cart-update-invalid", MessageType.STORE_CART_UPDATE,
+                new Object()));
+
+        assertEquals(StatusCode.BAD_REQUEST, response.getStatusCode());
+        assertFalse(store.cartUpdateCalled);
+    }
+
     private static final class CapturingStoreService implements StoreService {
         private boolean listCalled;
         private int listCallCount;
@@ -352,7 +443,6 @@ class StoreMessageHandlerTest {
         private int lastPurchaseQuantity;
         private String lastOrderQueryUserId;
         private String lastCategory;
-        private String lastRestockUserId;
         private String lastRestockProductId;
         private int lastRestockAmount;
         private boolean restockCalled;
@@ -364,7 +454,6 @@ class StoreMessageHandlerTest {
         private String lastUpdateProductId;
         private double lastUpdateProductPrice;
         private boolean deactivateCalled;
-        private String lastDeactivateUserId;
         private String lastDeactivateProductId;
         private boolean cartAddCalled;
         private String lastCartAddUserId;
@@ -375,6 +464,14 @@ class StoreMessageHandlerTest {
         private String lastCartRemoveItemId;
         private boolean cartQueryCalled;
         private String lastCartQueryUserId;
+        private boolean cartUpdateCalled;
+        private String lastCartUpdateUserId;
+        private String lastCartUpdateItemId;
+        private int lastCartUpdateQuantity;
+        private boolean cartDetailCalled;
+        private String lastCartDetailUserId;
+        private boolean ledgerCalled;
+        private String lastLedgerUserId;
         private boolean checkoutCalled;
         private String lastCheckoutUserId;
         private boolean findAllOrdersCalled;
@@ -419,9 +516,8 @@ class StoreMessageHandlerTest {
         }
 
         @Override
-        public ServiceResult<Void> restock(String userId, String productId, int additionalStock) {
+        public ServiceResult<Void> restock(String productId, int additionalStock) {
             restockCalled = true;
-            lastRestockUserId = userId;
             lastRestockProductId = productId;
             lastRestockAmount = additionalStock;
             return ServiceResult.ok(null);
@@ -447,9 +543,8 @@ class StoreMessageHandlerTest {
         }
 
         @Override
-        public ServiceResult<Void> deactivateProduct(String userId, String productId) {
+        public ServiceResult<Void> deactivateProduct(String productId) {
             deactivateCalled = true;
-            lastDeactivateUserId = userId;
             lastDeactivateProductId = productId;
             return ServiceResult.ok(null);
         }
@@ -476,6 +571,23 @@ class StoreMessageHandlerTest {
             cartQueryCalled = true;
             lastCartQueryUserId = userId;
             return ServiceResult.ok(Collections.<CartItem>emptyList());
+        }
+
+        @Override
+        public ServiceResult<Void> updateCartQuantity(String userId, String cartItemId, int newQuantity) {
+            cartUpdateCalled = true;
+            lastCartUpdateUserId = userId;
+            lastCartUpdateItemId = cartItemId;
+            lastCartUpdateQuantity = newQuantity;
+            return ServiceResult.ok(null);
+        }
+
+        @Override
+        public ServiceResult<List<CartLine>> getCartDetails(String userId) {
+            cartDetailCalled = true;
+            lastCartDetailUserId = userId;
+            return ServiceResult.ok(Collections.singletonList(new CartLine(
+                    "C001", "P001", "笔记本", 990L, 2, 1980L, true, LocalDateTime.now())));
         }
 
         @Override
@@ -520,6 +632,15 @@ class StoreMessageHandlerTest {
             lastAdjustTargetUserId = userId;
             lastAdjustNewBalanceCents = newBalanceCents;
             return ServiceResult.ok(null);
+        }
+
+        @Override
+        public ServiceResult<List<WalletTransaction>> listTransactions(String userId) {
+            ledgerCalled = true;
+            lastLedgerUserId = userId;
+            return ServiceResult.ok(Collections.singletonList(new WalletTransaction(
+                    "T001", userId, WalletTransactionType.RECHARGE, 5000L, 5000L, userId, null,
+                    LocalDateTime.now())));
         }
 
     }

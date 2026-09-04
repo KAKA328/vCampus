@@ -166,7 +166,9 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.STORE_CART_QUERY || type == MessageType.STORE_CART_CHECKOUT
                 || type == MessageType.STORE_ORDER_LIST_ALL || type == MessageType.STORE_HOT_PRODUCTS
                 || type == MessageType.STORE_ACCOUNT_QUERY || type == MessageType.STORE_ACCOUNT_RECHARGE
-                || type == MessageType.STORE_ACCOUNT_ADJUST;
+                || type == MessageType.STORE_ACCOUNT_ADJUST
+                || type == MessageType.STORE_CART_UPDATE || type == MessageType.STORE_CART_DETAIL
+                || type == MessageType.STORE_ACCOUNT_LEDGER;
     }
 
     private static boolean isStudentMessage(MessageType type) {
@@ -178,7 +180,8 @@ public final class ServerApplication implements Closeable {
         Path databasePath = UserServiceFactory.databasePath(args);
         CourseServiceFactory.CourseRuntime courses = CourseServiceFactory.create(databasePath);
         StudentServices studentServices = databasePath == null
-                ? memoryStudentServices() : accessStudentServices(databasePath);
+                ? memoryStudentServices()
+                : accessStudentServices(databasePath);
         new ServerApplication(port, UserServiceFactory.create(args), courses.getModule(),
                 courses.getProfiles(), StoreServiceFactory.create(databasePath),
                 studentServices.students).start();

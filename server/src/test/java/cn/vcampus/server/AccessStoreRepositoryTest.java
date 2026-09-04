@@ -4,6 +4,8 @@ import cn.vcampus.store.BankAccount;
 import cn.vcampus.store.CartItem;
 import cn.vcampus.store.Order;
 import cn.vcampus.store.Product;
+import cn.vcampus.store.WalletTransaction;
+import cn.vcampus.store.WalletTransactionType;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -18,6 +20,7 @@ import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** 使用临时 Access 数据库验证商品和订单数据可以真实保存。 */
@@ -29,6 +32,7 @@ class AccessStoreRepositoryTest {
     private AccessOrderRepository orders;
     private AccessCartRepository carts;
     private AccessBankAccountRepository bankAccounts;
+    private AccessWalletTransactionRepository ledger;
     private Path database;
 
     @BeforeEach
@@ -70,6 +74,16 @@ class AccessStoreRepositoryTest {
                     + "user_id VARCHAR(32) NOT NULL,"
                     + "balance_cents BIGINT NOT NULL,"
                     + "PRIMARY KEY (user_id))");
+            statement.execute("CREATE TABLE tblWalletTransaction ("
+                    + "transaction_id VARCHAR(36) NOT NULL,"
+                    + "user_id VARCHAR(32) NOT NULL,"
+                    + "transaction_type VARCHAR(16) NOT NULL,"
+                    + "amount_cents BIGINT NOT NULL,"
+                    + "balance_after_cents BIGINT NOT NULL,"
+                    + "operator_id VARCHAR(32) NOT NULL,"
+                    + "note VARCHAR(200),"
+                    + "created_at DATETIME NOT NULL,"
+                    + "PRIMARY KEY (transaction_id))");
             insertProduct(connection, "P001", "黑色签字笔", 200, 2.0, "0.5mm 中性笔", "文具");
             insertProduct(connection, "P002", "笔记本 A5", 150, 5.0, "80页横线本", "文具");
         }
@@ -77,6 +91,7 @@ class AccessStoreRepositoryTest {
         orders = new AccessOrderRepository(database);
         carts = new AccessCartRepository(database);
         bankAccounts = new AccessBankAccountRepository(database);
+        ledger = new AccessWalletTransactionRepository(database);
     }
 
     @Test
@@ -358,6 +373,117 @@ class AccessStoreRepositoryTest {
         // 重开仓库验证已落盘
         AccessBankAccountRepository reopened = new AccessBankAccountRepository(database);
         assertEquals(250L, reopened.findByUserId("student001").getBalanceCents());
+    }
+
+    @Test
+    void testAccessLedgerAppendThenFindByUserIdReturnsIt() {
+        LocalDateTime createdAt = LocalDateTime.of(2026, 9, 4, 10, 30, 0);
+        WalletTransaction entry = new WalletTransaction("T001", "student001", WalletTransactionType.RECHARGE,
+                5000L, 5000L, "student001", "开学充值", createdAt);
+
+        assertTrue(ledger.append(entry));
+
+        List<WalletTransaction> found = ledger.findByUserId("student001");
+        assertEquals(1, found.size());
+        WalletTransaction read = found.get(0);
+        assertEquals("T001", read.getTransactionId());
+        assertEquals(WalletTransactionType.RECHARGE, read.getType());
+        assertEquals(5000L, read.getAmountCents());
+        assertEquals(5000L, read.getBalanceAfterCents());
+        assertEquals("student001", read.getOperatorId());
+        assertEquals("开学充值", read.getNote());
+        assertEquals(createdAt, read.getCreatedAt());
+    }
+
+    @Test
+    void testAccessLedgerAppendPersistsSignedAmounts() {
+        // 扣款存负数、退款存正数，一段流水可直接累加对账
+        LocalDateTime base = LocalDateTime.of(2026, 9, 4, 11, 0, 0);
+        assertTrue(ledger.append(new WalletTransaction("T010", "student001", WalletTransactionType.RECHARGE,
+                10000L, 10000L, "student001", null, base)));
+        assertTrue(ledger.append(new WalletTransaction("T011", "student001", WalletTransactionType.PURCHASE,
+                -1980L, 8020L, "student001", "order ORD001", base.plusMinutes(1))));
+        long sum = 0L;
+        for (WalletTransaction entry : ledger.findByUserId("student001")) {
+            sum += entry.getAmountCents();
+        }
+        assertEquals(8020L, sum);// 流水累加等于末笔余额
+    }
+
+    @Test
+    void testAccessLedgerNullNoteRoundTripsAsNull() {
+        // 备注可空：读回应为 null 而不是空串，区分「没写备注」与「备注是空串」
+        assertTrue(ledger.append(new WalletTransaction("T020", "student001", WalletTransactionType.PURCHASE,
+                -500L, 0L, "student001", null, LocalDateTime.of(2026, 9, 4, 12, 0, 0))));
+
+        assertNull(ledger.findByUserId("student001").get(0).getNote());
+    }
+
+    @Test
+    void testAccessLedgerFindByUserIdReturnsEmptyForNoTransactions() {
+        assertTrue(ledger.findByUserId("nobody").isEmpty());
+    }
+
+    @Test
+    void testAccessLedgerFindByUserIdReturnsOnlyOwnTransactions() {
+        LocalDateTime base = LocalDateTime.of(2026, 9, 4, 13, 0, 0);
+        ledger.append(new WalletTransaction("T030", "student001", WalletTransactionType.RECHARGE,
+                1000L, 1000L, "student001", null, base));
+        ledger.append(new WalletTransaction("T031", "student002", WalletTransactionType.RECHARGE,
+                2000L, 2000L, "student002", null, base));
+
+        List<WalletTransaction> own = ledger.findByUserId("student001");
+        assertEquals(1, own.size());
+        assertEquals("T030", own.get(0).getTransactionId());
+        assertEquals(1, ledger.findByUserId("student002").size());
+    }
+
+    @Test
+    void testAccessLedgerOrdersByCreatedAtAscending() {
+        // 乱序写入，读回必须按记账时间升序，流水页才能按时间轴展示
+        LocalDateTime base = LocalDateTime.of(2026, 9, 4, 14, 0, 0);
+        ledger.append(new WalletTransaction("T042", "student001", WalletTransactionType.PURCHASE,
+                -300L, 700L, "student001", null, base.plusMinutes(20)));
+        ledger.append(new WalletTransaction("T040", "student001", WalletTransactionType.RECHARGE,
+                1000L, 1000L, "student001", null, base));
+        ledger.append(new WalletTransaction("T041", "student001", WalletTransactionType.PURCHASE,
+                -500L, 500L, "student001", null, base.plusMinutes(10)));
+
+        List<WalletTransaction> ordered = ledger.findByUserId("student001");
+        assertEquals(3, ordered.size());
+        assertEquals("T040", ordered.get(0).getTransactionId());
+        assertEquals("T041", ordered.get(1).getTransactionId());
+        assertEquals("T042", ordered.get(2).getTransactionId());
+    }
+
+    @Test
+    void testAccessLedgerAppendRejectsDuplicateTransactionId() {
+        // 主键冲突按契约返回 false 而不上抛：记账失败绝不能拖垮一笔已成功的资金变动
+        WalletTransaction entry = new WalletTransaction("T050", "student001", WalletTransactionType.ADJUST,
+                100L, 100L, "manager001", "校正", LocalDateTime.of(2026, 9, 4, 15, 0, 0));
+        assertTrue(ledger.append(entry));
+        assertFalse(ledger.append(entry));
+        assertEquals(1, ledger.findByUserId("student001").size());
+    }
+
+    @Test
+    void testAccessLedgerAppendReturnsFalseForNull() {
+        assertFalse(ledger.append(null));
+    }
+
+    @Test
+    void testAccessLedgerRecordsOperatorForAdminAdjust() {
+        // 管理员校正：operatorId 是管理员而非账户本人，回答「这笔钱是谁改的」
+        assertTrue(ledger.append(new WalletTransaction("T060", "student001", WalletTransactionType.ADJUST,
+                -5000L, 3000L, "manager001", "退款校正", LocalDateTime.of(2026, 9, 4, 16, 0, 0))));
+
+        WalletTransaction read = ledger.findByUserId("student001").get(0);
+        assertEquals("manager001", read.getOperatorId());
+        assertEquals("student001", read.getUserId());
+        assertEquals(-5000L, read.getAmountCents());
+        // 重开仓库验证已落盘
+        AccessWalletTransactionRepository reopened = new AccessWalletTransactionRepository(database);
+        assertEquals(1, reopened.findByUserId("student001").size());
     }
 
     private void insertCart(String cartItemId, String userId, String productId, int quantity)
