@@ -12,22 +12,32 @@ public final class CourseSelectionModule {
     private final CourseOfferingService offeringService;
     private final SelectionRoundService selectionRoundService;
     private final CourseSelectionRecordService selectionRecordService;
+    private final GradeSubmissionService gradeSubmissionService;
 
     public CourseSelectionModule(CourseSelectionService selectionService,
             CourseCatalogService catalogService, CourseOfferingService offeringService) {
-        this(selectionService, catalogService, offeringService, null);
+        this(selectionService, catalogService, offeringService, null, null, null);
     }
 
     public CourseSelectionModule(CourseSelectionService selectionService,
             CourseCatalogService catalogService, CourseOfferingService offeringService,
             SelectionRoundService selectionRoundService) {
-        this(selectionService, catalogService, offeringService, selectionRoundService, null);
+        this(selectionService, catalogService, offeringService, selectionRoundService, null, null);
     }
 
     public CourseSelectionModule(CourseSelectionService selectionService,
             CourseCatalogService catalogService, CourseOfferingService offeringService,
             SelectionRoundService selectionRoundService,
             CourseSelectionRecordService selectionRecordService) {
+        this(selectionService, catalogService, offeringService, selectionRoundService,
+                selectionRecordService, null);
+    }
+
+    public CourseSelectionModule(CourseSelectionService selectionService,
+            CourseCatalogService catalogService, CourseOfferingService offeringService,
+            SelectionRoundService selectionRoundService,
+            CourseSelectionRecordService selectionRecordService,
+            GradeSubmissionService gradeSubmissionService) {
         if (selectionService == null || catalogService == null || offeringService == null) {
             throw new IllegalArgumentException("course module services must not be null");
         }
@@ -36,6 +46,7 @@ public final class CourseSelectionModule {
         this.offeringService = offeringService;
         this.selectionRoundService = selectionRoundService;
         this.selectionRecordService = selectionRecordService;
+        this.gradeSubmissionService = gradeSubmissionService;
     }
 
     public CourseSelectionService getSelectionService() {
@@ -58,5 +69,10 @@ public final class CourseSelectionModule {
     /** 返回教学班有效选课名单的查询来源；旧模块组装方式未提供时返回 null。 */
     public CourseSelectionRecordService getSelectionRecordService() {
         return selectionRecordService;
+    }
+
+    /** 返回教学班成绩草稿服务；旧模块组装方式未提供时返回 null。 */
+    public GradeSubmissionService getGradeSubmissionService() {
+        return gradeSubmissionService;
     }
 }

@@ -8,11 +8,14 @@
 | 学生学籍 | `StudentManagementService` | `findById`、`findByUserId`、`findMyStudentProfile`、`findByClass`、`findByMajor`、`findByIds`、`save` |
 | 教师档案 | `TeacherProfileService` | `findById`、`findByUserId`、`save`；提供教师工号、账号绑定、院系、职称和在职状态 |
 | 学业审查 | `AcademicReviewService` | `historyFor`、`pendingRetakes`、`review`、`latestReview` |
-| 选课 | `CourseSelectionService` | 完整选课流程使用 V2 消息：查询轮次/教学班/已选记录、按教学班选课、按选课记录退选；课程维护消息见下文 |
+| 选课 | `CourseSelectionService`、`GradeSubmissionService` | 完整选课流程使用 V2 消息：查询轮次/教学班/已选记录、按教学班选课、按选课记录退选；成绩草稿与课程维护能力见下文 |
 | 图书馆 | `LibraryService` | `search`/分类筛选、`getBook`、原子 `borrowBatch`、按记录 `returnBook`、本人/全量 `borrowHistory`、`addBook` |
 | 商店 | `StoreService` | 商品查询/分类、购买、购物车、钱包、本人/全量订单、热销排行和商品维护；商店消息使用 token-only 命令，用户编号由服务器会话解析 |
 
 所有服务方法返回 `ServiceResult<T>`，由服务器统一映射为 `Message` 响应。服务端必须再次校验会话和权限。
+
+`GradeSubmissionService` 当前负责保存一门教学班的一份成绩草稿和其中的学生成绩：
+`createDraft`、`findById`、`findByOffering`、`listEntries`、`saveDraftEntry`。每个教学班最多一份提交单；草稿或被退回时允许覆盖修改同一学生成绩。草稿数据保存在 `tblGradeSubmission`、`tblGradeEntry`，不写入 `tblCourseResult`。教师提交全班成绩、教务审核及审核通过后生成正式成绩将在后续接口中实现。
 
 ## 学籍与选课对接接口
 

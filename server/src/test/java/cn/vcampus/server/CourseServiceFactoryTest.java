@@ -19,6 +19,8 @@ class CourseServiceFactoryTest {
         assertTrue(runtime.getModule().getCatalogService() instanceof AccessCourseCatalogService);
         assertTrue(runtime.getModule().getOfferingService() instanceof AccessCourseOfferingService);
         assertTrue(runtime.getModule().getSelectionRoundService() instanceof AccessSelectionRoundService);
+        assertTrue(runtime.getModule().getGradeSubmissionService()
+                instanceof AccessGradeSubmissionService);
         assertTrue(runtime.getProfiles() instanceof AccessStudentSelectionProfileProvider);
     }
 }

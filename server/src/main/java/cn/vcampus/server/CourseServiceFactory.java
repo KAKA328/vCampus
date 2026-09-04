@@ -8,6 +8,7 @@ import cn.vcampus.course.CourseSelectionRecordService;
 import cn.vcampus.course.CourseSelectionService;
 import cn.vcampus.course.DefaultCourseOfferingCapacityService;
 import cn.vcampus.course.DefaultCourseSelectionService;
+import cn.vcampus.course.GradeSubmissionService;
 import cn.vcampus.course.ScheduleConflictDetector;
 import cn.vcampus.course.SelectionRoundService;
 import cn.vcampus.course.StudentSelectionProfileProvider;
@@ -40,12 +41,14 @@ final class CourseServiceFactory {
                 databasePath, catalog, null, teachers);
         CourseSelectionRecordService records = new AccessCourseSelectionRecordService(databasePath,
                 offerings);
+        GradeSubmissionService gradeSubmissions = new AccessGradeSubmissionService(databasePath);
         SelectionRoundService rounds = new AccessSelectionRoundService(databasePath);
         TrainingPlanService trainingPlans = new AccessTrainingPlanService(databasePath, catalog);
         CourseSelectionService selections = new DefaultCourseSelectionService(catalog, trainingPlans,
                 rounds, offerings, records, new DefaultCourseOfferingCapacityService(offerings, records),
                 new ScheduleConflictDetector());
-        return new CourseRuntime(new CourseSelectionModule(selections, catalog, offerings, rounds, records),
+        return new CourseRuntime(new CourseSelectionModule(selections, catalog, offerings, rounds, records,
+                gradeSubmissions),
                 new AccessStudentSelectionProfileProvider(databasePath), teachers);
     }
 

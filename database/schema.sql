@@ -170,6 +170,27 @@ CREATE TABLE tblSelectionRoundKey (
     PRIMARY KEY (term, round_type)
 );
 
+-- 教师录入的教学班成绩草稿。草稿不会被学籍模块当作正式成绩读取。
+CREATE TABLE tblGradeSubmission (
+    submission_id VARCHAR(36) NOT NULL,
+    offering_id VARCHAR(36) NOT NULL,
+    teacher_id VARCHAR(32) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    PRIMARY KEY (submission_id),
+    CONSTRAINT uk_tblGradeSubmission_offering UNIQUE (offering_id)
+);
+
+CREATE TABLE tblGradeEntry (
+    submission_id VARCHAR(36) NOT NULL,
+    student_id VARCHAR(32) NOT NULL,
+    selection_type VARCHAR(16) NOT NULL,
+    score INTEGER NOT NULL,
+    updated_at DATETIME NOT NULL,
+    PRIMARY KEY (submission_id, student_id)
+);
+
 CREATE TABLE tblCourseResult (
     result_id VARCHAR(36) NOT NULL,
     student_id VARCHAR(32) NOT NULL,

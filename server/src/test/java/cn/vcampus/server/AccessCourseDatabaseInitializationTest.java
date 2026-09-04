@@ -33,6 +33,8 @@ class AccessCourseDatabaseInitializationTest {
         assertTrue(runtime.getModule().getCatalogService() instanceof AccessCourseCatalogService);
         assertTrue(runtime.getModule().getOfferingService() instanceof AccessCourseOfferingService);
         assertTrue(runtime.getModule().getSelectionRoundService() instanceof AccessSelectionRoundService);
+        assertTrue(runtime.getModule().getGradeSubmissionService()
+                instanceof AccessGradeSubmissionService);
         assertEquals(StatusCode.OK, runtime.getModule().getCatalogService()
                 .findById("JAVA101").getStatus());
         assertEquals(StatusCode.OK, runtime.getModule().getOfferingService()

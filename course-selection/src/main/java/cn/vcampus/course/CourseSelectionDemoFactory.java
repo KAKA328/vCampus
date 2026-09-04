@@ -54,7 +54,8 @@ public final class CourseSelectionDemoFactory {
         CourseSelectionService selectionService = new DefaultCourseSelectionService(catalog, plans,
                 rounds, offerings, records, new DefaultCourseOfferingCapacityService(offerings, records),
                 new ScheduleConflictDetector());
-        return new CourseSelectionModule(selectionService, catalog, offerings, rounds, records);
+        return new CourseSelectionModule(selectionService, catalog, offerings, rounds, records,
+                new InMemoryGradeSubmissionService());
     }
 
     public static StudentSelectionProfileProvider createProfileProvider() {
