@@ -4,6 +4,7 @@ import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
 import cn.vcampus.course.CourseSelectionDemoFactory;
 import cn.vcampus.course.CourseSelectionModule;
+import cn.vcampus.course.CourseSelectionRecordService;
 import cn.vcampus.course.CourseSelectionService;
 import cn.vcampus.course.CourseCatalogService;
 import cn.vcampus.course.CourseOfferingService;
@@ -19,6 +20,7 @@ import cn.vcampus.student.InMemoryAcademicReviewService;
 import cn.vcampus.student.InMemoryStudentRepository;
 import cn.vcampus.student.StudentRecord;
 import cn.vcampus.student.StudentManagementService;
+import cn.vcampus.student.TeacherProfileService;
 import cn.vcampus.user.UserManagementService;
 
 import java.io.Closeable;
@@ -79,8 +81,17 @@ public final class ServerApplication implements Closeable {
             StudentManagementService students, LibraryService library,
             TeacherStudentAccessPolicy teacherAccess) {
         this(port, users, module.getSelectionService(), module.getCatalogService(),
-                module.getOfferingService(), module.getSelectionRoundService(), profiles, store,
-                students, library, teacherAccess);
+                module.getOfferingService(), module.getSelectionRoundService(),
+                module.getSelectionRecordService(), profiles, store, students, library, teacherAccess, null);
+    }
+
+    private ServerApplication(int port, UserManagementService users, CourseSelectionModule module,
+            StudentSelectionProfileProvider profiles, StoreService store,
+            StudentManagementService students, LibraryService library,
+            TeacherStudentAccessPolicy teacherAccess, TeacherProfileService teachers) {
+        this(port, users, module.getSelectionService(), module.getCatalogService(),
+                module.getOfferingService(), module.getSelectionRoundService(),
+                module.getSelectionRecordService(), profiles, store, students, library, teacherAccess, teachers);
     }
 
     public ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
@@ -102,10 +113,20 @@ public final class ServerApplication implements Closeable {
             SelectionRoundService selectionRounds, StudentSelectionProfileProvider profiles,
             StoreService store, StudentManagementService students, LibraryService library,
             TeacherStudentAccessPolicy teacherAccess) {
+        this(port, users, courses, catalog, offerings, selectionRounds, null, profiles, store, students,
+                library, teacherAccess, null);
+    }
+
+    ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
+            CourseCatalogService catalog, CourseOfferingService offerings,
+            SelectionRoundService selectionRounds, CourseSelectionRecordService records,
+            StudentSelectionProfileProvider profiles, StoreService store, StudentManagementService students,
+            LibraryService library, TeacherStudentAccessPolicy teacherAccess,
+            TeacherProfileService teachers) {
         this.port = port;
         this.userMessages = new UserMessageHandler(users);
         this.courseMessages = new CourseMessageHandler(courses, catalog, offerings, selectionRounds,
-                profiles, users);
+                records, profiles, users, teachers, students);
         this.storeMessages = new StoreMessageHandler(store, users);
         this.studentMessages = new StudentMessageHandler(students, users, teacherAccess);
         this.libraryMessages = new LibraryMessageHandler(library, users);
@@ -186,7 +207,8 @@ public final class ServerApplication implements Closeable {
         return type == MessageType.COURSE_MANAGE
                 || type == MessageType.COURSE_SELECTION_QUERY_V2
                 || type == MessageType.COURSE_SELECT_OFFERING_V2
-                || type == MessageType.COURSE_DROP_RECORD_V2;
+                || type == MessageType.COURSE_DROP_RECORD_V2
+                || type == MessageType.COURSE_TEACHING_QUERY_V2;
     }
 
     private static boolean isStoreMessage(MessageType type) {
@@ -220,7 +242,7 @@ public final class ServerApplication implements Closeable {
         new ServerApplication(port, UserServiceFactory.create(args), courses.getModule(),
                 courses.getProfiles(), StoreServiceFactory.create(databasePath),
                 studentServices.students, LibraryServiceFactory.create(databasePath),
-                teacherAccess(databasePath)).start();
+                teacherAccess(databasePath), courses.getTeachers()).start();
     }
 
     private static StudentServices memoryStudentServices() {

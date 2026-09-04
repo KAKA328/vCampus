@@ -70,6 +70,18 @@ class AccessCourseOfferingServiceTest {
     }
 
     @Test
+    void listsOnlyOfferingsAssignedToTeacherInRequestedTerm() {
+        service.create(offering("OFFER-001", CourseOfferingStatus.OPEN));
+        service.create(offering("OFFER-002", "CS101", "T002", CourseOfferingStatus.OPEN));
+
+        ServiceResult<List<CourseOffering>> assigned = service.listByTeacher("T001", TERM);
+
+        assertEquals(StatusCode.OK, assigned.getStatus());
+        assertEquals(1, assigned.getData().size());
+        assertEquals("OFFER-001", assigned.getData().get(0).getOfferingId());
+    }
+
+    @Test
     void updatesTeacherLocationStatusAndIncreasingCapacity() {
         service.create(offering("OFFER-001", CourseOfferingStatus.DRAFT));
 

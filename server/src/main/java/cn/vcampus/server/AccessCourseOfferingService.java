@@ -143,6 +143,25 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
     }
 
     @Override
+    public ServiceResult<List<CourseOffering>> listByTeacher(String teacherId, String term) {
+        String normalizedTeacherId = normalize(teacherId);
+        String normalizedTerm = normalize(term);
+        if (normalizedTeacherId == null || normalizedTerm == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "teacherId and term must not be blank");
+        }
+        String sql = selectOfferings() + " WHERE teacher_id=? AND term=? ORDER BY offering_id";
+        try (Connection connection = open();
+                PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, normalizedTeacherId);
+            statement.setString(2, normalizedTerm);
+            return readOfferings(statement, connection);
+        } catch (SQLException failure) {
+            return databaseFailure(failure);
+        }
+    }
+
+    @Override
     public ServiceResult<List<CourseOffering>> listByCourse(String courseId, String term) {
         return listByCourseAndStatus(courseId, term, null);
     }

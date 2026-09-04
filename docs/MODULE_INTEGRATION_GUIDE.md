@@ -165,6 +165,7 @@ docs/MODULE_INTEGRATION_GUIDE.md
 - `COURSE_SELECTION_QUERY_V2` + `CourseSelectionQueryV2Command(token, roundId?)`
 - `COURSE_SELECT_OFFERING_V2` + `CourseSelectOfferingV2Command(token, roundId, offeringId)`
 - `COURSE_DROP_RECORD_V2` + `CourseDropRecordV2Command(token, recordId)`
+- `COURSE_TEACHING_QUERY_V2` + `CourseTeachingQueryV2Command`：教师查询本人教学班或指定教学班有效名单；服务器根据 token 解析教师档案，名单只含有效选课记录并保留选课类别。
 
 客户端不再提交 `studentId` 作为本人身份，服务器必须根据 `token -> user_id -> student_id` 推导学生档案。
 

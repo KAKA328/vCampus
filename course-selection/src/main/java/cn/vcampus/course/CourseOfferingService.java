@@ -12,6 +12,8 @@ public interface CourseOfferingService {
     ServiceResult<CourseOffering> create(CourseOffering offering);
     ServiceResult<CourseOffering> findById(String offeringId);
     ServiceResult<List<CourseOffering>> listByTerm(String term);
+    /** 查询某位任课老师在指定学期承担的教学班。 */
+    ServiceResult<List<CourseOffering>> listByTeacher(String teacherId, String term);
     ServiceResult<List<CourseOffering>> listByCourse(String courseId, String term);
     ServiceResult<List<CourseOffering>> listOpenByCourse(String courseId, String term);
     ServiceResult<CourseOffering> changeStatus(String offeringId, CourseOfferingStatus status);
