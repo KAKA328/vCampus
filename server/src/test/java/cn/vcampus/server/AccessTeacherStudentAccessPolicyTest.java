@@ -28,13 +28,16 @@ class AccessTeacherStudentAccessPolicyTest {
                 + ";newDatabaseVersion=V2010;immediatelyReleaseResources=true");
              Statement statement = connection.createStatement()) {
             statement.execute("CREATE TABLE tblTeacher (teacher_id VARCHAR(32) NOT NULL,"
-                    + "user_id VARCHAR(32),PRIMARY KEY (teacher_id))");
+                    + "user_id VARCHAR(32),active BIT NOT NULL,PRIMARY KEY (teacher_id))");
             statement.execute("CREATE TABLE tblCourseOffering (offering_id VARCHAR(36) NOT NULL,"
                     + "teacher_id VARCHAR(32) NOT NULL,PRIMARY KEY (offering_id))");
             statement.execute("CREATE TABLE tblCourseSelection (selection_id VARCHAR(36) NOT NULL,"
                     + "student_id VARCHAR(32) NOT NULL,offering_id VARCHAR(36) NOT NULL,"
                     + "status VARCHAR(16) NOT NULL,PRIMARY KEY (selection_id))");
-            statement.execute("INSERT INTO tblTeacher(teacher_id,user_id) VALUES ('T001','teacher001')");
+            statement.execute("INSERT INTO tblTeacher(teacher_id,user_id,active) "
+                    + "VALUES ('T001','teacher001',1)");
+            statement.execute("INSERT INTO tblTeacher(teacher_id,user_id,active) "
+                    + "VALUES ('T002','inactive-teacher',0)");
             statement.execute("INSERT INTO tblCourseOffering(offering_id,teacher_id)"
                     + " VALUES ('O001','T001')");
             statement.execute("INSERT INTO tblCourseSelection(selection_id,student_id,offering_id,status)"
@@ -56,5 +59,19 @@ class AccessTeacherStudentAccessPolicyTest {
     void rejectsBlankIdentity() {
         assertEquals(StatusCode.BAD_REQUEST, policy.canRead(" ", "S001").getStatus());
         assertEquals(StatusCode.BAD_REQUEST, policy.canRead("teacher001", null).getStatus());
+    }
+
+    @Test
+    void rejectsInactiveTeacherEvenForHistoricalActiveSelection() throws Exception {
+        try (Connection connection = DriverManager.getConnection("jdbc:ucanaccess://"
+                + temporaryDirectory.resolve("teacher-student-scope.accdb")
+                + ";immediatelyReleaseResources=true");
+             Statement statement = connection.createStatement()) {
+            statement.execute("INSERT INTO tblCourseOffering(offering_id,teacher_id) "
+                    + "VALUES ('O002','T002')");
+            statement.execute("INSERT INTO tblCourseSelection(selection_id,student_id,offering_id,status) "
+                    + "VALUES ('R003','S003','O002','ACTIVE')");
+        }
+        assertFalse(policy.canRead("inactive-teacher", "S003").getData());
     }
 }

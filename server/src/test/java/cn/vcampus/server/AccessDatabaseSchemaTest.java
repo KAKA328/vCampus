@@ -1,5 +1,6 @@
 package cn.vcampus.server;
 
+import cn.vcampus.student.TeacherProfile;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
@@ -35,6 +36,27 @@ class AccessDatabaseSchemaTest {
         assertEquals(1, countWhere(database, "tblTeacher", "teacher_id", "demo_teacher"));
         assertEquals(5, count(database, "tblProduct"));
         assertTrue(Files.exists(database));
+    }
+
+    @Test
+    void legacyDatabaseWithoutTeacherTableCanApplyTeacherProfileMigration() throws Exception {
+        Path database = temporaryDirectory.resolve("legacy-vcampus.accdb");
+        Class.forName("net.ucanaccess.jdbc.UcanaccessDriver");
+        try (Connection connection = DriverManager.getConnection(
+                "jdbc:ucanaccess://" + database
+                        + ";newDatabaseVersion=V2010;immediatelyReleaseResources=true");
+             Statement statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE tblLegacyMarker (marker_id INTEGER NOT NULL, "
+                    + "PRIMARY KEY (marker_id))");
+        }
+
+        executeScript(database, readScript("database/migrations/013_teacher_profile.up.sql"));
+        AccessTeacherRepository teachers = new AccessTeacherRepository(database);
+        teachers.save(new TeacherProfile("T001", "teacher001", "测试教师",
+                "计算机学院", "讲师", true));
+
+        assertEquals(1, count(database, "tblTeacher"));
+        assertTrue(teachers.findByUserId("teacher001").isActive());
     }
 
     private static String readScript(String file) throws IOException {

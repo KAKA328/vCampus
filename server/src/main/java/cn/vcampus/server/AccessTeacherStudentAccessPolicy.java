@@ -31,7 +31,7 @@ final class AccessTeacherStudentAccessPolicy implements TeacherStudentAccessPoli
         String sql = "SELECT TOP 1 s.selection_id FROM (tblTeacher AS t "
                 + "INNER JOIN tblCourseOffering AS o ON t.teacher_id=o.teacher_id) "
                 + "INNER JOIN tblCourseSelection AS s ON o.offering_id=s.offering_id "
-                + "WHERE t.user_id=? AND s.student_id=? AND s.status='ACTIVE'";
+                + "WHERE t.user_id=? AND t.active=1 AND s.student_id=? AND s.status='ACTIVE'";
         try (Connection connection = open();
              PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, normalizedUserId);
