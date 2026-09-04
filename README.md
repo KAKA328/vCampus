@@ -138,7 +138,9 @@ docs/                设计基线、权限矩阵、接口和外部项目调研
 - 选课模块已接入课程查询、选课、退课和本人已选课程查询。
 - 商店客户端已接入商品查询、购买和本人订单查询。
 - 图书馆已接入 Swing 页面、V2 消息协议、服务器权限处理、内存服务和 Access 原子借还事务。
-- 图书馆已与当前学籍、选课和商店主线代码完成构建级对接，完整共享数据库及多人界面联调仍需小组验收。
+- 学籍和教师档案已完成账号绑定、教师在职状态、授课范围读取校验和 Access 对接。
+- 当前验收数据库允许弃用旧 `.accdb`，统一按最新 `database/schema.sql` + `database/seed.sql` 重建。
+- 本地 UI 刷新分支正在统一登录页、角色工作台、模块页面、表格、滚动区域和本地功能助手，完整共享数据库及多人界面联调仍需小组验收。
 
 ## 设计与协作资料
 
@@ -148,6 +150,7 @@ docs/                设计基线、权限矩阵、接口和外部项目调研
 - [`docs/INTERFACES.md`](docs/INTERFACES.md)：消息和模块接口
 - [`docs/MODULE_INTEGRATION_GUIDE.md`](docs/MODULE_INTEGRATION_GUIDE.md)：模块接入约定
 - [`docs/ACCEPTANCE_CHECKLIST.md`](docs/ACCEPTANCE_CHECKLIST.md)：验收清单
+- [`docs/PROGRESS_REPORT_2026-09-04.md`](docs/PROGRESS_REPORT_2026-09-04.md)：最新小组进度报告
 
 ## 常见问题
 

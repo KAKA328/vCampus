@@ -11,6 +11,8 @@ import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Font;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -54,28 +56,63 @@ public final class CourseSelectionPanel extends JPanel {
     }
 
     private void build() {
-        setLayout(new BorderLayout(8, 8));
+        setLayout(new BorderLayout(0, 16));
         setOpaque(false);
-        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        top.setOpaque(false);
-        VCampusTheme.secondaryButton(loadRoundsButton);
-        VCampusTheme.secondaryButton(loadOfferingsButton);
-        VCampusTheme.secondaryButton(selectedButton);
-        VCampusTheme.primaryButton(selectButton);
-        VCampusTheme.secondaryButton(dropButton);
-        table.setRowHeight(28);
-        table.getTableHeader().setReorderingAllowed(false);
-        table.setGridColor(VCampusTheme.BORDER);
+        add(header(), BorderLayout.NORTH);
+        add(VCampusTheme.pageScroll(body()), BorderLayout.CENTER);
         status.setForeground(VCampusTheme.MUTED);
-        top.add(loadRoundsButton); top.add(roundBox); top.add(loadOfferingsButton);
-        top.add(selectedButton); top.add(selectButton); top.add(dropButton);
-        add(top, BorderLayout.NORTH); add(new JScrollPane(table), BorderLayout.CENTER); add(status, BorderLayout.SOUTH);
+
         loadRoundsButton.addActionListener(e -> loadRounds());
         loadOfferingsButton.addActionListener(e -> loadOfferings());
         selectedButton.addActionListener(e -> loadSelected());
         selectButton.addActionListener(e -> select());
         dropButton.addActionListener(e -> drop());
         updateInteractiveState();
+    }
+
+    private JPanel body() {
+        JPanel panel = new ScrollablePagePanel(new BorderLayout(0, 12));
+        panel.setOpaque(false);
+        panel.add(queryBar(), BorderLayout.NORTH);
+        panel.add(tablePanel(), BorderLayout.CENTER);
+        panel.add(status, BorderLayout.SOUTH);
+        return panel;
+    }
+
+    private JPanel header() {
+        JPanel panel = new JPanel(new BorderLayout(0, 5));
+        panel.setOpaque(false);
+        JLabel title = new JLabel("选课系统");
+        title.setFont(VCampusTheme.font(Font.BOLD, 24));
+        title.setForeground(VCampusTheme.PRIMARY_DARK);
+        JLabel subtitle = new JLabel("选择轮次后查看可选教学班，或切换到本人已选课程办理退选。");
+        subtitle.setForeground(VCampusTheme.MUTED);
+        panel.add(title, BorderLayout.NORTH);
+        panel.add(subtitle, BorderLayout.SOUTH);
+        return panel;
+    }
+
+    private JPanel queryBar() {
+        JPanel top = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, 10, 6));
+        VCampusTheme.panel(top);
+        VCampusTheme.secondaryButton(loadRoundsButton);
+        VCampusTheme.secondaryButton(loadOfferingsButton);
+        VCampusTheme.secondaryButton(selectedButton);
+        VCampusTheme.primaryButton(selectButton);
+        VCampusTheme.secondaryButton(dropButton);
+        top.add(loadRoundsButton); top.add(roundBox); top.add(loadOfferingsButton);
+        top.add(selectedButton); top.add(selectButton); top.add(dropButton);
+        return top;
+    }
+
+    private JPanel tablePanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        VCampusTheme.panel(panel);
+        panel.setPreferredSize(new Dimension(0, 420));
+        panel.setMinimumSize(new Dimension(0, 240));
+        VCampusTheme.table(table);
+        panel.add(VCampusTheme.scrollPane(table), BorderLayout.CENTER);
+        return panel;
     }
 
     private void loadRounds() {
