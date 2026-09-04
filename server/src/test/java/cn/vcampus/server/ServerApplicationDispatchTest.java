@@ -10,6 +10,7 @@ import cn.vcampus.course.CourseSelectionQueryV2Command;
 import cn.vcampus.course.CourseSelectionDemoFactory;
 import cn.vcampus.course.InMemoryStudentSelectionProfileProvider;
 import cn.vcampus.course.StudentSelectionProfile;
+import cn.vcampus.library.LibraryQueryV2Command;
 import cn.vcampus.user.InMemoryUserManagementService;
 import cn.vcampus.user.Session;
 import cn.vcampus.user.UserCredentials;
@@ -29,6 +30,23 @@ class ServerApplicationDispatchTest {
         Message response = server.dispatch(Message.request("rounds",
                 MessageType.COURSE_SELECTION_QUERY_V2,
                 CourseSelectionQueryV2Command.availableRounds(session.getToken())));
+        assertEquals(StatusCode.OK, response.getStatusCode());
+    }
+
+    @Test
+    void dispatchRoutesVersionedLibraryQuery() {
+        InMemoryUserManagementService users = new InMemoryUserManagementService();
+        UserCredentials account = new UserCredentials("library_student", "password", "图书馆学生", Role.STUDENT.name());
+        users.register(account);
+        Session session = users.login(account).getData();
+        InMemoryStudentSelectionProfileProvider profiles = new InMemoryStudentSelectionProfileProvider(
+                Collections.<StudentSelectionProfile>emptyList());
+        ServerApplication server = new ServerApplication(
+                0, users, CourseSelectionDemoFactory.createService(), profiles);
+
+        Message response = server.dispatch(Message.request("library-query",
+                MessageType.LIBRARY_QUERY_V2,
+                new LibraryQueryV2Command(session.getToken(), "Java")));
         assertEquals(StatusCode.OK, response.getStatusCode());
     }
 }

@@ -14,4 +14,6 @@ CREATE TABLE tblWalletTransaction (
     PRIMARY KEY (transaction_id)
 );
 
+-- 以下索引仅供真 Access 环境使用：UCanAccess 4.0.4 对 CREATE INDEX（含非唯一）抛
+-- FeatureNotSupportedException，因此 database/schema.sql 里不包含本句（schema.sql 会被测试直接执行）。
 CREATE INDEX idx_tblWalletTransaction_user ON tblWalletTransaction(user_id);

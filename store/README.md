@@ -121,8 +121,8 @@ Access 每个仓储是**独立的 JDBC 连接**，没有跨表事务能力。因
 ## 6. 数据库
 
 - 建表见 [`../database/schema.sql`](../database/schema.sql)：`tblBankAccount(user_id VARCHAR(32) PRIMARY KEY, balance_cents BIGINT NOT NULL)`、`tblWalletTransaction(transaction_id VARCHAR(36) PRIMARY KEY, ..., amount_cents BIGINT, balance_after_cents BIGINT, ...)`。
-- 迁移见 [`009_store_bank_account`](../database/migrations/009_store_bank_account.up.sql) 与 [`011_store_wallet_transaction`](../database/migrations/011_store_wallet_transaction.up.sql)（010 已被学籍 `010_student_academic` 占用，不碰）。
-- 主键即唯一性约束：**UCanAccess 4.0.4 不支持 `CREATE UNIQUE INDEX`**（抛 `FeatureNotSupportedException`），唯一性只能靠主键、建表内联 `CONSTRAINT ... UNIQUE`，或非唯一的 `CREATE INDEX`（`idx_tblWalletTransaction_user` 仅加速按用户查流水，不承担唯一性）。
+- 迁移见 [`009_store_bank_account`](../database/migrations/009_store_bank_account.up.sql) 与 [`012_store_wallet_transaction`](../database/migrations/012_store_wallet_transaction.up.sql)（010 被学籍 `010_student_academic` 占用、011 被图书馆 `011_library` 占用，都不碰）。
+- 主键即唯一性约束：**UCanAccess 4.0.4 对 `CREATE INDEX` 整体不支持**（非唯一索引也一样抛 `FeatureNotSupportedException`），唯一性只能靠主键或建表内联 `CONSTRAINT ... UNIQUE`。因此 `database/schema.sql` 里**只建表、不建索引**（它会被 `AccessDatabaseSchemaTest` 直接执行）；`idx_tblWalletTransaction_user` 仅写在迁移 `012_store_wallet_transaction.up.sql` 里供真 Access 环境加速按用户查流水，不承担唯一性，也不影响正确性。
 - `CartItem` **未加列**：购物车明细走读取时联表（见 4.2），`tblCartItem` 结构不变，旧库无需迁移即可用。
 - 数据库必须按最新 `schema.sql` 重建，不兼容旧 `.accdb`，详见 [`../database/README.md`](../database/README.md)。
 
