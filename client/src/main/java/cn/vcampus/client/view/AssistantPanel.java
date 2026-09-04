@@ -89,7 +89,6 @@ final class AssistantPanel extends JPanel {
 
         answers.setOpaque(false);
         answers.setLayout(new BoxLayout(answers, BoxLayout.Y_AXIS));
-        addSuggestions();
         JScrollPane scroll = VCampusTheme.pageScroll(answers);
         scroll.setPreferredSize(new Dimension(290, 195));
         scroll.setBorder(BorderFactory.createEmptyBorder());
@@ -178,6 +177,7 @@ final class AssistantPanel extends JPanel {
         answers.repaint();
     }
 
+
     private void toggleCard() {
         card.setVisible(!card.isVisible());
         if (card.isVisible() && !introduced) {
@@ -186,7 +186,6 @@ final class AssistantPanel extends JPanel {
             JLabel welcome = new JLabel("<html><div style='width:220px;line-height:1.6;'>你好，我是东南大学吉祥物叮东！我可以帮你查找选课、学籍、图书馆和商店功能入口。你可以点击下方快捷选项，或直接输入问题。</div></html>");
             welcome.setForeground(VCampusTheme.TEXT);
             answers.add(welcome);
-            addSuggestions();
         }
         revalidate();
         repaint();
