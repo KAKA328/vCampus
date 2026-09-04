@@ -68,3 +68,15 @@
 - [x] 查询失败时通过 `loadedRecord=false` 保证保存按钮保持禁用
 - [x] 增加清空编辑区后不可保存的客户端回归测试
 - [ ] 等待用户明确指令后再推送并更新 PR33
+
+## Follow-up: 2026-09-04 最新主线学籍完善
+- [x] 更新本地 `main` 到 `origin/main@496b7e3`，确认 PR33、PR35 已合并
+- [x] 从最新主线创建 `feature/student-academic-hardening`
+- [x] 确认 `--db` 已接入选课 V2 Access 服务，学籍迁移已统一为 010
+- [x] 统一课程历史必填字段校验和内存/Access 空学号语义
+- [x] 修复内存审查丢失 `requiredCredits` 的问题并增加学分缺口 getter
+- [x] 基于最新 Access 教学班/选课记录实现教师授课范围校验
+- [x] 移除 `userId == studentId` 的学生本人绑定旁路
+- [x] 运行相关模块验证并复核差异（学籍 14 项、服务器 118 项通过）
+- [x] 运行全项目 `mvn clean test package`（359 项通过，失败 0）
+- [ ] 等待学分聚合和最终毕业口径确认后再做下一阶段重构

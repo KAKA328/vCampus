@@ -127,8 +127,8 @@ CourseSelectionService 执行轮次、专业、容量、冲突和重修规则
 - 选课 V2 请求不携带或信任客户端学生身份；
 - `mvn clean test package` 全项目通过。
 
-## 7. 当前已知待确认项
+## 7. 当前实现和待确认项
 
-- 教师查询学生必须按授课范围过滤，具体由教师档案/教学班服务提供范围判断；
-- 当前选课学期在服务器示例中使用 `CourseSelectionDemoFactory.DEMO_TERM`，正式部署时应改为配置或数据库值；
+- Access 模式下教师查询学生已经按教师档案、教学班和有效选课记录限制授课范围；内存模式无授课关系时默认拒绝；
+- `--db` 模式的选课学期由 Access 选课轮次确定，内存演示仍使用 `CourseSelectionDemoFactory.DEMO_TERM`；
 - `review(studentId, requiredCredits)` 当前实时计算，不覆盖 `tblAcademicReview` 历史快照；若要持久化审核结果，需要由教务模块确认审核人和写入接口。

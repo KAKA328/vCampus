@@ -36,7 +36,8 @@ class StudentMessageHandlerTest {
                 .getData().getToken();
         teacherToken = users.login(new UserCredentials("teacher001", "Demo123", "教师", Role.TEACHER.name()))
                 .getData().getToken();
-        handler = new StudentMessageHandler(students, users);
+        handler = new StudentMessageHandler(students, users,
+                (teacherUserId, studentId) -> ServiceResult.ok("S002".equals(studentId)));
     }
 
     @Test
@@ -52,7 +53,17 @@ class StudentMessageHandlerTest {
         assertEquals(StatusCode.OK, handler.handle(request(
                 StudentQueryCommand.byId(teacherToken, "S002"))).getStatusCode());
         assertEquals(StatusCode.FORBIDDEN, handler.handle(request(
+                StudentQueryCommand.byId(teacherToken, "S001"))).getStatusCode());
+        assertEquals(StatusCode.FORBIDDEN, handler.handle(request(
                 new StudentUpdateCommand(teacherToken, students.records.get(0)))).getStatusCode());
+    }
+
+    @Test
+    void matchingStudentIdDoesNotBypassAccountBinding() {
+        students.records.add(student("stu001", null, "未绑定学生", ""));
+
+        assertEquals(StatusCode.FORBIDDEN, handler.handle(request(
+                StudentQueryCommand.byId(studentToken, "stu001"))).getStatusCode());
     }
 
     @Test

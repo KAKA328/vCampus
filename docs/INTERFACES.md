@@ -32,7 +32,11 @@ AcademicReviewService.pendingRetakes(String studentId)
 
 教务端学籍查询还支持 `findByMajor(majorName)`，仅允许 `ADMIN` 和 `ACADEMIC_ADMIN` 角色调用；学生本人和教师不能按专业批量查询。`findMyStudentProfile(userId)` 是服务器完成 Token 解析后的兼容别名，等价于 `findByUserId(userId)`。
 
+教师按学号查询时，服务器通过 `tblTeacher.user_id -> tblCourseOffering.teacher_id -> tblCourseSelection.student_id` 校验授课范围，并且只认可 `ACTIVE` 选课记录。内存模式没有授课关系数据，默认拒绝教师按学号查询。学生本人权限只认可 `tblStudent.user_id` 的显式绑定，不再使用 `userId == studentId` 作为兼容旁路。
+
 `AcademicReviewService.review(studentId, requiredCredits)` 根据课程结果实时计算学分、挂科和重修统计；`latestReview(studentId)` 读取 `tblAcademicReview` 中按审核时间倒序的最新快照。实时计算不会覆盖历史快照。
+
+`AcademicReview.getCreditShortfall()` 返回 `max(0, requiredEarnedCredits - totalEarnedCredits)`。内存和 Access 模式对空学号统一返回 `BAD_REQUEST`；课程历史的学号、课程号、学期和尝试类型不能为空。
 
 ## 账号与档案绑定公共契约
 
