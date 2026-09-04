@@ -10,7 +10,7 @@ import javax.swing.SwingConstants;
 /** Dashboard grid that recalculates card columns when the window width changes. */
 final class ResponsiveModuleGridPanel extends JPanel implements Scrollable {
     private static final int DEFAULT_MIN_CARD_WIDTH = 300;
-    private static final int DEFAULT_CARD_HEIGHT = 180;
+    private static final int DEFAULT_CARD_HEIGHT = 190;
     private static final int DEFAULT_GAP = 16;
 
     private final int minCardWidth;
@@ -74,6 +74,17 @@ final class ResponsiveModuleGridPanel extends JPanel implements Scrollable {
         int columns = Math.min(count, columnsForWidth(width, minCardWidth, hgap));
         int rows = (int) Math.ceil(count / (double) columns);
         return new Dimension(width, rows * cardHeight + Math.max(0, rows - 1) * vgap);
+    }
+
+    Dimension preferredSizeForWidth(int width) {
+        int count = getComponentCount();
+        if (count == 0) {
+            return new Dimension(Math.max(minCardWidth, width), cardHeight);
+        }
+        int safeWidth = Math.max(minCardWidth, width);
+        int columns = Math.min(count, columnsForWidth(safeWidth, minCardWidth, hgap));
+        int rows = (int) Math.ceil(count / (double) columns);
+        return new Dimension(safeWidth, rows * cardHeight + Math.max(0, rows - 1) * vgap);
     }
 
     @Override public Dimension getPreferredScrollableViewportSize() {

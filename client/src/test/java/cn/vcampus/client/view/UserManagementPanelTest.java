@@ -44,6 +44,24 @@ class UserManagementPanelTest {
     }
 
     @Test
+    void actionCardsUseResponsiveRowsForNarrowWindows() {
+        UserManagementPanel panel = new UserManagementPanel(null,
+                "127.0.0.1", 19090, new Session("token", new User("admin", "管理员", Role.ADMIN)));
+
+        List<ResponsiveCardRowPanel> rows = components(panel, ResponsiveCardRowPanel.class);
+
+        assertTrue(rows.size() >= 2, "top actions and lower approval/audit cards should both reflow");
+        for (ResponsiveCardRowPanel row : rows) {
+            row.setBounds(0, 0, 420, 500);
+            row.doLayout();
+            if (row.getComponentCount() > 1) {
+                assertTrue(row.getComponent(1).getY() > row.getComponent(0).getY(),
+                        "cards should stack when the content area is compact");
+            }
+        }
+    }
+
+    @Test
     void compactInitialWindowUsesScrollingInsteadOfSquashingCards() {
         UserManagementPanel panel = new UserManagementPanel(null,
                 "127.0.0.1", 19090, new Session("token", new User("admin", "管理员", Role.ADMIN)));

@@ -10,6 +10,7 @@ import cn.vcampus.store.Product;
 import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.io.IOException;
@@ -80,8 +81,7 @@ public final class StorePanel extends JPanel {
         setOpaque(false);
 
         add(header(), BorderLayout.NORTH);
-        add(tabs(), BorderLayout.CENTER);
-        add(bottomPanel(), BorderLayout.SOUTH);
+        add(VCampusTheme.pageScroll(body()), BorderLayout.CENTER);
 
         refreshProductsButton.addActionListener(event -> loadProducts());
         purchaseButton.addActionListener(event -> purchaseSelectedProduct());
@@ -98,6 +98,17 @@ public final class StorePanel extends JPanel {
         loadBalance();
     }
 
+    private JPanel body() {
+        JPanel panel = new ScrollablePagePanel(new BorderLayout(0, 12));
+        panel.setOpaque(false);
+        JTabbedPane tabs = tabs();
+        tabs.setPreferredSize(new Dimension(0, 430));
+        tabs.setMinimumSize(new Dimension(0, 300));
+        panel.add(tabs, BorderLayout.CENTER);
+        panel.add(bottomPanel(), BorderLayout.SOUTH);
+        return panel;
+    }
+
     private JPanel header() {
         JPanel panel = new JPanel(new BorderLayout(0, 6));
         panel.setOpaque(false);
@@ -111,7 +122,7 @@ public final class StorePanel extends JPanel {
         subtitle.setForeground(VCampusTheme.MUTED);
 
         balanceLabel.setFont(VCampusTheme.font(Font.BOLD, 14));
-        balanceLabel.setForeground(VCampusTheme.PRIMARY_DARK);
+        VCampusTheme.statusPill(balanceLabel, VCampusTheme.ACCENT);
 
         JPanel subtitleRow = new JPanel(new BorderLayout(12, 0));
         subtitleRow.setOpaque(false);
@@ -125,7 +136,7 @@ public final class StorePanel extends JPanel {
 
     private JTabbedPane tabs() {
         JTabbedPane tabs = new JTabbedPane();
-        tabs.setFont(VCampusTheme.font(Font.PLAIN, 14));
+        VCampusTheme.tabs(tabs);
         tabs.addTab("商品列表", tablePanel(productTable, productTableModel));
         tabs.addTab("购买记录", tablePanel(orderTable, orderTableModel));
         tabs.addTab("购物车", cartPanel());
@@ -134,7 +145,7 @@ public final class StorePanel extends JPanel {
 
     private JPanel cartPanel() {
         JPanel panel = tablePanel(cartTable, cartTableModel);
-        JPanel cartActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 6));
+        JPanel cartActions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, 10, 6));
         cartActions.setOpaque(false);
         VCampusTheme.secondaryButton(refreshCartButton);
         VCampusTheme.secondaryButton(removeFromCartButton);
@@ -149,18 +160,17 @@ public final class StorePanel extends JPanel {
     private JPanel tablePanel(JTable table, DefaultTableModel model) {
         JPanel panel = new JPanel(new BorderLayout());
         VCampusTheme.panel(panel);
+        VCampusTheme.table(table);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        table.setRowHeight(28);
-        table.getTableHeader().setReorderingAllowed(false);
-        panel.add(new JScrollPane(table), BorderLayout.CENTER);
+        panel.add(VCampusTheme.scrollPane(table), BorderLayout.CENTER);
         return panel;
     }
 
     private JPanel bottomPanel() {
         JPanel panel = new JPanel(new BorderLayout(0, 12));
-        panel.setOpaque(false);
+        VCampusTheme.panel(panel);
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, 10, 6));
         actions.setOpaque(false);
         VCampusTheme.secondaryButton(refreshProductsButton);
         VCampusTheme.primaryButton(purchaseButton);
@@ -168,6 +178,7 @@ public final class StorePanel extends JPanel {
         VCampusTheme.secondaryButton(refreshOrdersButton);
         VCampusTheme.primaryButton(rechargeButton);
         VCampusTheme.secondaryButton(adjustBalanceButton);
+        VCampusTheme.field(quantity);
         actions.add(refreshProductsButton);
         actions.add(new JLabel("数量"));
         actions.add(quantity);
