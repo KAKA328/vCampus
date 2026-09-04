@@ -42,6 +42,18 @@ class InMemorySelectionRoundServiceTest {
     }
 
     @Test
+    void rejectsSameRoundTypeInSameTerm() {
+        InMemorySelectionRoundService service = new InMemorySelectionRoundService();
+        assertEquals(StatusCode.OK, service.create(round("ROUND-INITIAL-1", SelectionRoundType.INITIAL,
+                SelectionRoundStatus.DRAFT)).getStatus());
+
+        ServiceResult<SelectionRound> result = service.create(round("ROUND-INITIAL-2",
+                SelectionRoundType.INITIAL, SelectionRoundStatus.DRAFT));
+
+        assertEquals(StatusCode.CONFLICT, result.getStatus());
+    }
+
+    @Test
     void listsOnlyRoundsThatAreOpenAtSpecifiedTime() {
         SelectionRound initialRound = round("ROUND-INITIAL", SelectionRoundType.INITIAL,
                 SelectionRoundStatus.OPEN);
@@ -73,6 +85,25 @@ class InMemorySelectionRoundServiceTest {
         assertEquals(StatusCode.OK, changeResult.getStatus());
         assertEquals(SelectionRoundStatus.OPEN, changeResult.getData().getStatus());
         assertEquals(1, openResult.getData().size());
+    }
+
+    @Test
+    void updatesRoundTimeWindowWithoutChangingItsTypeOrStatus() {
+        SelectionRound round = round("ROUND-INITIAL", SelectionRoundType.INITIAL,
+                SelectionRoundStatus.OPEN);
+        InMemorySelectionRoundService service = new InMemorySelectionRoundService(
+                Arrays.asList(round));
+        LocalDateTime changedStart = STARTS_AT.plusDays(2);
+        LocalDateTime changedEnd = ENDS_AT.plusDays(2);
+
+        ServiceResult<SelectionRound> result = service.updateTimeWindow("ROUND-INITIAL",
+                changedStart, changedEnd);
+
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals(changedStart, result.getData().getStartsAt());
+        assertEquals(changedEnd, result.getData().getEndsAt());
+        assertEquals(SelectionRoundType.INITIAL, result.getData().getType());
+        assertEquals(SelectionRoundStatus.OPEN, result.getData().getStatus());
     }
 
     @Test

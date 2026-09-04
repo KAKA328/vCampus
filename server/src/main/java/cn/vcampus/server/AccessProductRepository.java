@@ -65,7 +65,8 @@ public final class AccessProductRepository implements ProductRepository {
 
     @Override
     public boolean updateStock(String productId, int newStock) {
-        if (newStock < 0) return false;
+        if (newStock < 0)
+            return false;
         String sql = "UPDATE tblProduct SET stock=? WHERE product_id=?";
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -79,7 +80,8 @@ public final class AccessProductRepository implements ProductRepository {
 
     @Override
     public boolean addStock(String productId, int amount) {
-        if (amount <= 0) return false;
+        if (amount <= 0)
+            return false;
         String sql = "UPDATE tblProduct SET stock=stock+? WHERE product_id=?";
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -93,7 +95,8 @@ public final class AccessProductRepository implements ProductRepository {
 
     @Override
     public boolean updateProduct(Product product) {
-        if (product == null) return false;
+        if (product == null)
+            return false;
         String sql = "UPDATE tblProduct SET name=?,stock=?,price=?,description=?,category=?,active=? "
                 + "WHERE product_id=?";
         try (Connection connection = open();
@@ -120,6 +123,23 @@ public final class AccessProductRepository implements ProductRepository {
             return statement.executeUpdate() > 0;
         } catch (SQLException failure) {
             throw new IllegalStateException("failed to delete product", failure);
+        }
+    }
+
+    @Override
+    public boolean deductStock(String productId, int qty) {
+        if (qty <= 0)
+            return false;
+        // 守卫 WHERE stock>=? 让「检查+扣减」在单条 UPDATE 内原子完成，防超卖
+        String sql = "UPDATE tblProduct SET stock=stock-? WHERE product_id=? AND stock>=?";
+        try (Connection connection = open();
+                PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, qty);
+            statement.setString(2, productId);
+            statement.setInt(3, qty);
+            return statement.executeUpdate() > 0;
+        } catch (SQLException failure) {
+            throw new IllegalStateException("failed to deduct product stock", failure);
         }
     }
 

@@ -78,6 +78,20 @@ class InMemoryCourseOfferingServiceTest {
     }
 
     @Test
+    void updatesTeacherAndLocationWithoutChangingSchedule() {
+        InMemoryCourseOfferingService service = new InMemoryCourseOfferingService(Arrays.asList(
+                offering("OFFER-001", "CS101", CourseOfferingStatus.OPEN, 50, 20, 10)));
+
+        ServiceResult<CourseOffering> result = service.updateTeachingInfo("OFFER-001", "TEACHER-002",
+                "教学楼 B301");
+
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals("TEACHER-002", result.getData().getTeacherId());
+        assertEquals("教学楼 B301", result.getData().getLocation());
+        assertEquals("周一 1-2 节", result.getData().getSchedule());
+    }
+
+    @Test
     void rejectsInvalidOrUnknownManagementRequests() {
         InMemoryCourseOfferingService service = new InMemoryCourseOfferingService(Arrays.asList(
                 offering("OFFER-001", "CS101", CourseOfferingStatus.DRAFT, 50, 20, 10)));

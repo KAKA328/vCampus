@@ -155,6 +155,11 @@ public final class MainFrame extends JFrame {
             refreshContent();
             return;
         }
+        if (useStudentManagementPanel(session.getUser().getRole(), module)) {
+            content.add(new StudentManagementPanel(host, port, session), BorderLayout.CENTER);
+            refreshContent();
+            return;
+        }
         if (useCourseManagementPanel(session.getUser().getRole(), module)) {
             content.add(new CourseManagementPanel(host, port, session), BorderLayout.CENTER);
             refreshContent();
@@ -249,6 +254,14 @@ public final class MainFrame extends JFrame {
         if (role == Role.ADMIN) return "图书管理".equals(module.getTitle());
         return (role == Role.STUDENT || role == Role.TEACHER || role == Role.LIBRARIAN)
                 && "图书馆".equals(module.getTitle());
+    }
+
+    static boolean useStudentManagementPanel(Role role, ModuleDescriptor module) {
+        if (module == null) return false;
+        String title = module.getTitle();
+        return (role == Role.ADMIN || role == Role.ACADEMIC_ADMIN || role == Role.TEACHER
+                || role == Role.STUDENT)
+                && ("学籍管理".equals(title) || "学籍信息".equals(title) || "学籍查询".equals(title));
     }
 
     private static String escapeHtml(String value) {

@@ -74,6 +74,16 @@ public final class SelectionRound implements Serializable {
     }
 
     /**
+     * 返回时间窗口更新后的新轮次对象。
+     *
+     * <p>轮次所属学期和首修/重修类型创建后不允许在此处变更，避免已经产生的选课记录
+     * 与轮次含义不一致。</p>
+     */
+    public SelectionRound withTimeWindow(LocalDateTime newStartsAt, LocalDateTime newEndsAt) {
+        return new SelectionRound(roundId, term, type, newStartsAt, newEndsAt, status);
+    }
+
+    /**
      * 判断指定时刻能否接受选课请求。
      *
      * <p>状态必须为开放，且时刻位于开始和结束时间之间（包含两个端点）。</p>

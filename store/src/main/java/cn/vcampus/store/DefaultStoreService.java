@@ -12,20 +12,29 @@ import java.util.UUID;
 public final class DefaultStoreService implements StoreService {
     private final ProductRepository products;// 商品仓库
     private final OrderRepository orders;// 订单仓库
-    private final CartRepository cart;
+    private final CartRepository cart;// 购物车仓库
+    private final BankAccountRepository bank;// 银行账户仓库
 
-    // 依赖注入
+    // 依赖注入：2 参构造默认内存购物车 + 内存银行账户
     public DefaultStoreService(ProductRepository products, OrderRepository orders) {
         this(products, orders, new InMemoryCartRepository());
     }
 
+    // 3 参构造默认内存银行账户
     public DefaultStoreService(ProductRepository products, OrderRepository orders, CartRepository cart) {
-        if (products == null || orders == null || cart == null) {
+        this(products, orders, cart, new InMemoryBankAccountRepository());
+    }
+
+    // 4 参主构造：注入全部依赖
+    public DefaultStoreService(ProductRepository products, OrderRepository orders, CartRepository cart,
+            BankAccountRepository bank) {
+        if (products == null || orders == null || cart == null || bank == null) {
             throw new IllegalArgumentException("store repositories must not be null");
         }
         this.products = products;
         this.orders = orders;
         this.cart = cart;
+        this.bank = bank;
     }
 
     // 列出所有商品，使用serviceresult类的ok方法打包返回
@@ -33,49 +42,64 @@ public final class DefaultStoreService implements StoreService {
     public synchronized final ServiceResult<List<Product>> listProducts() {
         List<Product> result = new ArrayList<Product>();
         for (Product product : products.findAll()) {
-            if (product.isActive()) result.add(product);
+            if (product.isActive())
+                result.add(product);
         }
         return ServiceResult.ok(Collections.unmodifiableList(result));
     }
 
-    // 购买方法
+    // 购买方法：预检（仅提示）→ 原子扣库存 → 原子扣款 → 建单，任一步失败按序补偿
     @Override
     public synchronized final ServiceResult<Void> purchase(String userId, String productId, int quantity) {
         if (userId == null || userId.trim().isEmpty())
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId must not be blank");
         Product toBuy = products.findById(productId);
-        // 没有目标商品
-        if (toBuy == null)
+        // 商品不存在或已下架
+        if (toBuy == null || !toBuy.isActive())
             return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
         // 数量不合法
-        else if (quantity <= 0)
+        if (quantity <= 0)
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "Quantity must be positive");
-        else if (!toBuy.isActive())
-            return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
-        // 商品数量不够
-        else if (toBuy.getStock() < quantity)
+        // 预检（仅提示）：库存是否充足，真正裁决由原子 deductStock 决定
+        if (toBuy.getStock() < quantity)
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "No enough stock");
-        // 商品存在且数量充足
-        else {
-            // 计算总价
-            double totalPrice = toBuy.getPrice() * quantity;
-            // 刷新库存
-            if (!products.updateStock(productId, toBuy.getStock() - quantity))
-                return ServiceResult.failure(StatusCode.CONFLICT, "Product stock changed; retry purchase");
-            // 创建订单,使用随机订单编号
-            try {
-                Order newOrder = new Order(UUID.randomUUID().toString(), userId, productId, quantity, totalPrice,
-                        LocalDateTime.now(), toBuy.getName(), toBuy.getPrice());
-                if (!orders.create(newOrder)) {
-                    products.updateStock(productId, toBuy.getStock());
-                    return ServiceResult.failure(StatusCode.CONFLICT, "Could not create order");
-                }
-                return ServiceResult.ok(null);
-            } catch (RuntimeException failure) {
-                products.updateStock(productId, toBuy.getStock());
+        // 支付边界一次性换算：double 元 → long 分
+        double totalPrice = toBuy.getPrice() * quantity;
+        long totalCents = Math.round(totalPrice * 100);
+        // 预检（仅提示）：余额是否充足，真正裁决由原子 debit 决定
+        BankAccount account = bank.findByUserId(userId);
+        if ((account == null ? 0L : account.getBalanceCents()) < totalCents)
+            return ServiceResult.failure(StatusCode.PAYMENT_REQUIRED, "Insufficient balance");
+        // 原子扣库存：锁内 stock>=qty 才扣，false 说明被并发抢先
+        if (!products.deductStock(productId, quantity))
+            return ServiceResult.failure(StatusCode.CONFLICT, "Product stock changed; retry purchase");
+        // 原子扣款：锁内 balance>=cents 才扣，false 则回补库存
+        if (!bank.debit(userId, totalCents)) {
+            if (!products.addStock(productId, quantity))
+                return ServiceResult.failure(StatusCode.CONFLICT, "Insufficient balance and stock restore failed");
+            return ServiceResult.failure(StatusCode.PAYMENT_REQUIRED, "Insufficient balance");
+        }
+        // 建单：UUID 唯一业务编号；false/异常则退款 + 回补库存
+        try {
+            Order newOrder = new Order(UUID.randomUUID().toString(), userId, productId, quantity, totalPrice,
+                    LocalDateTime.now(), toBuy.getName(), toBuy.getPrice());
+            if (!orders.create(newOrder)) {
+                refundAndRestore(userId, productId, quantity, totalCents);
                 return ServiceResult.failure(StatusCode.CONFLICT, "Could not create order");
             }
+            return ServiceResult.ok(null);
+        } catch (RuntimeException failure) {
+            refundAndRestore(userId, productId, quantity, totalCents);
+            return ServiceResult.failure(StatusCode.CONFLICT, "Could not create order");
         }
+    }
+
+    // 购买失败的补偿：退款 + 回补库存，逐个检查返回值，任一失败记日志
+    private void refundAndRestore(String userId, String productId, int quantity, long cents) {
+        if (!bank.credit(userId, cents))
+            System.err.println("[compensation] refund failed for user " + userId + ", cents=" + cents);
+        if (!products.addStock(productId, quantity))
+            System.err.println("[compensation] restore stock failed for product " + productId + ", qty=" + quantity);
     }
 
     // 根据用户ID查询订单
@@ -87,7 +111,8 @@ public final class DefaultStoreService implements StoreService {
     // 补货
     @Override
     public final ServiceResult<Void> restock(String userId, String productId, int additionalStock) {
-        if (additionalStock <= 0) return ServiceResult.failure(StatusCode.BAD_REQUEST, "additionalStock must be positive");
+        if (additionalStock <= 0)
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "additionalStock must be positive");
         return products.addStock(productId, additionalStock)
                 ? ServiceResult.ok(null)
                 : ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
@@ -98,7 +123,8 @@ public final class DefaultStoreService implements StoreService {
     public final ServiceResult<Product> addProduct(String name, double price, int stock, String description,
             String category) {
         if (!validPrice(price) || stock < 0)
-            return ServiceResult.failure(StatusCode.BAD_REQUEST, "price must be a finite positive number and stock must not be negative");
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "price must be a finite positive number and stock must not be negative");
         try {
             Product product = new Product(newProductId(), name, stock, price, description, category);
             products.save(product);
@@ -113,7 +139,8 @@ public final class DefaultStoreService implements StoreService {
     public final ServiceResult<Product> updateProduct(String productId, String name, double price,
             String description, String category) {
         Product existing = products.findById(productId);
-        if (existing == null) return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
+        if (existing == null)
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
         try {
             Product updated = new Product(productId, name, existing.getStock(), price, description, category,
                     existing.isActive());
@@ -128,7 +155,8 @@ public final class DefaultStoreService implements StoreService {
     @Override
     public final ServiceResult<Void> deactivateProduct(String userId, String productId) {
         Product existing = products.findById(productId);
-        if (existing == null) return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
+        if (existing == null)
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
         Product deactivated = new Product(existing.getProductId(), existing.getName(), existing.getStock(),
                 existing.getPrice(), existing.getDescription(), existing.getCategory(), false);
         return products.updateProduct(deactivated) ? ServiceResult.ok(null)
@@ -138,12 +166,14 @@ public final class DefaultStoreService implements StoreService {
     // 加入购物车
     @Override
     public final ServiceResult<Void> addToCart(String userId, String productId, int quantity) {
-        if (quantity <= 0) return ServiceResult.failure(StatusCode.BAD_REQUEST, "quantity must be positive");
+        if (quantity <= 0)
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "quantity must be positive");
         Product product = products.findById(productId);
-        if (product == null || !product.isActive()) return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
+        if (product == null || !product.isActive())
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
         return cart.addItem(new CartItem(UUID.randomUUID().toString(), userId, productId, quantity,
                 LocalDateTime.now())) ? ServiceResult.ok(null)
-                : ServiceResult.failure(StatusCode.CONFLICT, "Could not update cart");
+                        : ServiceResult.failure(StatusCode.CONFLICT, "Could not update cart");
     }
 
     // 删除购物车条目
@@ -164,52 +194,79 @@ public final class DefaultStoreService implements StoreService {
         return ServiceResult.ok(cart.findByUserId(userId));
     }
 
-    // 购物车结账
+    // 购物车结账：加锁，与 purchase 共用同一把锁；逐项 原子扣库存 → 原子扣款 → 建单 → 清空
     @Override
-    public final ServiceResult<Void> checkout(String userId) {
+    public synchronized final ServiceResult<Void> checkout(String userId) {
         List<CartItem> items = new ArrayList<CartItem>(cart.findByUserId(userId));
-        if (items.isEmpty()) return ServiceResult.failure(StatusCode.BAD_REQUEST, "Cart is empty");
+        if (items.isEmpty())
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "Cart is empty");
+        // 预检（仅提示）：库存 + 余额，真正裁决由逐项原子操作决定
+        long estimatedCents = 0L;
         for (CartItem item : items) {
             Product product = products.findById(item.getProductId());
             if (product == null || !product.isActive() || product.getStock() < item.getQuantity())
                 return ServiceResult.failure(StatusCode.BAD_REQUEST, "Cart contains unavailable stock");
+            estimatedCents += Math.round(product.getPrice() * item.getQuantity() * 100);
         }
+        BankAccount account = bank.findByUserId(userId);
+        if ((account == null ? 0L : account.getBalanceCents()) < estimatedCents)
+            return ServiceResult.failure(StatusCode.PAYMENT_REQUIRED, "Insufficient balance");
+
         List<Order> created = new ArrayList<Order>();
-        List<Product> reserved = new ArrayList<Product>();
+        List<CartItem> deducted = new ArrayList<CartItem>();
+        long debitedCents = 0L;
         for (CartItem item : items) {
             Product product = products.findById(item.getProductId());
-            Product reservedProduct = new Product(product.getProductId(), product.getName(),
-                    product.getStock() - item.getQuantity(), product.getPrice(), product.getDescription(),
-                    product.getCategory(), product.isActive());
-            if (!products.updateStock(product.getProductId(), reservedProduct.getStock())) {
-                rollbackCheckout(created, reserved);
+            // 原子扣库存
+            if (!products.deductStock(item.getProductId(), item.getQuantity())) {
+                rollbackCheckout(userId, created, deducted, debitedCents);
                 return ServiceResult.failure(StatusCode.CONFLICT, "Product stock changed; checkout rolled back");
             }
-            reserved.add(product);
-            Order order;
+            deducted.add(item);
+            // 原子扣款
+            long itemCents = Math.round(product.getPrice() * item.getQuantity() * 100);
+            if (!bank.debit(userId, itemCents)) {
+                rollbackCheckout(userId, created, deducted, debitedCents);
+                return ServiceResult.failure(StatusCode.CONFLICT, "Insufficient balance; checkout rolled back");
+            }
+            debitedCents += itemCents;
+            // 建单
             try {
-                order = new Order(UUID.randomUUID().toString(), userId, product.getProductId(), item.getQuantity(),
-                        product.getPrice() * item.getQuantity(), LocalDateTime.now(), product.getName(), product.getPrice());
-                if (orders.create(order)) {
-                    created.add(order);
-                    continue;
+                Order order = new Order(UUID.randomUUID().toString(), userId, product.getProductId(),
+                        item.getQuantity(), product.getPrice() * item.getQuantity(), LocalDateTime.now(),
+                        product.getName(), product.getPrice());
+                if (!orders.create(order)) {
+                    rollbackCheckout(userId, created, deducted, debitedCents);
+                    return ServiceResult.failure(StatusCode.CONFLICT, "Could not create order; checkout rolled back");
                 }
+                created.add(order);
             } catch (RuntimeException failure) {
-                rollbackCheckout(created, reserved);
-                products.updateStock(product.getProductId(), product.getStock());
+                rollbackCheckout(userId, created, deducted, debitedCents);
                 return ServiceResult.failure(StatusCode.CONFLICT, "Could not create order; checkout rolled back");
             }
-            rollbackCheckout(created, reserved);
-            products.updateStock(product.getProductId(), product.getStock());
-            return ServiceResult.failure(StatusCode.CONFLICT, "Could not create order; checkout rolled back");
         }
-        cart.clearByUserId(userId);
+        // 清空购物车失败也要回滚，否则用户重试会重复下单
+        try {
+            cart.clearByUserId(userId);
+        } catch (RuntimeException failure) {
+            rollbackCheckout(userId, created, deducted, debitedCents);
+            return ServiceResult.failure(StatusCode.CONFLICT, "Could not clear cart; checkout rolled back");
+        }
         return ServiceResult.ok(null);
     }
 
-    private void rollbackCheckout(List<Order> created, List<Product> reserved) {
-        for (Order order : created) orders.deleteById(order.getOrderId());
-        for (Product product : reserved) products.updateStock(product.getProductId(), product.getStock());
+    // 结账补偿：撤销订单 + 回补库存 + 退款，逐个检查返回值，任一失败记日志（调用方仍返回 CONFLICT）
+    private void rollbackCheckout(String userId, List<Order> created, List<CartItem> deducted, long debitedCents) {
+        for (Order order : created) {
+            if (!orders.deleteById(order.getOrderId()))
+                System.err.println("[compensation] delete order failed: " + order.getOrderId());
+        }
+        for (CartItem item : deducted) {
+            if (!products.addStock(item.getProductId(), item.getQuantity()))
+                System.err.println("[compensation] restore stock failed: " + item.getProductId());
+        }
+        if (debitedCents > 0 && !bank.credit(userId, debitedCents))
+            System.err.println("[compensation] refund failed for user " + userId + ", cents=" + debitedCents);
     }
 
     // 查询所有订单
@@ -221,13 +278,16 @@ public final class DefaultStoreService implements StoreService {
     // 热销商品排行
     @Override
     public final ServiceResult<List<Product>> listHotProducts(int limit) {
-        if (limit <= 0) return ServiceResult.failure(StatusCode.BAD_REQUEST, "limit must be positive");
+        if (limit <= 0)
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "limit must be positive");
         List<Object[]> sales = orders.findSalesVolume();
         List<Product> result = new ArrayList<Product>();
         for (Object[] row : sales) {
             Product product = products.findById(String.valueOf(row[0]));
-            if (product != null && product.isActive()) result.add(product);
-            if (result.size() >= limit) break;
+            if (product != null && product.isActive())
+                result.add(product);
+            if (result.size() >= limit)
+                break;
         }
         return ServiceResult.ok(Collections.unmodifiableList(result));
     }
@@ -235,12 +295,47 @@ public final class DefaultStoreService implements StoreService {
     // 按分类列出商品
     @Override
     public final ServiceResult<List<Product>> listProducts(String category) {
-        if (category == null || category.trim().isEmpty()) return listProducts();
+        if (category == null || category.trim().isEmpty())
+            return listProducts();
         List<Product> result = new ArrayList<Product>();
         for (Product product : products.findAll()) {
-            if (product.isActive() && category.trim().equals(product.getCategory())) result.add(product);
+            if (product.isActive() && category.trim().equals(product.getCategory()))
+                result.add(product);
         }
         return ServiceResult.ok(Collections.unmodifiableList(result));
+    }
+
+    // 查询余额：无账户返回 0
+    @Override
+    public final long getBalance(String userId) {
+        if (userId == null || userId.trim().isEmpty())
+            return 0L;
+        BankAccount account = bank.findByUserId(userId);
+        return account == null ? 0L : account.getBalanceCents();
+    }
+
+    // 本人充值：仅增加，cents 必须为正，走 credit（懒建户）
+    @Override
+    public final ServiceResult<Void> recharge(String userId, long cents) {
+        if (userId == null || userId.trim().isEmpty())
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId must not be blank");
+        if (cents <= 0)
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "recharge amount must be positive");
+        return bank.credit(userId, cents)
+                ? ServiceResult.ok(null)
+                : ServiceResult.failure(StatusCode.CONFLICT, "Could not recharge account");
+    }
+
+    // 管理员校正余额：目标余额非负，走 setBalance（绝对设置）；权限校验在 StoreMessageHandler
+    @Override
+    public final ServiceResult<Void> adjustBalance(String adminId, String userId, long newBalanceCents) {
+        if (userId == null || userId.trim().isEmpty())
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId must not be blank");
+        if (newBalanceCents < 0)
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "balance must not be negative");
+        return bank.setBalance(userId, newBalanceCents)
+                ? ServiceResult.ok(null)
+                : ServiceResult.failure(StatusCode.CONFLICT, "Could not adjust balance");
     }
 
     private static boolean validPrice(double price) {

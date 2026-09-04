@@ -30,11 +30,11 @@ package "common 模块（通信协议与共享类型）" as PCOM {
         REGISTER / UNREGISTER / LOGIN / LOGOUT
         AUTHORIZE / USER_IMPORT
         STUDENT_QUERY / STUDENT_UPDATE
-        COURSE_QUERY / COURSE_SELECT / COURSE_DROP（早期协议）
         COURSE_SELECTION_QUERY_V2 / COURSE_SELECT_OFFERING_V2 / COURSE_DROP_RECORD_V2
         COURSE_MANAGE
         LIBRARY_QUERY / LIBRARY_BORROW / LIBRARY_RETURN
         STORE_QUERY / STORE_PURCHASE / STORE_ORDER_QUERY
+        STORE_ACCOUNT_QUERY / STORE_ACCOUNT_RECHARGE / STORE_ACCOUNT_ADJUST
     }
 
     enum StatusCode {
@@ -45,6 +45,7 @@ package "common 模块（通信协议与共享类型）" as PCOM {
         NOT_FOUND
         CONFLICT
         SERVER_ERROR
+        PAYMENT_REQUIRED <<余额不足>>
     }
 
     enum Role {
@@ -247,15 +248,11 @@ package "user-management 模块" as PUSER {
 ' =====================================================================
 package "course-selection 模块" as PCO {
     interface CourseSelectionService {
-        + listCourses(): ServiceResult<List<Course>>
-        + select(studentId, courseId): ServiceResult<Void>
-        + drop(studentId, courseId): ServiceResult<Void>
-        + selectedCourses(studentId): ServiceResult<List<Course>>
-    }
-
-    class InMemoryCourseSelectionService {
-        - coursesById: Map<String, Course>
-        - courseIdsByStudent: Map<String, Set<String>>
+        + listAvailableRounds(student, time): ServiceResult<List<SelectionRound>>
+        + listAvailableOfferings(student, roundId, time): ServiceResult<List<SelectableCourseOffering>>
+        + select(student, roundId, offeringId, time): ServiceResult<CourseSelectionRecord>
+        + drop(student, recordId, time): ServiceResult<CourseSelectionRecord>
+        + listSelectedOfferings(student): ServiceResult<List<SelectedCourseOffering>>
     }
 
     interface SelectionRoundService {
@@ -274,7 +271,6 @@ package "course-selection 模块" as PCO {
         - courseId: String
         - name: String
         - credits: int
-        - capacity: int
     }
 
     class CourseOffering <<Value Object>> {
@@ -334,23 +330,6 @@ package "course-selection 模块" as PCO {
         CLOSED（关闭）
     }
 
-    class CourseQueryCommand <<Command>> {
-        - queryType: QueryType
-        - studentId: String
-        + {static} allCourses(): CourseQueryCommand
-        + {static} selectedCourses(studentId): CourseQueryCommand
-    }
-
-    class CourseSelectionCommand <<Command>> {
-        - studentId: String
-        - courseId: String
-    }
-
-    class CourseDropCommand <<Command>> {
-        - studentId: String
-        - courseId: String
-    }
-
     class CourseSelectionQueryV2Command <<Command>> {
         - queryType: QueryType
         - token: String
@@ -371,9 +350,7 @@ package "course-selection 模块" as PCO {
         - recordId: String
     }
 
-    CourseSelectionService <|.. InMemoryCourseSelectionService
     SelectionRoundService <|.. InMemorySelectionRoundService
-    InMemoryCourseSelectionService o-- Course
     InMemorySelectionRoundService o-- SelectionRound
 
     CourseOffering --> CourseOfferingStatus
@@ -403,16 +380,30 @@ package "store 模块" as PSTORE {
         + findAllOrders(): ServiceResult<List<Order>>
         + listHotProducts(limit): ServiceResult<List<Product>>
         + listProducts(category): ServiceResult<List<Product>>
+        + getBalance(userId): long <<返回分>>
+        + recharge(userId, cents): ServiceResult<Void>
+        + adjustBalance(adminId, userId, newBalanceCents): ServiceResult<Void>
     }
 
     class DefaultStoreService {
         - products: ProductRepository
         - orders: OrderRepository
-        + 第二轮新方法暂为占位实现（Day 2 起替换）
+        - cart: CartRepository
+        - bank: BankAccountRepository
+        + 管理员商品管理、购物车业务、findAllOrders / listHotProducts /
+          listProducts(category) 均已实现；
+        + getBalance(userId): long <<无账户返回 0>>
+        + recharge(userId, cents): ServiceResult<Void> <<cents>0，懒创建>>
+        + adjustBalance(adminId, userId, newBalanceCents): ServiceResult<Void>
+        + purchase/checkout 均 synchronized 共用一把锁，落地补偿顺序：
+          预检(仅提示) → 原子 deductStock → 原子 debit → 建单(UUID) → 清空购物车；
+          任一步失败按序回滚此前已扣项（退款 credit + 回补 addStock + 撤单 deleteById），
+          每个补偿都检查返回值，补偿失败仍返回 CONFLICT。单 JVM 下的补偿一致性，非数据库事务
     }
 
     class InMemoryStoreService {
         - delegate: StoreService
+        + 无参构造自带三仓库；包内 2/3 参构造供测试注入
     }
 
     interface ProductRepository {
@@ -421,6 +412,7 @@ package "store 模块" as PSTORE {
         + save(product): void
         + updateStock(productId, newStock): boolean
         + addStock(productId, amount): boolean
+        + deductStock(productId, qty): boolean <<原子守卫扣减>>
         + updateProduct(product): boolean
         + deleteById(productId): boolean
     }
@@ -447,6 +439,10 @@ package "store 模块" as PSTORE {
     class InMemoryOrderRepository {
         - orders: ConcurrentHashMap<String, Order>
         - userIdMap: ConcurrentHashMap<String, List<Order>>
+    }
+
+    class InMemoryCartRepository {
+        - items: ConcurrentHashMap<String, CartItem>
     }
 
     class Product <<Value Object>> {
@@ -476,6 +472,39 @@ package "store 模块" as PSTORE {
         - productId: String
         - quantity: int
         - addedAt: LocalDateTime
+    }
+
+    class BankAccount <<Value Object>> {
+        - userId: String
+        - balanceCents: long <<单位分，恒非负>>
+    }
+
+    interface BankAccountRepository {
+        + findByUserId(userId): BankAccount <<不存在返回 null>>
+        + save(account): boolean <<upsert>>
+        + credit(userId, cents): boolean <<懒创建累加>>
+        + debit(userId, cents): boolean <<守卫 balance_cents>=cents>>
+        + setBalance(userId, cents): boolean
+    }
+
+    class InMemoryBankAccountRepository {
+        - accounts: ConcurrentHashMap<String, BankAccount>
+        + 写方法 synchronized；credit 锁内 computeIfAbsent 累加；debit 锁内守卫
+    }
+
+    class StoreAccountQueryCommand <<Command>> {
+        - token: String
+    }
+
+    class StoreAccountRechargeCommand <<Command>> {
+        - token: String
+        - amountCents: long <<必须为正>>
+    }
+
+    class StoreAccountAdjustCommand <<Command>> {
+        - token: String
+        - targetUserId: String
+        - newBalanceCents: long <<非负>>
     }
 
     class StoreQueryCommand <<Command>> {
@@ -556,11 +585,16 @@ package "store 模块" as PSTORE {
 
     ProductRepository <|.. InMemoryProductRepository
     OrderRepository <|.. InMemoryOrderRepository
+    CartRepository <|.. InMemoryCartRepository
+    BankAccountRepository <|.. InMemoryBankAccountRepository
 
     CartRepository ..> CartItem : stores
+    BankAccountRepository ..> BankAccount : stores
 
     DefaultStoreService --> ProductRepository
     DefaultStoreService --> OrderRepository
+    DefaultStoreService --> CartRepository
+    DefaultStoreService --> BankAccountRepository
 }
 
 ' =====================================================================
@@ -658,7 +692,7 @@ package "server 模块" as PSV {
     note right of ServerApplication
         dispatch 路由：
         COURSE_*（V2）→ CourseMessageHandler
-        早期 COURSE_QUERY/SELECT/DROP → V2 升级提示
+        当前 COURSE_* 选课协议 → CourseMessageHandler
         STORE_* → StoreMessageHandler
         其余 → UserMessageHandler
     end note
@@ -695,11 +729,13 @@ package "server 模块" as PSV {
         + handle(request: Message): Message
     }
     note right of StoreMessageHandler
-        STORE_QUERY → authorize(STORE_READ)
-        STORE_PURCHASE → authorize(STORE_PURCHASE)
-          + token→Session→userId
-        STORE_ORDER_QUERY → authorize(STORE_READ)
-          + token→Session→userId
+        STORE_QUERY / STORE_ORDER_QUERY / STORE_HOT_PRODUCTS → authorize(STORE_READ)
+        STORE_PURCHASE / STORE_CART_* → authorize(STORE_PURCHASE) + token→userId
+        STORE_RESTOCK / STORE_PRODUCT_* / STORE_ORDER_LIST_ALL → authorize(STORE_MANAGE)
+        STORE_ACCOUNT_QUERY → authorize(STORE_READ) + token→userId
+        STORE_ACCOUNT_RECHARGE → authorize(STORE_PURCHASE) + token→userId（仅本人）
+        STORE_ACCOUNT_ADJUST → authorize(STORE_MANAGE) + 角色∈{ADMIN,STORE_MANAGER}
+          targetUserId 取自 payload，双重门槛
     end note
 
     class AccessUserRepository {
@@ -720,6 +756,12 @@ package "server 模块" as PSV {
 
     class AccessOrderRepository {
         - databasePath: Path
+    }
+
+    class AccessBankAccountRepository {
+        - databasePath: Path
+        + credit: UPDATE→0行则INSERT→撞主键再UPDATE（懒创建防并发）
+        + debit: UPDATE ... WHERE balance_cents>=?，0行返回 false
     }
     note bottom of AccessOrderRepository
         Access 系列仓储通过 JDBC-ODBC
@@ -770,6 +812,8 @@ package "client 模块" as PCL {
         class StorePanel <<Swing UI>> {
             - session: Session
             商品列表 + 购买 + 订单查询
+            + 余额标签（分/100 转元）+ 充值 + 购物车页签
+            + 管理员校正余额（角色∈{ADMIN,STORE_MANAGER}，仅 UX，服务端强校验）
         }
 
         class ModuleNavigationModel {
@@ -825,6 +869,9 @@ package "client 模块" as PCL {
             + listProducts(token): Message
             + purchase(token, productId, quantity): Message
             + ordersFor(token): Message
+            + balance(token): Message
+            + recharge(token, cents): Message
+            + adjustBalance(token, targetUserId, newBalanceCents): Message
         }
     }
 
@@ -871,6 +918,7 @@ AuditLogRepository <|.up. AccessAuditLogRepository
 CourseSelectionService <|.up. AccessCourseSelectionService
 ProductRepository <|.up. AccessProductRepository
 OrderRepository <|.up. AccessOrderRepository
+BankAccountRepository <|.up. AccessBankAccountRepository
 
 ' --- 客户端远程服务 → 各模块命令对象（向下创建） ---
 RemoteUserService .down.> UserRegistrationCommand : creates
@@ -880,6 +928,9 @@ RemoteCourseService .down.> CourseDropRecordV2Command : creates
 RemoteStoreService .down.> StoreQueryCommand : creates
 RemoteStoreService .down.> StorePurchaseCommand : creates
 RemoteStoreService .down.> StoreOrderQueryCommand : creates
+RemoteStoreService .down.> StoreAccountQueryCommand : creates
+RemoteStoreService .down.> StoreAccountRechargeCommand : creates
+RemoteStoreService .down.> StoreAccountAdjustCommand : creates
 
 ' --- user-management → common（向下） ---
 Session .down.> User

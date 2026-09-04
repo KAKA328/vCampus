@@ -16,6 +16,9 @@ import cn.vcampus.store.CartQueryCommand;
 import cn.vcampus.store.CartCheckoutCommand;
 import cn.vcampus.store.StoreOrderListAllCommand;
 import cn.vcampus.store.StoreHotProductsCommand;
+import cn.vcampus.store.StoreAccountQueryCommand;
+import cn.vcampus.store.StoreAccountRechargeCommand;
+import cn.vcampus.store.StoreAccountAdjustCommand;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -108,6 +111,23 @@ public final class RemoteStoreService implements Closeable {
     /** 查询热销商品。 */
     public Message hotProducts(String token, int limit) throws IOException, ClassNotFoundException {
         return send(MessageType.STORE_HOT_PRODUCTS, new StoreHotProductsCommand(token, limit));
+    }
+
+    /** 查询当前用户余额（分）；身份由服务器从 token 解析。 */
+    public Message balance(String token) throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_ACCOUNT_QUERY, new StoreAccountQueryCommand(token));
+    }
+
+    /** 本人充值（分）；充值人由服务器从 token 解析。 */
+    public Message recharge(String token, long cents) throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_ACCOUNT_RECHARGE, new StoreAccountRechargeCommand(token, cents));
+    }
+
+    /** 管理员校正目标用户余额（分）；管理员身份由服务器从 token 解析，targetUserId 取自参数。 */
+    public Message adjustBalance(String token, String targetUserId, long newBalanceCents)
+            throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_ACCOUNT_ADJUST,
+                new StoreAccountAdjustCommand(token, targetUserId, newBalanceCents));
     }
 
     private Message send(MessageType type, Object payload) throws IOException, ClassNotFoundException {

@@ -111,7 +111,7 @@ E3 新增自动化测试：
 | `LOGIN + UserCredentials` | `OK`，payload 为 `Session` | 通过 |
 | `LOGIN + String` | `BAD_REQUEST` | 通过 |
 | `AUTHORIZE + AuthorizationRequest` | 与用户服务结果一致 | 通过 |
-| `COURSE_QUERY` 送入用户处理器 | `NOT_FOUND` | 通过 |
+| `LIBRARY_QUERY` 送入用户处理器 | `NOT_FOUND` | 通过 |
 | `null` 请求 | `BAD_REQUEST` | 通过 |
 
 ## 7. Socket 五步演示结果

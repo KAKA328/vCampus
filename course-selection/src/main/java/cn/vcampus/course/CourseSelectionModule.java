@@ -10,15 +10,23 @@ public final class CourseSelectionModule {
     private final CourseSelectionService selectionService;
     private final CourseCatalogService catalogService;
     private final CourseOfferingService offeringService;
+    private final SelectionRoundService selectionRoundService;
 
     public CourseSelectionModule(CourseSelectionService selectionService,
             CourseCatalogService catalogService, CourseOfferingService offeringService) {
+        this(selectionService, catalogService, offeringService, null);
+    }
+
+    public CourseSelectionModule(CourseSelectionService selectionService,
+            CourseCatalogService catalogService, CourseOfferingService offeringService,
+            SelectionRoundService selectionRoundService) {
         if (selectionService == null || catalogService == null || offeringService == null) {
             throw new IllegalArgumentException("course module services must not be null");
         }
         this.selectionService = selectionService;
         this.catalogService = catalogService;
         this.offeringService = offeringService;
+        this.selectionRoundService = selectionRoundService;
     }
 
     public CourseSelectionService getSelectionService() {
@@ -31,5 +39,10 @@ public final class CourseSelectionModule {
 
     public CourseOfferingService getOfferingService() {
         return offeringService;
+    }
+
+    /** 返回教务维护选课轮次的服务；旧模块组装方式未提供时返回 null。 */
+    public SelectionRoundService getSelectionRoundService() {
+        return selectionRoundService;
     }
 }

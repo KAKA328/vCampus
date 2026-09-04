@@ -125,7 +125,7 @@ public final class CourseOffering implements Serializable {
     /**
      * 返回可用于时间冲突检测的结构化上课时间表。
      *
-     * <p>旧教学班尚未配置时返回空时间表；原有的 {@link #getSchedule()} 继续用于显示文本。</p>
+     * <p>尚未排定上课时间时返回空时间表；{@link #getSchedule()} 用于显示文本。</p>
      */
     public CourseSchedule getMeetingSchedule() {
         return meetingSchedule;
@@ -149,6 +149,16 @@ public final class CourseOffering implements Serializable {
         return new CourseOffering(offeringId, courseId, term, teacherId, schedule, location,
                 newRequiredCapacity, newElectiveCapacity, newCrossMajorCapacity, status,
                 meetingSchedule);
+    }
+
+    /**
+     * 返回任课老师或上课地点更新后的教学班。
+     *
+     * <p>本方法刻意不接收上课时间参数，避免普通教学班维护误改既有的上课安排。</p>
+     */
+    public CourseOffering withTeachingInfo(String newTeacherId, String newLocation) {
+        return new CourseOffering(offeringId, courseId, term, newTeacherId, schedule, newLocation,
+                requiredCapacity, electiveCapacity, crossMajorCapacity, status, meetingSchedule);
     }
 
     /** 返回附加结构化上课时间表后的新教学班对象。 */

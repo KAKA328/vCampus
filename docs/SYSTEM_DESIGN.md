@@ -258,11 +258,10 @@ database                 vCampus.accdb、schema.sql、seed.sql
 | `LOGOUT` | `String token` | 已登录 |
 | `AUTHORIZE` | `AuthorizationRequest` | 已登录 |
 | `STUDENT_QUERY/UPDATE` | 学生查询/更新请求 | 按角色和数据范围 |
-| `COURSE_QUERY/SELECT/DROP` | 早期课程级请求（兼容入口） | 当前返回 V2 升级提示；不得承载轮次、教学班或选课记录字段 |
 | `COURSE_SELECTION_QUERY_V2` | `CourseSelectionQueryV2Command(token, roundId?)` | `COURSE_READ`，服务端按 token 推导学生档案 |
 | `COURSE_SELECT_OFFERING_V2` | `CourseSelectOfferingV2Command(token, roundId, offeringId)` | `COURSE_SELECT`，服务端按 token 推导学生档案 |
 | `COURSE_DROP_RECORD_V2` | `CourseDropRecordV2Command(token, recordId)` | `COURSE_SELECT`，服务端按 token 推导学生档案 |
-| `COURSE_MANAGE` | 课程目录、教学班维护命令 | `COURSE_MANAGE` |
+| `COURSE_MANAGE` | `CourseManagementCommand`：课程目录维护；教学班创建、状态/容量调整；`UPDATE_OFFERING_TEACHING_INFO(offeringId, teacherId, location)` 仅修改任课教师和地点，不修改上课时间 | `COURSE_MANAGE` |
 | `LIBRARY_QUERY_V2` / `LIBRARY_DETAIL_V2` | `LibraryQueryV2Command` / `LibraryDetailV2Command` | `LIBRARY_READ` |
 | `LIBRARY_BORROW_V2` / `LIBRARY_RETURN_V2` | token + 图书号列表 / 借阅记录号 | `LIBRARY_BORROW`，服务端按 token 取得 userId；批量借阅原子执行 |
 | `LIBRARY_HISTORY_V2` | 本人、指定用户或全量记录范围 | 本人使用 `LIBRARY_READ`；指定/全量使用 `LIBRARY_MANAGE` |
@@ -323,7 +322,8 @@ User 1 ── N Order ── N OrderItem ── N Product
 | 模块 | 接口 | 核心方法 |
 |---|---|---|
 | 用户 | `UserManagementService` | `register`、`unregister`、`login`、`logout`、`authorize` |
-| 学籍 | `StudentManagementService` | `findById`、`findByClass`、`save` |
+| 学籍 | `StudentManagementService` | `findById`、`findByUserId`、`findMyStudentProfile`、`findByClass`、`findByMajor`、`save` |
+| 学业审查 | `AcademicReviewService` | `historyFor`、`pendingRetakes`、`review`、`latestReview` |
 | 选课 | `CourseSelectionService` | `listCourses`、`select`、`drop`、`selectedCourses` |
 | 图书馆 | `LibraryService` | `search`、`getBook`、`borrowBatch`、`returnBook`、`borrowHistory`、`addBook` |
 | 商店 | `StoreService` | `listProducts`、`purchase`、`findOrdersByUserId` |
