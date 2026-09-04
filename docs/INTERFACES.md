@@ -8,6 +8,7 @@
 | 学生学籍 | `StudentManagementService` | `findById`、`findByUserId`、`findMyStudentProfile`、`findByClass`、`findByMajor`、`save` |
 | 学业审查 | `AcademicReviewService` | `historyFor`、`pendingRetakes`、`review`、`latestReview` |
 | 选课 | `CourseSelectionService` | 完整选课流程使用 V2 消息：查询轮次/教学班/已选记录、按教学班选课、按选课记录退选；课程维护消息见下文 |
+| 商店 | `StoreService` | 商品查询/分类、购买、购物车（含改数量与明细联表）、钱包（含余额与流水审计）、本人/全量订单、热销排行和商品维护；商店消息使用 token-only 命令，用户编号由服务器会话解析 |
 
 所有服务方法返回 `ServiceResult<T>`，由服务器统一映射为 `Message` 响应。服务端必须再次校验会话和权限。
 
@@ -91,7 +92,7 @@ AcademicReviewService.pendingRetakes(String studentId)
 - `STORE_ACCOUNT_ADJUST` + `StoreAccountAdjustCommand(token, targetUserId, newBalanceCents)`：管理员把指定用户余额校正为绝对值 `newBalanceCents`（非负，单位「分」）；要求 `STORE_MANAGE` 且角色 ∈ {`ADMIN`, `STORE_MANAGER`}（双重门槛）；`targetUserId` 取自 payload，仅管理员可指定他人，普通用户身份一律取自 token。
 - `STORE_ACCOUNT_LEDGER` + `StoreAccountQueryCommand(token)`：查询本人钱包流水，响应 payload 为 `List<WalletTransaction>`，按记账时间升序，无流水返回空列表；要求 `STORE_READ`，`userId` 取自 token（payload 只有 token，**客户端无法指定他人**）。流水字段：`transactionId`、`userId`、`type`（`RECHARGE`/`PURCHASE`/`CHECKOUT`/`REFUND`/`ADJUST`）、`amountCents`（**带符号**，入账为正、扣款为负、校正为差额）、`balanceAfterCents`（写入后回读，**仅展示不对账**）、`operatorId`（管理员校正时为管理员编号）、`note`（购买/结账写 `order <订单编号>`）、`createdAt`。
 
-商店钱包余额一律以「分」为单位的 `long` 存储和传输（实体 `BankAccount.balanceCents`、数据库列 `balance_cents BIGINT`、服务/命令/仓储接口全传 `long` 分），禁止 `double` 余额；`Product.price`、`Order.totalPrice`/`unitPrice` 仍是 `double`，只在支付边界 `Math.round(totalPrice * 100)` 换算一次，误差不进余额账本。购买/结账时余额不足返回 `PAYMENT_REQUIRED`；**库存不足与并发下库存/余额变化统一返回 `CONFLICT`**（不再用 `BAD_REQUEST` 表达库存不足）；商品不存在或已下架、购物车条目不存在返回 `NOT_FOUND`；补偿失败仍返回 `CONFLICT`。钱包已有**流水审计表** `tblWalletTransaction`（只追加、不修改、不删除）；记账是**尽力而为**的副产物，在钱已实际变动之后才写，`append` 失败只记日志，**绝不因审计写不进去而回滚一笔已成功的资金变动**。扣库存和扣款走应用层补偿（每个补偿都检查返回值），这是单 JVM 下的补偿一致性，不是数据库事务。
+商店钱包余额一律以「分」为单位的 `long` 存储和传输（实体 `BankAccount.balanceCents`、数据库列 `balance_cents BIGINT`、服务/命令/仓储接口全传 `long` 分），禁止 `double` 余额；`Product.price`、`Order.totalPrice`/`unitPrice` 仍是 `double`，只在支付边界 `Math.round(totalPrice * 100)` 换算一次，误差不进余额账本。购买/结账时余额不足返回 `PAYMENT_REQUIRED`；**库存不足与并发下库存/余额变化统一返回 `CONFLICT`**（不再用 `BAD_REQUEST` 表达库存不足）；商品不存在或已下架、购物车条目不存在返回 `NOT_FOUND`；补偿失败仍返回 `CONFLICT`。钱包已有**流水审计表** `tblWalletTransaction`（只追加、不修改、不删除）；余额与流水由 `AccessWalletRepository` 在**同一 JDBC 事务**内原子提交，流水写失败即回滚余额并返回 `SERVER_ERROR`，绝不出现「余额已变、流水缺失」，也不静默丢账。库存/订单/购物车的跨资源一致性仍走应用层补偿（每个补偿都检查返回值），这是单 JVM 下的补偿一致性。
 
 用户批量导入使用 `USER_IMPORT`。请求 payload 为 `UserImportCommand(token, rows)`，其中 `rows` 是 `UserImportRow(userId, password, displayName, roleCode)` 列表；响应 payload 为 `UserImportResult(importBatchId, totalCount, successCount, failures)`，失败明细为 `UserImportFailure(rowNumber, userId, message)`。客户端用户管理页可从 `.xlsx`、`.csv`、`.tsv` 外部表格读取账号清单并转为 `rows`；这些表格只是导入源文件，不替代 Access 运行数据库。该能力要求 `USER_MANAGE`，服务端会记录导入管理员、导入时间、导入批次，并为每个成功创建的账号写入 `IMPORT_USER` 审计记录。单行失败不会影响同批次其它有效账号。
 
