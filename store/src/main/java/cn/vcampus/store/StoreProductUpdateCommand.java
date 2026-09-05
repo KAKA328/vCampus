@@ -10,17 +10,28 @@ public final class StoreProductUpdateCommand implements Serializable {
     private final double price;// 商品价格
     private final String description;// 商品描述
     private final String category;// 商品类别
+    private final int version;// 乐观并发版本快照（A2）：客户端加载商品时携带，服务端 WHERE version=? 校验
 
+    // A2 主构造器：version 为客户端加载时的期望版本，负数拒绝
     public StoreProductUpdateCommand(String token, String productId, String name, double price, String description,
-            String category) {
+            String category, int version) {
         this.token = checkStr(token, "token");
         this.productId = checkStr(productId, "productId");
         this.name = checkStr(name, "name");
         if (price < 0)
             throw new IllegalArgumentException("price must not be less than zero");
+        if (version < 0)
+            throw new IllegalArgumentException("version must not be negative");
         this.price = price;
         this.description = optionalStr(description);
         this.category = checkStr(category, "category");
+        this.version = version;
+    }
+
+    // 兼容构造器：不带 version 时期望版本默认 0（仅测试装配用），生产路径由 RemoteStoreService 传真实版本
+    public StoreProductUpdateCommand(String token, String productId, String name, double price, String description,
+            String category) {
+        this(token, productId, name, price, description, category, 0);
     }
 
     public String getToken() {
@@ -45,6 +56,10 @@ public final class StoreProductUpdateCommand implements Serializable {
 
     public String getCategory() {
         return category;
+    }
+
+    public int getVersion() {
+        return version;
     }
 
     // 检查字符串合法性

@@ -14,7 +14,8 @@ public interface ProductRepository {
     boolean addStock(String productId, int amount);// 根据id增加商品库存
 
     boolean updateProduct(Product product);// 根据id更新商品信息（name/price/description/category/active）；契约：绝不修改 stock，库存变更一律走
-                                           // updateStock/addStock/deductStock
+                                           // updateStock/addStock/deductStock。A2 乐观并发：入参 product.version 为期望版本，
+                                           // 与存储版本不符返回 false（不写），命中则存储版本号 +1
 
     boolean deleteById(String productId);// 根据id删除商品
 

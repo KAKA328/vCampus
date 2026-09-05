@@ -618,7 +618,7 @@ public final class StorePanel extends JPanel {
         final String productId = product.getProductId();
         runRequest("正在更新商品…",
                 service -> service.updateProduct(session.getToken(), productId, form.getName(), form.getPrice(),
-                        form.getDescription(), form.getCategory()),
+                        form.getDescription(), form.getCategory(), product.getVersion()),
                 response -> {
                     if (!isSuccessful(response)) {
                         return;
@@ -1115,7 +1115,7 @@ public final class StorePanel extends JPanel {
         if (statusCode == StatusCode.PAYMENT_REQUIRED)
             return "余额不足，请先充值";
         if (statusCode == StatusCode.CONFLICT)
-            return "库存或余额已发生变化，请刷新后重试";
+            return "商品、库存或余额已发生变化，请刷新后重试";
         return "服务器处理商店请求失败";
     }
 

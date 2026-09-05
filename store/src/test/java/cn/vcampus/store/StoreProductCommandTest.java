@@ -65,4 +65,17 @@ class StoreProductCommandTest {
         assertThrows(IllegalArgumentException.class,
                 () -> new StoreProductUpdateCommand("tk", "p1", "苹果", -1.0, "d", "水果")); // price < 0
     }
+
+    // ---- A2：乐观并发版本快照 ----
+
+    @Test
+    void updateCommandCarriesVersionAndRejectsNegative() {
+        // 7 参构造携带版本快照，getVersion 原样返回
+        assertEquals(7, new StoreProductUpdateCommand("tk", "p1", "苹果", 10.0, "d", "水果", 7).getVersion());
+        // 6 参兼容构造期望版本默认 0
+        assertEquals(0, new StoreProductUpdateCommand("tk", "p1", "苹果", 10.0, "d", "水果").getVersion());
+        // 负版本号拒绝
+        assertThrows(IllegalArgumentException.class,
+                () -> new StoreProductUpdateCommand("tk", "p1", "苹果", 10.0, "d", "水果", -1));
+    }
 }

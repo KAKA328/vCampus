@@ -56,8 +56,8 @@ public final class InMemoryStoreService implements StoreService {
 
     @Override
     public final ServiceResult<Product> updateProduct(String productId, String name, double price,
-            String description, String category) {
-        return delegate.updateProduct(productId, name, price, description, category);
+            String description, String category, int expectedVersion) {
+        return delegate.updateProduct(productId, name, price, description, category, expectedVersion);
     }
 
     @Override

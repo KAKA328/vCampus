@@ -21,7 +21,7 @@ public final class AccessProductRepository implements ProductRepository {
 
     @Override
     public List<Product> findAll() {
-        String sql = "SELECT product_id,name,stock,price,description,category,active "
+        String sql = "SELECT product_id,name,stock,price,description,category,active,version "
                 + "FROM tblProduct ORDER BY product_id";
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql);
@@ -38,7 +38,7 @@ public final class AccessProductRepository implements ProductRepository {
 
     @Override
     public Product findById(String id) {
-        String sql = "SELECT product_id,name,stock,price,description,category,active "
+        String sql = "SELECT product_id,name,stock,price,description,category,active,version "
                 + "FROM tblProduct WHERE product_id=?";
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -99,8 +99,10 @@ public final class AccessProductRepository implements ProductRepository {
             return false;
         // 契约：updateProduct 只更新商品信息、绝不写 stock——否则会用服务层读到的旧库存覆盖并发
         // deductStock/addStock 的结果（丢失更新）。库存变更一律走 updateStock/addStock/deductStock。
-        String sql = "UPDATE tblProduct SET name=?,price=?,description=?,category=?,active=? "
-                + "WHERE product_id=?";
+        // A2 字段级乐观并发：WHERE version=? 校验期望版本，命中则 version=version+1；版本不符时
+        // UPDATE 影响 0 行 → 返回 false（服务层归为 CONFLICT、前端重读重试），绝不写入任何字段。
+        String sql = "UPDATE tblProduct SET name=?,price=?,description=?,category=?,active=?,version=version+1 "
+                + "WHERE product_id=? AND version=?";
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, product.getName());
@@ -109,6 +111,7 @@ public final class AccessProductRepository implements ProductRepository {
             statement.setString(4, product.getCategory());
             statement.setBoolean(5, product.isActive());
             statement.setString(6, product.getProductId());
+            statement.setInt(7, product.getVersion());
             return statement.executeUpdate() > 0;
         } catch (SQLException failure) {
             throw new IllegalStateException("failed to update product", failure);
@@ -145,8 +148,8 @@ public final class AccessProductRepository implements ProductRepository {
     }
 
     private void insert(Product product) {
-        String sql = "INSERT INTO tblProduct(product_id,name,stock,price,description,category,active) "
-                + "VALUES(?,?,?,?,?,?,?)";
+        String sql = "INSERT INTO tblProduct(product_id,name,stock,price,description,category,active,version) "
+                + "VALUES(?,?,?,?,?,?,?,?)";
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, product.getProductId());
@@ -156,6 +159,7 @@ public final class AccessProductRepository implements ProductRepository {
             statement.setString(5, product.getDescription());
             statement.setString(6, product.getCategory());
             statement.setBoolean(7, product.isActive());
+            statement.setInt(8, product.getVersion());
             statement.executeUpdate();
         } catch (SQLException failure) {
             throw new IllegalStateException("failed to insert product", failure);
@@ -187,7 +191,7 @@ public final class AccessProductRepository implements ProductRepository {
                 results.getInt("stock"),
                 results.getDouble("price"),
                 results.getString("description"),
-                results.getString("category"), results.getBoolean("active"));
+                results.getString("category"), results.getBoolean("active"), results.getInt("version"));
     }
 
     private Connection open() throws SQLException {

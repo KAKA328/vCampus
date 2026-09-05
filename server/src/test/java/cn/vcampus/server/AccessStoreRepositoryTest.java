@@ -52,6 +52,7 @@ class AccessStoreRepositoryTest {
                     + "description VARCHAR(255),"
                     + "category VARCHAR(64) NOT NULL,"
                     + "active BIT NOT NULL,"
+                    + "version INTEGER NOT NULL,"
                     + "PRIMARY KEY (product_id))");
             statement.execute("CREATE TABLE tblOrder ("
                     + "order_id VARCHAR(36) NOT NULL,"
@@ -655,7 +656,7 @@ class AccessStoreRepositoryTest {
     private static void insertProduct(Connection connection, String productId, String name,
             int stock, double price, String description, String category) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement(
-                "INSERT INTO tblProduct(product_id,name,stock,price,description,category,active) VALUES(?,?,?,?,?,?,?)")) {
+                "INSERT INTO tblProduct(product_id,name,stock,price,description,category,active,version) VALUES(?,?,?,?,?,?,?,?)")) {
             statement.setString(1, productId);
             statement.setString(2, name);
             statement.setInt(3, stock);
@@ -663,6 +664,7 @@ class AccessStoreRepositoryTest {
             statement.setString(5, description);
             statement.setString(6, category);
             statement.setBoolean(7, true);
+            statement.setInt(8, 0);
             statement.executeUpdate();
         }
     }

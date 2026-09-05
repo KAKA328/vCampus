@@ -31,7 +31,7 @@ class StorePanelTest {
         assertEquals("当前账号没有执行该商店操作的权限", StorePanel.statusMessage(StatusCode.FORBIDDEN));
         assertEquals("商品、订单或购物车条目不存在", StorePanel.statusMessage(StatusCode.NOT_FOUND));
         assertEquals("余额不足，请先充值", StorePanel.statusMessage(StatusCode.PAYMENT_REQUIRED));
-        assertEquals("库存或余额已发生变化，请刷新后重试", StorePanel.statusMessage(StatusCode.CONFLICT));
+        assertEquals("商品、库存或余额已发生变化，请刷新后重试", StorePanel.statusMessage(StatusCode.CONFLICT));
     }
 
     @Test

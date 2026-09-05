@@ -231,21 +231,25 @@ public final class DefaultStoreService implements StoreService {
         }
     }
 
-    // 更新商品非库存字段
+    // 更新商品非库存字段（A2 字段级乐观并发：expectedVersion 为客户端加载商品时的版本快照）
     @Override
     public final ServiceResult<Product> updateProduct(String productId, String name, double price,
-            String description, String category) {
+            String description, String category, int expectedVersion) {
         if (productId == null || productId.trim().isEmpty())
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "productId must not be blank");
+        if (expectedVersion < 0)
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "version must not be negative");
         Product existing = products.findById(productId);
         if (existing == null)
             return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
         try {
-            // 库存由仓储层保留（updateProduct 契约不碰 stock），此处 existing.getStock() 仅占位、不会覆盖并发扣减
+            // 库存由仓储层保留（updateProduct 契约不碰 stock），此处 existing.getStock() 仅占位、不会覆盖并发扣减；
+            // version 传期望值，仓储层原子校验（WHERE version=? / synchronized 比对）并把版本号 +1，版本不符即冲突
             Product updated = new Product(productId, name, existing.getStock(), price, description, category,
-                    existing.isActive());
-            return products.updateProduct(updated) ? ServiceResult.ok(updated)
-                    : ServiceResult.<Product>failure(StatusCode.CONFLICT, "Product changed; retry update");
+                    existing.isActive(), expectedVersion);
+            // 成功后回读一次，返回带最新 version 与真实 stock 的快照，供客户端刷新本地版本、避免下次编辑误判冲突
+            return products.updateProduct(updated) ? ServiceResult.ok(products.findById(productId))
+                    : ServiceResult.<Product>failure(StatusCode.CONFLICT, "Product changed; please reload and retry");
         } catch (IllegalArgumentException invalid) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, invalid.getMessage());
         }
@@ -259,9 +263,9 @@ public final class DefaultStoreService implements StoreService {
         Product existing = products.findById(productId);
         if (existing == null)
             return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
-        // 库存由仓储层保留（updateProduct 契约不碰 stock），下架只翻转 active
+        // 库存由仓储层保留（updateProduct 契约不碰 stock），下架只翻转 active；version 沿用当前值以通过乐观并发校验
         Product deactivated = new Product(existing.getProductId(), existing.getName(), existing.getStock(),
-                existing.getPrice(), existing.getDescription(), existing.getCategory(), false);
+                existing.getPrice(), existing.getDescription(), existing.getCategory(), false, existing.getVersion());
         return products.updateProduct(deactivated) ? ServiceResult.ok(null)
                 : ServiceResult.failure(StatusCode.CONFLICT, "Product changed; retry update");
     }
@@ -278,7 +282,7 @@ public final class DefaultStoreService implements StoreService {
         if (existing.isActive())
             return ServiceResult.ok(null);
         Product reactivated = new Product(existing.getProductId(), existing.getName(), existing.getStock(),
-                existing.getPrice(), existing.getDescription(), existing.getCategory(), true);
+                existing.getPrice(), existing.getDescription(), existing.getCategory(), true, existing.getVersion());
         return products.updateProduct(reactivated) ? ServiceResult.ok(null)
                 : ServiceResult.failure(StatusCode.CONFLICT, "Product changed; retry update");
     }
@@ -342,7 +346,8 @@ public final class DefaultStoreService implements StoreService {
     public final ServiceResult<List<CartLine>> getCartDetails(String userId) {
         if (userId == null || userId.trim().isEmpty())
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId must not be blank");
-        // DSH A4：一次 findAll 建 id→商品索引，替代逐行 findById 的 N+1（Access 版每次 findById 都新开一条 SQL 连接）；
+        // DSH A4：一次 findAll 建 id→商品索引，替代逐行 findById 的 N+1（Access 版每次 findById 都新开一条 SQL
+        // 连接）；
         // 每次调用重建索引，价格/在售状态即时反映；商品被物理删除则不在索引内→get 返 null→沿用原「跳过」语义
         Map<String, Product> productIndex = indexProducts();
         List<CartLine> lines = new ArrayList<CartLine>();
@@ -358,7 +363,8 @@ public final class DefaultStoreService implements StoreService {
         return ServiceResult.ok(Collections.unmodifiableList(lines));
     }
 
-    // DSH A4：把 products.findAll() 一次建成 id→Product 索引，收敛 getCartDetails/listHotProducts 的 N+1；
+    // DSH A4：把 products.findAll() 一次建成 id→Product 索引，收敛
+    // getCartDetails/listHotProducts 的 N+1；
     // findAll 返回全量（含 inactive），与逐个 findById 等价——删除的商品不在索引内、get 返 null
     private Map<String, Product> indexProducts() {
         Map<String, Product> index = new HashMap<String, Product>();
@@ -485,7 +491,8 @@ public final class DefaultStoreService implements StoreService {
     // DSH A5：结账补偿是「多单聚合退款」，note 带上被撤销的订单号便于对账；但 tblWalletTransaction.note 列宽仅
     // VARCHAR(200)，UUID(36 字符)订单号多时拼接会溢出、反令 credit 入账失败并升级 SERVER_ERROR，故按预算截断为
     // 「前若干完整单号 + (+N more)」，绝不因 note 过长拖垮退款本身
-    // 包级可见：供 StoreServiceTest 直接断言 note 组装与 VARCHAR(200) 截断（对齐 isStoreMessage/MAX_* 可测性放宽先例）
+    // 包级可见：供 StoreServiceTest 直接断言 note 组装与 VARCHAR(200) 截断（对齐 isStoreMessage/MAX_*
+    // 可测性放宽先例）
     static String checkoutCompensationNote(List<Order> created) {
         if (created.isEmpty())
             return "checkout compensation";

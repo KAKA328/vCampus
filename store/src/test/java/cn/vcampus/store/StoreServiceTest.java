@@ -294,7 +294,8 @@ class StoreServiceTest {
     @Test
     void testUpdateProductPrice() {
         int formerNum = products.findById("00001").getStock();
-        ServiceResult<Product> testResult = service.updateProduct("00001", "Apple", 3.0, "A delicious apple", "Fruit");
+        ServiceResult<Product> testResult = service.updateProduct("00001", "Apple", 3.0, "A delicious apple", "Fruit",
+                products.findById("00001").getVersion());
         assertEquals(StatusCode.OK, testResult.getStatus());
         assertEquals(3.0, testResult.getData().getPrice(), 0.01);
         assertEquals(formerNum, testResult.getData().getStock());
@@ -304,8 +305,42 @@ class StoreServiceTest {
     @Test
     void testUpdateProductNotFound() {
         ServiceResult<Product> testResult = service.updateProduct("99999999999", "Apple", 3.0, "A delicious apple",
-                "Fruit");
+                "Fruit", 0);
         assertEquals(StatusCode.NOT_FOUND, testResult.getStatus());
+    }
+
+    // A2：成功更新后 version +1，返回快照携带新版本号，供客户端刷新本地版本、避免下次编辑误判冲突
+    @Test
+    void testUpdateProductBumpsVersionOnSuccess() {
+        int before = products.findById("00001").getVersion();
+        ServiceResult<Product> result = service.updateProduct("00001", "Apple", 3.0, "A delicious apple", "Fruit",
+                before);
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals(before + 1, result.getData().getVersion());
+        assertEquals(before + 1, products.findById("00001").getVersion());
+    }
+
+    // A2：期望版本落后于存储版本（期间已被他人改过）→ CONFLICT，且冲突时不得写入任何字段
+    @Test
+    void testUpdateProductStaleVersionReturnsConflict() {
+        int current = products.findById("00001").getVersion();
+        // 先成功更新一次，把存储版本推到 current+1（名称/价格落到已知值）
+        assertEquals(StatusCode.OK,
+                service.updateProduct("00001", "Apple", 3.0, "d", "Fruit", current).getStatus());
+        // 再用陈旧版本 current 更新 → 版本不符，判为冲突
+        ServiceResult<Product> stale = service.updateProduct("00001", "Apple X", 9.0, "d", "Fruit", current);
+        assertEquals(StatusCode.CONFLICT, stale.getStatus());
+        // 冲突不得写入：名称/价格保持上一次成功值，版本号仍为 current+1
+        assertEquals("Apple", products.findById("00001").getName());
+        assertEquals(3.0, products.findById("00001").getPrice(), 0.001);
+        assertEquals(current + 1, products.findById("00001").getVersion());
+    }
+
+    // A2：负版本号在服务入口即拒绝为 BAD_REQUEST（纵深防御，命令层亦有校验）
+    @Test
+    void testUpdateProductRejectsNegativeVersion() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.updateProduct("00001", "Apple", 3.0, "d", "Fruit", -1).getStatus());
     }
 
     // 测试下架商品
@@ -737,7 +772,8 @@ class StoreServiceTest {
     @Test
     void testServiceUpdateProductDoesNotResurrectStaleStock() {
         products.deductStock("00001", 40);// Apple 初始 100 → 60
-        ServiceResult<Product> result = service.updateProduct("00001", "Apple v2", 3.5, "新描述", "Fruit");
+        ServiceResult<Product> result = service.updateProduct("00001", "Apple v2", 3.5, "新描述", "Fruit",
+                products.findById("00001").getVersion());
         assertEquals(StatusCode.OK, result.getStatus());
         Product after = products.findById("00001");
         assertEquals("Apple v2", after.getName());// 信息已更新
@@ -782,7 +818,9 @@ class StoreServiceTest {
                         Thread.currentThread().interrupt();
                     }
                     for (int k = 0; k < opsPerThread; k++) {
-                        service.updateProduct(pid, "Banana v" + idx + "-" + k, 1.5, "desc", "Fruit");
+                        // A2：每次先读当前 version 再更新，模拟乐观并发的重读重试；版本竞争导致的 CONFLICT 不影响库存一致性断言
+                        service.updateProduct(pid, "Banana v" + idx + "-" + k, 1.5, "desc", "Fruit",
+                                products.findById(pid).getVersion());
                     }
                 }
             }));
@@ -819,7 +857,7 @@ class StoreServiceTest {
         assertEquals(StatusCode.BAD_REQUEST, service.purchase("0120", null, 1).getStatus());
         assertEquals(StatusCode.BAD_REQUEST, service.findOrdersByUserId(null).getStatus());
         assertEquals(StatusCode.BAD_REQUEST, service.restock(null, 5).getStatus());
-        assertEquals(StatusCode.BAD_REQUEST, service.updateProduct(null, "x", 1.0, "d", "c").getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.updateProduct(null, "x", 1.0, "d", "c", 0).getStatus());
         assertEquals(StatusCode.BAD_REQUEST, service.deactivateProduct(null).getStatus());
     }
 
@@ -1061,7 +1099,8 @@ class StoreServiceTest {
     @Test
     void testCartDetailsReflectPriceChangeImmediately() {
         service.addToCart("0120", "00001", 2);
-        service.updateProduct("00001", "Apple", 3.0, "A delicious apple", "Fruit");
+        service.updateProduct("00001", "Apple", 3.0, "A delicious apple", "Fruit",
+                products.findById("00001").getVersion());
 
         CartLine line = service.getCartDetails("0120").getData().get(0);
 

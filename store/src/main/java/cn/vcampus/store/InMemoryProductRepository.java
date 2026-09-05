@@ -34,7 +34,7 @@ public final class InMemoryProductRepository implements ProductRepository {
             if (newStock < 0)
                 return false;
             Product newPro = new Product(oldPro.getProductId(), oldPro.getName(), newStock, oldPro.getPrice(),
-                    oldPro.getDescription(), oldPro.getCategory(), oldPro.isActive());
+                    oldPro.getDescription(), oldPro.getCategory(), oldPro.isActive(), oldPro.getVersion());
             this.products.replace(productId, newPro);
             return true;
         }
@@ -58,8 +58,13 @@ public final class InMemoryProductRepository implements ProductRepository {
         Product current = products.get(product.getProductId());
         if (current == null)
             return false;
+        // A2 字段级乐观并发：入参 product.version 是客户端加载时的期望版本，与当前存储版本不一致
+        // 说明期间已被他人改过 → 返回 false（服务层归为 CONFLICT、前端重读重试）；命中则版本号 +1
+        if (current.getVersion() != product.getVersion())
+            return false;
         Product merged = new Product(current.getProductId(), product.getName(), current.getStock(),
-                product.getPrice(), product.getDescription(), product.getCategory(), product.isActive());
+                product.getPrice(), product.getDescription(), product.getCategory(), product.isActive(),
+                current.getVersion() + 1);
         products.put(product.getProductId(), merged);
         return true;
     }
@@ -75,7 +80,8 @@ public final class InMemoryProductRepository implements ProductRepository {
         if (product == null || product.getStock() < qty)
             return false;
         Product newPro = new Product(product.getProductId(), product.getName(), product.getStock() - qty,
-                product.getPrice(), product.getDescription(), product.getCategory(), product.isActive());
+                product.getPrice(), product.getDescription(), product.getCategory(), product.isActive(),
+                product.getVersion());
         this.products.put(productId, newPro);
         return true;
     }

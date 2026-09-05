@@ -19,8 +19,9 @@ public interface StoreService {
 
     ServiceResult<Product> addProduct(String name, double price, int stock, String description, String category);
 
+    // expectedVersion：客户端加载商品时的版本快照（A2 乐观并发）；与存储版本不符返回 CONFLICT，前端重读重试
     ServiceResult<Product> updateProduct(String productId, String name, double price, String description,
-            String category);
+            String category, int expectedVersion);
 
     ServiceResult<Void> deactivateProduct(String productId);
 

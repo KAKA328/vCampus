@@ -189,12 +189,13 @@ class StoreMessageHandlerTest {
     void testStoreProductUpdateAuthorized() {
         Message response = handler.handle(Message.request(
                 "store-product-update", MessageType.STORE_PRODUCT_UPDATE,
-                new StoreProductUpdateCommand(managerSession.getToken(), "P001", "签字笔", 2.5, "升级描述", "文具")));
+                new StoreProductUpdateCommand(managerSession.getToken(), "P001", "签字笔", 2.5, "升级描述", "文具", 3)));
 
         assertEquals(StatusCode.OK, response.getStatusCode());
         assertTrue(store.updateProductCalled);
         assertEquals("P001", store.lastUpdateProductId);
         assertEquals(2.5, store.lastUpdateProductPrice, 0.001);
+        assertEquals(3, store.lastUpdateProductVersion);// A2：版本快照原样透传到服务层
     }
 
     @Test
@@ -590,6 +591,7 @@ class StoreMessageHandlerTest {
         private boolean updateProductCalled;
         private String lastUpdateProductId;
         private double lastUpdateProductPrice;
+        private int lastUpdateProductVersion;
         private boolean deactivateCalled;
         private String lastDeactivateProductId;
         private boolean reactivateCalled;
@@ -681,10 +683,11 @@ class StoreMessageHandlerTest {
 
         @Override
         public ServiceResult<Product> updateProduct(String productId, String name, double price,
-                String description, String category) {
+                String description, String category, int expectedVersion) {
             updateProductCalled = true;
             lastUpdateProductId = productId;
             lastUpdateProductPrice = price;
+            lastUpdateProductVersion = expectedVersion;
             return ServiceResult.ok(new Product("P-CAPTURED", "captured", 1, 1.0, "captured", "captured"));
         }
 

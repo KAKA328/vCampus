@@ -107,7 +107,7 @@ class StoreMessageHandler {
                     ServiceResult<Void> updateAuth = requirePermission(update.getToken(), "STORE_MANAGE");
                     result = updateAuth.getStatus() != StatusCode.OK ? updateAuth
                             : store.updateProduct(update.getProductId(), update.getName(), update.getPrice(),
-                                    update.getDescription(), update.getCategory());
+                                    update.getDescription(), update.getCategory(), update.getVersion());
                     if (result.getStatus() == StatusCode.OK)
                         recordAudit(requireUserId(update.getToken()), "STORE_PRODUCT_UPDATE", "PRODUCT",
                                 update.getProductId());
