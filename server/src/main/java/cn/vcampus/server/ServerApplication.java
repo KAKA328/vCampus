@@ -207,7 +207,7 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.STORE_ACCOUNT_QUERY || type == MessageType.STORE_ACCOUNT_RECHARGE
                 || type == MessageType.STORE_ACCOUNT_ADJUST
                 || type == MessageType.STORE_CART_UPDATE || type == MessageType.STORE_CART_DETAIL
-                || type == MessageType.STORE_ACCOUNT_LEDGER;
+                || type == MessageType.STORE_ACCOUNT_LEDGER || type == MessageType.STORE_PRODUCT_REACTIVATE;
     }
 
     private static boolean isStudentMessage(MessageType type) {

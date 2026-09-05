@@ -24,6 +24,9 @@ public interface StoreService {
 
     ServiceResult<Void> deactivateProduct(String productId);
 
+    // 重新上架：把已下架商品的 active 翻回 true，只改上架位、不碰库存/价格等其他字段
+    ServiceResult<Void> reactivateProduct(String productId);
+
     // 购物车
     ServiceResult<Void> addToCart(String userId, String productId, int quantity);
 

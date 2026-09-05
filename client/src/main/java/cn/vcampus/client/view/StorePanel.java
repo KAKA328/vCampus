@@ -92,6 +92,7 @@ public final class StorePanel extends JPanel {
     private final JButton editProductButton = new JButton("编辑选中");
     private final JButton restockButton = new JButton("补货");
     private final JButton deactivateButton = new JButton("下架选中");
+    private final JButton reactivateButton = new JButton("重新上架");
     private final JButton refreshCartButton = new JButton("刷新购物车");
     private final JButton updateQuantityButton = new JButton("修改数量");
     private final JButton removeFromCartButton = new JButton("移除选中");
@@ -137,6 +138,7 @@ public final class StorePanel extends JPanel {
         editProductButton.addActionListener(event -> showEditProductDialog());
         restockButton.addActionListener(event -> restockSelected());
         deactivateButton.addActionListener(event -> deactivateSelected());
+        reactivateButton.addActionListener(event -> reactivateSelected());
         refreshCartButton.addActionListener(event -> loadCart());
         updateQuantityButton.addActionListener(event -> updateSelectedCartQuantity());
         removeFromCartButton.addActionListener(event -> removeSelectedCartItem());
@@ -274,10 +276,12 @@ public final class StorePanel extends JPanel {
             VCampusTheme.secondaryButton(editProductButton);
             VCampusTheme.secondaryButton(restockButton);
             VCampusTheme.secondaryButton(deactivateButton);
+            VCampusTheme.secondaryButton(reactivateButton);
             actions.add(addProductButton);
             actions.add(editProductButton);
             actions.add(restockButton);
             actions.add(deactivateButton);
+            actions.add(reactivateButton);
         }
 
         panel.add(search, BorderLayout.NORTH);
@@ -668,7 +672,7 @@ public final class StorePanel extends JPanel {
             showStatus("「" + product.getName() + "」已经下架，无需重复操作", VCampusTheme.DANGER);
             return;
         }
-        // 下架是破坏性操作且不可逆（服务端没有重新上架接口），必须二次确认
+        // 下架会中断售卖、商品从买家与管理员列表消失（可用「重新上架」凭编号恢复），属破坏性操作，必须二次确认
         if (JOptionPane.showConfirmDialog(this,
                 "确定下架「" + product.getName() + "」？\n下架后买家将无法购买，已存在的购物车条目也会标记为失效。",
                 "下架确认", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION) {
@@ -680,6 +684,29 @@ public final class StorePanel extends JPanel {
                 return;
             }
             showStatus("已下架「" + product.getName() + "」", VCampusTheme.SUCCESS);
+            SwingUtilities.invokeLater(this::loadProducts);
+        });
+    }
+
+    private void reactivateSelected() {
+        // 已下架商品不在商品表内（listProducts 只返回在售商品、且该契约被测试锁定），
+        // 故重新上架改为凭商品编号定位目标，与补货的输入框范式一致；恢复后刷新列表即重新出现在表中
+        String input = JOptionPane.showInputDialog(this,
+                "请输入要重新上架的商品编号：\n（已下架商品不显示在列表中，需凭编号恢复）",
+                "重新上架", JOptionPane.PLAIN_MESSAGE);
+        if (input == null) {
+            return;// 用户取消
+        }
+        final String productId = input.trim();
+        if (productId.isEmpty()) {
+            showStatus("商品编号不能为空", VCampusTheme.DANGER);
+            return;
+        }
+        runRequest("正在重新上架…", service -> service.reactivateProduct(session.getToken(), productId), response -> {
+            if (!isSuccessful(response)) {
+                return;
+            }
+            showStatus("已重新上架商品 " + productId, VCampusTheme.SUCCESS);
             SwingUtilities.invokeLater(this::loadProducts);
         });
     }

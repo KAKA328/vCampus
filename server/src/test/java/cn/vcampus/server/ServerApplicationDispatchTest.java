@@ -63,6 +63,6 @@ class ServerApplicationDispatchTest {
                 storeTypeCount++;
             }
         }
-        assertEquals(19, storeTypeCount, "STORE_* 消息类型数量变化，请同步核对 isStoreMessage 白名单");
+        assertEquals(20, storeTypeCount, "STORE_* 消息类型数量变化，请同步核对 isStoreMessage 白名单");
     }
 }

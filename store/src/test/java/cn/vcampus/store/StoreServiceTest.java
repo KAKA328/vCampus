@@ -326,6 +326,41 @@ class StoreServiceTest {
         assertFalse(testResult.getData().contains(products.findById("00001")));
     }
 
+    // DSH F1：重新上架——先下架再上架，active 翻回 true、库存沿用原值、商品重新出现在售列表
+    @Test
+    void testReactivateProductRestoresActiveAndListing() {
+        int stockBefore = products.findById("00001").getStock();
+        service.deactivateProduct("00001");
+        assertFalse(products.findById("00001").isActive());
+
+        ServiceResult<Void> testResult = service.reactivateProduct("00001");
+
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        Product restored = products.findById("00001");
+        assertTrue(restored.isActive());
+        assertEquals(stockBefore, restored.getStock());// 重新上架只翻 active 位、不碰库存
+        boolean listed = false;
+        for (Product candidate : service.listProducts().getData())
+            if ("00001".equals(candidate.getProductId()))
+                listed = true;
+        assertTrue(listed);// 恢复后重新出现在售列表（按 id 遍历，不依赖实例引用相等）
+    }
+
+    // DSH F1：重新上架幂等——对已在售商品直接返回 OK，不改变状态
+    @Test
+    void testReactivateProductIsIdempotentWhenAlreadyActive() {
+        assertTrue(products.findById("00001").isActive());
+        assertEquals(StatusCode.OK, service.reactivateProduct("00001").getStatus());
+        assertTrue(products.findById("00001").isActive());
+    }
+
+    // DSH F1：重新上架的入参与存在性校验，与 deactivateProduct 对齐（空→BAD_REQUEST、不存在→NOT_FOUND）
+    @Test
+    void testReactivateProductValidation() {
+        assertEquals(StatusCode.BAD_REQUEST, service.reactivateProduct(null).getStatus());
+        assertEquals(StatusCode.NOT_FOUND, service.reactivateProduct("99999999999").getStatus());
+    }
+
     // 测试加入购物车
     @Test
     void testAddToCart() {

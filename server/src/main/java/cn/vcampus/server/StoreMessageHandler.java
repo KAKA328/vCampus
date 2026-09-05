@@ -15,6 +15,7 @@ import cn.vcampus.store.StoreRestockCommand;
 import cn.vcampus.store.StoreProductAddCommand;
 import cn.vcampus.store.StoreProductUpdateCommand;
 import cn.vcampus.store.StoreProductDeactivateCommand;
+import cn.vcampus.store.StoreProductReactivateCommand;
 import cn.vcampus.store.CartAddCommand;
 import cn.vcampus.store.CartRemoveCommand;
 import cn.vcampus.store.CartUpdateCommand;
@@ -119,6 +120,15 @@ class StoreMessageHandler {
                     if (result.getStatus() == StatusCode.OK)
                         recordAudit(requireUserId(deactivate.getToken()), "STORE_PRODUCT_DEACTIVATE", "PRODUCT",
                                 deactivate.getProductId());
+                    break;
+                case STORE_PRODUCT_REACTIVATE:
+                    StoreProductReactivateCommand reactivate = payload(request, StoreProductReactivateCommand.class);
+                    ServiceResult<Void> reactivateAuth = requirePermission(reactivate.getToken(), "STORE_MANAGE");
+                    result = reactivateAuth.getStatus() != StatusCode.OK ? reactivateAuth
+                            : store.reactivateProduct(reactivate.getProductId());
+                    if (result.getStatus() == StatusCode.OK)
+                        recordAudit(requireUserId(reactivate.getToken()), "STORE_PRODUCT_REACTIVATE", "PRODUCT",
+                                reactivate.getProductId());
                     break;
                 case STORE_CART_ADD:
                     CartAddCommand cartAdd = payload(request, CartAddCommand.class);

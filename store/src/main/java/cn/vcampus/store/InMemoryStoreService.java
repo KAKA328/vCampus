@@ -66,6 +66,11 @@ public final class InMemoryStoreService implements StoreService {
     }
 
     @Override
+    public final ServiceResult<Void> reactivateProduct(String productId) {
+        return delegate.reactivateProduct(productId);
+    }
+
+    @Override
     public final ServiceResult<Void> addToCart(String userId, String productId, int quantity) {
         return delegate.addToCart(userId, productId, quantity);
     }

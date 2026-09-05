@@ -10,6 +10,7 @@ import cn.vcampus.store.StoreRestockCommand;
 import cn.vcampus.store.StoreProductAddCommand;
 import cn.vcampus.store.StoreProductUpdateCommand;
 import cn.vcampus.store.StoreProductDeactivateCommand;
+import cn.vcampus.store.StoreProductReactivateCommand;
 import cn.vcampus.store.CartAddCommand;
 import cn.vcampus.store.CartRemoveCommand;
 import cn.vcampus.store.CartUpdateCommand;
@@ -80,6 +81,13 @@ public final class RemoteStoreService implements Closeable {
             throws IOException, ClassNotFoundException {
         return send(MessageType.STORE_PRODUCT_DEACTIVATE,
                 new StoreProductDeactivateCommand(token, productId));
+    }
+
+    /** 管理员重新上架商品。 */
+    public Message reactivateProduct(String token, String productId)
+            throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_PRODUCT_REACTIVATE,
+                new StoreProductReactivateCommand(token, productId));
     }
 
     /** 将商品加入当前用户购物车。 */

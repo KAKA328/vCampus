@@ -266,6 +266,23 @@ public final class DefaultStoreService implements StoreService {
                 : ServiceResult.failure(StatusCode.CONFLICT, "Product changed; retry update");
     }
 
+    // 重新上架：与 deactivateProduct 对称，只把 active 翻回 true，库存/价格/说明/类别一律沿用原值不动
+    @Override
+    public final ServiceResult<Void> reactivateProduct(String productId) {
+        if (productId == null || productId.trim().isEmpty())
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "productId must not be blank");
+        Product existing = products.findById(productId);
+        if (existing == null)
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
+        // 已在架则幂等返回成功，免去无谓的对象构造与仓储写回（对齐 deactivate 的可重入语义）
+        if (existing.isActive())
+            return ServiceResult.ok(null);
+        Product reactivated = new Product(existing.getProductId(), existing.getName(), existing.getStock(),
+                existing.getPrice(), existing.getDescription(), existing.getCategory(), true);
+        return products.updateProduct(reactivated) ? ServiceResult.ok(null)
+                : ServiceResult.failure(StatusCode.CONFLICT, "Product changed; retry update");
+    }
+
     // 加入购物车
     @Override
     public final ServiceResult<Void> addToCart(String userId, String productId, int quantity) {

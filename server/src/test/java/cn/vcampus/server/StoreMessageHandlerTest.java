@@ -20,6 +20,7 @@ import cn.vcampus.store.StoreQueryCommand;
 import cn.vcampus.store.StoreProductAddCommand;
 import cn.vcampus.store.StoreProductUpdateCommand;
 import cn.vcampus.store.StoreProductDeactivateCommand;
+import cn.vcampus.store.StoreProductReactivateCommand;
 import cn.vcampus.store.CartAddCommand;
 import cn.vcampus.store.CartCheckoutCommand;
 import cn.vcampus.store.StoreOrderListAllCommand;
@@ -205,6 +206,17 @@ class StoreMessageHandlerTest {
         assertEquals(StatusCode.OK, response.getStatusCode());
         assertTrue(store.deactivateCalled);
         assertEquals("P001", store.lastDeactivateProductId);
+    }
+
+    @Test
+    void testStoreProductReactivateAuthorized() {
+        Message response = handler.handle(Message.request(
+                "store-product-reactivate", MessageType.STORE_PRODUCT_REACTIVATE,
+                new StoreProductReactivateCommand(managerSession.getToken(), "P001")));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertTrue(store.reactivateCalled);
+        assertEquals("P001", store.lastReactivateProductId);
     }
 
     @Test
@@ -580,6 +592,8 @@ class StoreMessageHandlerTest {
         private double lastUpdateProductPrice;
         private boolean deactivateCalled;
         private String lastDeactivateProductId;
+        private boolean reactivateCalled;
+        private String lastReactivateProductId;
         private boolean cartAddCalled;
         private String lastCartAddUserId;
         private String lastCartAddProductId;
@@ -678,6 +692,13 @@ class StoreMessageHandlerTest {
         public ServiceResult<Void> deactivateProduct(String productId) {
             deactivateCalled = true;
             lastDeactivateProductId = productId;
+            return ServiceResult.ok(null);
+        }
+
+        @Override
+        public ServiceResult<Void> reactivateProduct(String productId) {
+            reactivateCalled = true;
+            lastReactivateProductId = productId;
             return ServiceResult.ok(null);
         }
 
