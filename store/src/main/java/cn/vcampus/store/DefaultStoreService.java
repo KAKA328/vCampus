@@ -7,6 +7,8 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 // 默认商店业务，通过提供商品仓库和订单仓库以实现业务逻辑
@@ -142,8 +144,9 @@ public final class DefaultStoreService implements StoreService {
     private boolean refundAndRestore(String userId, String orderId, String productId, int quantity, long cents) {
         boolean complete = true;
         try {
+            // DSH A5：退款流水 note 带上被补偿的订单号，便于运维把这笔 REFUND 与具体订单逐笔对账
             WalletMutation refund = wallet.credit(userId, cents, WalletTransactionType.REFUND, userId,
-                    "purchase compensation");
+                    "purchase compensation for order " + orderId);
             if (!refund.isApplied()) {
                 recordCompensationFailure("purchase", userId, orderId, productId, quantity, cents, "refund",
                         "credit returned applied=false");
@@ -322,9 +325,12 @@ public final class DefaultStoreService implements StoreService {
     public final ServiceResult<List<CartLine>> getCartDetails(String userId) {
         if (userId == null || userId.trim().isEmpty())
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId must not be blank");
+        // DSH A4：一次 findAll 建 id→商品索引，替代逐行 findById 的 N+1（Access 版每次 findById 都新开一条 SQL 连接）；
+        // 每次调用重建索引，价格/在售状态即时反映；商品被物理删除则不在索引内→get 返 null→沿用原「跳过」语义
+        Map<String, Product> productIndex = indexProducts();
         List<CartLine> lines = new ArrayList<CartLine>();
         for (CartItem item : cart.findByUserId(userId)) {
-            Product product = products.findById(item.getProductId());
+            Product product = productIndex.get(item.getProductId());
             if (product == null)
                 continue;
             long unitPriceCents = Math.round(product.getPrice() * 100);
@@ -333,6 +339,15 @@ public final class DefaultStoreService implements StoreService {
                     item.getQuantity(), subtotalCents, product.isActive(), item.getAddedAt()));
         }
         return ServiceResult.ok(Collections.unmodifiableList(lines));
+    }
+
+    // DSH A4：把 products.findAll() 一次建成 id→Product 索引，收敛 getCartDetails/listHotProducts 的 N+1；
+    // findAll 返回全量（含 inactive），与逐个 findById 等价——删除的商品不在索引内、get 返 null
+    private Map<String, Product> indexProducts() {
+        Map<String, Product> index = new HashMap<String, Product>();
+        for (Product product : products.findAll())
+            index.put(product.getProductId(), product);
+        return index;
     }
 
     // 购物车结账：加锁，与 purchase 共用同一把锁；逐项 原子扣库存 → 原子扣款 → 建单 → 清空
@@ -435,7 +450,7 @@ public final class DefaultStoreService implements StoreService {
         if (debitedCents > 0) {
             try {
                 WalletMutation refund = wallet.credit(userId, debitedCents, WalletTransactionType.REFUND, userId,
-                        "checkout compensation");
+                        checkoutCompensationNote(created));
                 if (!refund.isApplied()) {
                     recordCompensationFailure("checkout", userId, null, null, 0, debitedCents, "refund",
                             "credit returned applied=false");
@@ -448,6 +463,27 @@ public final class DefaultStoreService implements StoreService {
             }
         }
         return complete;
+    }
+
+    // DSH A5：结账补偿是「多单聚合退款」，note 带上被撤销的订单号便于对账；但 tblWalletTransaction.note 列宽仅
+    // VARCHAR(200)，UUID(36 字符)订单号多时拼接会溢出、反令 credit 入账失败并升级 SERVER_ERROR，故按预算截断为
+    // 「前若干完整单号 + (+N more)」，绝不因 note 过长拖垮退款本身
+    // 包级可见：供 StoreServiceTest 直接断言 note 组装与 VARCHAR(200) 截断（对齐 isStoreMessage/MAX_* 可测性放宽先例）
+    static String checkoutCompensationNote(List<Order> created) {
+        if (created.isEmpty())
+            return "checkout compensation";
+        final int noteMaxLength = 200;// tblWalletTransaction.note VARCHAR(200)
+        StringBuilder note = new StringBuilder("checkout compensation for orders ");
+        int included = 0;
+        for (Order order : created) {
+            String separator = included > 0 ? ", " : "";
+            // 预留 " (+NNN more)" 后缀空间(约 12 字符)；放不下就停止追加、记余量
+            if (note.length() + separator.length() + order.getOrderId().length() + 12 > noteMaxLength)
+                return note.append(" (+").append(created.size() - included).append(" more)").toString();
+            note.append(separator).append(order.getOrderId());
+            included++;
+        }
+        return note.toString();
     }
 
     // 结账补偿的统一出口：补偿成功按 cleanStatus/cleanMessage 返回（多为可重试的 CONFLICT）；补偿不完整则升级
@@ -472,9 +508,11 @@ public final class DefaultStoreService implements StoreService {
         if (limit <= 0)
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "limit must be positive");
         List<Object[]> sales = orders.findSalesVolume();
+        // DSH A4：一次 findAll 建索引替代逐行 findById 的 N+1；仍按 findSalesVolume 的销量序遍历，榜单顺序不变
+        Map<String, Product> productIndex = indexProducts();
         List<Product> result = new ArrayList<Product>();
         for (Object[] row : sales) {
-            Product product = products.findById(String.valueOf(row[0]));
+            Product product = productIndex.get(String.valueOf(row[0]));
             if (product != null && product.isActive())
                 result.add(product);
             if (result.size() >= limit)

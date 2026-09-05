@@ -1,6 +1,11 @@
 package cn.vcampus.store;
 
 import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+import java.time.LocalDateTime;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import org.junit.jupiter.api.Test;
@@ -1238,6 +1243,115 @@ class StoreServiceTest {
                 () -> service.findOrdersByUserId("0120").getData().clear());
         assertThrows(UnsupportedOperationException.class, () -> service.findAllOrders().getData().clear());
         assertThrows(UnsupportedOperationException.class, () -> service.listTransactions("0120").getData().clear());
+    }
+
+    // DSH A5：findAll 走 ConcurrentHashMap.values() 本无固定序，必须按下单时间升序、同刻按订单号升序稳定返回
+    @Test
+    void testFindAllOrdersSortsByDateThenId() {
+        LocalDateTime early = LocalDateTime.of(2024, 1, 1, 10, 0);
+        LocalDateTime late = LocalDateTime.of(2024, 1, 2, 10, 0);
+        // 故意乱序插入：晚单在前、同刻两单 id 逆序，证明返回序来自排序而非插入序
+        orders.create(new Order("b-late", "u1", "00001", 1, 2.5, late, "Apple", 2.5));
+        orders.create(new Order("c-early", "u2", "00001", 1, 2.5, early, "Apple", 2.5));
+        orders.create(new Order("a-early", "u3", "00001", 1, 2.5, early, "Apple", 2.5));
+
+        List<Order> all = service.findAllOrders().getData();
+
+        assertEquals(3, all.size());
+        assertEquals("a-early", all.get(0).getOrderId());// 同为 early，按 id 升序 a<c
+        assertEquals("c-early", all.get(1).getOrderId());
+        assertEquals("b-late", all.get(2).getOrderId());// late 排最后
+    }
+
+    // DSH A5：findByUserId 原按插入序返回，现同样以时间+订单号双键稳定排序（对齐 Access 版 ORDER BY order_date, order_id）
+    @Test
+    void testFindOrdersByUserIdSortsByDateThenId() {
+        LocalDateTime morning = LocalDateTime.of(2024, 3, 1, 8, 0);
+        LocalDateTime evening = LocalDateTime.of(2024, 3, 1, 20, 0);
+        // 同一用户乱序插入：晚单先、早单后，且同刻两单 id 逆序
+        orders.create(new Order("z-evening", "sortUser", "00001", 1, 2.5, evening, "Apple", 2.5));
+        orders.create(new Order("m-morning2", "sortUser", "00001", 1, 2.5, morning, "Apple", 2.5));
+        orders.create(new Order("m-morning1", "sortUser", "00001", 1, 2.5, morning, "Apple", 2.5));
+
+        List<Order> mine = service.findOrdersByUserId("sortUser").getData();
+
+        assertEquals(3, mine.size());
+        assertEquals("m-morning1", mine.get(0).getOrderId());// morning 先，同刻按 id 升序 morning1<morning2
+        assertEquals("m-morning2", mine.get(1).getOrderId());
+        assertEquals("z-evening", mine.get(2).getOrderId());// evening 排最后
+    }
+
+    // DSH A5：结账补偿 note 组装——空单退回原措辞；少量单带全部订单号；多单按 VARCHAR(200) 预算截断防溢出
+    @Test
+    void testCheckoutCompensationNoteCarriesOrderIdsWithinColumnWidth() {
+        assertEquals("checkout compensation",
+                DefaultStoreService.checkoutCompensationNote(new ArrayList<Order>()));// 空列表退回原措辞
+
+        List<Order> few = new ArrayList<Order>();
+        few.add(new Order("o1", "u", "00001", 1, 2.5, LocalDateTime.now(), "Apple", 2.5));
+        few.add(new Order("o2", "u", "00002", 1, 1.5, LocalDateTime.now(), "Banana", 1.5));
+        assertEquals("checkout compensation for orders o1, o2", DefaultStoreService.checkoutCompensationNote(few));
+
+        // 20 个 UUID(36 字符)订单号必然超出列宽，须截断为「前若干完整单号 + (+N more)」且总长 ≤ 200
+        List<Order> many = new ArrayList<Order>();
+        for (int i = 0; i < 20; i++)
+            many.add(new Order(UUID.randomUUID().toString(), "u", "00001", 1, 2.5,
+                    LocalDateTime.now(), "Apple", 2.5));
+        String truncated = DefaultStoreService.checkoutCompensationNote(many);
+        assertTrue(truncated.startsWith("checkout compensation for orders "));
+        assertTrue(truncated.contains(" more)"), "超长 note 必须带 (+N more) 截断标记: " + truncated);
+        assertTrue(truncated.length() <= 200,
+                "note 不得超过 tblWalletTransaction.note VARCHAR(200): " + truncated.length());
+    }
+
+    // DSH A5：建单失败触发退款补偿时，REFUND 流水 note 必须带上被补偿的订单号，与 PURCHASE 流水逐笔对账
+    @Test
+    void testPurchaseCompensationRefundNoteCarriesOrderId() {
+        InMemoryProductRepository p = new InMemoryProductRepository();
+        p.save(new Product("A", "A", 5, 2.0, "", "test"));
+        FailingOrderRepository o = new FailingOrderRepository(true);// create 抛异常 → 触发退款补偿
+        InMemoryWalletRepository wallet = new InMemoryWalletRepository();
+        wallet.save(new BankAccount("u", 100_000L));
+        DefaultStoreService svc = new DefaultStoreService(p, o, new InMemoryCartRepository(), wallet);
+
+        assertEquals(StatusCode.CONFLICT, svc.purchase("u", "A", 2).getStatus());
+
+        WalletTransaction purchaseEntry = null;
+        WalletTransaction refundEntry = null;
+        for (WalletTransaction entry : wallet.findTransactionsByUserId("u")) {
+            if (entry.getType() == WalletTransactionType.PURCHASE)
+                purchaseEntry = entry;
+            if (entry.getType() == WalletTransactionType.REFUND)
+                refundEntry = entry;
+        }
+        assertNotNull(purchaseEntry);
+        assertNotNull(refundEntry);
+        // PURCHASE 流水 note 形如 "order <id>"；退款 note 必须复用同一订单号
+        String orderId = purchaseEntry.getNote().substring("order ".length());
+        assertEquals("purchase compensation for order " + orderId, refundEntry.getNote());
+    }
+
+    // DSH A4：getCartDetails 收敛为一次 findAll 建索引后，多商品购物车每行仍解析出正确名称/单价/小计，
+    // 且被物理删除的商品因索引 get 返 null 而跳过（与逐个 findById 的旧行为等价）
+    @Test
+    void testCartDetailsResolveMultipleDistinctProductsAndSkipDeleted() {
+        service.addToCart("0120", "00001", 2);// Apple 2.5 元
+        service.addToCart("0120", "00002", 3);// Banana 1.5 元
+        service.addToCart("0120", "00003", 1);// Carrot 0.5 元
+        products.deleteById("00002");// 删除其一：索引查不到 → 该行跳过
+
+        Map<String, CartLine> byId = new HashMap<String, CartLine>();
+        for (CartLine line : service.getCartDetails("0120").getData())
+            byId.put(line.getProductId(), line);
+
+        assertEquals(2, byId.size());
+        assertFalse(byId.containsKey("00002"));
+        assertEquals("Apple", byId.get("00001").getProductName());
+        assertEquals(250L, byId.get("00001").getUnitPriceCents());
+        assertEquals(500L, byId.get("00001").getSubtotalCents());
+        assertEquals("Carrot", byId.get("00003").getProductName());
+        assertEquals(50L, byId.get("00003").getUnitPriceCents());
+        assertEquals(50L, byId.get("00003").getSubtotalCents());
     }
 
     private static final class FailingOrderRepository implements OrderRepository {
