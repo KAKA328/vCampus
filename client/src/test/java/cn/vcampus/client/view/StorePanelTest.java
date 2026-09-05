@@ -40,4 +40,16 @@ class StorePanelTest {
         assertEquals("服务器处理商店请求失败", StorePanel.statusMessage(StatusCode.SERVER_ERROR));
         assertEquals("服务器处理商店请求失败", StorePanel.statusMessage(StatusCode.OK));
     }
+
+    @Test
+    void localFailureTextGivesChineseHintWithoutLeakingInternalMessage() {
+        // C1：命令构造类可预期异常（如 A1 曾经的空说明 IAE）给中文提示，绝不裸奔内部英文 getMessage
+        String illegalArg = StorePanel.localFailureText(new IllegalArgumentException("description cannot be empty"));
+        assertEquals("提交的数据不完整或格式有误，请检查后重试", illegalArg);
+        assertFalse(illegalArg.contains("description cannot be empty"));
+        // 其它未知本地异常走通用中文兜底，同样不泄露 getMessage
+        String other = StorePanel.localFailureText(new IllegalStateException("some internal detail"));
+        assertEquals("商店请求失败，请稍后重试", other);
+        assertFalse(other.contains("some internal detail"));
+    }
 }

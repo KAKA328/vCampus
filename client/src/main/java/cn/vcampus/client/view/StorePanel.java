@@ -884,7 +884,7 @@ public final class StorePanel extends JPanel {
     }
 
     private void showBalance(Message response) {
-        // 余额只是辅助信息，查询失败不抢状态栗（留给主操作），只把标签复位
+        // 余额只是辅助信息，查询失败不抢状态栏（留给主操作），只把标签复位
         if (response.getStatusCode() == StatusCode.OK && response.getPayload() instanceof Number) {
             long cents = ((Number) response.getPayload()).longValue();
             balanceLabel.setText("余额：" + StoreRowMapper.formatYuan(cents) + " 元");
@@ -1012,7 +1012,7 @@ public final class StorePanel extends JPanel {
                     } else if (cause instanceof IOException) {
                         showStatus("无法连接商店服务器，请确认服务器已启动", VCampusTheme.DANGER);
                     } else {
-                        showStatus("商店请求失败：" + cause.getMessage(), VCampusTheme.DANGER);
+                        showStatus(localFailureText(cause), VCampusTheme.DANGER);
                     }
                 } finally {
                     loadingStatus.stop();
@@ -1023,6 +1023,14 @@ public final class StorePanel extends JPanel {
                 }
             }
         }.execute();
+    }
+
+    // done() 的本地异常（命令构造/解析等非网络故障）文案：一律中文，绝不把 cause.getMessage() 的内部英文甩给用户
+    static String localFailureText(Throwable cause) {
+        if (cause instanceof IllegalArgumentException) {
+            return "提交的数据不完整或格式有误，请检查后重试";
+        }
+        return "商店请求失败，请稍后重试";
     }
 
     /** 统一响应守卫：成功返回 true，失败已顺手把原因写进状态栏，调用方直接 return 即可。 */
