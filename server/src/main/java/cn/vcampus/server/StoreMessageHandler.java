@@ -225,6 +225,9 @@ class StoreMessageHandler {
         } catch (RuntimeException unexpected) {
             // 兜底：仓储 IllegalStateException、null id 触发的 NPE 等一律收敛为 SERVER_ERROR，
             // 避免异常穿透 dispatch 被线程池 submit 的 FutureTask 静默吞掉、客户端只看到笼统网络错误
+            // DSH B1：服务端打印根因（请求类型 + 异常栈）供运维排查；客户端仍只收笼统 SERVER_ERROR，不外泄内部细节
+            System.err.println("store handler unexpected failure for " + request.getType() + ": " + unexpected);
+            unexpected.printStackTrace(System.err);
             return Message.response(request, StatusCode.SERVER_ERROR, "store request failed unexpectedly");
         }
     }

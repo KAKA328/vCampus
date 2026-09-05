@@ -193,7 +193,10 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.COURSE_DROP_RECORD_V2;
     }
 
-    private static boolean isStoreMessage(MessageType type) {
+    // 商店消息白名单：必须与 MessageType 中全部 STORE_* 前缀枚举一一对应，
+    // 由 ServerApplicationDispatchTest 的守护测试锁定，防新增 STORE_* 漏加导致静默路由到 userMessages；
+    // 包级可见供该守护测试直接断言
+    static boolean isStoreMessage(MessageType type) {
         return type == MessageType.STORE_QUERY
                 || type == MessageType.STORE_PURCHASE || type == MessageType.STORE_ORDER_QUERY
                 || type == MessageType.STORE_RESTOCK || type == MessageType.STORE_PRODUCT_ADD
