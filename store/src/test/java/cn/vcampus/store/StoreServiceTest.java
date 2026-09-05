@@ -646,6 +646,53 @@ class StoreServiceTest {
         assertEquals(2 * single, service.getBalance(user));// 停在 4000 元，第三笔未入账
     }
 
+    // A3：购买数量超过上限被拒；上界检查在库存预检之前短路，故为 BAD_REQUEST 而非 CONFLICT
+    @Test
+    void testPurchaseRejectsQuantityAboveMax() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.purchase("0120", "00004", DefaultStoreService.MAX_QUANTITY + 1).getStatus());
+    }
+
+    // A3：加入购物车数量超过上限被拒
+    @Test
+    void testAddToCartRejectsQuantityAboveMax() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.addToCart("0120", "00004", DefaultStoreService.MAX_QUANTITY + 1).getStatus());
+    }
+
+    // A3：加购数量恰好等于上限放行（边界 <=；加购不校验库存）
+    @Test
+    void testAddToCartAtMaxQuantityAllowed() {
+        assertEquals(StatusCode.OK,
+                service.addToCart("0121", "00004", DefaultStoreService.MAX_QUANTITY).getStatus());
+    }
+
+    // A3：修改购物车数量超过上限被拒
+    @Test
+    void testUpdateCartQuantityRejectsAboveMax() {
+        service.addToCart("0121", "00004", 1);
+        CartItem item = service.getCart("0121").getData().get(0);
+        assertEquals(StatusCode.BAD_REQUEST, service
+                .updateCartQuantity("0121", item.getCartItemId(), DefaultStoreService.MAX_QUANTITY + 1).getStatus());
+    }
+
+    // A3：补货数量超过上限被拒，且库存无副作用
+    @Test
+    void testRestockRejectsAdditionalStockAboveMax() {
+        int before = products.findById("00001").getStock();
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.restock("00001", DefaultStoreService.MAX_QUANTITY + 1).getStatus());
+        assertEquals(before, products.findById("00001").getStock());// 未副作用
+    }
+
+    // A3：管理员校正余额超过绝对上限被拒，且余额无副作用
+    @Test
+    void testAdjustBalanceRejectsAboveMax() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.adjustBalance("admin", "0120", DefaultStoreService.MAX_BALANCE_CENTS + 1).getStatus());
+        assertEquals(100_000_000L, service.getBalance("0120"));// 未副作用
+    }
+
     // 新-1（确定性）：服务层读到快照后库存被并发扣减，updateProduct 不得把 stale 库存写回
     @Test
     void testServiceUpdateProductDoesNotResurrectStaleStock() {

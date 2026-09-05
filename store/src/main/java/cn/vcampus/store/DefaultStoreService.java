@@ -16,6 +16,11 @@ public final class DefaultStoreService implements StoreService {
     // 本人充值护栏（演示口径：单笔 ≤ 2000 元、单日累计 ≤ 5000 元），防止无上限自助发币；包级可见供测试引用
     static final long MAX_SINGLE_RECHARGE_CENTS = 200_000L;
     static final long MAX_DAILY_RECHARGE_CENTS = 500_000L;
+    // 数量护栏（DSH A3）：购买/加购/改数量/补货的单次数量上限，防超大值穿透到 DB INTEGER，
+    // 或在购物车累加时溢出 int；包级可见供测试引用
+    static final int MAX_QUANTITY = 100_000;
+    // 余额护栏（DSH A3）：管理员校正余额的绝对上限（10^12 分 = 10^10 元），防 BIGINT 溢出与天文数字误输入
+    static final long MAX_BALANCE_CENTS = 1_000_000_000_000L;
     private final ProductRepository products;// 商品仓库
     private final OrderRepository orders;// 订单仓库
     private final CartRepository cart;// 购物车仓库
@@ -72,6 +77,8 @@ public final class DefaultStoreService implements StoreService {
         // 数量不合法
         if (quantity <= 0)
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "Quantity must be positive");
+        if (quantity > MAX_QUANTITY)
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "Quantity exceeds maximum " + MAX_QUANTITY);
         // 预检（仅提示）：库存是否充足，真正裁决由原子 deductStock 决定
         // 库存不足属于「请求合法但资源状态冲突」，与原子扣减失败统一返回 CONFLICT
         if (toBuy.getStock() < quantity)
@@ -198,6 +205,8 @@ public final class DefaultStoreService implements StoreService {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "productId must not be blank");
         if (additionalStock <= 0)
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "additionalStock must be positive");
+        if (additionalStock > MAX_QUANTITY)
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "additionalStock exceeds maximum " + MAX_QUANTITY);
         return products.addStock(productId, additionalStock)
                 ? ServiceResult.ok(null)
                 : ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
@@ -259,6 +268,8 @@ public final class DefaultStoreService implements StoreService {
     public final ServiceResult<Void> addToCart(String userId, String productId, int quantity) {
         if (quantity <= 0)
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "quantity must be positive");
+        if (quantity > MAX_QUANTITY)
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "quantity exceeds maximum " + MAX_QUANTITY);
         Product product = products.findById(productId);
         if (product == null || !product.isActive())
             return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
@@ -288,6 +299,8 @@ public final class DefaultStoreService implements StoreService {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "cartItemId must not be blank");
         if (newQuantity <= 0)
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "newQuantity must be positive");
+        if (newQuantity > MAX_QUANTITY)
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "newQuantity exceeds maximum " + MAX_QUANTITY);
         for (CartItem item : cart.findByUserId(userId)) {
             if (item.getCartItemId().equals(cartItemId)) {
                 return cart.updateQuantity(cartItemId, newQuantity) ? ServiceResult.ok(null)
@@ -541,6 +554,8 @@ public final class DefaultStoreService implements StoreService {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId must not be blank");
         if (newBalanceCents < 0)
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "balance must not be negative");
+        if (newBalanceCents > MAX_BALANCE_CENTS)
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "balance exceeds maximum " + MAX_BALANCE_CENTS);
         // 绝对设置余额 + 记 ADJUST 流水：仓储在同一事务/锁内读实际旧值算差额，并发校正被串行化，
         // 逐笔流水累加恒等于最终余额；操作者编号一并落流水，让「谁改的」不再丢失
         WalletMutation adjust;
