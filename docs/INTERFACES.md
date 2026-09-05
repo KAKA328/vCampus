@@ -99,7 +99,7 @@ StudentManagementService.findByIds(List<String> studentIds)
 - `STORE_CART_ADD` / `STORE_CART_REMOVE` / `STORE_CART_QUERY` / `STORE_CART_CHECKOUT`：购物车增删查和结账，分别使用对应 `Cart*Command`；增删/结账要求 `STORE_PURCHASE`，查询要求 `STORE_READ`。
 - `STORE_CART_UPDATE` + `CartUpdateCommand(token, cartItemId, newQuantity)`：修改购物车条目数量，`newQuantity` 必须为正；要求 `STORE_PURCHASE`，`userId` 取自 token，服务层再校验条目**归属本人**，不属于本人一律返回 `NOT_FOUND`（不区分「不存在」与「不是你的」，避免枚举他人条目）。
 - `STORE_CART_DETAIL` + `CartQueryCommand(token)`：购物车明细，响应 payload 为 `List<CartLine>`（`cartItemId`/`productId`/`productName`/`unitPriceCents`/`quantity`/`subtotalCents`/`active`/`addedAt`）；要求 `STORE_READ`，`userId` 取自 token。明细是**读取时与商品实时联表**的结果（不落库、`tblCartItem` 未加列），商品改名/调价后立即显示新值；`subtotalCents` 与结账实扣同式，**前端合计必须累加 `subtotalCents`**，不得用 `unitPriceCents × quantity`。
-- `STORE_RESTOCK`、`STORE_PRODUCT_ADD`、`STORE_PRODUCT_UPDATE`、`STORE_PRODUCT_DEACTIVATE`：商品和库存维护，使用对应 `Store*Command`；均要求 `STORE_MANAGE`。
+- `STORE_RESTOCK`、`STORE_PRODUCT_ADD`、`STORE_PRODUCT_UPDATE`、`STORE_PRODUCT_DEACTIVATE`、`STORE_PRODUCT_REACTIVATE`：商品和库存维护，使用对应 `Store*Command`；均要求 `STORE_MANAGE`。其中 `STORE_PRODUCT_DEACTIVATE`（下架，置 `active=false`）与 `STORE_PRODUCT_REACTIVATE`（重新上架，置 `active=true`）互为逆操作，都只翻 `active` 位、不碰库存/价格等其他字段（重新上架对已在售商品幂等返回 OK）。
 - `STORE_ORDER_LIST_ALL` + `StoreOrderListAllCommand(token)`：管理员全量订单；要求 `STORE_MANAGE`。
 - `STORE_HOT_PRODUCTS` + `StoreHotProductsCommand(token, limit)`：热销商品排行；要求 `STORE_READ`。
 - `STORE_ACCOUNT_QUERY` + `StoreAccountQueryCommand(token)`：查询本人钱包余额，响应 payload 为 `long`（单位「分」）；要求 `STORE_READ`，`userId` 取自 token，无账户时返回 0。

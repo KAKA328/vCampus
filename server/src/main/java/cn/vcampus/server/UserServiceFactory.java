@@ -23,7 +23,9 @@ final class UserServiceFactory {
     private static final String ADMIN_ID_ENV = "VCAMPUS_BOOTSTRAP_ADMIN_ID";
     private static final String ADMIN_PASSWORD_ENV = "VCAMPUS_BOOTSTRAP_ADMIN_PASSWORD";
     private static final String ADMIN_NAME_ENV = "VCAMPUS_BOOTSTRAP_ADMIN_NAME";
-    private UserServiceFactory() { }
+
+    private UserServiceFactory() {
+    }
 
     static UserManagementService create(String[] args) {
         Path databasePath = databasePath(args);
@@ -71,7 +73,8 @@ final class UserServiceFactory {
         String userId = setting(ADMIN_ID_ENV, "vcampus.bootstrap.admin.id");
         String password = setting(ADMIN_PASSWORD_ENV, "vcampus.bootstrap.admin.password");
         String displayName = setting(ADMIN_NAME_ENV, "vcampus.bootstrap.admin.name");
-        if (userId == null && password == null && displayName == null) return;
+        if (userId == null && password == null && displayName == null)
+            return;
         if (userId == null || password == null || displayName == null) {
             throw new IllegalStateException("bootstrap administrator configuration is incomplete");
         }
@@ -85,8 +88,19 @@ final class UserServiceFactory {
 
     private static String setting(String environmentName, String propertyName) {
         String value = System.getenv(environmentName);
-        if (value == null || value.trim().isEmpty()) value = System.getProperty(propertyName);
+        if (value == null || value.trim().isEmpty())
+            value = System.getProperty(propertyName);
         return value == null || value.trim().isEmpty() ? null : value.trim();
+    }
+
+    /**
+     * Creates the audit log repository used for store sensitive-operation audit
+     * trail, matching the persistence mode of {@link #databasePath(String[])}.
+     */
+    static AuditLogRepository createStoreAuditLog(String[] args) {
+        Path databasePath = databasePath(args);
+        return databasePath == null ? new InMemoryAuditLogRepository()
+                : new AccessAuditLogRepository(databasePath);
     }
 
     static Path databasePath(String[] args) {

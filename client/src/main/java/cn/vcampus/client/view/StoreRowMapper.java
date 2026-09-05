@@ -1,6 +1,7 @@
 package cn.vcampus.client.view;
 
 import cn.vcampus.store.CartLine;
+import cn.vcampus.store.Money;
 import cn.vcampus.store.Order;
 import cn.vcampus.store.Product;
 import cn.vcampus.store.WalletTransaction;
@@ -11,7 +12,7 @@ import java.time.format.DateTimeFormatter;
 /**
  * 商店表格行构造与金额格式化工具，全部为纯函数，便于单元测试。
  * 金额一律以「分」为单位的 long 参与格式化，展示时才转元；商品与订单实体里的 double 价格
- * 只作展示来源，格式化时一次性 Math.round 到分，避免把浮点误差带进界面合计。
+ * 只作展示来源，元→分统一走 Money.toCents（全链路唯一换算入口，DSH P1-2），避免把浮点误差带进界面合计。
  */
 final class StoreRowMapper {
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -23,7 +24,7 @@ final class StoreRowMapper {
     static Object[] productRow(Product product) {
         return new Object[] {
                 product.getProductId(), product.getName(), product.getCategory(),
-                Double.valueOf(toYuan(Math.round(product.getPrice() * 100))),
+                Double.valueOf(toYuan(toCents(product.getPrice()))),
                 Integer.valueOf(product.getStock()),
                 product.isActive() ? "在售" : "已下架",
                 product.getDescription() == null ? "" : product.getDescription()
@@ -45,8 +46,8 @@ final class StoreRowMapper {
     static Object[] orderRow(Order order) {
         return new Object[] {
                 order.getOrderId(), order.getProductName(), Integer.valueOf(order.getQuantity()),
-                Double.valueOf(toYuan(Math.round(order.getUnitPrice() * 100))),
-                Double.valueOf(toYuan(Math.round(order.getTotalPrice() * 100))),
+                Double.valueOf(toYuan(order.getUnitPriceCents())),
+                Double.valueOf(toYuan(order.getTotalPriceCents())),
                 formatDateTime(order.getOrderDate())
         };
     }
@@ -56,8 +57,8 @@ final class StoreRowMapper {
         return new Object[] {
                 order.getOrderId(), order.getUserId(), order.getProductName(),
                 Integer.valueOf(order.getQuantity()),
-                Double.valueOf(toYuan(Math.round(order.getUnitPrice() * 100))),
-                Double.valueOf(toYuan(Math.round(order.getTotalPrice() * 100))),
+                Double.valueOf(toYuan(order.getUnitPriceCents())),
+                Double.valueOf(toYuan(order.getTotalPriceCents())),
                 formatDateTime(order.getOrderDate())
         };
     }
@@ -123,9 +124,9 @@ final class StoreRowMapper {
         return cents / 100.0d;
     }
 
-    /** 元转分：一次性 Math.round，避免浮点误差累积进账本。 */
+    /** 元转分：委托全链路唯一换算入口 Money.toCents（DSH P1-2），客户端不再自持换算公式。 */
     static long toCents(double yuan) {
-        return Math.round(yuan * 100);
+        return Money.toCents(yuan);
     }
 
     static String formatDateTime(LocalDateTime dateTime) {

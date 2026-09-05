@@ -19,10 +19,14 @@ public interface StoreService {
 
     ServiceResult<Product> addProduct(String name, double price, int stock, String description, String category);
 
+    // expectedVersion：客户端加载商品时的版本快照（A2 乐观并发）；与存储版本不符返回 CONFLICT，前端重读重试
     ServiceResult<Product> updateProduct(String productId, String name, double price, String description,
-            String category);
+            String category, int expectedVersion);
 
     ServiceResult<Void> deactivateProduct(String productId);
+
+    // 重新上架：把已下架商品的 active 翻回 true，只改上架位、不碰库存/价格等其他字段
+    ServiceResult<Void> reactivateProduct(String productId);
 
     // 购物车
     ServiceResult<Void> addToCart(String userId, String productId, int quantity);

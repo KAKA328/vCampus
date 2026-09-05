@@ -52,6 +52,7 @@ class AccessStoreRepositoryTest {
                     + "description VARCHAR(255),"
                     + "category VARCHAR(64) NOT NULL,"
                     + "active BIT NOT NULL,"
+                    + "version INTEGER NOT NULL,"
                     + "PRIMARY KEY (product_id))");
             statement.execute("CREATE TABLE tblOrder ("
                     + "order_id VARCHAR(36) NOT NULL,"
@@ -376,6 +377,46 @@ class AccessStoreRepositoryTest {
         assertEquals(250L, reopened.findByUserId("student001").getBalanceCents());
     }
 
+    // 新-4 契约（Access 版）：debit 金额必须为正，非正数在开库前即抛 IllegalArgumentException
+    @Test
+    void testAccessDebitRejectsNonPositiveCents() {
+        wallet.credit("student001", 10000L, WalletTransactionType.RECHARGE, "student001", null);
+        assertThrows(IllegalArgumentException.class,
+                () -> wallet.debit("student001", 0L, WalletTransactionType.PURCHASE, "student001", null));
+        assertThrows(IllegalArgumentException.class,
+                () -> wallet.debit("student001", -100L, WalletTransactionType.PURCHASE, "student001", null));
+        assertEquals(10000L, wallet.findByUserId("student001").getBalanceCents());// 余额未被非法调用改动
+    }
+
+    // 新-4 契约（Access 版）：credit 金额必须为正
+    @Test
+    void testAccessCreditRejectsNonPositiveCents() {
+        assertThrows(IllegalArgumentException.class,
+                () -> wallet.credit("student001", 0L, WalletTransactionType.RECHARGE, "student001", null));
+        assertThrows(IllegalArgumentException.class,
+                () -> wallet.credit("student001", -100L, WalletTransactionType.RECHARGE, "student001", null));
+        assertNull(wallet.findByUserId("student001"));// 非法入账不应建户
+    }
+
+    // 新-4 契约（Access 版）：setBalance 目标余额必须非负
+    @Test
+    void testAccessSetBalanceRejectsNegative() {
+        wallet.credit("student001", 10000L, WalletTransactionType.RECHARGE, "student001", null);
+        assertThrows(IllegalArgumentException.class,
+                () -> wallet.setBalance("student001", -1L, WalletTransactionType.ADJUST, "manager001", null));
+        assertEquals(10000L, wallet.findByUserId("student001").getBalanceCents());// 余额不变
+    }
+
+    // 新-4 边界（Access 版）：setBalance(0) 合法，清零并落盘
+    @Test
+    void testAccessSetBalanceZeroAllowed() {
+        wallet.credit("student001", 10000L, WalletTransactionType.RECHARGE, "student001", null);
+        assertTrue(wallet.setBalance("student001", 0L, WalletTransactionType.ADJUST, "manager001", null).isApplied());
+        assertEquals(0L, wallet.findByUserId("student001").getBalanceCents());
+        AccessWalletRepository reopenedZero = new AccessWalletRepository(database);
+        assertEquals(0L, reopenedZero.findByUserId("student001").getBalanceCents());
+    }
+
     @Test
     void testAccessCreditRecordsLedgerEntryThenFindByUserIdReturnsIt() {
         // credit 在事务内自动记一笔 RECHARGE 流水：流水编号与记账时间由仓储生成
@@ -615,7 +656,7 @@ class AccessStoreRepositoryTest {
     private static void insertProduct(Connection connection, String productId, String name,
             int stock, double price, String description, String category) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement(
-                "INSERT INTO tblProduct(product_id,name,stock,price,description,category,active) VALUES(?,?,?,?,?,?,?)")) {
+                "INSERT INTO tblProduct(product_id,name,stock,price,description,category,active,version) VALUES(?,?,?,?,?,?,?,?)")) {
             statement.setString(1, productId);
             statement.setString(2, name);
             statement.setInt(3, stock);
@@ -623,6 +664,7 @@ class AccessStoreRepositoryTest {
             statement.setString(5, description);
             statement.setString(6, category);
             statement.setBoolean(7, true);
+            statement.setInt(8, 0);
             statement.executeUpdate();
         }
     }

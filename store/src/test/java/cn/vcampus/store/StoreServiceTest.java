@@ -1,6 +1,11 @@
 package cn.vcampus.store;
 
 import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+import java.time.LocalDateTime;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import org.junit.jupiter.api.Test;
@@ -289,7 +294,8 @@ class StoreServiceTest {
     @Test
     void testUpdateProductPrice() {
         int formerNum = products.findById("00001").getStock();
-        ServiceResult<Product> testResult = service.updateProduct("00001", "Apple", 3.0, "A delicious apple", "Fruit");
+        ServiceResult<Product> testResult = service.updateProduct("00001", "Apple", 3.0, "A delicious apple", "Fruit",
+                products.findById("00001").getVersion());
         assertEquals(StatusCode.OK, testResult.getStatus());
         assertEquals(3.0, testResult.getData().getPrice(), 0.01);
         assertEquals(formerNum, testResult.getData().getStock());
@@ -299,8 +305,42 @@ class StoreServiceTest {
     @Test
     void testUpdateProductNotFound() {
         ServiceResult<Product> testResult = service.updateProduct("99999999999", "Apple", 3.0, "A delicious apple",
-                "Fruit");
+                "Fruit", 0);
         assertEquals(StatusCode.NOT_FOUND, testResult.getStatus());
+    }
+
+    // A2：成功更新后 version +1，返回快照携带新版本号，供客户端刷新本地版本、避免下次编辑误判冲突
+    @Test
+    void testUpdateProductBumpsVersionOnSuccess() {
+        int before = products.findById("00001").getVersion();
+        ServiceResult<Product> result = service.updateProduct("00001", "Apple", 3.0, "A delicious apple", "Fruit",
+                before);
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals(before + 1, result.getData().getVersion());
+        assertEquals(before + 1, products.findById("00001").getVersion());
+    }
+
+    // A2：期望版本落后于存储版本（期间已被他人改过）→ CONFLICT，且冲突时不得写入任何字段
+    @Test
+    void testUpdateProductStaleVersionReturnsConflict() {
+        int current = products.findById("00001").getVersion();
+        // 先成功更新一次，把存储版本推到 current+1（名称/价格落到已知值）
+        assertEquals(StatusCode.OK,
+                service.updateProduct("00001", "Apple", 3.0, "d", "Fruit", current).getStatus());
+        // 再用陈旧版本 current 更新 → 版本不符，判为冲突
+        ServiceResult<Product> stale = service.updateProduct("00001", "Apple X", 9.0, "d", "Fruit", current);
+        assertEquals(StatusCode.CONFLICT, stale.getStatus());
+        // 冲突不得写入：名称/价格保持上一次成功值，版本号仍为 current+1
+        assertEquals("Apple", products.findById("00001").getName());
+        assertEquals(3.0, products.findById("00001").getPrice(), 0.001);
+        assertEquals(current + 1, products.findById("00001").getVersion());
+    }
+
+    // A2：负版本号在服务入口即拒绝为 BAD_REQUEST（纵深防御，命令层亦有校验）
+    @Test
+    void testUpdateProductRejectsNegativeVersion() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.updateProduct("00001", "Apple", 3.0, "d", "Fruit", -1).getStatus());
     }
 
     // 测试下架商品
@@ -319,6 +359,41 @@ class StoreServiceTest {
         assertEquals(StatusCode.OK, testResult.getStatus());
         assertNotNull(testResult.getData());
         assertFalse(testResult.getData().contains(products.findById("00001")));
+    }
+
+    // DSH F1：重新上架——先下架再上架，active 翻回 true、库存沿用原值、商品重新出现在售列表
+    @Test
+    void testReactivateProductRestoresActiveAndListing() {
+        int stockBefore = products.findById("00001").getStock();
+        service.deactivateProduct("00001");
+        assertFalse(products.findById("00001").isActive());
+
+        ServiceResult<Void> testResult = service.reactivateProduct("00001");
+
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        Product restored = products.findById("00001");
+        assertTrue(restored.isActive());
+        assertEquals(stockBefore, restored.getStock());// 重新上架只翻 active 位、不碰库存
+        boolean listed = false;
+        for (Product candidate : service.listProducts().getData())
+            if ("00001".equals(candidate.getProductId()))
+                listed = true;
+        assertTrue(listed);// 恢复后重新出现在售列表（按 id 遍历，不依赖实例引用相等）
+    }
+
+    // DSH F1：重新上架幂等——对已在售商品直接返回 OK，不改变状态
+    @Test
+    void testReactivateProductIsIdempotentWhenAlreadyActive() {
+        assertTrue(products.findById("00001").isActive());
+        assertEquals(StatusCode.OK, service.reactivateProduct("00001").getStatus());
+        assertTrue(products.findById("00001").isActive());
+    }
+
+    // DSH F1：重新上架的入参与存在性校验，与 deactivateProduct 对齐（空→BAD_REQUEST、不存在→NOT_FOUND）
+    @Test
+    void testReactivateProductValidation() {
+        assertEquals(StatusCode.BAD_REQUEST, service.reactivateProduct(null).getStatus());
+        assertEquals(StatusCode.NOT_FOUND, service.reactivateProduct("99999999999").getStatus());
     }
 
     // 测试加入购物车
@@ -619,6 +694,173 @@ class StoreServiceTest {
         assertEquals(StatusCode.BAD_REQUEST, service.recharge("0120", -100L).getStatus());
     }
 
+    // 新-3：单笔充值超过上限被拒，且未入账
+    @Test
+    void testRechargeRejectsAmountAboveSingleLimit() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.recharge("cap-user", DefaultStoreService.MAX_SINGLE_RECHARGE_CENTS + 1).getStatus());
+        assertEquals(0L, service.getBalance("cap-user"));
+    }
+
+    // 新-3：单笔恰好等于上限放行（边界 <=）
+    @Test
+    void testRechargeAtSingleLimitAllowed() {
+        assertEquals(StatusCode.OK,
+                service.recharge("cap-user", DefaultStoreService.MAX_SINGLE_RECHARGE_CENTS).getStatus());
+        assertEquals(DefaultStoreService.MAX_SINGLE_RECHARGE_CENTS, service.getBalance("cap-user"));
+    }
+
+    // 新-3：单日累计超过上限的那一笔被拒，余额停在已入账部分
+    @Test
+    void testRechargeRejectsWhenDailyCumulativeExceedsLimit() {
+        String user = "daily-cap-user";
+        long single = DefaultStoreService.MAX_SINGLE_RECHARGE_CENTS;// 2000 元
+        assertEquals(StatusCode.OK, service.recharge(user, single).getStatus());// 累计 2000 <= 5000
+        assertEquals(StatusCode.OK, service.recharge(user, single).getStatus());// 累计 4000 <= 5000
+        assertEquals(StatusCode.BAD_REQUEST, service.recharge(user, single).getStatus());// 累计将达 6000 > 5000
+        assertEquals(2 * single, service.getBalance(user));// 停在 4000 元，第三笔未入账
+    }
+
+    // A3：购买数量超过上限被拒；上界检查在库存预检之前短路，故为 BAD_REQUEST 而非 CONFLICT
+    @Test
+    void testPurchaseRejectsQuantityAboveMax() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.purchase("0120", "00004", DefaultStoreService.MAX_QUANTITY + 1).getStatus());
+    }
+
+    // A3：加入购物车数量超过上限被拒
+    @Test
+    void testAddToCartRejectsQuantityAboveMax() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.addToCart("0120", "00004", DefaultStoreService.MAX_QUANTITY + 1).getStatus());
+    }
+
+    // A3：加购数量恰好等于上限放行（边界 <=；加购不校验库存）
+    @Test
+    void testAddToCartAtMaxQuantityAllowed() {
+        assertEquals(StatusCode.OK,
+                service.addToCart("0121", "00004", DefaultStoreService.MAX_QUANTITY).getStatus());
+    }
+
+    // A3：修改购物车数量超过上限被拒
+    @Test
+    void testUpdateCartQuantityRejectsAboveMax() {
+        service.addToCart("0121", "00004", 1);
+        CartItem item = service.getCart("0121").getData().get(0);
+        assertEquals(StatusCode.BAD_REQUEST, service
+                .updateCartQuantity("0121", item.getCartItemId(), DefaultStoreService.MAX_QUANTITY + 1).getStatus());
+    }
+
+    // A3：补货数量超过上限被拒，且库存无副作用
+    @Test
+    void testRestockRejectsAdditionalStockAboveMax() {
+        int before = products.findById("00001").getStock();
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.restock("00001", DefaultStoreService.MAX_QUANTITY + 1).getStatus());
+        assertEquals(before, products.findById("00001").getStock());// 未副作用
+    }
+
+    // A3：管理员校正余额超过绝对上限被拒，且余额无副作用
+    @Test
+    void testAdjustBalanceRejectsAboveMax() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.adjustBalance("admin", "0120", DefaultStoreService.MAX_BALANCE_CENTS + 1).getStatus());
+        assertEquals(100_000_000L, service.getBalance("0120"));// 未副作用
+    }
+
+    // 新-1（确定性）：服务层读到快照后库存被并发扣减，updateProduct 不得把 stale 库存写回
+    @Test
+    void testServiceUpdateProductDoesNotResurrectStaleStock() {
+        products.deductStock("00001", 40);// Apple 初始 100 → 60
+        ServiceResult<Product> result = service.updateProduct("00001", "Apple v2", 3.5, "新描述", "Fruit",
+                products.findById("00001").getVersion());
+        assertEquals(StatusCode.OK, result.getStatus());
+        Product after = products.findById("00001");
+        assertEquals("Apple v2", after.getName());// 信息已更新
+        assertEquals(3.5, after.getPrice(), 0.001);
+        assertEquals(60, after.getStock());// 库存保持 60，未被写回 100
+    }
+
+    // 新-1（仓储层）：updateProduct 忽略入参对象的 stock，只改信息
+    @Test
+    void testRepositoryUpdateProductIgnoresInputStock() {
+        products.deductStock("00003", 50);// Carrot 200 → 150
+        boolean updated = products.updateProduct(
+                new Product("00003", "Carrot v2", 999, 0.8, "新描述", "Vegetable"));
+        assertTrue(updated);
+        Product after = products.findById("00003");
+        assertEquals("Carrot v2", after.getName());
+        assertEquals(0.8, after.getPrice(), 0.001);
+        assertEquals(150, after.getStock());// 入参的 stale 999 被忽略
+    }
+
+    // 新-1（并发回归）：更新商品信息 与 原子扣库存 并发，最终库存 == 初始 - 成功扣减数
+    @Test
+    void concurrentUpdateProductAndDeductStockKeepsStockConsistent() throws Exception {
+        final String pid = "00002";// Banana 初始库存 150
+        final int initialStock = products.findById(pid).getStock();
+        final int updaterThreads = 4;
+        final int deductThreads = 4;
+        final int opsPerThread = 30;
+        final java.util.concurrent.atomic.AtomicInteger deducted = new java.util.concurrent.atomic.AtomicInteger();
+        final java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors
+                .newFixedThreadPool(updaterThreads + deductThreads);
+        List<java.util.concurrent.Future<?>> futures = new java.util.ArrayList<java.util.concurrent.Future<?>>();
+        for (int i = 0; i < updaterThreads; i++) {
+            final int idx = i;
+            futures.add(pool.submit(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        start.await();
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                    }
+                    for (int k = 0; k < opsPerThread; k++) {
+                        // A2：每次先读当前 version 再更新，模拟乐观并发的重读重试；版本竞争导致的 CONFLICT 不影响库存一致性断言
+                        service.updateProduct(pid, "Banana v" + idx + "-" + k, 1.5, "desc", "Fruit",
+                                products.findById(pid).getVersion());
+                    }
+                }
+            }));
+        }
+        for (int i = 0; i < deductThreads; i++) {
+            futures.add(pool.submit(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        start.await();
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                    }
+                    for (int k = 0; k < opsPerThread; k++) {
+                        if (products.deductStock(pid, 1))
+                            deducted.incrementAndGet();
+                    }
+                }
+            }));
+        }
+        start.countDown();
+        for (java.util.concurrent.Future<?> future : futures) {
+            future.get();
+        }
+        pool.shutdown();
+
+        assertEquals(initialStock - deducted.get(), products.findById(pid).getStock(),
+                "最终库存应等于初始库存减去成功扣减数（updateProduct 不得写回 stale 库存）");
+    }
+
+    // P1-1③：服务层入参校验——null 标识符返回 BAD_REQUEST 而非抛异常（纵深防御，即使命令层已校验）
+    @Test
+    void testServiceRejectsNullIdentifiers() {
+        assertEquals(StatusCode.BAD_REQUEST, service.purchase("0120", null, 1).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.findOrdersByUserId(null).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.restock(null, 5).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.updateProduct(null, "x", 1.0, "d", "c", 0).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.deactivateProduct(null).getStatus());
+    }
+
     // 测试无账户查询余额返回 0
     @Test
     void testGetBalanceReturnsZeroForUnknownUser() {
@@ -857,7 +1099,8 @@ class StoreServiceTest {
     @Test
     void testCartDetailsReflectPriceChangeImmediately() {
         service.addToCart("0120", "00001", 2);
-        service.updateProduct("00001", "Apple", 3.0, "A delicious apple", "Fruit");
+        service.updateProduct("00001", "Apple", 3.0, "A delicious apple", "Fruit",
+                products.findById("00001").getVersion());
 
         CartLine line = service.getCartDetails("0120").getData().get(0);
 
@@ -1061,6 +1304,25 @@ class StoreServiceTest {
         assertTrue(testResult.getData().isEmpty());
     }
 
+    // P1-2：订单与流水逐笔对账——购买后 Order 的分值派生 getter 必须与钱包 PURCHASE 流水实扣完全一致，
+    // 证明「订单快照(double 元)」与「账本(long 分)」经唯一换算入口 Money.toCents 收敛后分毫不差
+    @Test
+    void testOrderCentsReconcileWithWalletLedger() {
+        assertEquals(StatusCode.OK, service.purchase("0120", "00001", 3).getStatus());// Apple 2.5 元 × 3 = 7.5 元
+
+        Order order = service.findOrdersByUserId("0120").getData().get(0);
+        assertEquals(250L, order.getUnitPriceCents());// 单价 2.5 元 = 250 分
+        assertEquals(750L, order.getTotalPriceCents());// 总价 7.5 元 = 750 分
+
+        long purchaseDebitCents = 0L;
+        for (WalletTransaction txn : service.listTransactions("0120").getData()) {
+            if (txn.getType() == WalletTransactionType.PURCHASE) {
+                purchaseDebitCents = txn.getAmountCents();
+            }
+        }
+        assertEquals(-750L, purchaseDebitCents);// 钱包实扣 -750 分，与订单总价分值逐笔对账一致
+    }
+
     // 防御性拷贝：查询结果不可被调用方改写，避免绕过服务层直接篡改仓库数据
     @Test
     void testQueryResultsAreUnmodifiable() {
@@ -1074,6 +1336,115 @@ class StoreServiceTest {
                 () -> service.findOrdersByUserId("0120").getData().clear());
         assertThrows(UnsupportedOperationException.class, () -> service.findAllOrders().getData().clear());
         assertThrows(UnsupportedOperationException.class, () -> service.listTransactions("0120").getData().clear());
+    }
+
+    // DSH A5：findAll 走 ConcurrentHashMap.values() 本无固定序，必须按下单时间升序、同刻按订单号升序稳定返回
+    @Test
+    void testFindAllOrdersSortsByDateThenId() {
+        LocalDateTime early = LocalDateTime.of(2024, 1, 1, 10, 0);
+        LocalDateTime late = LocalDateTime.of(2024, 1, 2, 10, 0);
+        // 故意乱序插入：晚单在前、同刻两单 id 逆序，证明返回序来自排序而非插入序
+        orders.create(new Order("b-late", "u1", "00001", 1, 2.5, late, "Apple", 2.5));
+        orders.create(new Order("c-early", "u2", "00001", 1, 2.5, early, "Apple", 2.5));
+        orders.create(new Order("a-early", "u3", "00001", 1, 2.5, early, "Apple", 2.5));
+
+        List<Order> all = service.findAllOrders().getData();
+
+        assertEquals(3, all.size());
+        assertEquals("a-early", all.get(0).getOrderId());// 同为 early，按 id 升序 a<c
+        assertEquals("c-early", all.get(1).getOrderId());
+        assertEquals("b-late", all.get(2).getOrderId());// late 排最后
+    }
+
+    // DSH A5：findByUserId 原按插入序返回，现同样以时间+订单号双键稳定排序（对齐 Access 版 ORDER BY order_date, order_id）
+    @Test
+    void testFindOrdersByUserIdSortsByDateThenId() {
+        LocalDateTime morning = LocalDateTime.of(2024, 3, 1, 8, 0);
+        LocalDateTime evening = LocalDateTime.of(2024, 3, 1, 20, 0);
+        // 同一用户乱序插入：晚单先、早单后，且同刻两单 id 逆序
+        orders.create(new Order("z-evening", "sortUser", "00001", 1, 2.5, evening, "Apple", 2.5));
+        orders.create(new Order("m-morning2", "sortUser", "00001", 1, 2.5, morning, "Apple", 2.5));
+        orders.create(new Order("m-morning1", "sortUser", "00001", 1, 2.5, morning, "Apple", 2.5));
+
+        List<Order> mine = service.findOrdersByUserId("sortUser").getData();
+
+        assertEquals(3, mine.size());
+        assertEquals("m-morning1", mine.get(0).getOrderId());// morning 先，同刻按 id 升序 morning1<morning2
+        assertEquals("m-morning2", mine.get(1).getOrderId());
+        assertEquals("z-evening", mine.get(2).getOrderId());// evening 排最后
+    }
+
+    // DSH A5：结账补偿 note 组装——空单退回原措辞；少量单带全部订单号；多单按 VARCHAR(200) 预算截断防溢出
+    @Test
+    void testCheckoutCompensationNoteCarriesOrderIdsWithinColumnWidth() {
+        assertEquals("checkout compensation",
+                DefaultStoreService.checkoutCompensationNote(new ArrayList<Order>()));// 空列表退回原措辞
+
+        List<Order> few = new ArrayList<Order>();
+        few.add(new Order("o1", "u", "00001", 1, 2.5, LocalDateTime.now(), "Apple", 2.5));
+        few.add(new Order("o2", "u", "00002", 1, 1.5, LocalDateTime.now(), "Banana", 1.5));
+        assertEquals("checkout compensation for orders o1, o2", DefaultStoreService.checkoutCompensationNote(few));
+
+        // 20 个 UUID(36 字符)订单号必然超出列宽，须截断为「前若干完整单号 + (+N more)」且总长 ≤ 200
+        List<Order> many = new ArrayList<Order>();
+        for (int i = 0; i < 20; i++)
+            many.add(new Order(UUID.randomUUID().toString(), "u", "00001", 1, 2.5,
+                    LocalDateTime.now(), "Apple", 2.5));
+        String truncated = DefaultStoreService.checkoutCompensationNote(many);
+        assertTrue(truncated.startsWith("checkout compensation for orders "));
+        assertTrue(truncated.contains(" more)"), "超长 note 必须带 (+N more) 截断标记: " + truncated);
+        assertTrue(truncated.length() <= 200,
+                "note 不得超过 tblWalletTransaction.note VARCHAR(200): " + truncated.length());
+    }
+
+    // DSH A5：建单失败触发退款补偿时，REFUND 流水 note 必须带上被补偿的订单号，与 PURCHASE 流水逐笔对账
+    @Test
+    void testPurchaseCompensationRefundNoteCarriesOrderId() {
+        InMemoryProductRepository p = new InMemoryProductRepository();
+        p.save(new Product("A", "A", 5, 2.0, "", "test"));
+        FailingOrderRepository o = new FailingOrderRepository(true);// create 抛异常 → 触发退款补偿
+        InMemoryWalletRepository wallet = new InMemoryWalletRepository();
+        wallet.save(new BankAccount("u", 100_000L));
+        DefaultStoreService svc = new DefaultStoreService(p, o, new InMemoryCartRepository(), wallet);
+
+        assertEquals(StatusCode.CONFLICT, svc.purchase("u", "A", 2).getStatus());
+
+        WalletTransaction purchaseEntry = null;
+        WalletTransaction refundEntry = null;
+        for (WalletTransaction entry : wallet.findTransactionsByUserId("u")) {
+            if (entry.getType() == WalletTransactionType.PURCHASE)
+                purchaseEntry = entry;
+            if (entry.getType() == WalletTransactionType.REFUND)
+                refundEntry = entry;
+        }
+        assertNotNull(purchaseEntry);
+        assertNotNull(refundEntry);
+        // PURCHASE 流水 note 形如 "order <id>"；退款 note 必须复用同一订单号
+        String orderId = purchaseEntry.getNote().substring("order ".length());
+        assertEquals("purchase compensation for order " + orderId, refundEntry.getNote());
+    }
+
+    // DSH A4：getCartDetails 收敛为一次 findAll 建索引后，多商品购物车每行仍解析出正确名称/单价/小计，
+    // 且被物理删除的商品因索引 get 返 null 而跳过（与逐个 findById 的旧行为等价）
+    @Test
+    void testCartDetailsResolveMultipleDistinctProductsAndSkipDeleted() {
+        service.addToCart("0120", "00001", 2);// Apple 2.5 元
+        service.addToCart("0120", "00002", 3);// Banana 1.5 元
+        service.addToCart("0120", "00003", 1);// Carrot 0.5 元
+        products.deleteById("00002");// 删除其一：索引查不到 → 该行跳过
+
+        Map<String, CartLine> byId = new HashMap<String, CartLine>();
+        for (CartLine line : service.getCartDetails("0120").getData())
+            byId.put(line.getProductId(), line);
+
+        assertEquals(2, byId.size());
+        assertFalse(byId.containsKey("00002"));
+        assertEquals("Apple", byId.get("00001").getProductName());
+        assertEquals(250L, byId.get("00001").getUnitPriceCents());
+        assertEquals(500L, byId.get("00001").getSubtotalCents());
+        assertEquals("Carrot", byId.get("00003").getProductName());
+        assertEquals(50L, byId.get("00003").getUnitPriceCents());
+        assertEquals(50L, byId.get("00003").getSubtotalCents());
     }
 
     private static final class FailingOrderRepository implements OrderRepository {

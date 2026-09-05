@@ -10,6 +10,7 @@ import cn.vcampus.store.StoreRestockCommand;
 import cn.vcampus.store.StoreProductAddCommand;
 import cn.vcampus.store.StoreProductUpdateCommand;
 import cn.vcampus.store.StoreProductDeactivateCommand;
+import cn.vcampus.store.StoreProductReactivateCommand;
 import cn.vcampus.store.CartAddCommand;
 import cn.vcampus.store.CartRemoveCommand;
 import cn.vcampus.store.CartUpdateCommand;
@@ -68,11 +69,11 @@ public final class RemoteStoreService implements Closeable {
                 new StoreProductAddCommand(token, name, price, stock, description, category));
     }
 
-    /** 管理员更新商品。 */
+    /** 管理员更新商品。version 为加载商品时的版本快照（A2 乐观并发），服务端校验不符即返回冲突，界面提示刷新重试。 */
     public Message updateProduct(String token, String productId, String name, double price, String description,
-            String category) throws IOException, ClassNotFoundException {
+            String category, int version) throws IOException, ClassNotFoundException {
         return send(MessageType.STORE_PRODUCT_UPDATE,
-                new StoreProductUpdateCommand(token, productId, name, price, description, category));
+                new StoreProductUpdateCommand(token, productId, name, price, description, category, version));
     }
 
     /** 管理员下架商品。 */
@@ -80,6 +81,13 @@ public final class RemoteStoreService implements Closeable {
             throws IOException, ClassNotFoundException {
         return send(MessageType.STORE_PRODUCT_DEACTIVATE,
                 new StoreProductDeactivateCommand(token, productId));
+    }
+
+    /** 管理员重新上架商品。 */
+    public Message reactivateProduct(String token, String productId)
+            throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_PRODUCT_REACTIVATE,
+                new StoreProductReactivateCommand(token, productId));
     }
 
     /** 将商品加入当前用户购物车。 */
