@@ -85,9 +85,9 @@ public final class DefaultStoreService implements StoreService {
         // 库存不足属于「请求合法但资源状态冲突」，与原子扣减失败统一返回 CONFLICT
         if (toBuy.getStock() < quantity)
             return ServiceResult.failure(StatusCode.CONFLICT, "Insufficient stock");
-        // 支付边界一次性换算：double 元 → long 分
+        // 支付边界一次性换算：double 元 → long 分（经唯一入口 Money.toCents，与订单/流水同式可对账）
         double totalPrice = toBuy.getPrice() * quantity;
-        long totalCents = Math.round(totalPrice * 100);
+        long totalCents = Money.toCents(totalPrice);
         // 换算后非正（如单价低于半分的退化商品）直接拒绝，避免把 debit(0) 送进钱包触发契约异常
         if (totalCents <= 0)
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "computed total must be positive");
@@ -355,8 +355,8 @@ public final class DefaultStoreService implements StoreService {
             Product product = productIndex.get(item.getProductId());
             if (product == null)
                 continue;
-            long unitPriceCents = Math.round(product.getPrice() * 100);
-            long subtotalCents = Math.round(product.getPrice() * item.getQuantity() * 100);
+            long unitPriceCents = Money.toCents(product.getPrice());
+            long subtotalCents = Money.toCents(product.getPrice() * item.getQuantity());
             lines.add(new CartLine(item.getCartItemId(), product.getProductId(), product.getName(), unitPriceCents,
                     item.getQuantity(), subtotalCents, product.isActive(), item.getAddedAt()));
         }
@@ -388,7 +388,7 @@ public final class DefaultStoreService implements StoreService {
                 return ServiceResult.failure(StatusCode.NOT_FOUND, "Cart contains unavailable product");
             if (product.getStock() < item.getQuantity())
                 return ServiceResult.failure(StatusCode.CONFLICT, "Insufficient stock in cart");
-            long itemCents = Math.round(product.getPrice() * item.getQuantity() * 100);
+            long itemCents = Money.toCents(product.getPrice() * item.getQuantity());
             // 换算后非正（退化商品）直接拒绝，避免把 debit(0) 送进钱包触发契约异常
             if (itemCents <= 0)
                 return ServiceResult.failure(StatusCode.BAD_REQUEST, "computed cart total must be positive");
@@ -412,7 +412,7 @@ public final class DefaultStoreService implements StoreService {
             // 订单编号提前生成，供流水备注引用
             String orderId = UUID.randomUUID().toString();
             // 原子扣款 + 记 CHECKOUT 流水：同一事务内完成，回滚时再记一笔合计 REFUND 相抵
-            long itemCents = Math.round(product.getPrice() * item.getQuantity() * 100);
+            long itemCents = Money.toCents(product.getPrice() * item.getQuantity());
             WalletMutation debit;
             try {
                 debit = wallet.debit(userId, itemCents, WalletTransactionType.CHECKOUT, userId, "order " + orderId);

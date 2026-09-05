@@ -46,7 +46,7 @@ final class MoneyCellRenderer extends DefaultTableCellRenderer {
         if (format == MoneyFormat.CENTS) {
             return StoreRowMapper.formatYuan(amount.longValue());
         }
-        // 元转分再格式化，避免出现 12.5 这类缺位小数
-        return StoreRowMapper.formatYuan(Math.round(amount.doubleValue() * 100));
+        // 元转分再格式化，避免出现 12.5 这类缺位小数；换算走 StoreRowMapper.toCents（委托唯一入口 Money.toCents）
+        return StoreRowMapper.formatYuan(StoreRowMapper.toCents(amount.doubleValue()));
     }
 }

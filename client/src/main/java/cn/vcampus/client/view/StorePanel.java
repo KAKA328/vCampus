@@ -516,8 +516,8 @@ public final class StorePanel extends JPanel {
                     VCampusTheme.DANGER);
             return;
         }
-        // 下单前确认：与服务端同式换算（元→分），把「将扣多少钱」显式摆给用户，避免误点
-        final long totalCents = Math.round(product.getPrice() * count * 100);
+        // 下单前确认：与服务端同式换算（元→分，同走 Money.toCents 唯一入口），把「将扣多少钱」显式摆给用户，避免误点
+        final long totalCents = StoreRowMapper.toCents(product.getPrice() * count);
         int confirmed = JOptionPane.showConfirmDialog(this,
                 "确认购买「" + product.getName() + "」× " + count + "，将扣款 "
                         + StoreRowMapper.formatYuan(totalCents) + " 元？",

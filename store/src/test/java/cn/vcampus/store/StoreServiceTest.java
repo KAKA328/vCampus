@@ -1304,6 +1304,25 @@ class StoreServiceTest {
         assertTrue(testResult.getData().isEmpty());
     }
 
+    // P1-2：订单与流水逐笔对账——购买后 Order 的分值派生 getter 必须与钱包 PURCHASE 流水实扣完全一致，
+    // 证明「订单快照(double 元)」与「账本(long 分)」经唯一换算入口 Money.toCents 收敛后分毫不差
+    @Test
+    void testOrderCentsReconcileWithWalletLedger() {
+        assertEquals(StatusCode.OK, service.purchase("0120", "00001", 3).getStatus());// Apple 2.5 元 × 3 = 7.5 元
+
+        Order order = service.findOrdersByUserId("0120").getData().get(0);
+        assertEquals(250L, order.getUnitPriceCents());// 单价 2.5 元 = 250 分
+        assertEquals(750L, order.getTotalPriceCents());// 总价 7.5 元 = 750 分
+
+        long purchaseDebitCents = 0L;
+        for (WalletTransaction txn : service.listTransactions("0120").getData()) {
+            if (txn.getType() == WalletTransactionType.PURCHASE) {
+                purchaseDebitCents = txn.getAmountCents();
+            }
+        }
+        assertEquals(-750L, purchaseDebitCents);// 钱包实扣 -750 分，与订单总价分值逐笔对账一致
+    }
+
     // 防御性拷贝：查询结果不可被调用方改写，避免绕过服务层直接篡改仓库数据
     @Test
     void testQueryResultsAreUnmodifiable() {
