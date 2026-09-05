@@ -56,6 +56,8 @@ public final class InMemoryWalletRepository implements WalletRepository {
     @Override
     public synchronized WalletMutation debit(String userId, long cents, WalletTransactionType type, String operatorId,
             String note) {
+        if (cents <= 0)
+            throw new IllegalArgumentException("debit cents must be positive");
         BankAccount account = accounts.get(userId);
         long before = account == null ? 0L : account.getBalanceCents();
         // 守卫：账户不存在或余额不足即拒绝，不改余额、不记流水
@@ -70,6 +72,8 @@ public final class InMemoryWalletRepository implements WalletRepository {
     @Override
     public synchronized WalletMutation credit(String userId, long cents, WalletTransactionType type, String operatorId,
             String note) {
+        if (cents <= 0)
+            throw new IllegalArgumentException("credit cents must be positive");
         BankAccount account = accounts.get(userId);
         long before = account == null ? 0L : account.getBalanceCents();// 懒创建：不存在按 0 起算
         long after = before + cents;
@@ -81,6 +85,8 @@ public final class InMemoryWalletRepository implements WalletRepository {
     @Override
     public synchronized WalletMutation setBalance(String userId, long newBalanceCents, WalletTransactionType type,
             String operatorId, String note) {
+        if (newBalanceCents < 0)
+            throw new IllegalArgumentException("balance must not be negative");
         BankAccount account = accounts.get(userId);
         // 锁内读实际旧值，差额 = 新余额 - 实际旧余额，杜绝并发校正算错差额
         long before = account == null ? 0L : account.getBalanceCents();

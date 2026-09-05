@@ -3,6 +3,7 @@ package cn.vcampus.store;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -12,6 +13,9 @@ import java.util.UUID;
 public final class DefaultStoreService implements StoreService {
     // 补偿失败留痕上限：超出丢弃最旧一条，避免长期运行内存无限增长
     private static final int MAX_COMPENSATION_FAILURES = 500;
+    // 本人充值护栏（演示口径：单笔 ≤ 2000 元、单日累计 ≤ 5000 元），防止无上限自助发币；包级可见供测试引用
+    static final long MAX_SINGLE_RECHARGE_CENTS = 200_000L;
+    static final long MAX_DAILY_RECHARGE_CENTS = 500_000L;
     private final ProductRepository products;// 商品仓库
     private final OrderRepository orders;// 订单仓库
     private final CartRepository cart;// 购物车仓库
@@ -59,6 +63,8 @@ public final class DefaultStoreService implements StoreService {
     public synchronized final ServiceResult<Void> purchase(String userId, String productId, int quantity) {
         if (userId == null || userId.trim().isEmpty())
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId must not be blank");
+        if (productId == null || productId.trim().isEmpty())
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "productId must not be blank");
         Product toBuy = products.findById(productId);
         // 商品不存在或已下架
         if (toBuy == null || !toBuy.isActive())
@@ -73,6 +79,9 @@ public final class DefaultStoreService implements StoreService {
         // 支付边界一次性换算：double 元 → long 分
         double totalPrice = toBuy.getPrice() * quantity;
         long totalCents = Math.round(totalPrice * 100);
+        // 换算后非正（如单价低于半分的退化商品）直接拒绝，避免把 debit(0) 送进钱包触发契约异常
+        if (totalCents <= 0)
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "computed total must be positive");
         // 预检（仅提示）：余额是否充足，真正裁决由原子 debit 决定
         BankAccount account = wallet.findByUserId(userId);
         if ((account == null ? 0L : account.getBalanceCents()) < totalCents)
@@ -176,6 +185,8 @@ public final class DefaultStoreService implements StoreService {
     // 根据用户ID查询订单
     @Override
     public final ServiceResult<List<Order>> findOrdersByUserId(String userId) {
+        if (userId == null || userId.trim().isEmpty())
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId must not be blank");
         return ServiceResult.ok(
                 Collections.unmodifiableList(new ArrayList<Order>(orders.findByUserId(userId))));
     }
@@ -183,6 +194,8 @@ public final class DefaultStoreService implements StoreService {
     // 补货：操作者身份由通信层 STORE_MANAGE 权限门槛保证，服务层不再接收无用参数
     @Override
     public final ServiceResult<Void> restock(String productId, int additionalStock) {
+        if (productId == null || productId.trim().isEmpty())
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "productId must not be blank");
         if (additionalStock <= 0)
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "additionalStock must be positive");
         return products.addStock(productId, additionalStock)
@@ -210,10 +223,13 @@ public final class DefaultStoreService implements StoreService {
     @Override
     public final ServiceResult<Product> updateProduct(String productId, String name, double price,
             String description, String category) {
+        if (productId == null || productId.trim().isEmpty())
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "productId must not be blank");
         Product existing = products.findById(productId);
         if (existing == null)
             return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
         try {
+            // 库存由仓储层保留（updateProduct 契约不碰 stock），此处 existing.getStock() 仅占位、不会覆盖并发扣减
             Product updated = new Product(productId, name, existing.getStock(), price, description, category,
                     existing.isActive());
             return products.updateProduct(updated) ? ServiceResult.ok(updated)
@@ -226,9 +242,12 @@ public final class DefaultStoreService implements StoreService {
     // 下架商品：操作者身份由通信层 STORE_MANAGE 权限门槛保证，服务层不再接收无用参数
     @Override
     public final ServiceResult<Void> deactivateProduct(String productId) {
+        if (productId == null || productId.trim().isEmpty())
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "productId must not be blank");
         Product existing = products.findById(productId);
         if (existing == null)
             return ServiceResult.failure(StatusCode.NOT_FOUND, "Product not found");
+        // 库存由仓储层保留（updateProduct 契约不碰 stock），下架只翻转 active
         Product deactivated = new Product(existing.getProductId(), existing.getName(), existing.getStock(),
                 existing.getPrice(), existing.getDescription(), existing.getCategory(), false);
         return products.updateProduct(deactivated) ? ServiceResult.ok(null)
@@ -318,7 +337,11 @@ public final class DefaultStoreService implements StoreService {
                 return ServiceResult.failure(StatusCode.NOT_FOUND, "Cart contains unavailable product");
             if (product.getStock() < item.getQuantity())
                 return ServiceResult.failure(StatusCode.CONFLICT, "Insufficient stock in cart");
-            estimatedCents += Math.round(product.getPrice() * item.getQuantity() * 100);
+            long itemCents = Math.round(product.getPrice() * item.getQuantity() * 100);
+            // 换算后非正（退化商品）直接拒绝，避免把 debit(0) 送进钱包触发契约异常
+            if (itemCents <= 0)
+                return ServiceResult.failure(StatusCode.BAD_REQUEST, "computed cart total must be positive");
+            estimatedCents += itemCents;
         }
         BankAccount account = wallet.findByUserId(userId);
         if ((account == null ? 0L : account.getBalanceCents()) < estimatedCents)
@@ -469,13 +492,20 @@ public final class DefaultStoreService implements StoreService {
         return account == null ? 0L : account.getBalanceCents();
     }
 
-    // 本人充值：仅增加，cents 必须为正，走 credit（懒建户），入账后记一笔 RECHARGE 流水
+    // 本人充值：仅增加，cents 必须为正且受单笔/单日上限约束，走 credit（懒建户），入账后记一笔 RECHARGE 流水。
+    // synchronized：与 purchase/checkout 共用同一把锁，串行化「查今日累计→入账」，防并发绕过单日上限
     @Override
-    public final ServiceResult<Void> recharge(String userId, long cents) {
+    public synchronized final ServiceResult<Void> recharge(String userId, long cents) {
         if (userId == null || userId.trim().isEmpty())
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId must not be blank");
         if (cents <= 0)
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "recharge amount must be positive");
+        if (cents > MAX_SINGLE_RECHARGE_CENTS)
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "single recharge exceeds the allowed limit");
+        // 单日累计上限：ledger 读故障（IllegalStateException）故意穿透，由通信层收敛为 SERVER_ERROR
+        // （fail-closed：宁可拒绝也不放行无上限充值）
+        if (sumTodayRecharges(userId) + cents > MAX_DAILY_RECHARGE_CENTS)
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "daily recharge limit exceeded");
         // 原子入账 + 记 RECHARGE 流水：同一事务内完成，存储故障回滚余额并返回 SERVER_ERROR
         WalletMutation credit;
         try {
@@ -486,6 +516,19 @@ public final class DefaultStoreService implements StoreService {
         if (!credit.isApplied())
             return ServiceResult.failure(StatusCode.CONFLICT, "Could not recharge account");
         return ServiceResult.ok(null);
+    }
+
+    // 汇总某用户「今日」的 RECHARGE 流水金额（分）：RECHARGE 记正数，直接累加
+    private long sumTodayRecharges(String userId) {
+        LocalDate today = LocalDate.now();
+        long sum = 0L;
+        for (WalletTransaction transaction : wallet.findTransactionsByUserId(userId)) {
+            if (transaction.getType() == WalletTransactionType.RECHARGE
+                    && today.equals(transaction.getCreatedAt().toLocalDate())) {
+                sum += transaction.getAmountCents();
+            }
+        }
+        return sum;
     }
 
     // 管理员校正余额：目标余额非负，走 setBalance（绝对设置）；权限校验在 StoreMessageHandler，

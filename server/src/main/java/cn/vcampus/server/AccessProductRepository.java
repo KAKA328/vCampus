@@ -97,17 +97,18 @@ public final class AccessProductRepository implements ProductRepository {
     public boolean updateProduct(Product product) {
         if (product == null)
             return false;
-        String sql = "UPDATE tblProduct SET name=?,stock=?,price=?,description=?,category=?,active=? "
+        // 契约：updateProduct 只更新商品信息、绝不写 stock——否则会用服务层读到的旧库存覆盖并发
+        // deductStock/addStock 的结果（丢失更新）。库存变更一律走 updateStock/addStock/deductStock。
+        String sql = "UPDATE tblProduct SET name=?,price=?,description=?,category=?,active=? "
                 + "WHERE product_id=?";
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, product.getName());
-            statement.setInt(2, product.getStock());
-            statement.setDouble(3, product.getPrice());
-            statement.setString(4, product.getDescription());
-            statement.setString(5, product.getCategory());
-            statement.setBoolean(6, product.isActive());
-            statement.setString(7, product.getProductId());
+            statement.setDouble(2, product.getPrice());
+            statement.setString(3, product.getDescription());
+            statement.setString(4, product.getCategory());
+            statement.setBoolean(5, product.isActive());
+            statement.setString(6, product.getProductId());
             return statement.executeUpdate() > 0;
         } catch (SQLException failure) {
             throw new IllegalStateException("failed to update product", failure);

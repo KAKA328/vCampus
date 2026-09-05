@@ -13,7 +13,8 @@ public interface ProductRepository {
 
     boolean addStock(String productId, int amount);// 根据id增加商品库存
 
-    boolean updateProduct(Product product);// 根据id更新商品信息
+    boolean updateProduct(Product product);// 根据id更新商品信息（name/price/description/category/active）；契约：绝不修改 stock，库存变更一律走
+                                           // updateStock/addStock/deductStock
 
     boolean deleteById(String productId);// 根据id删除商品
 

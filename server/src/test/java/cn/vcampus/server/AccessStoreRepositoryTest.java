@@ -376,6 +376,46 @@ class AccessStoreRepositoryTest {
         assertEquals(250L, reopened.findByUserId("student001").getBalanceCents());
     }
 
+    // 新-4 契约（Access 版）：debit 金额必须为正，非正数在开库前即抛 IllegalArgumentException
+    @Test
+    void testAccessDebitRejectsNonPositiveCents() {
+        wallet.credit("student001", 10000L, WalletTransactionType.RECHARGE, "student001", null);
+        assertThrows(IllegalArgumentException.class,
+                () -> wallet.debit("student001", 0L, WalletTransactionType.PURCHASE, "student001", null));
+        assertThrows(IllegalArgumentException.class,
+                () -> wallet.debit("student001", -100L, WalletTransactionType.PURCHASE, "student001", null));
+        assertEquals(10000L, wallet.findByUserId("student001").getBalanceCents());// 余额未被非法调用改动
+    }
+
+    // 新-4 契约（Access 版）：credit 金额必须为正
+    @Test
+    void testAccessCreditRejectsNonPositiveCents() {
+        assertThrows(IllegalArgumentException.class,
+                () -> wallet.credit("student001", 0L, WalletTransactionType.RECHARGE, "student001", null));
+        assertThrows(IllegalArgumentException.class,
+                () -> wallet.credit("student001", -100L, WalletTransactionType.RECHARGE, "student001", null));
+        assertNull(wallet.findByUserId("student001"));// 非法入账不应建户
+    }
+
+    // 新-4 契约（Access 版）：setBalance 目标余额必须非负
+    @Test
+    void testAccessSetBalanceRejectsNegative() {
+        wallet.credit("student001", 10000L, WalletTransactionType.RECHARGE, "student001", null);
+        assertThrows(IllegalArgumentException.class,
+                () -> wallet.setBalance("student001", -1L, WalletTransactionType.ADJUST, "manager001", null));
+        assertEquals(10000L, wallet.findByUserId("student001").getBalanceCents());// 余额不变
+    }
+
+    // 新-4 边界（Access 版）：setBalance(0) 合法，清零并落盘
+    @Test
+    void testAccessSetBalanceZeroAllowed() {
+        wallet.credit("student001", 10000L, WalletTransactionType.RECHARGE, "student001", null);
+        assertTrue(wallet.setBalance("student001", 0L, WalletTransactionType.ADJUST, "manager001", null).isApplied());
+        assertEquals(0L, wallet.findByUserId("student001").getBalanceCents());
+        AccessWalletRepository reopenedZero = new AccessWalletRepository(database);
+        assertEquals(0L, reopenedZero.findByUserId("student001").getBalanceCents());
+    }
+
     @Test
     void testAccessCreditRecordsLedgerEntryThenFindByUserIdReturnsIt() {
         // credit 在事务内自动记一笔 RECHARGE 流水：流水编号与记账时间由仓储生成

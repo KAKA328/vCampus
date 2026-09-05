@@ -26,14 +26,25 @@ import cn.vcampus.store.StoreAccountQueryCommand;
 import cn.vcampus.store.StoreAccountRechargeCommand;
 import cn.vcampus.store.StoreAccountAdjustCommand;
 import cn.vcampus.user.Session;
+import cn.vcampus.user.AuditEvent;
+import cn.vcampus.user.AuditLogRepository;
+import cn.vcampus.store.Product;
+import java.time.Instant;
 
 class StoreMessageHandler {
     private final StoreService store;
     private final UserManagementService users;
+    // 商店敏感操作审计留痕（可空）：仅管理端 case 成功后写一条，best-effort，绝不影响业务响应
+    private final AuditLogRepository auditLog;
 
     StoreMessageHandler(StoreService store, UserManagementService users) {
+        this(store, users, null);
+    }
+
+    StoreMessageHandler(StoreService store, UserManagementService users, AuditLogRepository auditLog) {
         this.store = store;
         this.users = users;
+        this.auditLog = auditLog;
     }
 
     Message handle(Message request) {
@@ -48,9 +59,9 @@ class StoreMessageHandler {
                 // 仓库查询请求
                 case STORE_QUERY:
                     StoreQueryCommand payload = payload(request, StoreQueryCommand.class);
-                    ServiceResult<Boolean> auth0 = users.authorize(payload.getToken(), "STORE_READ");
-                    if (auth0.getStatus() != StatusCode.OK) {
-                        result = auth0;
+                    ServiceResult<Void> queryAuth = requirePermission(payload.getToken(), "STORE_READ");
+                    if (queryAuth.getStatus() != StatusCode.OK) {
+                        result = queryAuth;
                         break;
                     }
                     result = payload.getCategory() == null || payload.getCategory().trim().isEmpty()
@@ -60,47 +71,25 @@ class StoreMessageHandler {
                 // 仓库购买请求
                 case STORE_PURCHASE:
                     StorePurchaseCommand spc = payload(request, StorePurchaseCommand.class);
-                    // 验证权限
-                    ServiceResult<Boolean> auth1 = users.authorize(spc.getToken(), "STORE_PURCHASE");
-                    if (auth1.getStatus() != StatusCode.OK) {
-                        result = auth1;
-                        break;
-                    }
-                    // 通过token获取userId作为唯一可信身份标识
-                    String currToken1 = spc.getToken();
-                    ServiceResult<Session> sessionResult = users.currentSession(currToken1);
-                    if (sessionResult.getStatus() != StatusCode.OK) {
-                        result = sessionResult;
-                        break;
-                    }
-                    // 提取可信userId
-                    String userId1 = sessionResult.getData().getUser().getUserId();
-                    result = store.purchase(userId1, spc.getProductId(), spc.getQuantity());
+                    ServiceResult<Void> purchaseAuth = requirePermission(spc.getToken(), "STORE_PURCHASE");
+                    result = purchaseAuth.getStatus() != StatusCode.OK ? purchaseAuth
+                            : store.purchase(requireUserId(spc.getToken()), spc.getProductId(), spc.getQuantity());
                     break;
                 // 仓库订单查询请求
                 case STORE_ORDER_QUERY:
                     StoreOrderQueryCommand soqc = payload(request, StoreOrderQueryCommand.class);
-                    ServiceResult<Boolean> auth2 = users.authorize(soqc.getToken(), "STORE_READ");
-                    if (auth2.getStatus() != StatusCode.OK) {
-                        result = auth2;
-                        break;
-                    }
-                    // 通过token获取userId作为唯一可信身份标识
-                    String currToken2 = soqc.getToken();
-                    ServiceResult<Session> sessionResult2 = users.currentSession(currToken2);
-                    if (sessionResult2.getStatus() != StatusCode.OK) {
-                        result = sessionResult2;
-                        break;
-                    }
-                    // 提取可信userId
-                    String userId2 = sessionResult2.getData().getUser().getUserId();
-                    result = store.findOrdersByUserId(userId2);
+                    ServiceResult<Void> orderQueryAuth = requirePermission(soqc.getToken(), "STORE_READ");
+                    result = orderQueryAuth.getStatus() != StatusCode.OK ? orderQueryAuth
+                            : store.findOrdersByUserId(requireUserId(soqc.getToken()));
                     break;
                 case STORE_RESTOCK:
                     StoreRestockCommand restock = payload(request, StoreRestockCommand.class);
                     ServiceResult<Void> restockAuth = requirePermission(restock.getToken(), "STORE_MANAGE");
                     result = restockAuth.getStatus() != StatusCode.OK ? restockAuth
                             : store.restock(restock.getProductId(), restock.getAdditionalStock());
+                    if (result.getStatus() == StatusCode.OK)
+                        recordAudit(requireUserId(restock.getToken()), "STORE_RESTOCK", "PRODUCT",
+                                restock.getProductId());
                     break;
                 case STORE_PRODUCT_ADD:
                     StoreProductAddCommand add = payload(request, StoreProductAddCommand.class);
@@ -108,6 +97,9 @@ class StoreMessageHandler {
                     result = addAuth.getStatus() != StatusCode.OK ? addAuth
                             : store.addProduct(add.getName(), add.getPrice(), add.getStock(), add.getDescription(),
                                     add.getCategory());
+                    if (result.getStatus() == StatusCode.OK && result.getData() instanceof Product)
+                        recordAudit(requireUserId(add.getToken()), "STORE_PRODUCT_ADD", "PRODUCT",
+                                ((Product) result.getData()).getProductId());
                     break;
                 case STORE_PRODUCT_UPDATE:
                     StoreProductUpdateCommand update = payload(request, StoreProductUpdateCommand.class);
@@ -115,12 +107,18 @@ class StoreMessageHandler {
                     result = updateAuth.getStatus() != StatusCode.OK ? updateAuth
                             : store.updateProduct(update.getProductId(), update.getName(), update.getPrice(),
                                     update.getDescription(), update.getCategory());
+                    if (result.getStatus() == StatusCode.OK)
+                        recordAudit(requireUserId(update.getToken()), "STORE_PRODUCT_UPDATE", "PRODUCT",
+                                update.getProductId());
                     break;
                 case STORE_PRODUCT_DEACTIVATE:
                     StoreProductDeactivateCommand deactivate = payload(request, StoreProductDeactivateCommand.class);
                     ServiceResult<Void> deactivateAuth = requirePermission(deactivate.getToken(), "STORE_MANAGE");
                     result = deactivateAuth.getStatus() != StatusCode.OK ? deactivateAuth
                             : store.deactivateProduct(deactivate.getProductId());
+                    if (result.getStatus() == StatusCode.OK)
+                        recordAudit(requireUserId(deactivate.getToken()), "STORE_PRODUCT_DEACTIVATE", "PRODUCT",
+                                deactivate.getProductId());
                     break;
                 case STORE_CART_ADD:
                     CartAddCommand cartAdd = payload(request, CartAddCommand.class);
@@ -207,6 +205,9 @@ class StoreMessageHandler {
                     }
                     result = store.adjustBalance(adjustAdmin.getUserId(), adjust.getTargetUserId(),
                             adjust.getNewBalanceCents());
+                    if (result.getStatus() == StatusCode.OK)
+                        recordAudit(adjustAdmin.getUserId(), "STORE_ACCOUNT_ADJUST", "ACCOUNT",
+                                adjust.getTargetUserId());
                     break;
                 // 本人流水：STORE_READ 权限，userId 取自 token，只能查自己的账，无法查他人流水
                 case STORE_ACCOUNT_LEDGER:
@@ -221,6 +222,10 @@ class StoreMessageHandler {
             return Message.response(request, result.getStatus(), result.getData());
         } catch (IllegalArgumentException invalidPayload) {
             return Message.response(request, StatusCode.BAD_REQUEST, "request payload is invalid");
+        } catch (RuntimeException unexpected) {
+            // 兜底：仓储 IllegalStateException、null id 触发的 NPE 等一律收敛为 SERVER_ERROR，
+            // 避免异常穿透 dispatch 被线程池 submit 的 FutureTask 静默吞掉、客户端只看到笼统网络错误
+            return Message.response(request, StatusCode.SERVER_ERROR, "store request failed unexpectedly");
         }
     }
 
@@ -235,6 +240,21 @@ class StoreMessageHandler {
         if (session.getStatus() != StatusCode.OK)
             throw new IllegalArgumentException("invalid session");
         return session.getData().getUser().getUserId();
+    }
+
+    // 记录一条商店敏感操作审计（best-effort）：auditLog 未注入或 actor/targetId 为空则跳过；
+    // 审计本身失败绝不影响已完成的业务响应
+    private void recordAudit(String actorUserId, String action, String targetType, String targetId) {
+        if (auditLog == null || actorUserId == null || actorUserId.trim().isEmpty()
+                || targetId == null || targetId.trim().isEmpty()) {
+            return;
+        }
+        try {
+            auditLog.record(new AuditEvent(actorUserId, action, targetType, targetId, Instant.now()));
+        } catch (RuntimeException auditFailure) {
+            // 留痕失败不阻断业务，仅打印告警供运维排查
+            System.err.println("store audit failed: " + auditFailure.getMessage());
+        }
     }
 
     // 取出请求的 payload 并进行类型检查

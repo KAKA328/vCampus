@@ -28,6 +28,9 @@ import cn.vcampus.store.StoreAccountQueryCommand;
 import cn.vcampus.store.StoreAccountRechargeCommand;
 import cn.vcampus.store.StoreAccountAdjustCommand;
 import cn.vcampus.store.StoreService;
+import cn.vcampus.user.AuditEvent;
+import cn.vcampus.user.AuditLogRepository;
+import cn.vcampus.user.InMemoryAuditLogRepository;
 import cn.vcampus.user.InMemoryUserManagementService;
 import cn.vcampus.user.Session;
 import cn.vcampus.user.UserCredentials;
@@ -435,6 +438,128 @@ class StoreMessageHandlerTest {
         assertFalse(store.cartUpdateCalled);
     }
 
+    // 新-2：管理员改商品成功后记一条审计（actor/action/targetType/targetId 均正确）
+    @Test
+    void testProductUpdateRecordsAudit() {
+        AuditLogRepository auditLog = new InMemoryAuditLogRepository();
+        StoreMessageHandler audited = new StoreMessageHandler(store, users, auditLog);
+
+        Message response = audited.handle(Message.request(
+                "store-product-update-audit", MessageType.STORE_PRODUCT_UPDATE,
+                new StoreProductUpdateCommand(managerSession.getToken(), "P001", "签字笔", 2.5, "升级描述", "文具")));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        List<AuditEvent> events = auditLog.findAll();
+        assertEquals(1, events.size());
+        assertEquals("manager001", events.get(0).getActorUserId());
+        assertEquals("STORE_PRODUCT_UPDATE", events.get(0).getAction());
+        assertEquals("PRODUCT", events.get(0).getTargetType());
+        assertEquals("P001", events.get(0).getTargetId());
+    }
+
+    // 新-2：补货成功后记审计，targetId 为商品编号
+    @Test
+    void testRestockRecordsAudit() {
+        AuditLogRepository auditLog = new InMemoryAuditLogRepository();
+        StoreMessageHandler audited = new StoreMessageHandler(store, users, auditLog);
+
+        Message response = audited.handle(Message.request(
+                "store-restock-audit", MessageType.STORE_RESTOCK,
+                new StoreRestockCommand(managerSession.getToken(), "P001", 10)));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        List<AuditEvent> events = auditLog.findAll();
+        assertEquals(1, events.size());
+        assertEquals("STORE_RESTOCK", events.get(0).getAction());
+        assertEquals("PRODUCT", events.get(0).getTargetType());
+        assertEquals("P001", events.get(0).getTargetId());
+    }
+
+    // 新-2：新增商品成功后记审计，targetId 取自服务端生成的商品编号
+    @Test
+    void testProductAddRecordsAudit() {
+        AuditLogRepository auditLog = new InMemoryAuditLogRepository();
+        StoreMessageHandler audited = new StoreMessageHandler(store, users, auditLog);
+
+        Message response = audited.handle(Message.request(
+                "store-product-add-audit", MessageType.STORE_PRODUCT_ADD,
+                new StoreProductAddCommand(managerSession.getToken(), "笔记本", 9.9, 5, "测试商品", "文具")));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        List<AuditEvent> events = auditLog.findAll();
+        assertEquals(1, events.size());
+        assertEquals("STORE_PRODUCT_ADD", events.get(0).getAction());
+        assertEquals("P-CAPTURED", events.get(0).getTargetId());// CapturingStoreService.addProduct 返回的编号
+    }
+
+    // 新-2：管理员校正余额成功后记审计，targetType=ACCOUNT、targetId=被校正用户
+    @Test
+    void testAccountAdjustRecordsAudit() {
+        AuditLogRepository auditLog = new InMemoryAuditLogRepository();
+        StoreMessageHandler audited = new StoreMessageHandler(store, users, auditLog);
+
+        Message response = audited.handle(Message.request(
+                "account-adjust-audit", MessageType.STORE_ACCOUNT_ADJUST,
+                new StoreAccountAdjustCommand(managerSession.getToken(), "student001", 8888L)));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        List<AuditEvent> events = auditLog.findAll();
+        assertEquals(1, events.size());
+        assertEquals("manager001", events.get(0).getActorUserId());
+        assertEquals("STORE_ACCOUNT_ADJUST", events.get(0).getAction());
+        assertEquals("ACCOUNT", events.get(0).getTargetType());
+        assertEquals("student001", events.get(0).getTargetId());
+    }
+
+    // 新-2：操作失败（无权限）不记审计
+    @Test
+    void testUnauthorizedOperationRecordsNoAudit() {
+        AuditLogRepository auditLog = new InMemoryAuditLogRepository();
+        StoreMessageHandler audited = new StoreMessageHandler(store, users, auditLog);
+
+        Message response = audited.handle(Message.request(
+                "store-restock-forbidden-audit", MessageType.STORE_RESTOCK,
+                new StoreRestockCommand(studentSession.getToken(), "P001", 10)));
+
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
+        assertTrue(auditLog.findAll().isEmpty());// 未成功不留痕
+    }
+
+    // 新-2：未注入审计仓库（null）时业务照常成功，不因缺审计而报错
+    @Test
+    void testNullAuditLogStillSucceeds() {
+        Message response = handler.handle(Message.request(
+                "store-restock-no-audit", MessageType.STORE_RESTOCK,
+                new StoreRestockCommand(managerSession.getToken(), "P001", 10)));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertTrue(store.restockCalled);
+    }
+
+    // P1-1①：仓储抛 IllegalStateException 时，handle() 兜底为 SERVER_ERROR 而非异常穿透
+    @Test
+    void testStorageFailureReturnsServerError() {
+        store.listFailure = new IllegalStateException("database unavailable");
+
+        Message response = handler.handle(Message.request(
+                "store-query-failure", MessageType.STORE_QUERY,
+                new StoreQueryCommand(studentSession.getToken())));
+
+        assertEquals(StatusCode.SERVER_ERROR, response.getStatusCode());
+    }
+
+    // P1-1①：购买路径仓储抛 IllegalStateException 同样收敛为 SERVER_ERROR
+    @Test
+    void testPurchaseStorageFailureReturnsServerError() {
+        store.purchaseFailure = new IllegalStateException("database unavailable");
+
+        Message response = handler.handle(Message.request(
+                "store-purchase-failure", MessageType.STORE_PURCHASE,
+                new StorePurchaseCommand(studentSession.getToken(), "P001", 1)));
+
+        assertEquals(StatusCode.SERVER_ERROR, response.getStatusCode());
+    }
+
     private static final class CapturingStoreService implements StoreService {
         private boolean listCalled;
         private int listCallCount;
@@ -487,9 +612,14 @@ class StoreMessageHandlerTest {
         private String lastAdjustAdminId;
         private String lastAdjustTargetUserId;
         private long lastAdjustNewBalanceCents;
+        // 故障注入：置位后对应方法抛异常，用于验证 Handler 兜底把 RuntimeException 收敛为 SERVER_ERROR
+        private RuntimeException listFailure;
+        private RuntimeException purchaseFailure;
 
         @Override
         public ServiceResult<List<Product>> listProducts() {
+            if (listFailure != null)
+                throw listFailure;
             listCalled = true;
             listCallCount++;
             return ServiceResult.ok(Collections.<Product>emptyList());
@@ -503,6 +633,8 @@ class StoreMessageHandlerTest {
 
         @Override
         public ServiceResult<Void> purchase(String userId, String productId, int quantity) {
+            if (purchaseFailure != null)
+                throw purchaseFailure;
             lastPurchaseUserId = userId;
             lastPurchaseProductId = productId;
             lastPurchaseQuantity = quantity;

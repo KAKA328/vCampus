@@ -15,8 +15,10 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.io.IOException;
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -510,6 +512,15 @@ public final class StorePanel extends JPanel {
                     VCampusTheme.DANGER);
             return;
         }
+        // 下单前确认：与服务端同式换算（元→分），把「将扣多少钱」显式摆给用户，避免误点
+        final long totalCents = Math.round(product.getPrice() * count * 100);
+        int confirmed = JOptionPane.showConfirmDialog(this,
+                "确认购买「" + product.getName() + "」× " + count + "，将扣款 "
+                        + StoreRowMapper.formatYuan(totalCents) + " 元？",
+                "确认购买", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
+        if (confirmed != JOptionPane.OK_OPTION) {
+            return;
+        }
         final String productId = product.getProductId();
         runRequest("正在提交购买请求…", service -> service.purchase(session.getToken(), productId, count),
                 response -> {
@@ -941,7 +952,7 @@ public final class StorePanel extends JPanel {
         if (targetInput == null || targetInput.trim().isEmpty()) {
             return;
         }
-        String balanceInput = JOptionPane.showInputDialog(this, "请输入校正后的余额（元，绥对值）：", "校正余额",
+        String balanceInput = JOptionPane.showInputDialog(this, "请输入校正后的余额（元，绝对值）：", "校正余额",
                 JOptionPane.PLAIN_MESSAGE);
         if (balanceInput == null || balanceInput.trim().isEmpty()) {
             return;
@@ -992,7 +1003,17 @@ public final class StorePanel extends JPanel {
                 try {
                     responseHandler.handle(get());
                 } catch (Exception failure) {
-                    showStatus("无法连接商店服务器，请确认服务器已启动", VCampusTheme.DANGER);
+                    // 解包 SwingWorker 的 ExecutionException，区分「网络故障」与「其它异常」，不再一律报“无法连接”
+                    Throwable cause = failure instanceof ExecutionException && failure.getCause() != null
+                            ? failure.getCause()
+                            : failure;
+                    if (cause instanceof SocketTimeoutException) {
+                        showStatus("商店响应超时，请稍后重试", VCampusTheme.DANGER);
+                    } else if (cause instanceof IOException) {
+                        showStatus("无法连接商店服务器，请确认服务器已启动", VCampusTheme.DANGER);
+                    } else {
+                        showStatus("商店请求失败：" + cause.getMessage(), VCampusTheme.DANGER);
+                    }
                 } finally {
                     loadingStatus.stop();
                     if (requestLifecycle.isCurrent(requestId)) {

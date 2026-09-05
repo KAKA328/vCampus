@@ -51,9 +51,16 @@ public final class InMemoryProductRepository implements ProductRepository {
 
     @Override
     public synchronized final boolean updateProduct(Product product) {
-        if (product == null || !products.containsKey(product.getProductId()))
+        if (product == null)
             return false;
-        products.put(product.getProductId(), product);
+        // 契约：updateProduct 只更新商品信息、绝不覆盖库存——保留当前存储的 stock 并忽略入参对象的 stock，
+        // 避免与并发 deductStock/addStock 形成「读旧库存→整行写回」的丢失更新（与 Access 版语义一致）
+        Product current = products.get(product.getProductId());
+        if (current == null)
+            return false;
+        Product merged = new Product(current.getProductId(), product.getName(), current.getStock(),
+                product.getPrice(), product.getDescription(), product.getCategory(), product.isActive());
+        products.put(product.getProductId(), merged);
         return true;
     }
 

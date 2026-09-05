@@ -619,6 +619,123 @@ class StoreServiceTest {
         assertEquals(StatusCode.BAD_REQUEST, service.recharge("0120", -100L).getStatus());
     }
 
+    // 新-3：单笔充值超过上限被拒，且未入账
+    @Test
+    void testRechargeRejectsAmountAboveSingleLimit() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.recharge("cap-user", DefaultStoreService.MAX_SINGLE_RECHARGE_CENTS + 1).getStatus());
+        assertEquals(0L, service.getBalance("cap-user"));
+    }
+
+    // 新-3：单笔恰好等于上限放行（边界 <=）
+    @Test
+    void testRechargeAtSingleLimitAllowed() {
+        assertEquals(StatusCode.OK,
+                service.recharge("cap-user", DefaultStoreService.MAX_SINGLE_RECHARGE_CENTS).getStatus());
+        assertEquals(DefaultStoreService.MAX_SINGLE_RECHARGE_CENTS, service.getBalance("cap-user"));
+    }
+
+    // 新-3：单日累计超过上限的那一笔被拒，余额停在已入账部分
+    @Test
+    void testRechargeRejectsWhenDailyCumulativeExceedsLimit() {
+        String user = "daily-cap-user";
+        long single = DefaultStoreService.MAX_SINGLE_RECHARGE_CENTS;// 2000 元
+        assertEquals(StatusCode.OK, service.recharge(user, single).getStatus());// 累计 2000 <= 5000
+        assertEquals(StatusCode.OK, service.recharge(user, single).getStatus());// 累计 4000 <= 5000
+        assertEquals(StatusCode.BAD_REQUEST, service.recharge(user, single).getStatus());// 累计将达 6000 > 5000
+        assertEquals(2 * single, service.getBalance(user));// 停在 4000 元，第三笔未入账
+    }
+
+    // 新-1（确定性）：服务层读到快照后库存被并发扣减，updateProduct 不得把 stale 库存写回
+    @Test
+    void testServiceUpdateProductDoesNotResurrectStaleStock() {
+        products.deductStock("00001", 40);// Apple 初始 100 → 60
+        ServiceResult<Product> result = service.updateProduct("00001", "Apple v2", 3.5, "新描述", "Fruit");
+        assertEquals(StatusCode.OK, result.getStatus());
+        Product after = products.findById("00001");
+        assertEquals("Apple v2", after.getName());// 信息已更新
+        assertEquals(3.5, after.getPrice(), 0.001);
+        assertEquals(60, after.getStock());// 库存保持 60，未被写回 100
+    }
+
+    // 新-1（仓储层）：updateProduct 忽略入参对象的 stock，只改信息
+    @Test
+    void testRepositoryUpdateProductIgnoresInputStock() {
+        products.deductStock("00003", 50);// Carrot 200 → 150
+        boolean updated = products.updateProduct(
+                new Product("00003", "Carrot v2", 999, 0.8, "新描述", "Vegetable"));
+        assertTrue(updated);
+        Product after = products.findById("00003");
+        assertEquals("Carrot v2", after.getName());
+        assertEquals(0.8, after.getPrice(), 0.001);
+        assertEquals(150, after.getStock());// 入参的 stale 999 被忽略
+    }
+
+    // 新-1（并发回归）：更新商品信息 与 原子扣库存 并发，最终库存 == 初始 - 成功扣减数
+    @Test
+    void concurrentUpdateProductAndDeductStockKeepsStockConsistent() throws Exception {
+        final String pid = "00002";// Banana 初始库存 150
+        final int initialStock = products.findById(pid).getStock();
+        final int updaterThreads = 4;
+        final int deductThreads = 4;
+        final int opsPerThread = 30;
+        final java.util.concurrent.atomic.AtomicInteger deducted = new java.util.concurrent.atomic.AtomicInteger();
+        final java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors
+                .newFixedThreadPool(updaterThreads + deductThreads);
+        List<java.util.concurrent.Future<?>> futures = new java.util.ArrayList<java.util.concurrent.Future<?>>();
+        for (int i = 0; i < updaterThreads; i++) {
+            final int idx = i;
+            futures.add(pool.submit(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        start.await();
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                    }
+                    for (int k = 0; k < opsPerThread; k++) {
+                        service.updateProduct(pid, "Banana v" + idx + "-" + k, 1.5, "desc", "Fruit");
+                    }
+                }
+            }));
+        }
+        for (int i = 0; i < deductThreads; i++) {
+            futures.add(pool.submit(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        start.await();
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                    }
+                    for (int k = 0; k < opsPerThread; k++) {
+                        if (products.deductStock(pid, 1))
+                            deducted.incrementAndGet();
+                    }
+                }
+            }));
+        }
+        start.countDown();
+        for (java.util.concurrent.Future<?> future : futures) {
+            future.get();
+        }
+        pool.shutdown();
+
+        assertEquals(initialStock - deducted.get(), products.findById(pid).getStock(),
+                "最终库存应等于初始库存减去成功扣减数（updateProduct 不得写回 stale 库存）");
+    }
+
+    // P1-1③：服务层入参校验——null 标识符返回 BAD_REQUEST 而非抛异常（纵深防御，即使命令层已校验）
+    @Test
+    void testServiceRejectsNullIdentifiers() {
+        assertEquals(StatusCode.BAD_REQUEST, service.purchase("0120", null, 1).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.findOrdersByUserId(null).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.restock(null, 5).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.updateProduct(null, "x", 1.0, "d", "c").getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.deactivateProduct(null).getStatus());
+    }
+
     // 测试无账户查询余额返回 0
     @Test
     void testGetBalanceReturnsZeroForUnknownUser() {
