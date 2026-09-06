@@ -18,9 +18,18 @@ public final class GradeSubmission implements Serializable {
     private final GradeSubmissionStatus status;
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
+    private final String reviewedBy;
+    private final LocalDateTime reviewedAt;
+    private final String reviewRemark;
 
     public GradeSubmission(String submissionId, String offeringId, String teacherId,
             GradeSubmissionStatus status, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this(submissionId, offeringId, teacherId, status, createdAt, updatedAt, null, null, null);
+    }
+
+    public GradeSubmission(String submissionId, String offeringId, String teacherId,
+            GradeSubmissionStatus status, LocalDateTime createdAt, LocalDateTime updatedAt,
+            String reviewedBy, LocalDateTime reviewedAt, String reviewRemark) {
         this.submissionId = requireText(submissionId, "submissionId");
         this.offeringId = requireText(offeringId, "offeringId");
         this.teacherId = requireText(teacherId, "teacherId");
@@ -33,6 +42,12 @@ public final class GradeSubmission implements Serializable {
         this.status = status;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+        this.reviewedBy = normalize(reviewedBy);
+        this.reviewedAt = reviewedAt;
+        this.reviewRemark = normalize(reviewRemark);
+        if ((this.reviewedBy == null) != (this.reviewedAt == null)) {
+            throw new IllegalArgumentException("reviewedBy and reviewedAt must be provided together");
+        }
     }
 
     public static GradeSubmission draft(String submissionId, String offeringId, String teacherId,
@@ -47,23 +62,44 @@ public final class GradeSubmission implements Serializable {
     public GradeSubmissionStatus getStatus() { return status; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public String getReviewedBy() { return reviewedBy; }
+    public LocalDateTime getReviewedAt() { return reviewedAt; }
+    public String getReviewRemark() { return reviewRemark; }
 
     /** 录入或修改单个学生成绩后更新草稿的最后修改时间。 */
     public GradeSubmission withUpdatedAt(LocalDateTime newUpdatedAt) {
         return new GradeSubmission(submissionId, offeringId, teacherId, status, createdAt,
-                newUpdatedAt);
+                newUpdatedAt, reviewedBy, reviewedAt, reviewRemark);
     }
 
-    /** 改变提交单状态，同时记录本次提交或修改的时间。 */
-    public GradeSubmission withStatus(GradeSubmissionStatus newStatus, LocalDateTime newUpdatedAt) {
+    /** 教师提交或再次提交后清除上次审核意见，进入待审核状态。 */
+    public GradeSubmission pendingReview(LocalDateTime newUpdatedAt) {
+        return new GradeSubmission(submissionId, offeringId, teacherId,
+                GradeSubmissionStatus.PENDING_REVIEW, createdAt, newUpdatedAt, null, null, null);
+    }
+
+    /** 保存教务老师的审核结论和退回意见。 */
+    public GradeSubmission reviewed(GradeSubmissionStatus newStatus, String newReviewedBy,
+            String newReviewRemark, LocalDateTime newReviewedAt) {
+        if (newStatus != GradeSubmissionStatus.APPROVED
+                && newStatus != GradeSubmissionStatus.RETURNED) {
+            throw new IllegalArgumentException("review outcome must be approved or returned");
+        }
         return new GradeSubmission(submissionId, offeringId, teacherId, newStatus, createdAt,
-                newUpdatedAt);
+                newReviewedAt, newReviewedBy, newReviewedAt, newReviewRemark);
     }
 
     private static String requireText(String value, String field) {
-        if (value == null || value.trim().isEmpty()) {
+        String normalized = normalize(value);
+        if (normalized == null) {
             throw new IllegalArgumentException(field + " must not be blank");
         }
-        return value.trim();
+        return normalized;
+    }
+
+    private static String normalize(String value) {
+        if (value == null) return null;
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 }

@@ -178,6 +178,9 @@ CREATE TABLE tblGradeSubmission (
     status VARCHAR(20) NOT NULL,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
+    reviewed_by VARCHAR(32),
+    reviewed_at DATETIME,
+    review_remark VARCHAR(255),
     PRIMARY KEY (submission_id),
     CONSTRAINT uk_tblGradeSubmission_offering UNIQUE (offering_id)
 );

@@ -6,6 +6,7 @@ import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.GradeEntry;
 import cn.vcampus.course.GradeSubmission;
 import cn.vcampus.course.GradeSubmissionStatus;
+import cn.vcampus.course.GradeReviewDecision;
 import cn.vcampus.course.SelectionType;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -35,6 +36,7 @@ class AccessGradeSubmissionServiceTest {
                     + "submission_id VARCHAR(36) NOT NULL,offering_id VARCHAR(36) NOT NULL,"
                     + "teacher_id VARCHAR(32) NOT NULL,status VARCHAR(20) NOT NULL,"
                     + "created_at DATETIME NOT NULL,updated_at DATETIME NOT NULL,"
+                    + "reviewed_by VARCHAR(32),reviewed_at DATETIME,review_remark VARCHAR(255),"
                     + "PRIMARY KEY (submission_id),"
                     + "CONSTRAINT uk_tblGradeSubmission_offering UNIQUE (offering_id))");
             statement.execute("CREATE TABLE tblGradeEntry ("
@@ -86,5 +88,22 @@ class AccessGradeSubmissionServiceTest {
         assertEquals(GradeSubmissionStatus.PENDING_REVIEW,
                 restarted.findById("GRADE-001").getData().getStatus());
         assertEquals(74, restarted.listEntries("GRADE-001").getData().get(0).getScore());
+    }
+
+    @Test
+    void persistsAcademicReturnRemarkAndLaterApproval() {
+        LocalDateTime now = LocalDateTime.of(2026, 9, 4, 11, 0);
+        service.createDraft(GradeSubmission.draft("GRADE-001", "OFFER-001", "T001", now));
+        service.submitForReview("GRADE-001");
+
+        assertEquals(GradeSubmissionStatus.RETURNED, service.review("GRADE-001",
+                GradeReviewDecision.RETURN, "academic_001", "请核对成绩").getData().getStatus());
+        AccessGradeSubmissionService restarted = new AccessGradeSubmissionService(database);
+        assertEquals("academic_001", restarted.findById("GRADE-001").getData().getReviewedBy());
+        assertEquals("请核对成绩", restarted.findById("GRADE-001").getData().getReviewRemark());
+
+        restarted.submitForReview("GRADE-001");
+        assertEquals(GradeSubmissionStatus.APPROVED, restarted.review("GRADE-001",
+                GradeReviewDecision.APPROVE, "academic_001", "审核通过").getData().getStatus());
     }
 }

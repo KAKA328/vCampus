@@ -7,7 +7,7 @@
 | 用户管理 | `UserManagementService` | `register`、`importUsers`、`unregister`、`login`、`currentSession`、`logout`、`authorize`；`register` 作为管理员端开户注册能力，批量导入使用 `USER_IMPORT`，载荷见 `UserCredentials`、`UserImportCommand`、`UserCommand`、`AuthorizationRequest` |
 | 学生学籍 | `StudentManagementService` | `findById`、`findByUserId`、`findMyStudentProfile`、`findByClass`、`findByMajor`、`findByIds`、`save` |
 | 教师档案 | `TeacherProfileService` | `findById`、`findByUserId`、`save`；提供教师工号、账号绑定、院系、职称和在职状态 |
-| 学业审查 | `AcademicReviewService` | `historyFor`、`pendingRetakes`、`review`、`latestReview` |
+| 学业审查 | `AcademicReviewService`、`CourseResultRecordingService` | 前者读取历史、待重修和学业审查；后者由教务审核流程批量写入正式成绩并计算下一次尝试序号 |
 | 选课 | `CourseSelectionService`、`GradeSubmissionService` | 完整选课流程使用 V2 消息：查询轮次/教学班/已选记录、按教学班选课、按选课记录退选；成绩草稿与课程维护能力见下文 |
 | 图书馆 | `LibraryService` | `search`/分类筛选、`getBook`、原子 `borrowBatch`、按记录 `returnBook`、本人/全量 `borrowHistory`、`addBook` |
 | 商店 | `StoreService` | 商品查询/分类、购买、购物车（含改数量与明细联表）、钱包（含余额与流水审计）、本人/全量订单、热销排行和商品维护；商店消息使用 token-only 命令，用户编号由服务器会话解析 |
@@ -15,7 +15,7 @@
 所有服务方法返回 `ServiceResult<T>`，由服务器统一映射为 `Message` 响应。服务端必须再次校验会话和权限。
 
 `GradeSubmissionService` 当前负责保存一门教学班的一份成绩草稿和其中的学生成绩：
-`createDraft`、`findById`、`findByOffering`、`listEntries`、`saveDraftEntry`、`submitForReview`。每个教学班最多一份提交单；草稿、被退回或待审核时都允许覆盖修改同一学生成绩，待审核修改后的最新版本供教务读取。草稿数据保存在 `tblGradeSubmission`、`tblGradeEntry`，不写入 `tblCourseResult`。教务审核及审核通过后生成正式成绩将在后续接口中实现。
+`createDraft`、`findById`、`findByOffering`、`listByStatus`、`listEntries`、`saveDraftEntry`、`submitForReview`、`review`。每个教学班最多一份提交单；草稿、被退回或待审核时都允许覆盖修改同一学生成绩，待审核修改后的最新版本供教务读取。教务老师可退回并保存意见，或审核通过；通过时由 `CourseResultRecordingService` 向 `tblCourseResult` 批量写入正式成绩，供学籍审查和重修判断读取。
 
 ## 学籍与选课对接接口
 
@@ -82,10 +82,13 @@ StudentManagementService.findByIds(List<String> studentIds)
 - `COURSE_DROP_RECORD_V2` + `CourseDropRecordV2Command(token, recordId)`：按选课记录编号退选。
 - `COURSE_TEACHING_QUERY_V2` + `CourseTeachingQueryV2Command`：教师查询本人某学期教学班，或查询本人指定教学班的有效学生名单。`MY_OFFERINGS` 返回 `List<TeachingOffering>`，`OFFERING_ROSTER` 返回 `TeachingRoster`；名单项目含学号、姓名、专业、班级和 `SelectionType`（可区分必修、选修、跨专业选修、重修）。
 - `COURSE_GRADE_DRAFT_V2` + `CourseGradeDraftV2Command`：教师打开本人教学班的成绩草稿（`OPEN_DRAFT`）、保存/覆盖一名有效选课学生的 0–100 分成绩（`SAVE_ENTRY`），或在全班成绩完整时提交审核（`SUBMIT_FOR_REVIEW`）。返回 `TeachingGradeDraft`，其中包含有效名单、当前提交单和已保存的成绩条目。
+- `COURSE_GRADE_REVIEW_V2` + `CourseGradeReviewV2Command`：教务老师查询待审核成绩单（`LIST_PENDING`）、查看完整名单与分数（`VIEW_DETAIL`）、审核通过（`APPROVE`）或退回（`RETURN`）。退回必须提供原因；通过后才生成学生正式成绩记录。
 
 客户端不提交 `studentId` 作为本人身份，服务端必须根据 `token -> user_id -> student_id` 推导学生档案；退选使用已选记录的 `recordId`。
 
-教师教学班查询和成绩草稿接口仅接受 `TEACHER` 角色且要求 `GRADE_WRITE` 权限。服务器从 `token -> user_id -> tblTeacher.teacher_id` 定位教师，教师不能在命令中传入或伪造 `teacherId`；查询名单时还会校验教学班确实归该教师，并且只返回 `ACTIVE` 选课记录。保存成绩时，学生是否属于该教学班及其 `SelectionType` 也完全由服务器按有效选课记录确定，客户端不传提交单编号或选课类别。提交审核前，系统会确认每名有效选课学生均已有成绩；提交后状态为 `PENDING_REVIEW`。教师可继续修改待审核成绩，系统自动保留待审核状态并让教务端读取最新结果；只有 `APPROVED` 成绩必须先被教务退回后才能修改。此阶段尚不写入正式 `tblCourseResult`。教师端 Swing 页面将在成绩导入功能完成后统一接入。
+教师教学班查询和成绩草稿接口仅接受 `TEACHER` 角色且要求 `GRADE_WRITE` 权限。服务器从 `token -> user_id -> tblTeacher.teacher_id` 定位教师，教师不能在命令中传入或伪造 `teacherId`；查询名单时还会校验教学班确实归该教师，并且只返回 `ACTIVE` 选课记录。保存成绩时，学生是否属于该教学班及其 `SelectionType` 也完全由服务器按有效选课记录确定，客户端不传提交单编号或选课类别。提交审核前，系统会确认每名有效选课学生均已有成绩；提交后状态为 `PENDING_REVIEW`。教师可继续修改待审核成绩，系统自动保留待审核状态并让教务端读取最新结果；只有 `APPROVED` 成绩必须先被教务退回后才能修改。
+
+成绩审核接口仅接受 `ACADEMIC_ADMIN` 或 `ADMIN` 角色且要求 `ACADEMIC_REVIEW` 权限。审核通过时，服务器按教学班课程、学期、选课类别和分数构造正式成绩：分数不少于 60 为通过并取得该课程学分，重修记录标记为“重修”，其余为“首修”；尝试次数从该学生该课程已有正式成绩的最大次数递增。待审核草稿本身永不被学籍模块当作成绩依据。
 
 教务人员维护课程目录、教学班和选课轮次统一使用 `COURSE_MANAGE` 与
 `CourseManagementCommand`，服务端要求 `COURSE_MANAGE` 权限。选课轮次相关操作为：

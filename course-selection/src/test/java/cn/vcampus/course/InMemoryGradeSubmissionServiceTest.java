@@ -50,4 +50,24 @@ class InMemoryGradeSubmissionServiceTest {
         assertEquals(GradeSubmissionStatus.PENDING_REVIEW,
                 service.findById("GRADE-001").getData().getStatus());
     }
+
+    @Test
+    void reviewerCanReturnOrApproveOnlyPendingSubmission() {
+        InMemoryGradeSubmissionService service = new InMemoryGradeSubmissionService();
+        LocalDateTime now = LocalDateTime.of(2026, 9, 4, 10, 0);
+        service.createDraft(GradeSubmission.draft("GRADE-001", "OFFER-001", "T001", now));
+        service.submitForReview("GRADE-001");
+
+        assertEquals(GradeSubmissionStatus.RETURNED, service.review("GRADE-001",
+                GradeReviewDecision.RETURN, "academic_001", "请核对学号 S001 的成绩")
+                .getData().getStatus());
+        assertEquals("请核对学号 S001 的成绩", service.findById("GRADE-001").getData()
+                .getReviewRemark());
+
+        service.submitForReview("GRADE-001");
+        assertEquals(GradeSubmissionStatus.APPROVED, service.review("GRADE-001",
+                GradeReviewDecision.APPROVE, "academic_001", "审核通过").getData().getStatus());
+        assertEquals(StatusCode.CONFLICT, service.review("GRADE-001", GradeReviewDecision.APPROVE,
+                "academic_001", "重复审核").getStatus());
+    }
 }

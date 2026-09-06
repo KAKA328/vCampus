@@ -4,7 +4,9 @@ import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.student.AcademicReviewService;
 import cn.vcampus.student.AcademicReview;
+import cn.vcampus.student.CourseResultRecordingService;
 import cn.vcampus.student.CourseHistoryRecord;
+import cn.vcampus.student.FormalCourseResult;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -19,7 +21,8 @@ import java.util.List;
 import java.util.Map;
 
 /** Access-backed academic history reader shared with course selection. */
-public final class AccessAcademicReviewService implements AcademicReviewService {
+public final class AccessAcademicReviewService
+        implements AcademicReviewService, CourseResultRecordingService {
     private final Path databasePath;
 
     public AccessAcademicReviewService(Path databasePath) {
@@ -159,6 +162,72 @@ public final class AccessAcademicReviewService implements AcademicReviewService 
         }
     }
 
+    @Override
+    public ServiceResult<Integer> nextAttemptNo(String studentId, String courseId) {
+        String normalizedStudentId = normalize(studentId);
+        String normalizedCourseId = normalize(courseId);
+        if (normalizedStudentId == null || normalizedCourseId == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "studentId and courseId must not be blank");
+        }
+        String sql = "SELECT MAX(attempt_no) AS max_attempt FROM tblCourseResult "
+                + "WHERE student_id=? AND course_id=?";
+        try (Connection connection = open();
+                PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, normalizedStudentId);
+            statement.setString(2, normalizedCourseId);
+            try (ResultSet results = statement.executeQuery()) {
+                int maxAttempt = results.next() ? results.getInt("max_attempt") : 0;
+                return ServiceResult.ok(Integer.valueOf(maxAttempt + 1));
+            }
+        } catch (SQLException failure) {
+            return ServiceResult.failure(StatusCode.SERVER_ERROR,
+                    "failed to determine next course attempt number");
+        }
+    }
+
+    @Override
+    public ServiceResult<Void> recordAll(List<FormalCourseResult> results) {
+        if (results == null || results.isEmpty()) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "results must not be empty");
+        }
+        for (FormalCourseResult result : results) {
+            if (result == null) return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "result must not be null");
+        }
+        String sql = "INSERT INTO tblCourseResult(result_id,student_id,course_id,offering_id,semester,"
+                + "attempt_no,attempt_type,score,passed,earned_credits,recorded_at) "
+                + "VALUES(?,?,?,?,?,?,?,?,?,?,?)";
+        try (Connection connection = open()) {
+            connection.setAutoCommit(false);
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                for (FormalCourseResult result : results) {
+                    statement.setString(1, result.getResultId());
+                    statement.setString(2, result.getStudentId());
+                    statement.setString(3, result.getCourseId());
+                    statement.setString(4, result.getOfferingId());
+                    statement.setString(5, result.getSemester());
+                    statement.setInt(6, result.getAttemptNo());
+                    statement.setString(7, result.getAttemptType());
+                    statement.setInt(8, result.getScore());
+                    statement.setBoolean(9, result.isPassed());
+                    statement.setInt(10, result.getEarnedCredits());
+                    statement.setTimestamp(11, Timestamp.valueOf(result.getRecordedAt()));
+                    statement.executeUpdate();
+                }
+                connection.commit();
+                return ServiceResult.ok(null);
+            } catch (SQLException failure) {
+                rollback(connection);
+                return ServiceResult.failure(isDuplicate(failure) ? StatusCode.CONFLICT
+                        : StatusCode.SERVER_ERROR, isDuplicate(failure)
+                        ? "formal course result already exists" : "failed to record formal course results");
+            }
+        } catch (SQLException failure) {
+            return ServiceResult.failure(StatusCode.SERVER_ERROR, "failed to record formal course results");
+        }
+    }
+
     private static int passedCourseCount(Connection connection, String studentId) throws SQLException {
         String sql = "SELECT course_id FROM tblCourseResult WHERE student_id=? AND passed=true GROUP BY course_id";
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -202,6 +271,16 @@ public final class AccessAcademicReviewService implements AcademicReviewService 
         }
         return DriverManager.getConnection("jdbc:ucanaccess://" + databasePath
                 + ";immediatelyReleaseResources=true");
+    }
+
+    private static void rollback(Connection connection) {
+        try { connection.rollback(); } catch (SQLException ignored) { }
+    }
+
+    private static boolean isDuplicate(SQLException failure) {
+        String message = failure.getMessage();
+        return message != null && (message.toLowerCase().contains("unique")
+                || message.toLowerCase().contains("duplicate"));
     }
 
     private static String normalize(String value) {

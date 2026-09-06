@@ -6,6 +6,7 @@ import cn.vcampus.course.GradeEntry;
 import cn.vcampus.course.GradeSubmission;
 import cn.vcampus.course.GradeSubmissionService;
 import cn.vcampus.course.GradeSubmissionStatus;
+import cn.vcampus.course.GradeReviewDecision;
 import cn.vcampus.course.SelectionType;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -35,7 +36,7 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
                     "only a draft grade submission can be created");
         }
         String sql = "INSERT INTO tblGradeSubmission(submission_id,offering_id,teacher_id,status,"
-                + "created_at,updated_at) VALUES(?,?,?,?,?,?)";
+                + "created_at,updated_at,reviewed_by,reviewed_at,review_remark) VALUES(?,?,?,?,?,?,?,?,?)";
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, submission.getSubmissionId());
@@ -44,6 +45,9 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
             statement.setString(4, submission.getStatus().name());
             statement.setTimestamp(5, Timestamp.valueOf(submission.getCreatedAt()));
             statement.setTimestamp(6, Timestamp.valueOf(submission.getUpdatedAt()));
+            statement.setString(7, submission.getReviewedBy());
+            statement.setTimestamp(8, timestamp(submission.getReviewedAt()));
+            statement.setString(9, submission.getReviewRemark());
             statement.executeUpdate();
             return ServiceResult.ok(submission);
         } catch (SQLException failure) {
@@ -77,6 +81,24 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, normalized);
             return readOneSubmission(statement);
+        } catch (SQLException failure) {
+            return databaseFailure(failure);
+        }
+    }
+
+    @Override
+    public ServiceResult<List<GradeSubmission>> listByStatus(GradeSubmissionStatus status) {
+        if (status == null) return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                "status must not be null");
+        String sql = selectSubmissions() + " WHERE status=? ORDER BY updated_at,submission_id";
+        try (Connection connection = open();
+                PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, status.name());
+            try (ResultSet results = statement.executeQuery()) {
+                List<GradeSubmission> submissions = new ArrayList<GradeSubmission>();
+                while (results.next()) submissions.add(readSubmission(results));
+                return ServiceResult.ok(Collections.unmodifiableList(submissions));
+            }
         } catch (SQLException failure) {
             return databaseFailure(failure);
         }
@@ -166,7 +188,57 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
                     statement.executeUpdate();
                 }
                 connection.commit();
-                return ServiceResult.ok(submission.withStatus(GradeSubmissionStatus.PENDING_REVIEW, now));
+                return ServiceResult.ok(submission.pendingReview(now));
+            } catch (SQLException failure) {
+                rollback(connection);
+                return databaseFailure(failure);
+            }
+        } catch (SQLException failure) {
+            return databaseFailure(failure);
+        }
+    }
+
+    @Override
+    public ServiceResult<GradeSubmission> review(String submissionId, GradeReviewDecision decision,
+            String reviewerId, String remark) {
+        String normalizedSubmissionId = normalize(submissionId);
+        String normalizedReviewerId = normalize(reviewerId);
+        if (normalizedSubmissionId == null || normalizedReviewerId == null || decision == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "submissionId, decision and reviewerId must not be blank");
+        }
+        if (decision == GradeReviewDecision.RETURN && normalize(remark) == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "a return remark is required");
+        }
+        try (Connection connection = open()) {
+            connection.setAutoCommit(false);
+            try {
+                GradeSubmission submission = findSubmission(connection, normalizedSubmissionId);
+                if (submission == null) {
+                    connection.rollback();
+                    return ServiceResult.failure(StatusCode.NOT_FOUND, "grade submission not found");
+                }
+                if (submission.getStatus() != GradeSubmissionStatus.PENDING_REVIEW) {
+                    connection.rollback();
+                    return ServiceResult.failure(StatusCode.CONFLICT,
+                            "only pending grade submissions can be reviewed");
+                }
+                GradeSubmissionStatus status = decision == GradeReviewDecision.APPROVE
+                        ? GradeSubmissionStatus.APPROVED : GradeSubmissionStatus.RETURNED;
+                LocalDateTime now = LocalDateTime.now();
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "UPDATE tblGradeSubmission SET status=?,updated_at=?,reviewed_by=?,"
+                                + "reviewed_at=?,review_remark=? WHERE submission_id=?")) {
+                    statement.setString(1, status.name());
+                    statement.setTimestamp(2, Timestamp.valueOf(now));
+                    statement.setString(3, normalizedReviewerId);
+                    statement.setTimestamp(4, Timestamp.valueOf(now));
+                    statement.setString(5, normalize(remark));
+                    statement.setString(6, normalizedSubmissionId);
+                    statement.executeUpdate();
+                }
+                connection.commit();
+                return ServiceResult.ok(submission.reviewed(status, normalizedReviewerId, remark, now));
             } catch (SQLException failure) {
                 rollback(connection);
                 return databaseFailure(failure);
@@ -177,7 +249,8 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
     }
 
     private static String selectSubmissions() {
-        return "SELECT submission_id,offering_id,teacher_id,status,created_at,updated_at "
+        return "SELECT submission_id,offering_id,teacher_id,status,created_at,updated_at,"
+                + "reviewed_by,reviewed_at,review_remark "
                 + "FROM tblGradeSubmission";
     }
 
@@ -205,7 +278,9 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
         return new GradeSubmission(results.getString("submission_id"), results.getString("offering_id"),
                 results.getString("teacher_id"), GradeSubmissionStatus.valueOf(results.getString("status")),
                 results.getTimestamp("created_at").toLocalDateTime(),
-                results.getTimestamp("updated_at").toLocalDateTime());
+                results.getTimestamp("updated_at").toLocalDateTime(),
+                results.getString("reviewed_by"), localDateTime(results.getTimestamp("reviewed_at")),
+                results.getString("review_remark"));
     }
 
     private static GradeEntry readEntry(ResultSet results) throws SQLException {
@@ -253,6 +328,14 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
         String message = failure.getMessage();
         return message != null && (message.toLowerCase().contains("unique")
                 || message.toLowerCase().contains("duplicate"));
+    }
+
+    private static Timestamp timestamp(LocalDateTime value) {
+        return value == null ? null : Timestamp.valueOf(value);
+    }
+
+    private static LocalDateTime localDateTime(Timestamp value) {
+        return value == null ? null : value.toLocalDateTime();
     }
 
     private static String normalize(String value) {

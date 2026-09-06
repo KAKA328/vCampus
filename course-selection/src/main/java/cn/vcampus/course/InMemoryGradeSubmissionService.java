@@ -54,6 +54,18 @@ public final class InMemoryGradeSubmissionService implements GradeSubmissionServ
     }
 
     @Override
+    public synchronized ServiceResult<List<GradeSubmission>> listByStatus(
+            GradeSubmissionStatus status) {
+        if (status == null) return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                "status must not be null");
+        List<GradeSubmission> result = new ArrayList<GradeSubmission>();
+        for (GradeSubmission submission : submissions.values()) {
+            if (submission.getStatus() == status) result.add(submission);
+        }
+        return ServiceResult.ok(Collections.unmodifiableList(result));
+    }
+
+    @Override
     public synchronized ServiceResult<List<GradeEntry>> listEntries(String submissionId) {
         ServiceResult<GradeSubmission> submission = findById(submissionId);
         if (submission.getStatus() != StatusCode.OK) {
@@ -94,10 +106,36 @@ public final class InMemoryGradeSubmissionService implements GradeSubmissionServ
             return ServiceResult.failure(StatusCode.CONFLICT,
                     "approved grade submission must be returned before it can be changed");
         }
-        GradeSubmission pending = submission.withStatus(GradeSubmissionStatus.PENDING_REVIEW,
-                LocalDateTime.now());
+        GradeSubmission pending = submission.pendingReview(LocalDateTime.now());
         submissions.put(pending.getSubmissionId(), pending);
         return ServiceResult.ok(pending);
+    }
+
+    @Override
+    public synchronized ServiceResult<GradeSubmission> review(String submissionId,
+            GradeReviewDecision decision, String reviewerId, String remark) {
+        ServiceResult<GradeSubmission> found = findById(submissionId);
+        if (found.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(found.getStatus(), found.getMessage());
+        }
+        if (decision == null || normalize(reviewerId) == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "decision and reviewerId must not be blank");
+        }
+        if (found.getData().getStatus() != GradeSubmissionStatus.PENDING_REVIEW) {
+            return ServiceResult.failure(StatusCode.CONFLICT,
+                    "only pending grade submissions can be reviewed");
+        }
+        if (decision == GradeReviewDecision.RETURN && normalize(remark) == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "a return remark is required");
+        }
+        GradeSubmissionStatus status = decision == GradeReviewDecision.APPROVE
+                ? GradeSubmissionStatus.APPROVED : GradeSubmissionStatus.RETURNED;
+        GradeSubmission reviewed = found.getData().reviewed(status, reviewerId, remark,
+                LocalDateTime.now());
+        submissions.put(reviewed.getSubmissionId(), reviewed);
+        return ServiceResult.ok(reviewed);
     }
 
     private GradeSubmission findExistingByOffering(String offeringId) {

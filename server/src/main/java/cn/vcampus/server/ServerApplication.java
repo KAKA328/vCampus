@@ -16,6 +16,7 @@ import cn.vcampus.library.InMemoryLibraryService;
 import cn.vcampus.store.StoreService;
 import cn.vcampus.store.InMemoryStoreService;
 import cn.vcampus.student.AcademicReviewService;
+import cn.vcampus.student.CourseResultRecordingService;
 import cn.vcampus.student.DefaultStudentManagementService;
 import cn.vcampus.student.InMemoryAcademicReviewService;
 import cn.vcampus.student.InMemoryStudentRepository;
@@ -63,6 +64,7 @@ public final class ServerApplication implements Closeable {
         this(port, users, module.getSelectionService(), module.getCatalogService(),
                 module.getOfferingService(), module.getSelectionRoundService(),
                 module.getSelectionRecordService(), module.getGradeSubmissionService(),
+                studentServices.results,
                 studentServices.profiles, store,
                 studentServices.students, new InMemoryLibraryService(),
                 new DenyTeacherStudentAccessPolicy(), null, null);
@@ -91,6 +93,17 @@ public final class ServerApplication implements Closeable {
                 module.getOfferingService(), module.getSelectionRoundService(),
                 module.getSelectionRecordService(), module.getGradeSubmissionService(), profiles, store, students, library,
                 teacherAccess, storeAudit, teachers);
+    }
+
+    private ServerApplication(int port, UserManagementService users, CourseSelectionModule module,
+            StudentSelectionProfileProvider profiles, StoreService store,
+            StudentManagementService students, CourseResultRecordingService formalResults,
+            LibraryService library, TeacherStudentAccessPolicy teacherAccess,
+            AuditLogRepository storeAudit, TeacherProfileService teachers) {
+        this(port, users, module.getSelectionService(), module.getCatalogService(),
+                module.getOfferingService(), module.getSelectionRoundService(),
+                module.getSelectionRecordService(), module.getGradeSubmissionService(), formalResults,
+                profiles, store, students, library, teacherAccess, storeAudit, teachers);
     }
 
     public ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
@@ -133,10 +146,22 @@ public final class ServerApplication implements Closeable {
             StoreService store, StudentManagementService students, LibraryService library,
             TeacherStudentAccessPolicy teacherAccess, AuditLogRepository storeAudit,
             TeacherProfileService teachers) {
+        this(port, users, courses, catalog, offerings, selectionRounds, records, gradeSubmissions,
+                null, profiles, store, students, library, teacherAccess, storeAudit, teachers);
+    }
+
+    ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
+            CourseCatalogService catalog, CourseOfferingService offerings,
+            SelectionRoundService selectionRounds, CourseSelectionRecordService records,
+            GradeSubmissionService gradeSubmissions, CourseResultRecordingService formalResults,
+            StudentSelectionProfileProvider profiles, StoreService store,
+            StudentManagementService students, LibraryService library,
+            TeacherStudentAccessPolicy teacherAccess, AuditLogRepository storeAudit,
+            TeacherProfileService teachers) {
         this.port = port;
         this.userMessages = new UserMessageHandler(users);
         this.courseMessages = new CourseMessageHandler(courses, catalog, offerings, selectionRounds,
-                records, gradeSubmissions, profiles, users, teachers, students);
+                records, gradeSubmissions, formalResults, profiles, users, teachers, students);
         this.storeMessages = new StoreMessageHandler(store, users, storeAudit);
         this.studentMessages = new StudentMessageHandler(students, users, teacherAccess);
         this.libraryMessages = new LibraryMessageHandler(library, users);
@@ -220,7 +245,8 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.COURSE_SELECT_OFFERING_V2
                 || type == MessageType.COURSE_DROP_RECORD_V2
                 || type == MessageType.COURSE_TEACHING_QUERY_V2
-                || type == MessageType.COURSE_GRADE_DRAFT_V2;
+                || type == MessageType.COURSE_GRADE_DRAFT_V2
+                || type == MessageType.COURSE_GRADE_REVIEW_V2;
     }
 
     // 商店消息白名单：必须与 MessageType 中全部 STORE_* 前缀枚举一一对应，
@@ -259,7 +285,7 @@ public final class ServerApplication implements Closeable {
                 : accessStudentServices(databasePath);
         new ServerApplication(port, UserServiceFactory.create(args), courses.getModule(),
                 courses.getProfiles(), StoreServiceFactory.create(databasePath),
-                studentServices.students, LibraryServiceFactory.create(databasePath),
+                studentServices.students, studentServices.results, LibraryServiceFactory.create(databasePath),
                 teacherAccess(databasePath), UserServiceFactory.createStoreAuditLog(args),
                 courses.getTeachers()).start();
     }
@@ -270,17 +296,17 @@ public final class ServerApplication implements Closeable {
                 "计算机学院", "计算机科学与技术", "CS2026-01", 2026,
                 "在读", "", ""));
         StudentManagementService students = new DefaultStudentManagementService(repository);
-        AcademicReviewService academicReviews = new InMemoryAcademicReviewService();
+        InMemoryAcademicReviewService academicReviews = new InMemoryAcademicReviewService();
         return new StudentServices(students, new StudentSelectionProfileAdapter(
-                students, academicReviews, CourseSelectionDemoFactory.DEMO_TERM));
+                students, academicReviews, CourseSelectionDemoFactory.DEMO_TERM), academicReviews);
     }
 
     private static StudentServices accessStudentServices(Path databasePath) {
         StudentManagementService students = new DefaultStudentManagementService(
                 new AccessStudentRepository(databasePath));
-        AcademicReviewService academicReviews = new AccessAcademicReviewService(databasePath);
+        AccessAcademicReviewService academicReviews = new AccessAcademicReviewService(databasePath);
         return new StudentServices(students, new StudentSelectionProfileAdapter(
-                students, academicReviews, CourseSelectionDemoFactory.DEMO_TERM));
+                students, academicReviews, CourseSelectionDemoFactory.DEMO_TERM), academicReviews);
     }
 
     private static TeacherStudentAccessPolicy teacherAccess(Path databasePath) {
@@ -291,11 +317,13 @@ public final class ServerApplication implements Closeable {
     private static final class StudentServices {
         private final StudentManagementService students;
         private final StudentSelectionProfileProvider profiles;
+        private final CourseResultRecordingService results;
 
         private StudentServices(StudentManagementService students,
-                StudentSelectionProfileProvider profiles) {
+                StudentSelectionProfileProvider profiles, CourseResultRecordingService results) {
             this.students = students;
             this.profiles = profiles;
+            this.results = results;
         }
     }
 

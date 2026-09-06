@@ -12,6 +12,7 @@ import cn.vcampus.course.CourseSelectionDemoFactory;
 import cn.vcampus.course.CourseSelectionModule;
 import cn.vcampus.course.CourseSelectionRecord;
 import cn.vcampus.course.CourseGradeDraftV2Command;
+import cn.vcampus.course.CourseGradeReviewV2Command;
 import cn.vcampus.course.CourseTeachingQueryV2Command;
 import cn.vcampus.course.GradeSubmissionStatus;
 import cn.vcampus.course.InMemoryStudentSelectionProfileProvider;
@@ -20,6 +21,7 @@ import cn.vcampus.course.TeachingOffering;
 import cn.vcampus.course.TeachingGradeDraft;
 import cn.vcampus.course.TeachingRoster;
 import cn.vcampus.student.DefaultStudentManagementService;
+import cn.vcampus.student.InMemoryAcademicReviewService;
 import cn.vcampus.student.DefaultTeacherProfileService;
 import cn.vcampus.student.InMemoryStudentRepository;
 import cn.vcampus.student.InMemoryTeacherRepository;
@@ -41,6 +43,8 @@ class CourseTeachingQueryMessageHandlerTest {
     private Session teacherOne;
     private Session teacherTwo;
     private Session student;
+    private Session academicAdmin;
+    private InMemoryAcademicReviewService formalResults;
 
     @BeforeEach
     void setUp() {
@@ -48,6 +52,8 @@ class CourseTeachingQueryMessageHandlerTest {
         teacherOne = login(users, "teacher_001", Role.TEACHER);
         teacherTwo = login(users, "teacher_002", Role.TEACHER);
         student = login(users, "student_001", Role.STUDENT);
+        academicAdmin = login(users, "academic_001", Role.ACADEMIC_ADMIN);
+        formalResults = new InMemoryAcademicReviewService();
 
         CourseSelectionModule module = CourseSelectionDemoFactory.createModule();
         module.getSelectionRecordService().create(new CourseSelectionRecord("REC-ACTIVE", "STU-001",
@@ -69,6 +75,7 @@ class CourseTeachingQueryMessageHandlerTest {
         handler = new CourseMessageHandler(module.getSelectionService(), module.getCatalogService(),
                 module.getOfferingService(), module.getSelectionRoundService(),
                 module.getSelectionRecordService(), module.getGradeSubmissionService(),
+                formalResults,
                 new InMemoryStudentSelectionProfileProvider(Collections.emptyList()), users, teachers,
                 new DefaultStudentManagementService(studentRepository));
     }
@@ -217,6 +224,66 @@ class CourseTeachingQueryMessageHandlerTest {
         assertEquals(GradeSubmissionStatus.PENDING_REVIEW,
                 latest.getSubmission().getStatus());
         assertEquals(89, latest.getEntries().get(0).getScore());
+    }
+
+    @Test
+    void academicAdminCanApproveLatestPendingGradesAndPublishFormalResult() {
+        handler.handle(Message.request("save-grade", MessageType.COURSE_GRADE_DRAFT_V2,
+                CourseGradeDraftV2Command.saveEntry(teacherOne.getToken(), "OFFER-JAVA-01",
+                        "STU-001", 88)));
+        handler.handle(Message.request("submit-grade", MessageType.COURSE_GRADE_DRAFT_V2,
+                CourseGradeDraftV2Command.submitForReview(teacherOne.getToken(), "OFFER-JAVA-01")));
+
+        Message pending = handler.handle(Message.request("pending-grades",
+                MessageType.COURSE_GRADE_REVIEW_V2,
+                CourseGradeReviewV2Command.listPending(academicAdmin.getToken())));
+        assertEquals(StatusCode.OK, pending.getStatusCode());
+        assertEquals(1, ((List<?>) pending.getPayload()).size());
+        String submissionId = ((cn.vcampus.course.GradeSubmission) ((List<?>) pending.getPayload())
+                .get(0)).getSubmissionId();
+
+        Message approved = handler.handle(Message.request("approve-grade",
+                MessageType.COURSE_GRADE_REVIEW_V2, CourseGradeReviewV2Command.approve(
+                        academicAdmin.getToken(), submissionId, "审核通过")));
+        assertEquals(StatusCode.OK, approved.getStatusCode());
+        assertEquals(GradeSubmissionStatus.APPROVED,
+                ((cn.vcampus.course.GradeSubmission) approved.getPayload()).getStatus());
+        assertEquals(1, formalResults.historyFor("STU-001").getData().size());
+        assertEquals(88, formalResults.historyFor("STU-001").getData().get(0).getScore());
+        assertEquals("重修", formalResults.historyFor("STU-001").getData().get(0).getAttemptType());
+
+        Message repeated = handler.handle(Message.request("approve-grade-again",
+                MessageType.COURSE_GRADE_REVIEW_V2, CourseGradeReviewV2Command.approve(
+                        academicAdmin.getToken(), submissionId, "重复通过")));
+        assertEquals(StatusCode.CONFLICT, repeated.getStatusCode());
+        assertEquals(1, formalResults.historyFor("STU-001").getData().size());
+    }
+
+    @Test
+    void academicAdminCanReturnPendingGradeWithRemarkButTeacherCannotReview() {
+        handler.handle(Message.request("save-grade", MessageType.COURSE_GRADE_DRAFT_V2,
+                CourseGradeDraftV2Command.saveEntry(teacherOne.getToken(), "OFFER-JAVA-01",
+                        "STU-001", 58)));
+        Message submitted = handler.handle(Message.request("submit-grade",
+                MessageType.COURSE_GRADE_DRAFT_V2,
+                CourseGradeDraftV2Command.submitForReview(teacherOne.getToken(), "OFFER-JAVA-01")));
+        String submissionId = ((TeachingGradeDraft) submitted.getPayload()).getSubmission()
+                .getSubmissionId();
+
+        Message forbidden = handler.handle(Message.request("teacher-review",
+                MessageType.COURSE_GRADE_REVIEW_V2,
+                CourseGradeReviewV2Command.viewDetail(teacherOne.getToken(), submissionId)));
+        Message returned = handler.handle(Message.request("return-grade",
+                MessageType.COURSE_GRADE_REVIEW_V2, CourseGradeReviewV2Command.returnForRevision(
+                        academicAdmin.getToken(), submissionId, "请确认该生补考成绩")));
+
+        assertEquals(StatusCode.FORBIDDEN, forbidden.getStatusCode());
+        assertEquals(StatusCode.OK, returned.getStatusCode());
+        assertEquals(GradeSubmissionStatus.RETURNED,
+                ((cn.vcampus.course.GradeSubmission) returned.getPayload()).getStatus());
+        assertEquals("请确认该生补考成绩",
+                ((cn.vcampus.course.GradeSubmission) returned.getPayload()).getReviewRemark());
+        assertTrue(formalResults.historyFor("STU-001").getData().isEmpty());
     }
 
     private static Session login(InMemoryUserManagementService users, String userId, Role role) {
