@@ -209,6 +209,14 @@ CREATE TABLE tblCourseResult (
     PRIMARY KEY (result_id)
 );
 
+-- 记录某份成绩单发布了哪些正式成绩，供教务退回已通过成绩时精确撤销。
+CREATE TABLE tblGradeSubmissionResult (
+    submission_id VARCHAR(36) NOT NULL,
+    result_id VARCHAR(36) NOT NULL,
+    PRIMARY KEY (submission_id, result_id),
+    CONSTRAINT uk_tblGradeSubmissionResult_result UNIQUE (result_id)
+);
+
 CREATE TABLE tblAcademicReview (
     review_id VARCHAR(36) NOT NULL,
     student_id VARCHAR(32) NOT NULL,

@@ -173,11 +173,11 @@ docs/MODULE_INTEGRATION_GUIDE.md
 - `COURSE_TEACHING_QUERY_V2` + `CourseTeachingQueryV2Command`：教师查询本人教学班或指定教学班有效名单；服务器根据 token 解析教师档案，名单只含有效选课记录并保留选课类别。
 - `COURSE_GRADE_DRAFT_V2` + `CourseGradeDraftV2Command`：教师打开本人教学班成绩草稿、保存一名有效选课学生的成绩，或在全班成绩齐全时提交审核；教师身份、学生选课范围和选课类别均由服务器根据 token 和有效选课记录确定，返回 `TeachingGradeDraft`。待审核成绩仍可由教师修改，教务端读取最新版本。
 - `COURSE_GRADE_IMPORT_V2` + `CourseGradeImportV2Command`：教师将 CSV/XLS/XLSX 的“学号、成绩”表格批量导入本人教学班；所有行先校验并确认属于当前有效名单，再原子保存，失败不会留下部分成绩。
-- `COURSE_GRADE_REVIEW_V2` + `CourseGradeReviewV2Command`：仅教务管理员或系统管理员在拥有 `ACADEMIC_REVIEW` 权限时可查询、查看、通过或退回待审核成绩；退回原因会保存到成绩单，通过后才批量写入 `tblCourseResult`。
+- `COURSE_GRADE_REVIEW_V2` + `CourseGradeReviewV2Command`：仅教务管理员或系统管理员在拥有 `ACADEMIC_REVIEW` 权限时可查询、查看、通过或退回成绩；退回原因会保存到成绩单。退回待审核成绩时直接进入修改状态；退回已通过成绩时先原子撤销该成绩单生成的 `tblCourseResult` 记录，再进入修改状态。
 
 客户端不再提交 `studentId` 作为本人身份，服务器必须根据 `token -> user_id -> student_id` 推导学生档案。
 
-公共角色、权限编码和数据范围见 [`PERMISSIONS.md`](PERMISSIONS.md)。课程新增、修改和停开操作必须先校验 `COURSE_MANAGE`；任课教师录入成绩草稿校验 `GRADE_WRITE`；教务复核校验 `ACADEMIC_REVIEW`。成绩草稿阶段不会写入 `tblCourseResult`，只有完成全班成绩校验、教师提交并由教务审核通过后，才批量生成正式成绩。Access 数据库模式下，正式成绩批量写入和成绩单状态变为 `APPROVED` 由同一事务完成，失败时不会留下部分正式成绩或已通过状态。
+公共角色、权限编码和数据范围见 [`PERMISSIONS.md`](PERMISSIONS.md)。课程新增、修改和停开操作必须先校验 `COURSE_MANAGE`；任课教师录入成绩草稿校验 `GRADE_WRITE`；教务复核校验 `ACADEMIC_REVIEW`。成绩草稿阶段不会写入 `tblCourseResult`，只有完成全班成绩校验、教师提交并由教务审核通过后，才批量生成正式成绩。Access 数据库模式下，正式成绩批量写入和成绩单状态变为 `APPROVED` 由同一事务完成，失败时不会留下部分正式成绩或已通过状态；若已通过成绩被退回，则由 `tblGradeSubmissionResult` 定位并在同一事务中撤销对应正式成绩。
 
 ## 6. Payload 设计规则
 

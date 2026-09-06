@@ -203,7 +203,8 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
                 }
                 LocalDateTime now = LocalDateTime.now();
                 try (PreparedStatement statement = connection.prepareStatement(
-                        "UPDATE tblGradeSubmission SET status=?,updated_at=? WHERE submission_id=?")) {
+                        "UPDATE tblGradeSubmission SET status=?,updated_at=?,reviewed_by=NULL,"
+                                + "reviewed_at=NULL,review_remark=NULL WHERE submission_id=?")) {
                     statement.setString(1, GradeSubmissionStatus.PENDING_REVIEW.name());
                     statement.setTimestamp(2, Timestamp.valueOf(now));
                     statement.setString(3, normalized);

@@ -228,6 +228,40 @@ public final class AccessAcademicReviewService
         }
     }
 
+    @Override
+    public ServiceResult<Void> retractAll(List<FormalCourseResult> results) {
+        if (results == null || results.isEmpty()) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "results must not be empty");
+        }
+        for (FormalCourseResult result : results) {
+            if (result == null) return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "result must not be null");
+        }
+        try (Connection connection = open()) {
+            connection.setAutoCommit(false);
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "DELETE FROM tblCourseResult WHERE result_id=?")) {
+                for (FormalCourseResult result : results) {
+                    statement.setString(1, result.getResultId());
+                    if (statement.executeUpdate() != 1) {
+                        rollback(connection);
+                        return ServiceResult.failure(StatusCode.CONFLICT,
+                                "formal course result does not exist");
+                    }
+                }
+                connection.commit();
+                return ServiceResult.ok(null);
+            } catch (SQLException failure) {
+                rollback(connection);
+                return ServiceResult.failure(StatusCode.SERVER_ERROR,
+                        "failed to retract formal course results");
+            }
+        } catch (SQLException failure) {
+            return ServiceResult.failure(StatusCode.SERVER_ERROR,
+                    "failed to retract formal course results");
+        }
+    }
+
     private static int passedCourseCount(Connection connection, String studentId) throws SQLException {
         String sql = "SELECT course_id FROM tblCourseResult WHERE student_id=? AND passed=true GROUP BY course_id";
         try (PreparedStatement statement = connection.prepareStatement(sql)) {

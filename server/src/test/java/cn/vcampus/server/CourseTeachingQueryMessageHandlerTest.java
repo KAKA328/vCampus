@@ -319,6 +319,40 @@ class CourseTeachingQueryMessageHandlerTest {
         assertTrue(formalResults.historyFor("STU-001").getData().isEmpty());
     }
 
+    @Test
+    void academicAdminCanReturnApprovedGradesForCorrectionAndTeacherCanResubmit() {
+        Message saved = handler.handle(Message.request("save-grade", MessageType.COURSE_GRADE_DRAFT_V2,
+                CourseGradeDraftV2Command.saveEntry(teacherOne.getToken(), "OFFER-JAVA-01",
+                        "STU-001", 88)));
+        assertEquals(StatusCode.OK, saved.getStatusCode());
+        Message submitted = handler.handle(Message.request("submit-grade", MessageType.COURSE_GRADE_DRAFT_V2,
+                CourseGradeDraftV2Command.submitForReview(teacherOne.getToken(), "OFFER-JAVA-01")));
+        String submissionId = ((TeachingGradeDraft) submitted.getPayload()).getSubmission()
+                .getSubmissionId();
+        assertEquals(StatusCode.OK, handler.handle(Message.request("approve-grade",
+                MessageType.COURSE_GRADE_REVIEW_V2, CourseGradeReviewV2Command.approve(
+                        academicAdmin.getToken(), submissionId, "审核通过"))).getStatusCode());
+        assertEquals(1, formalResults.historyFor("STU-001").getData().size());
+
+        Message returned = handler.handle(Message.request("return-approved-grade",
+                MessageType.COURSE_GRADE_REVIEW_V2, CourseGradeReviewV2Command.returnForRevision(
+                        academicAdmin.getToken(), submissionId, "请修正分数后重新提交")));
+        assertEquals(StatusCode.OK, returned.getStatusCode());
+        assertEquals(GradeSubmissionStatus.RETURNED,
+                ((cn.vcampus.course.GradeSubmission) returned.getPayload()).getStatus());
+        assertTrue(formalResults.historyFor("STU-001").getData().isEmpty());
+
+        assertEquals(StatusCode.OK, handler.handle(Message.request("correct-grade",
+                MessageType.COURSE_GRADE_DRAFT_V2, CourseGradeDraftV2Command.saveEntry(
+                        teacherOne.getToken(), "OFFER-JAVA-01", "STU-001", 92))).getStatusCode());
+        Message resubmitted = handler.handle(Message.request("resubmit-grade",
+                MessageType.COURSE_GRADE_DRAFT_V2,
+                CourseGradeDraftV2Command.submitForReview(teacherOne.getToken(), "OFFER-JAVA-01")));
+        assertEquals(StatusCode.OK, resubmitted.getStatusCode());
+        assertEquals(GradeSubmissionStatus.PENDING_REVIEW,
+                ((TeachingGradeDraft) resubmitted.getPayload()).getSubmission().getStatus());
+    }
+
     private static Session login(InMemoryUserManagementService users, String userId, Role role) {
         UserCredentials credentials = new UserCredentials(userId, "password", userId, role.name());
         users.register(credentials);

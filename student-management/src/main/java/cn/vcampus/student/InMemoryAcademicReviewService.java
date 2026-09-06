@@ -16,6 +16,8 @@ public final class InMemoryAcademicReviewService
     private final Map<String, AcademicReview> latestReviewsByStudentId = new LinkedHashMap<String, AcademicReview>();
     private final Map<String, FormalCourseResult> formalResultsById =
             new LinkedHashMap<String, FormalCourseResult>();
+    private final Map<String, CourseHistoryRecord> formalHistoriesByResultId =
+            new LinkedHashMap<String, CourseHistoryRecord>();
 
     public synchronized ServiceResult<Void> addHistory(CourseHistoryRecord record) {
         if (record == null) {
@@ -172,9 +174,39 @@ public final class InMemoryAcademicReviewService
         }
         for (FormalCourseResult result : results) {
             formalResultsById.put(result.getResultId(), result);
-            addHistory(result.toHistoryRecord(null));
+            CourseHistoryRecord history = result.toHistoryRecord(null);
+            formalHistoriesByResultId.put(result.getResultId(), history);
+            addHistory(history);
         }
         return ServiceResult.ok(null);
+    }
+
+    @Override
+    public synchronized ServiceResult<Void> retractAll(List<FormalCourseResult> results) {
+        if (results == null || results.isEmpty()) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "results must not be empty");
+        }
+        for (FormalCourseResult result : results) {
+            if (result == null || !formalResultsById.containsKey(result.getResultId())) {
+                return ServiceResult.failure(StatusCode.CONFLICT,
+                        "formal course result does not exist");
+            }
+        }
+        for (FormalCourseResult result : results) {
+            formalResultsById.remove(result.getResultId());
+            removeGeneratedHistory(result.getStudentId(),
+                    formalHistoriesByResultId.remove(result.getResultId()));
+        }
+        return ServiceResult.ok(null);
+    }
+
+    /** 仅移除由正式成绩写入生成的那条历史记录，保留其他来源的学业历史。 */
+    private void removeGeneratedHistory(String studentId, CourseHistoryRecord generated) {
+        if (generated == null) return;
+        List<CourseHistoryRecord> records = historiesByStudentId.get(studentId);
+        if (records == null) return;
+        records.remove(generated);
+        if (records.isEmpty()) historiesByStudentId.remove(studentId);
     }
 
     private static final class CourseSummary {

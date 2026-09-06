@@ -9,4 +9,8 @@ import java.util.List;
 interface GradeApprovalWorkflow {
     ServiceResult<GradeSubmission> approve(String submissionId, List<FormalCourseResult> results,
             String reviewerId, String remark);
+
+    /** 退回待审核成绩，或撤销已通过成绩对应的正式成绩后退回修改。 */
+    ServiceResult<GradeSubmission> returnForRevision(String submissionId, String reviewerId,
+            String remark);
 }

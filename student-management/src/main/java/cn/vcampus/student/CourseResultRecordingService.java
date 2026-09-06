@@ -9,4 +9,10 @@ public interface CourseResultRecordingService {
 
     /** 整批写入，任一记录失败时不得留下部分正式成绩。 */
     ServiceResult<Void> recordAll(List<FormalCourseResult> results);
+
+    /**
+     * 撤销一批因成绩更正而失效的正式成绩。调用方必须已完成权限和来源校验。
+     * 任一记录不存在或删除失败时不得留下部分撤销结果。
+     */
+    ServiceResult<Void> retractAll(List<FormalCourseResult> results);
 }

@@ -20,7 +20,7 @@ public interface GradeSubmissionService {
     /** 将完整成绩单提交（或再次提交）为待教务审核状态。 */
     ServiceResult<GradeSubmission> submitForReview(String submissionId);
 
-    /** 仅处理待审核成绩单；退回时必须保存教务老师的意见。 */
+    /** 处理待审核成绩单；退回时必须保存教务老师的意见。已通过成绩的退回应由成绩更正工作流处理。 */
     ServiceResult<GradeSubmission> review(String submissionId, GradeReviewDecision decision,
             String reviewerId, String remark);
 }

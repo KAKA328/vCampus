@@ -49,6 +49,10 @@ class AccessGradeApprovalWorkflowTest {
                     + "attempt_no INTEGER NOT NULL,attempt_type VARCHAR(16) NOT NULL,score INTEGER,"
                     + "passed BIT NOT NULL,earned_credits INTEGER NOT NULL,recorded_at DATETIME NOT NULL,"
                     + "PRIMARY KEY (result_id))");
+            statement.execute("CREATE TABLE tblGradeSubmissionResult ("
+                    + "submission_id VARCHAR(36) NOT NULL,result_id VARCHAR(36) NOT NULL,"
+                    + "PRIMARY KEY (submission_id,result_id),"
+                    + "CONSTRAINT uk_tblGradeSubmissionResult_result UNIQUE (result_id))");
         }
         workflow = new AccessGradeApprovalWorkflow(database);
     }
@@ -117,6 +121,29 @@ class AccessGradeApprovalWorkflowTest {
         }
     }
 
+    @Test
+    void returnsApprovedSubmissionByRetractingOnlyItsPublishedFormalResults() throws Exception {
+        insertPending("GRADE-001");
+        assertEquals(StatusCode.OK, workflow.approve("GRADE-001",
+                Collections.singletonList(result("RESULT-001")), "academic_001", "审核通过")
+                .getStatus());
+
+        assertEquals(StatusCode.OK, workflow.returnForRevision("GRADE-001", "academic_002",
+                "发现成绩录入错误，请修改后重新提交").getStatus());
+        assertEquals(GradeSubmissionStatus.RETURNED.name(), submissionStatus("GRADE-001"));
+        assertEquals(0, formalResultCount());
+        assertEquals(0, publicationLinkCount());
+
+        AccessGradeSubmissionService submissions = new AccessGradeSubmissionService(database);
+        assertEquals(StatusCode.OK, submissions.submitForReview("GRADE-001").getStatus());
+        assertEquals(StatusCode.OK, workflow.approve("GRADE-001",
+                Collections.singletonList(result("RESULT-002")), "academic_003", "复核通过")
+                .getStatus());
+        assertEquals(GradeSubmissionStatus.APPROVED.name(), submissionStatus("GRADE-001"));
+        assertEquals(1, formalResultCount());
+        assertEquals(1, publicationLinkCount());
+    }
+
     private StatusCode approveAtTheSameTime(CountDownLatch ready, CountDownLatch start,
             String reviewerId) throws Exception {
         ready.countDown();
@@ -176,6 +203,15 @@ class AccessGradeApprovalWorkflowTest {
     private int formalResultCount() throws Exception {
         try (Connection connection = open(); Statement statement = connection.createStatement();
                 ResultSet results = statement.executeQuery("SELECT COUNT(*) AS total FROM tblCourseResult")) {
+            results.next();
+            return results.getInt("total");
+        }
+    }
+
+    private int publicationLinkCount() throws Exception {
+        try (Connection connection = open(); Statement statement = connection.createStatement();
+                ResultSet results = statement.executeQuery(
+                        "SELECT COUNT(*) AS total FROM tblGradeSubmissionResult")) {
             results.next();
             return results.getInt("total");
         }

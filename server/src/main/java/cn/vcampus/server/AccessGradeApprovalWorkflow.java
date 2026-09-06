@@ -62,6 +62,7 @@ final class AccessGradeApprovalWorkflow implements GradeApprovalWorkflow {
                 // 先用状态条件更新抢占本次审核权；若写入正式成绩失败，整个事务会回滚，
                 // 成绩单仍保持待审核，其他审核人也不会看到半成品状态。
                 insertFormalResults(connection, results);
+                linkFormalResults(connection, normalizedSubmissionId, results);
                 connection.commit();
                 return ServiceResult.ok(submission.reviewed(GradeSubmissionStatus.APPROVED,
                         normalizedReviewerId, remark, now));
@@ -74,6 +75,62 @@ final class AccessGradeApprovalWorkflow implements GradeApprovalWorkflow {
             }
         } catch (SQLException failure) {
             return ServiceResult.failure(StatusCode.SERVER_ERROR, "failed to approve grade submission");
+        }
+    }
+
+    @Override
+    public ServiceResult<GradeSubmission> returnForRevision(String submissionId, String reviewerId,
+            String remark) {
+        String normalizedSubmissionId = normalize(submissionId);
+        String normalizedReviewerId = normalize(reviewerId);
+        String normalizedRemark = normalize(remark);
+        if (normalizedSubmissionId == null || normalizedReviewerId == null || normalizedRemark == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "submissionId, reviewerId and return remark must not be blank");
+        }
+        try (Connection connection = open()) {
+            connection.setAutoCommit(false);
+            try {
+                GradeSubmission submission = findSubmission(connection, normalizedSubmissionId);
+                if (submission == null) {
+                    rollback(connection);
+                    return ServiceResult.failure(StatusCode.NOT_FOUND, "grade submission not found");
+                }
+                GradeSubmissionStatus previousStatus = submission.getStatus();
+                if (previousStatus != GradeSubmissionStatus.PENDING_REVIEW
+                        && previousStatus != GradeSubmissionStatus.APPROVED) {
+                    rollback(connection);
+                    return ServiceResult.failure(StatusCode.CONFLICT,
+                            "only pending or approved grade submissions can be returned");
+                }
+                LocalDateTime now = LocalDateTime.now();
+                if (markReturned(connection, normalizedSubmissionId, normalizedReviewerId,
+                        normalizedRemark, previousStatus, now) != 1) {
+                    rollback(connection);
+                    return ServiceResult.failure(StatusCode.CONFLICT,
+                            "grade submission was changed by another reviewer");
+                }
+                if (previousStatus == GradeSubmissionStatus.APPROVED) {
+                    List<String> resultIds = publishedResultIds(connection, normalizedSubmissionId);
+                    if (resultIds.isEmpty() || !deleteFormalResults(connection, resultIds)) {
+                        rollback(connection);
+                        return ServiceResult.failure(StatusCode.CONFLICT,
+                                "published formal course results cannot be retracted safely");
+                    }
+                    deletePublicationLinks(connection, normalizedSubmissionId);
+                }
+                connection.commit();
+                return ServiceResult.ok(submission.reviewed(GradeSubmissionStatus.RETURNED,
+                        normalizedReviewerId, normalizedRemark, now));
+            } catch (SQLException failure) {
+                rollback(connection);
+                return ServiceResult.failure(isConflict(failure) ? StatusCode.CONFLICT
+                        : StatusCode.SERVER_ERROR, isConflict(failure)
+                        ? "grade return conflicts with existing state"
+                        : "failed to return grade submission");
+            }
+        } catch (SQLException failure) {
+            return ServiceResult.failure(StatusCode.SERVER_ERROR, "failed to return grade submission");
         }
     }
 
@@ -121,6 +178,52 @@ final class AccessGradeApprovalWorkflow implements GradeApprovalWorkflow {
         }
     }
 
+    private static void linkFormalResults(Connection connection, String submissionId,
+            List<FormalCourseResult> results) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "INSERT INTO tblGradeSubmissionResult(submission_id,result_id) VALUES(?,?)")) {
+            for (FormalCourseResult result : results) {
+                statement.setString(1, submissionId);
+                statement.setString(2, result.getResultId());
+                statement.executeUpdate();
+            }
+        }
+    }
+
+    private static List<String> publishedResultIds(Connection connection, String submissionId)
+            throws SQLException {
+        java.util.ArrayList<String> resultIds = new java.util.ArrayList<String>();
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT result_id FROM tblGradeSubmissionResult WHERE submission_id=?")) {
+            statement.setString(1, submissionId);
+            try (ResultSet results = statement.executeQuery()) {
+                while (results.next()) resultIds.add(results.getString("result_id"));
+            }
+        }
+        return resultIds;
+    }
+
+    private static boolean deleteFormalResults(Connection connection, List<String> resultIds)
+            throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "DELETE FROM tblCourseResult WHERE result_id=?")) {
+            for (String resultId : resultIds) {
+                statement.setString(1, resultId);
+                if (statement.executeUpdate() != 1) return false;
+            }
+            return true;
+        }
+    }
+
+    private static void deletePublicationLinks(Connection connection, String submissionId)
+            throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "DELETE FROM tblGradeSubmissionResult WHERE submission_id=?")) {
+            statement.setString(1, submissionId);
+            statement.executeUpdate();
+        }
+    }
+
     private static int markApproved(Connection connection, String submissionId, String reviewerId,
             String remark, LocalDateTime now) throws SQLException {
         String sql = "UPDATE tblGradeSubmission SET status=?,updated_at=?,reviewed_by=?,"
@@ -133,6 +236,22 @@ final class AccessGradeApprovalWorkflow implements GradeApprovalWorkflow {
             statement.setString(5, remark);
             statement.setString(6, submissionId);
             statement.setString(7, GradeSubmissionStatus.PENDING_REVIEW.name());
+            return statement.executeUpdate();
+        }
+    }
+
+    private static int markReturned(Connection connection, String submissionId, String reviewerId,
+            String remark, GradeSubmissionStatus previousStatus, LocalDateTime now) throws SQLException {
+        String sql = "UPDATE tblGradeSubmission SET status=?,updated_at=?,reviewed_by=?,"
+                + "reviewed_at=?,review_remark=? WHERE submission_id=? AND status=?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, GradeSubmissionStatus.RETURNED.name());
+            statement.setTimestamp(2, Timestamp.valueOf(now));
+            statement.setString(3, reviewerId);
+            statement.setTimestamp(4, Timestamp.valueOf(now));
+            statement.setString(5, remark);
+            statement.setString(6, submissionId);
+            statement.setString(7, previousStatus.name());
             return statement.executeUpdate();
         }
     }

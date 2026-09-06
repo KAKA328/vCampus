@@ -22,7 +22,6 @@ import cn.vcampus.course.GradeEntry;
 import cn.vcampus.course.GradeImportFileParser;
 import cn.vcampus.course.GradeImportResult;
 import cn.vcampus.course.GradeImportRow;
-import cn.vcampus.course.GradeReviewDecision;
 import cn.vcampus.course.GradeSubmission;
 import cn.vcampus.course.GradeSubmissionService;
 import cn.vcampus.course.GradeSubmissionStatus;
@@ -420,14 +419,15 @@ final class CourseMessageHandler {
         if (command.getOperation() == CourseGradeReviewV2Command.Operation.VIEW_DETAIL) {
             return detail;
         }
+        if (command.getOperation() == CourseGradeReviewV2Command.Operation.RETURN) {
+            if (gradeApprovals == null) return gradeReviewServiceUnavailable();
+            return gradeApprovals.returnForRevision(command.getSubmissionId(),
+                    reviewer.getData().getUser().getUserId(), command.getRemark());
+        }
         if (detail.getData().getSubmission().getStatus()
                 != GradeSubmissionStatus.PENDING_REVIEW) {
             return ServiceResult.failure(StatusCode.CONFLICT,
-                    "only pending grade submissions can be reviewed");
-        }
-        if (command.getOperation() == CourseGradeReviewV2Command.Operation.RETURN) {
-            return gradeSubmissions.review(command.getSubmissionId(), GradeReviewDecision.RETURN,
-                    reviewer.getData().getUser().getUserId(), command.getRemark());
+                    "only pending grade submissions can be approved");
         }
         if (formalResults == null || gradeApprovals == null) return gradeReviewServiceUnavailable();
         ServiceResult<Void> complete = requireCompleteGrades(detail.getData().getRoster(),

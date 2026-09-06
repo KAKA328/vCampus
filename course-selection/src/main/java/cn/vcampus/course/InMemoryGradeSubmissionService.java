@@ -141,9 +141,12 @@ public final class InMemoryGradeSubmissionService implements GradeSubmissionServ
             return ServiceResult.failure(StatusCode.BAD_REQUEST,
                     "decision and reviewerId must not be blank");
         }
-        if (found.getData().getStatus() != GradeSubmissionStatus.PENDING_REVIEW) {
+        boolean returningApproved = decision == GradeReviewDecision.RETURN
+                && found.getData().getStatus() == GradeSubmissionStatus.APPROVED;
+        if (found.getData().getStatus() != GradeSubmissionStatus.PENDING_REVIEW
+                && !returningApproved) {
             return ServiceResult.failure(StatusCode.CONFLICT,
-                    "only pending grade submissions can be reviewed");
+                    "only pending or approved grade submissions can be returned");
         }
         if (decision == GradeReviewDecision.RETURN && normalize(remark) == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST,
