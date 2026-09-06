@@ -11,10 +11,12 @@ import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.CourseSelectionDemoFactory;
 import cn.vcampus.course.CourseSelectionModule;
 import cn.vcampus.course.CourseSelectionRecord;
+import cn.vcampus.course.CourseGradeDraftV2Command;
 import cn.vcampus.course.CourseTeachingQueryV2Command;
 import cn.vcampus.course.InMemoryStudentSelectionProfileProvider;
 import cn.vcampus.course.SelectionType;
 import cn.vcampus.course.TeachingOffering;
+import cn.vcampus.course.TeachingGradeDraft;
 import cn.vcampus.course.TeachingRoster;
 import cn.vcampus.student.DefaultStudentManagementService;
 import cn.vcampus.student.DefaultTeacherProfileService;
@@ -37,12 +39,14 @@ class CourseTeachingQueryMessageHandlerTest {
     private CourseMessageHandler handler;
     private Session teacherOne;
     private Session teacherTwo;
+    private Session student;
 
     @BeforeEach
     void setUp() {
         InMemoryUserManagementService users = new InMemoryUserManagementService();
-        teacherOne = login(users, "teacher_001");
-        teacherTwo = login(users, "teacher_002");
+        teacherOne = login(users, "teacher_001", Role.TEACHER);
+        teacherTwo = login(users, "teacher_002", Role.TEACHER);
+        student = login(users, "student_001", Role.STUDENT);
 
         CourseSelectionModule module = CourseSelectionDemoFactory.createModule();
         module.getSelectionRecordService().create(new CourseSelectionRecord("REC-ACTIVE", "STU-001",
@@ -63,7 +67,7 @@ class CourseTeachingQueryMessageHandlerTest {
         teachers.save(new TeacherProfile("教师002", "teacher_002", "赵老师", "计算机学院", "讲师", true));
         handler = new CourseMessageHandler(module.getSelectionService(), module.getCatalogService(),
                 module.getOfferingService(), module.getSelectionRoundService(),
-                module.getSelectionRecordService(),
+                module.getSelectionRecordService(), module.getGradeSubmissionService(),
                 new InMemoryStudentSelectionProfileProvider(Collections.emptyList()), users, teachers,
                 new DefaultStudentManagementService(studentRepository));
     }
@@ -122,7 +126,7 @@ class CourseTeachingQueryMessageHandlerTest {
     @Test
     void unboundTeacherAccountIsRejected() {
         InMemoryUserManagementService users = new InMemoryUserManagementService();
-        Session unboundTeacher = login(users, "teacher_unbound");
+        Session unboundTeacher = login(users, "teacher_unbound", Role.TEACHER);
         CourseSelectionModule module = CourseSelectionDemoFactory.createModule();
         CourseMessageHandler unboundHandler = new CourseMessageHandler(module.getSelectionService(),
                 module.getCatalogService(), module.getOfferingService(), module.getSelectionRoundService(),
@@ -140,8 +144,53 @@ class CourseTeachingQueryMessageHandlerTest {
         assertFalse(response.getPayload() instanceof List<?>);
     }
 
-    private static Session login(InMemoryUserManagementService users, String userId) {
-        UserCredentials credentials = new UserCredentials(userId, "password", userId, Role.TEACHER.name());
+    @Test
+    void teacherCanOpenDraftAndSaveOnlyActiveStudentsGrade() {
+        Message opened = handler.handle(Message.request("open-grade-draft",
+                MessageType.COURSE_GRADE_DRAFT_V2,
+                CourseGradeDraftV2Command.openDraft(teacherOne.getToken(), "OFFER-JAVA-01")));
+
+        assertEquals(StatusCode.OK, opened.getStatusCode());
+        TeachingGradeDraft draft = (TeachingGradeDraft) opened.getPayload();
+        assertEquals("教师001", draft.getSubmission().getTeacherId());
+        assertTrue(draft.getEntries().isEmpty());
+        assertEquals(1, draft.getRoster().getStudents().size());
+
+        Message saved = handler.handle(Message.request("save-grade-entry",
+                MessageType.COURSE_GRADE_DRAFT_V2, CourseGradeDraftV2Command.saveEntry(
+                        teacherOne.getToken(), "OFFER-JAVA-01", "STU-001", 91)));
+
+        assertEquals(StatusCode.OK, saved.getStatusCode());
+        TeachingGradeDraft savedDraft = (TeachingGradeDraft) saved.getPayload();
+        assertEquals(1, savedDraft.getEntries().size());
+        assertEquals(91, savedDraft.getEntries().get(0).getScore());
+        assertEquals(SelectionType.RETAKE, savedDraft.getEntries().get(0).getSelectionType());
+    }
+
+    @Test
+    void rejectsAnotherTeachersOrDroppedStudentsGradeEntry() {
+        Message otherTeacher = handler.handle(Message.request("other-teacher-save",
+                MessageType.COURSE_GRADE_DRAFT_V2, CourseGradeDraftV2Command.saveEntry(
+                        teacherTwo.getToken(), "OFFER-JAVA-01", "STU-001", 85)));
+        Message droppedStudent = handler.handle(Message.request("dropped-student-save",
+                MessageType.COURSE_GRADE_DRAFT_V2, CourseGradeDraftV2Command.saveEntry(
+                        teacherOne.getToken(), "OFFER-JAVA-01", "STU-002", 85)));
+
+        assertEquals(StatusCode.FORBIDDEN, otherTeacher.getStatusCode());
+        assertEquals(StatusCode.NOT_FOUND, droppedStudent.getStatusCode());
+    }
+
+    @Test
+    void studentCannotOpenTeachersGradeDraft() {
+        Message response = handler.handle(Message.request("student-open-grade-draft",
+                MessageType.COURSE_GRADE_DRAFT_V2,
+                CourseGradeDraftV2Command.openDraft(student.getToken(), "OFFER-JAVA-01")));
+
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
+    }
+
+    private static Session login(InMemoryUserManagementService users, String userId, Role role) {
+        UserCredentials credentials = new UserCredentials(userId, "password", userId, role.name());
         users.register(credentials);
         return users.login(credentials).getData();
     }

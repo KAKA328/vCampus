@@ -7,6 +7,7 @@ import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.CourseDropRecordV2Command;
 import cn.vcampus.course.CourseCatalogService;
+import cn.vcampus.course.CourseGradeDraftV2Command;
 import cn.vcampus.course.CourseManagementCommand;
 import cn.vcampus.course.CourseOfferingService;
 import cn.vcampus.course.CourseSelectionRecord;
@@ -15,10 +16,14 @@ import cn.vcampus.course.CourseSelectionQueryV2Command;
 import cn.vcampus.course.CourseSelectOfferingV2Command;
 import cn.vcampus.course.CourseSelectionService;
 import cn.vcampus.course.CourseTeachingQueryV2Command;
+import cn.vcampus.course.GradeEntry;
+import cn.vcampus.course.GradeSubmission;
+import cn.vcampus.course.GradeSubmissionService;
 import cn.vcampus.course.SelectionRoundService;
 import cn.vcampus.course.StudentSelectionProfile;
 import cn.vcampus.course.StudentSelectionProfileProvider;
 import cn.vcampus.course.TeachingOffering;
+import cn.vcampus.course.TeachingGradeDraft;
 import cn.vcampus.course.TeachingRoster;
 import cn.vcampus.course.TeachingRosterEntry;
 import cn.vcampus.student.StudentManagementService;
@@ -33,6 +38,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /** 将当前选课流程转换为 Socket 消息；学生资料仅由服务器按 token 查询。 */
 final class CourseMessageHandler {
@@ -41,6 +47,7 @@ final class CourseMessageHandler {
     private final CourseOfferingService offerings;
     private final SelectionRoundService selectionRounds;
     private final CourseSelectionRecordService records;
+    private final GradeSubmissionService gradeSubmissions;
     private final StudentSelectionProfileProvider profiles;
     private final UserManagementService users;
     private final TeacherProfileService teachers;
@@ -48,19 +55,19 @@ final class CourseMessageHandler {
 
     CourseMessageHandler(CourseSelectionService courses, StudentSelectionProfileProvider profiles,
             UserManagementService users) {
-        this(courses, null, null, null, null, profiles, users, null, null);
+        this(courses, null, null, null, null, null, profiles, users, null, null);
     }
 
     CourseMessageHandler(CourseSelectionService courses, CourseCatalogService catalog,
             CourseOfferingService offerings, StudentSelectionProfileProvider profiles,
             UserManagementService users) {
-        this(courses, catalog, offerings, null, null, profiles, users, null, null);
+        this(courses, catalog, offerings, null, null, null, profiles, users, null, null);
     }
 
     CourseMessageHandler(CourseSelectionService courses, CourseCatalogService catalog,
             CourseOfferingService offerings, SelectionRoundService selectionRounds,
             StudentSelectionProfileProvider profiles, UserManagementService users) {
-        this(courses, catalog, offerings, selectionRounds, null, profiles, users, null, null);
+        this(courses, catalog, offerings, selectionRounds, null, null, profiles, users, null, null);
     }
 
     CourseMessageHandler(CourseSelectionService courses, CourseCatalogService catalog,
@@ -68,6 +75,15 @@ final class CourseMessageHandler {
             CourseSelectionRecordService records, StudentSelectionProfileProvider profiles,
             UserManagementService users, TeacherProfileService teachers,
             StudentManagementService students) {
+        this(courses, catalog, offerings, selectionRounds, records, null, profiles, users, teachers,
+                students);
+    }
+
+    CourseMessageHandler(CourseSelectionService courses, CourseCatalogService catalog,
+            CourseOfferingService offerings, SelectionRoundService selectionRounds,
+            CourseSelectionRecordService records, GradeSubmissionService gradeSubmissions,
+            StudentSelectionProfileProvider profiles, UserManagementService users,
+            TeacherProfileService teachers, StudentManagementService students) {
         if (courses == null || profiles == null || users == null) {
             throw new IllegalArgumentException("course handler dependencies must not be null");
         }
@@ -76,6 +92,7 @@ final class CourseMessageHandler {
         this.offerings = offerings;
         this.selectionRounds = selectionRounds;
         this.records = records;
+        this.gradeSubmissions = gradeSubmissions;
         this.profiles = profiles;
         this.users = users;
         this.teachers = teachers;
@@ -103,6 +120,9 @@ final class CourseMessageHandler {
                     break;
                 case COURSE_TEACHING_QUERY_V2:
                     result = teachingQuery(payload(request, CourseTeachingQueryV2Command.class));
+                    break;
+                case COURSE_GRADE_DRAFT_V2:
+                    result = gradeDraft(payload(request, CourseGradeDraftV2Command.class));
                     break;
                 case COURSE_MANAGE:
                     result = manage(payload(request, CourseManagementCommand.class));
@@ -165,26 +185,36 @@ final class CourseMessageHandler {
         return roster(profile.getData(), command.getOfferingId());
     }
 
-    private ServiceResult<?> roster(TeacherProfile teacher, String offeringId) {
-        if (records == null || students == null) return teachingServiceUnavailable();
+    private ServiceResult<TeachingRoster> roster(TeacherProfile teacher, String offeringId) {
+        if (offerings == null || catalog == null || records == null || students == null) {
+            return teachingServiceUnavailable();
+        }
         ServiceResult<cn.vcampus.course.CourseOffering> offering = offerings.findById(offeringId);
-        if (offering.getStatus() != StatusCode.OK) return offering;
+        if (offering.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(offering.getStatus(), offering.getMessage());
+        }
         if (!teacher.getTeacherId().equals(offering.getData().getTeacherId())) {
             return ServiceResult.failure(StatusCode.FORBIDDEN,
                     "teacher cannot view another teacher's offering roster");
         }
         ServiceResult<cn.vcampus.course.Course> course = catalog.findById(
                 offering.getData().getCourseId());
-        if (course.getStatus() != StatusCode.OK) return course;
+        if (course.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(course.getStatus(), course.getMessage());
+        }
         ServiceResult<List<CourseSelectionRecord>> recordsResult = records
                 .listActiveByOffering(offering.getData().getOfferingId());
-        if (recordsResult.getStatus() != StatusCode.OK) return recordsResult;
+        if (recordsResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(recordsResult.getStatus(), recordsResult.getMessage());
+        }
         List<String> studentIds = new ArrayList<String>();
         for (CourseSelectionRecord record : recordsResult.getData()) {
             studentIds.add(record.getStudentId());
         }
         ServiceResult<List<StudentRecord>> studentsResult = students.findByIds(studentIds);
-        if (studentsResult.getStatus() != StatusCode.OK) return studentsResult;
+        if (studentsResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(studentsResult.getStatus(), studentsResult.getMessage());
+        }
         Map<String, StudentRecord> studentsById = new LinkedHashMap<String, StudentRecord>();
         for (StudentRecord student : studentsResult.getData()) {
             studentsById.put(student.getStudentId(), student);
@@ -201,6 +231,64 @@ final class CourseMessageHandler {
         }
         return ServiceResult.ok(new TeachingRoster(new TeachingOffering(offering.getData(),
                 course.getData()), roster));
+    }
+
+    /** 教师打开或修改本人教学班成绩草稿，学生范围和选课类别均由服务端确定。 */
+    private ServiceResult<?> gradeDraft(CourseGradeDraftV2Command command) {
+        ServiceResult<TeacherProfile> profile = teacherProfile(command.getToken());
+        if (profile.getStatus() != StatusCode.OK) return profile;
+        if (gradeSubmissions == null) return gradeDraftServiceUnavailable();
+        ServiceResult<TeachingRoster> roster = roster(profile.getData(), command.getOfferingId());
+        if (roster.getStatus() != StatusCode.OK) return roster;
+
+        TeachingRosterEntry selectedStudent = null;
+        if (command.getOperation() == CourseGradeDraftV2Command.Operation.SAVE_ENTRY) {
+            selectedStudent = findRosterStudent(roster.getData(), command.getStudentId());
+            if (selectedStudent == null) {
+                return ServiceResult.failure(StatusCode.NOT_FOUND,
+                        "student is not an active selection in this offering");
+            }
+        }
+
+        ServiceResult<GradeSubmission> submission = findOrCreateDraft(profile.getData(),
+                command.getOfferingId());
+        if (submission.getStatus() != StatusCode.OK) return submission;
+        if (command.getOperation() == CourseGradeDraftV2Command.Operation.SAVE_ENTRY) {
+            ServiceResult<GradeEntry> saved = gradeSubmissions.saveDraftEntry(new GradeEntry(
+                    submission.getData().getSubmissionId(), selectedStudent.getStudentId(),
+                    selectedStudent.getSelectionType(), command.getScore(), LocalDateTime.now()));
+            if (saved.getStatus() != StatusCode.OK) return saved;
+        }
+        return readTeachingGradeDraft(roster.getData(), submission.getData());
+    }
+
+    /** 找到既有草稿；首次打开教学班时创建一份。并发首次打开时回读已经创建成功的草稿。 */
+    private ServiceResult<GradeSubmission> findOrCreateDraft(TeacherProfile teacher,
+            String offeringId) {
+        ServiceResult<GradeSubmission> found = gradeSubmissions.findByOffering(offeringId);
+        if (found.getStatus() == StatusCode.OK) return found;
+        if (found.getStatus() != StatusCode.NOT_FOUND) return found;
+        ServiceResult<GradeSubmission> created = gradeSubmissions.createDraft(GradeSubmission.draft(
+                UUID.randomUUID().toString(), offeringId, teacher.getTeacherId(), LocalDateTime.now()));
+        if (created.getStatus() != StatusCode.CONFLICT) return created;
+        return gradeSubmissions.findByOffering(offeringId);
+    }
+
+    private ServiceResult<TeachingGradeDraft> readTeachingGradeDraft(TeachingRoster roster,
+            GradeSubmission submission) {
+        ServiceResult<List<GradeEntry>> entries = gradeSubmissions.listEntries(
+                submission.getSubmissionId());
+        if (entries.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(entries.getStatus(), entries.getMessage());
+        }
+        return ServiceResult.ok(new TeachingGradeDraft(roster, submission, entries.getData()));
+    }
+
+    private static TeachingRosterEntry findRosterStudent(TeachingRoster roster, String studentId) {
+        for (TeachingRosterEntry student : roster.getStudents()) {
+            if (student.getStudentId().equals(studentId)) return student;
+        }
+        return null;
     }
 
     /** 课程目录和教学班管理仅允许拥有 COURSE_MANAGE 权限的教务人员使用。 */
@@ -264,9 +352,14 @@ final class CourseMessageHandler {
                 "requested course management service is not configured");
     }
 
-    private static ServiceResult<Void> teachingServiceUnavailable() {
+    private static <T> ServiceResult<T> teachingServiceUnavailable() {
         return ServiceResult.failure(StatusCode.NOT_FOUND,
                 "teacher teaching query service is not configured");
+    }
+
+    private static <T> ServiceResult<T> gradeDraftServiceUnavailable() {
+        return ServiceResult.failure(StatusCode.NOT_FOUND,
+                "teacher grade draft service is not configured");
     }
 
     private ServiceResult<StudentSelectionProfile> profile(String token, Permission permission) {

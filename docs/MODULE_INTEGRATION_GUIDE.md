@@ -171,10 +171,11 @@ docs/MODULE_INTEGRATION_GUIDE.md
 - `COURSE_SELECT_OFFERING_V2` + `CourseSelectOfferingV2Command(token, roundId, offeringId)`
 - `COURSE_DROP_RECORD_V2` + `CourseDropRecordV2Command(token, recordId)`
 - `COURSE_TEACHING_QUERY_V2` + `CourseTeachingQueryV2Command`：教师查询本人教学班或指定教学班有效名单；服务器根据 token 解析教师档案，名单只含有效选课记录并保留选课类别。
+- `COURSE_GRADE_DRAFT_V2` + `CourseGradeDraftV2Command`：教师打开本人教学班成绩草稿或保存一名有效选课学生的成绩；教师身份、学生选课范围和选课类别均由服务器根据 token 和有效选课记录确定，返回 `TeachingGradeDraft`。
 
 客户端不再提交 `studentId` 作为本人身份，服务器必须根据 `token -> user_id -> student_id` 推导学生档案。
 
-公共角色、权限编码和数据范围见 [`PERMISSIONS.md`](PERMISSIONS.md)。课程新增、修改和停开操作必须先校验 `COURSE_MANAGE`；任课教师录入成绩校验 `GRADE_WRITE`；教务复核校验 `ACADEMIC_REVIEW`。
+公共角色、权限编码和数据范围见 [`PERMISSIONS.md`](PERMISSIONS.md)。课程新增、修改和停开操作必须先校验 `COURSE_MANAGE`；任课教师录入成绩草稿校验 `GRADE_WRITE`；教务复核校验 `ACADEMIC_REVIEW`。成绩草稿阶段不会写入 `tblCourseResult`，后续必须完成全班成绩校验、教师提交及教务审核后，才能生成正式成绩。
 
 ## 6. Payload 设计规则
 

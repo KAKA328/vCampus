@@ -7,6 +7,7 @@ import cn.vcampus.course.CourseSelectionModule;
 import cn.vcampus.course.CourseSelectionRecordService;
 import cn.vcampus.course.CourseSelectionService;
 import cn.vcampus.course.CourseCatalogService;
+import cn.vcampus.course.GradeSubmissionService;
 import cn.vcampus.course.CourseOfferingService;
 import cn.vcampus.course.SelectionRoundService;
 import cn.vcampus.course.StudentSelectionProfileProvider;
@@ -61,7 +62,8 @@ public final class ServerApplication implements Closeable {
             StudentServices studentServices, StoreService store) {
         this(port, users, module.getSelectionService(), module.getCatalogService(),
                 module.getOfferingService(), module.getSelectionRoundService(),
-                module.getSelectionRecordService(), studentServices.profiles, store,
+                module.getSelectionRecordService(), module.getGradeSubmissionService(),
+                studentServices.profiles, store,
                 studentServices.students, new InMemoryLibraryService(),
                 new DenyTeacherStudentAccessPolicy(), null, null);
     }
@@ -87,7 +89,7 @@ public final class ServerApplication implements Closeable {
             TeacherProfileService teachers) {
         this(port, users, module.getSelectionService(), module.getCatalogService(),
                 module.getOfferingService(), module.getSelectionRoundService(),
-                module.getSelectionRecordService(), profiles, store, students, library,
+                module.getSelectionRecordService(), module.getGradeSubmissionService(), profiles, store, students, library,
                 teacherAccess, storeAudit, teachers);
     }
 
@@ -120,10 +122,21 @@ public final class ServerApplication implements Closeable {
             StudentSelectionProfileProvider profiles, StoreService store, StudentManagementService students,
             LibraryService library, TeacherStudentAccessPolicy teacherAccess,
             AuditLogRepository storeAudit, TeacherProfileService teachers) {
+        this(port, users, courses, catalog, offerings, selectionRounds, records, null, profiles,
+                store, students, library, teacherAccess, storeAudit, teachers);
+    }
+
+    ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
+            CourseCatalogService catalog, CourseOfferingService offerings,
+            SelectionRoundService selectionRounds, CourseSelectionRecordService records,
+            GradeSubmissionService gradeSubmissions, StudentSelectionProfileProvider profiles,
+            StoreService store, StudentManagementService students, LibraryService library,
+            TeacherStudentAccessPolicy teacherAccess, AuditLogRepository storeAudit,
+            TeacherProfileService teachers) {
         this.port = port;
         this.userMessages = new UserMessageHandler(users);
         this.courseMessages = new CourseMessageHandler(courses, catalog, offerings, selectionRounds,
-                records, profiles, users, teachers, students);
+                records, gradeSubmissions, profiles, users, teachers, students);
         this.storeMessages = new StoreMessageHandler(store, users, storeAudit);
         this.studentMessages = new StudentMessageHandler(students, users, teacherAccess);
         this.libraryMessages = new LibraryMessageHandler(library, users);
@@ -206,7 +219,8 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.COURSE_SELECTION_QUERY_V2
                 || type == MessageType.COURSE_SELECT_OFFERING_V2
                 || type == MessageType.COURSE_DROP_RECORD_V2
-                || type == MessageType.COURSE_TEACHING_QUERY_V2;
+                || type == MessageType.COURSE_TEACHING_QUERY_V2
+                || type == MessageType.COURSE_GRADE_DRAFT_V2;
     }
 
     // 商店消息白名单：必须与 MessageType 中全部 STORE_* 前缀枚举一一对应，
