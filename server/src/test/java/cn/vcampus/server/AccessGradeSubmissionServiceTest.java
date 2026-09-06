@@ -92,7 +92,7 @@ class AccessGradeSubmissionServiceTest {
     }
 
     @Test
-    void persistsAcademicReturnRemarkAndLaterApproval() {
+    void persistsAcademicReturnRemarkAndRejectsNonAtomicApproval() {
         LocalDateTime now = LocalDateTime.of(2026, 9, 4, 11, 0);
         service.createDraft(GradeSubmission.draft("GRADE-001", "OFFER-001", "T001", now));
         service.submitForReview("GRADE-001");
@@ -104,8 +104,10 @@ class AccessGradeSubmissionServiceTest {
         assertEquals("请核对成绩", restarted.findById("GRADE-001").getData().getReviewRemark());
 
         restarted.submitForReview("GRADE-001");
-        assertEquals(GradeSubmissionStatus.APPROVED, restarted.review("GRADE-001",
-                GradeReviewDecision.APPROVE, "academic_001", "审核通过").getData().getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, restarted.review("GRADE-001",
+                GradeReviewDecision.APPROVE, "academic_001", "审核通过").getStatus());
+        assertEquals(GradeSubmissionStatus.PENDING_REVIEW,
+                restarted.findById("GRADE-001").getData().getStatus());
     }
 
     @Test

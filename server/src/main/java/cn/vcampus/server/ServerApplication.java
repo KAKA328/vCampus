@@ -15,7 +15,6 @@ import cn.vcampus.library.LibraryService;
 import cn.vcampus.library.InMemoryLibraryService;
 import cn.vcampus.store.StoreService;
 import cn.vcampus.store.InMemoryStoreService;
-import cn.vcampus.student.AcademicReviewService;
 import cn.vcampus.student.CourseResultRecordingService;
 import cn.vcampus.student.DefaultStudentManagementService;
 import cn.vcampus.student.InMemoryAcademicReviewService;
@@ -98,12 +97,13 @@ public final class ServerApplication implements Closeable {
     private ServerApplication(int port, UserManagementService users, CourseSelectionModule module,
             StudentSelectionProfileProvider profiles, StoreService store,
             StudentManagementService students, CourseResultRecordingService formalResults,
+            GradeApprovalWorkflow gradeApprovals,
             LibraryService library, TeacherStudentAccessPolicy teacherAccess,
             AuditLogRepository storeAudit, TeacherProfileService teachers) {
         this(port, users, module.getSelectionService(), module.getCatalogService(),
                 module.getOfferingService(), module.getSelectionRoundService(),
                 module.getSelectionRecordService(), module.getGradeSubmissionService(), formalResults,
-                profiles, store, students, library, teacherAccess, storeAudit, teachers);
+                gradeApprovals, profiles, store, students, library, teacherAccess, storeAudit, teachers);
     }
 
     public ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
@@ -147,7 +147,7 @@ public final class ServerApplication implements Closeable {
             TeacherStudentAccessPolicy teacherAccess, AuditLogRepository storeAudit,
             TeacherProfileService teachers) {
         this(port, users, courses, catalog, offerings, selectionRounds, records, gradeSubmissions,
-                null, profiles, store, students, library, teacherAccess, storeAudit, teachers);
+                null, null, profiles, store, students, library, teacherAccess, storeAudit, teachers);
     }
 
     ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
@@ -158,10 +158,25 @@ public final class ServerApplication implements Closeable {
             StudentManagementService students, LibraryService library,
             TeacherStudentAccessPolicy teacherAccess, AuditLogRepository storeAudit,
             TeacherProfileService teachers) {
+        this(port, users, courses, catalog, offerings, selectionRounds, records, gradeSubmissions,
+                formalResults, null, profiles, store, students, library, teacherAccess, storeAudit,
+                teachers);
+    }
+
+    ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
+            CourseCatalogService catalog, CourseOfferingService offerings,
+            SelectionRoundService selectionRounds, CourseSelectionRecordService records,
+            GradeSubmissionService gradeSubmissions, CourseResultRecordingService formalResults,
+            GradeApprovalWorkflow gradeApprovals,
+            StudentSelectionProfileProvider profiles, StoreService store,
+            StudentManagementService students, LibraryService library,
+            TeacherStudentAccessPolicy teacherAccess, AuditLogRepository storeAudit,
+            TeacherProfileService teachers) {
         this.port = port;
         this.userMessages = new UserMessageHandler(users);
         this.courseMessages = new CourseMessageHandler(courses, catalog, offerings, selectionRounds,
-                records, gradeSubmissions, formalResults, profiles, users, teachers, students);
+                records, gradeSubmissions, formalResults, gradeApprovals, profiles, users, teachers,
+                students);
         this.storeMessages = new StoreMessageHandler(store, users, storeAudit);
         this.studentMessages = new StudentMessageHandler(students, users, teacherAccess);
         this.libraryMessages = new LibraryMessageHandler(library, users);
@@ -286,7 +301,11 @@ public final class ServerApplication implements Closeable {
                 : accessStudentServices(databasePath);
         new ServerApplication(port, UserServiceFactory.create(args), courses.getModule(),
                 courses.getProfiles(), StoreServiceFactory.create(databasePath),
-                studentServices.students, studentServices.results, LibraryServiceFactory.create(databasePath),
+                studentServices.students, studentServices.results,
+                databasePath == null ? new InMemoryGradeApprovalWorkflow(
+                        courses.getModule().getGradeSubmissionService(), studentServices.results)
+                        : new AccessGradeApprovalWorkflow(databasePath),
+                LibraryServiceFactory.create(databasePath),
                 teacherAccess(databasePath), UserServiceFactory.createStoreAuditLog(args),
                 courses.getTeachers()).start();
     }

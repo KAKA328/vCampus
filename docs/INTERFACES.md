@@ -15,7 +15,7 @@
 所有服务方法返回 `ServiceResult<T>`，由服务器统一映射为 `Message` 响应。服务端必须再次校验会话和权限。
 
 `GradeSubmissionService` 当前负责保存一门教学班的一份成绩草稿和其中的学生成绩：
-`createDraft`、`findById`、`findByOffering`、`listByStatus`、`listEntries`、`saveDraftEntry`、`submitForReview`、`review`。每个教学班最多一份提交单；草稿、被退回或待审核时都允许覆盖修改同一学生成绩，待审核修改后的最新版本供教务读取。教务老师可退回并保存意见，或审核通过；通过时由 `CourseResultRecordingService` 向 `tblCourseResult` 批量写入正式成绩，供学籍审查和重修判断读取。
+`createDraft`、`findById`、`findByOffering`、`listByStatus`、`listEntries`、`saveDraftEntry`、`submitForReview`、`review`。每个教学班最多一份提交单；草稿、被退回或待审核时都允许覆盖修改同一学生成绩，待审核修改后的最新版本供教务读取。教务老师可退回并保存意见；审核通过由服务器的成绩审批工作流统一处理。在 Access 模式中，写入 `tblCourseResult` 的所有正式成绩与将成绩单改为 `APPROVED` 使用同一数据库事务：任一步失败即全部回滚，重复审核返回冲突，供学籍审查和重修判断读取。
 
 ## 学籍与选课对接接口
 

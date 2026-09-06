@@ -232,6 +232,10 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
         if (decision == GradeReviewDecision.RETURN && normalize(remark) == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "a return remark is required");
         }
+        if (decision == GradeReviewDecision.APPROVE) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "approval must use the atomic grade approval workflow");
+        }
         try (Connection connection = open()) {
             connection.setAutoCommit(false);
             try {
@@ -245,8 +249,7 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
                     return ServiceResult.failure(StatusCode.CONFLICT,
                             "only pending grade submissions can be reviewed");
                 }
-                GradeSubmissionStatus status = decision == GradeReviewDecision.APPROVE
-                        ? GradeSubmissionStatus.APPROVED : GradeSubmissionStatus.RETURNED;
+                GradeSubmissionStatus status = GradeSubmissionStatus.RETURNED;
                 LocalDateTime now = LocalDateTime.now();
                 try (PreparedStatement statement = connection.prepareStatement(
                         "UPDATE tblGradeSubmission SET status=?,updated_at=?,reviewed_by=?,"

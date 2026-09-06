@@ -59,6 +59,7 @@ final class CourseMessageHandler {
     private final CourseSelectionRecordService records;
     private final GradeSubmissionService gradeSubmissions;
     private final CourseResultRecordingService formalResults;
+    private final GradeApprovalWorkflow gradeApprovals;
     private final StudentSelectionProfileProvider profiles;
     private final UserManagementService users;
     private final TeacherProfileService teachers;
@@ -105,6 +106,16 @@ final class CourseMessageHandler {
             CourseResultRecordingService formalResults, StudentSelectionProfileProvider profiles,
             UserManagementService users, TeacherProfileService teachers,
             StudentManagementService students) {
+        this(courses, catalog, offerings, selectionRounds, records, gradeSubmissions, formalResults,
+                null, profiles, users, teachers, students);
+    }
+
+    CourseMessageHandler(CourseSelectionService courses, CourseCatalogService catalog,
+            CourseOfferingService offerings, SelectionRoundService selectionRounds,
+            CourseSelectionRecordService records, GradeSubmissionService gradeSubmissions,
+            CourseResultRecordingService formalResults, GradeApprovalWorkflow gradeApprovals,
+            StudentSelectionProfileProvider profiles, UserManagementService users,
+            TeacherProfileService teachers, StudentManagementService students) {
         if (courses == null || profiles == null || users == null) {
             throw new IllegalArgumentException("course handler dependencies must not be null");
         }
@@ -115,6 +126,9 @@ final class CourseMessageHandler {
         this.records = records;
         this.gradeSubmissions = gradeSubmissions;
         this.formalResults = formalResults;
+        this.gradeApprovals = gradeApprovals != null ? gradeApprovals
+                : (gradeSubmissions == null || formalResults == null ? null
+                        : new InMemoryGradeApprovalWorkflow(gradeSubmissions, formalResults));
         this.profiles = profiles;
         this.users = users;
         this.teachers = teachers;
@@ -415,15 +429,13 @@ final class CourseMessageHandler {
             return gradeSubmissions.review(command.getSubmissionId(), GradeReviewDecision.RETURN,
                     reviewer.getData().getUser().getUserId(), command.getRemark());
         }
-        if (formalResults == null) return gradeReviewServiceUnavailable();
+        if (formalResults == null || gradeApprovals == null) return gradeReviewServiceUnavailable();
         ServiceResult<Void> complete = requireCompleteGrades(detail.getData().getRoster(),
                 detail.getData().getSubmission());
         if (complete.getStatus() != StatusCode.OK) return complete;
         ServiceResult<List<FormalCourseResult>> recordsToPublish = formalResults(detail.getData());
         if (recordsToPublish.getStatus() != StatusCode.OK) return recordsToPublish;
-        ServiceResult<Void> published = formalResults.recordAll(recordsToPublish.getData());
-        if (published.getStatus() != StatusCode.OK) return published;
-        return gradeSubmissions.review(command.getSubmissionId(), GradeReviewDecision.APPROVE,
+        return gradeApprovals.approve(command.getSubmissionId(), recordsToPublish.getData(),
                 reviewer.getData().getUser().getUserId(), command.getRemark());
     }
 
