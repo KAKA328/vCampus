@@ -13,6 +13,13 @@ public final class InMemoryStudentRepository implements StudentRepository {
     private final Map<String, StudentRecord> records = new LinkedHashMap<String, StudentRecord>();
 
     @Override
+    public synchronized List<StudentRecord> findAll() {
+        List<StudentRecord> result = new ArrayList<StudentRecord>(records.values());
+        result.sort((a, b) -> a.getStudentId().compareTo(b.getStudentId()));
+        return result;
+    }
+
+    @Override
     public synchronized StudentRecord findById(String studentId) {
         return records.get(requireText(studentId, "studentId"));
     }
@@ -82,5 +89,28 @@ public final class InMemoryStudentRepository implements StudentRepository {
             throw new IllegalArgumentException(field + " must not be blank");
         }
         return value.trim();
+    }
+
+    @Override
+    public synchronized StudentRecord saveIfUnchanged(StudentRecord record, StudentRecord expected) {
+        if (record == null) throw new IllegalArgumentException("record must not be null");
+        String id = requireText(record.getStudentId(), "studentId");
+        if (expected != null && !id.equals(expected.getStudentId())) {
+            throw new IllegalArgumentException("expected studentId mismatch");
+        }
+        if (!StudentProfileSnapshot.matches(records.get(id), expected)) return null;
+        return save(record);
+    }
+
+    @Override
+    public synchronized StudentRecord updateContacts(StudentRecord expected, String phone, String email) {
+        if (expected == null || expected.getUserId() == null) {
+            throw new IllegalArgumentException("bound profile required");
+        }
+        StudentRecord current = records.get(expected.getStudentId());
+        if (!StudentProfileSnapshot.matches(current, expected)) return null;
+        StudentRecord updated = StudentProfileSnapshot.withContacts(current, phone, email);
+        records.put(current.getStudentId(), updated);
+        return updated;
     }
 }

@@ -1,6 +1,17 @@
 package cn.vcampus.server;
 
+import cn.vcampus.common.Message;
+import cn.vcampus.common.MessageType;
+import cn.vcampus.common.Role;
+import cn.vcampus.common.StatusCode;
+import cn.vcampus.course.CourseSelectionModule;
+import cn.vcampus.library.InMemoryLibraryService;
+import cn.vcampus.store.InMemoryStoreService;
+import cn.vcampus.student.DefaultStudentManagementService;
+import cn.vcampus.student.StudentAcademicQueryV1Command;
 import cn.vcampus.student.TeacherProfile;
+import cn.vcampus.user.InMemoryUserManagementService;
+import cn.vcampus.user.UserCredentials;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
@@ -12,6 +23,7 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -36,6 +48,48 @@ class AccessDatabaseSchemaTest {
         assertEquals(1, countWhere(database, "tblTeacher", "teacher_id", "demo_teacher"));
         assertEquals(5, count(database, "tblProduct"));
         assertTrue(Files.exists(database));
+        verifyAcademicDispatch(database);
+    }
+
+    private static void verifyAcademicDispatch(Path database) throws Exception {
+        InMemoryUserManagementService users = new InMemoryUserManagementService();
+        UserCredentials account = new UserCredentials(
+                "demo_student", "Demo123", "学生", Role.STUDENT.name());
+        users.register(account);
+        String token = users.login(account).getData().getToken();
+        CourseServiceFactory.CourseRuntime runtime = CourseServiceFactory.create(database);
+        CourseSelectionModule module = runtime.getModule();
+        try (ServerApplication server = new ServerApplication(0, users, module.getSelectionService(),
+                module.getCatalogService(), module.getOfferingService(), module.getSelectionRoundService(),
+                runtime.getProfiles(), new InMemoryStoreService(),
+                new DefaultStudentManagementService(new AccessStudentRepository(database)),
+                new InMemoryLibraryService(), new DenyTeacherStudentAccessPolicy(), null,
+                new AccessAcademicReviewService(database))) {
+            Message history = server.dispatch(Message.request("history",
+                    MessageType.STUDENT_ACADEMIC_QUERY_V1,
+                    new StudentAcademicQueryV1Command(token,
+                            StudentAcademicQueryV1Command.QueryType.HISTORY)));
+            assertEquals(StatusCode.OK, history.getStatusCode());
+            assertEquals(3, ((List<?>) history.getPayload()).size());
+            Message pending = server.dispatch(Message.request("retakes",
+                    MessageType.STUDENT_ACADEMIC_QUERY_V1,
+                    new StudentAcademicQueryV1Command(token,
+                            StudentAcademicQueryV1Command.QueryType.PENDING_RETAKES)));
+            assertEquals(StatusCode.OK, pending.getStatusCode());
+            assertTrue(((List<?>) pending.getPayload()).isEmpty());
+            // Stock seed has no selection round: academic reads must still work.
+            assertEquals(StatusCode.NOT_FOUND,
+                    runtime.getProfiles().findByUserId("demo_student").getStatus());
+            try (Connection connection = open(database); Statement statement = connection.createStatement()) {
+                statement.execute("INSERT INTO tblSelectionRound(round_id,term,round_type,starts_at,ends_at,status) "
+                        + "VALUES ('test-round','2026-2027-1','INITIAL',DATEADD('d',-1,NOW()),"
+                        + "DATEADD('d',1,NOW()),'OPEN')");
+            }
+            assertEquals(StatusCode.OK,
+                    runtime.getProfiles().findByUserId("demo_student").getStatus());
+            assertTrue(runtime.getProfiles().findByUserId("demo_student").getData()
+                    .getPendingRetakeCourseIds().isEmpty());
+        }
     }
 
     @Test
@@ -59,7 +113,7 @@ class AccessDatabaseSchemaTest {
         assertTrue(teachers.findByUserId("teacher001").isActive());
     }
 
-    private static String readScript(String file) throws IOException {
+    static String readScript(String file) throws IOException {
         return new String(Files.readAllBytes(repositoryRoot().resolve(file)), StandardCharsets.UTF_8);
     }
 
@@ -74,7 +128,7 @@ class AccessDatabaseSchemaTest {
         return current;
     }
 
-    private static void executeScript(Path database, String script) throws SQLException, IOException {
+    static void executeScript(Path database, String script) throws SQLException, IOException {
         StringBuilder withoutComments = new StringBuilder();
         BufferedReader reader = new BufferedReader(new StringReader(script));
         String line;

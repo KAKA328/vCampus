@@ -2,6 +2,7 @@ package cn.vcampus.server;
 
 import cn.vcampus.student.StudentRecord;
 import cn.vcampus.student.StudentRepository;
+import cn.vcampus.student.StudentProfileSnapshot;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -28,6 +29,17 @@ public final class AccessStudentRepository implements StudentRepository {
             throw new IllegalArgumentException("databasePath must not be null");
         }
         this.databasePath = databasePath.toAbsolutePath().normalize();
+    }
+
+    @Override
+    public List<StudentRecord> findAll() {
+        try (Connection connection = open();
+                PreparedStatement statement = connection.prepareStatement("SELECT " + COLUMNS + " FROM tblStudent ORDER BY student_id");
+                ResultSet results = statement.executeQuery()) {
+            List<StudentRecord> rows = new ArrayList<StudentRecord>();
+            while (results.next()) rows.add(readRecord(results));
+            return rows;
+        } catch (SQLException failure) { throw databaseFailure("list students", failure); }
     }
 
     @Override
@@ -177,6 +189,106 @@ public final class AccessStudentRepository implements StudentRepository {
         }
     }
 
+    @Override
+    public synchronized StudentRecord saveIfUnchanged(StudentRecord record, StudentRecord expected) {
+        validate(record);
+        if (expected != null && !record.getStudentId().equals(expected.getStudentId())) {
+            throw new IllegalArgumentException("expected studentId mismatch");
+        }
+        return conditionalWrite(record, expected, false);
+    }
+
+    @Override
+    public synchronized StudentRecord updateContacts(StudentRecord expected, String phone, String email) {
+        if (expected == null || expected.getUserId() == null) {
+            throw new IllegalArgumentException("bound profile required");
+        }
+        validate(expected);
+        return conditionalWrite(StudentProfileSnapshot.withContacts(expected, phone, email), expected, true);
+    }
+
+    private StudentRecord conditionalWrite(StudentRecord record, StudentRecord expected, boolean contactsOnly) {
+        try (Connection connection = open()) {
+            connection.setAutoCommit(false);
+            try {
+                String userId = normalize(record.getUserId());
+                if (!contactsOnly && userId != null
+                        && isBoundToAnotherStudent(connection, userId, record.getStudentId())) {
+                    throw new IllegalStateException("userId is already bound to another student");
+                }
+                if (expected == null) {
+                    // Insertion must never turn into an update if another operation created this id.
+                    if (existsById(connection, record.getStudentId())) {
+                        connection.rollback();
+                        return null;
+                    }
+                    insert(connection, record, userId);
+                } else {
+                    List<Object> expectedValues = new ArrayList<Object>();
+                    String where = expectedPredicate(expected, expectedValues);
+                    String set = contactsOnly ? "phone=?,email=?" :
+                            "user_id=?,student_name=?,gender=?,department_name=?,major_name=?,class_id=?,"
+                            + "enrollment_year=?,status=?,phone=?,email=?";
+                    try (PreparedStatement statement = connection.prepareStatement(
+                            "UPDATE tblStudent SET " + set + " WHERE " + where)) {
+                        int index;
+                        if (contactsOnly) {
+                            setNullableString(statement, 1, record.getPhone());
+                            setNullableString(statement, 2, record.getEmail());
+                            index = 3;
+                        } else {
+                            bindProfile(statement, record, userId, 1);
+                            index = 11;
+                        }
+                        for (Object value : expectedValues) {
+                            if (value instanceof Integer) statement.setInt(index++, (Integer) value);
+                            else statement.setString(index++, (String) value);
+                        }
+                        if (statement.executeUpdate() != 1) {
+                            connection.rollback();
+                            return null;
+                        }
+                    }
+                }
+                connection.commit();
+                return record;
+            } catch (SQLException failure) {
+                rollbackQuietly(connection);
+                if (expected == null && existsById(connection, record.getStudentId())) return null;
+                throw databaseFailure("conditionally save student", failure);
+            } catch (RuntimeException failure) {
+                rollbackQuietly(connection);
+                throw failure;
+            }
+        } catch (SQLException failure) {
+            throw databaseFailure("conditionally save student", failure);
+        }
+    }
+
+    /** The expected state is checked by the UPDATE itself, not by a preceding SELECT. */
+    private static String expectedPredicate(StudentRecord expected, List<Object> values) {
+        String[] columns = COLUMNS.split(",");
+        Object[] state = {expected.getStudentId(), expected.getUserId(), expected.getName(),
+                expected.getGender(), expected.getDepartmentName(), expected.getMajorName(),
+                expected.getClassId(), expected.getEnrollmentYear(), expected.getStatus(),
+                expected.getPhone(), expected.getEmail()};
+        StringBuilder predicate = new StringBuilder();
+        for (int i = 0; i < columns.length; i++) {
+            if (i > 0) predicate.append(" AND ");
+            if (state[i] == null) {
+                predicate.append(columns[i]).append(" IS NULL");
+            } else {
+                // readRecord maps an unconfigured nullable enrollment year to 0.
+                boolean nullableYear = "enrollment_year".equals(columns[i]) && Integer.valueOf(0).equals(state[i]);
+                if (nullableYear) predicate.append('(');
+                predicate.append(columns[i]).append("=?");
+                if (nullableYear) predicate.append(" OR enrollment_year IS NULL)");
+                values.add(state[i]);
+            }
+        }
+        return predicate.toString();
+    }
+
     private static boolean existsById(Connection connection, String studentId) throws SQLException {
         return findId(connection, "SELECT student_id FROM tblStudent WHERE student_id=?", studentId) != null;
     }
@@ -236,7 +348,7 @@ public final class AccessStudentRepository implements StudentRepository {
         setNullableString(statement, index++, record.getEmail());
     }
 
-    private static StudentRecord readRecord(ResultSet results) throws SQLException {
+    static StudentRecord readRecord(ResultSet results) throws SQLException {
         return new StudentRecord(
                 results.getString("student_id"),
                 results.getString("user_id"),

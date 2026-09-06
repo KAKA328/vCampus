@@ -20,10 +20,11 @@ class AccessTeacherRepositoryTest {
     Path temporaryDirectory;
 
     private AccessTeacherRepository repository;
+    private Path database;
 
     @BeforeEach
     void setUp() throws Exception {
-        Path database = temporaryDirectory.resolve("teacher-profile.accdb");
+        database = temporaryDirectory.resolve("teacher-profile.accdb");
         Class.forName("net.ucanaccess.jdbc.UcanaccessDriver");
         try (Connection connection = DriverManager.getConnection("jdbc:ucanaccess://" + database
                 + ";newDatabaseVersion=V2010;immediatelyReleaseResources=true");
@@ -37,6 +38,24 @@ class AccessTeacherRepositoryTest {
                     + "('T001','teacher001','张老师','计算机学院','讲师',1)");
         }
         repository = new AccessTeacherRepository(database);
+    }
+
+    @Test
+    void selfQueryUsesConfiguredAccessDatabaseAndShowsInactiveStatus() {
+        repository.save(new TeacherProfile("T001", "teacher001", "张老师", "计算机学院", "讲师", false));
+        cn.vcampus.user.InMemoryUserManagementService users = new cn.vcampus.user.InMemoryUserManagementService();
+        cn.vcampus.user.UserCredentials credentials = new cn.vcampus.user.UserCredentials(
+                "teacher001", "Demo123", "登录显示名", "TEACHER");
+        users.register(credentials);
+        String token = users.login(credentials).getData().getToken();
+        cn.vcampus.common.Message result = new TeacherSelfMessageHandler(
+                ServerApplication.teacherProfiles(database), users).handle(cn.vcampus.common.Message.request(
+                        "self", cn.vcampus.common.MessageType.TEACHER_SELF_QUERY_V1,
+                        new cn.vcampus.student.TeacherSelfQueryV1Command(token)));
+        assertEquals(cn.vcampus.common.StatusCode.OK, result.getStatusCode());
+        TeacherProfile profile = (TeacherProfile) result.getPayload();
+        assertEquals("张老师", profile.getTeacherName());
+        assertFalse(profile.isActive());
     }
 
     @Test

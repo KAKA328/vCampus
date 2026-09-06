@@ -19,6 +19,14 @@ public final class DefaultStudentManagementService implements StudentManagementS
     }
 
     @Override
+    public ServiceResult<List<StudentRecord>> findAll() {
+        try { return ServiceResult.ok(students.findAll()); }
+        catch (IllegalStateException | UnsupportedOperationException failure) {
+            return ServiceResult.failure(StatusCode.SERVER_ERROR, "failed to list students");
+        }
+    }
+
+    @Override
     public ServiceResult<StudentRecord> findById(String studentId) {
         try {
             StudentRecord record = students.findById(studentId);
@@ -115,7 +123,7 @@ public final class DefaultStudentManagementService implements StudentManagementS
     }
 
     @Override
-    public ServiceResult<StudentRecord> save(StudentRecord record) {
+    public synchronized ServiceResult<StudentRecord> save(StudentRecord record) {
         try {
             return ServiceResult.ok(students.save(record));
         } catch (IllegalArgumentException failure) {
@@ -126,5 +134,46 @@ public final class DefaultStudentManagementService implements StudentManagementS
             }
             return ServiceResult.failure(StatusCode.SERVER_ERROR, "failed to save student");
         }
+    }
+
+    @Override
+    public synchronized ServiceResult<StudentRecord> saveIfUnchanged(StudentRecord record, StudentRecord expected) {
+        try {
+            return conditionalResult(students.saveIfUnchanged(record, expected));
+        } catch (IllegalArgumentException invalid) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, invalid.getMessage());
+        } catch (IllegalStateException failure) {
+            return saveFailure(failure);
+        } catch (UnsupportedOperationException unsupported) {
+            return ServiceResult.failure(StatusCode.SERVER_ERROR, "conditional updates unavailable");
+        }
+    }
+
+    @Override
+    public synchronized ServiceResult<StudentRecord> updateContacts(String userId, StudentRecord expected,
+            String phone, String email) {
+        if (userId == null || expected == null || !userId.equals(expected.getUserId())) {
+            return ServiceResult.failure(StatusCode.FORBIDDEN, "contact update owner mismatch");
+        }
+        try {
+            return conditionalResult(students.updateContacts(expected, phone, email));
+        } catch (IllegalArgumentException invalid) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, invalid.getMessage());
+        } catch (IllegalStateException failure) {
+            return saveFailure(failure);
+        } catch (UnsupportedOperationException unsupported) {
+            return ServiceResult.failure(StatusCode.SERVER_ERROR, "contact updates unavailable");
+        }
+    }
+
+    private static ServiceResult<StudentRecord> conditionalResult(StudentRecord saved) {
+        return saved == null ? ServiceResult.failure(StatusCode.CONFLICT, "档案已发生变化，请刷新后重试")
+                : ServiceResult.ok(saved);
+    }
+
+    private static ServiceResult<StudentRecord> saveFailure(IllegalStateException failure) {
+        return "userId is already bound to another student".equals(failure.getMessage())
+                ? ServiceResult.failure(StatusCode.CONFLICT, failure.getMessage())
+                : ServiceResult.failure(StatusCode.SERVER_ERROR, "failed to save student");
     }
 }

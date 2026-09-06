@@ -49,13 +49,24 @@ class StudentMessageHandlerTest {
     }
 
     @Test
-    void teacherCanReadStudentButCannotUpdate() {
-        assertEquals(StatusCode.OK, handler.handle(request(
+    void teacherCannotReadStudentEvenWhenTeachingPolicyAllowsIt() {
+        assertEquals(StatusCode.FORBIDDEN, handler.handle(request(
                 StudentQueryCommand.byId(teacherToken, "S002"))).getStatusCode());
         assertEquals(StatusCode.FORBIDDEN, handler.handle(request(
                 StudentQueryCommand.byId(teacherToken, "S001"))).getStatusCode());
         assertEquals(StatusCode.FORBIDDEN, handler.handle(request(
                 new StudentUpdateCommand(teacherToken, students.records.get(0)))).getStatusCode());
+    }
+
+    @Test
+    void teacherCannotQueryAnyStudentScopeOrProbeMissingIds() {
+        for (StudentQueryCommand command : Arrays.asList(
+                StudentQueryCommand.self(teacherToken),
+                StudentQueryCommand.byId(teacherToken, "missing"),
+                StudentQueryCommand.byClass(teacherToken, "SE2023-01"),
+                StudentQueryCommand.byMajor(teacherToken, "软件工程"))) {
+            assertEquals(StatusCode.FORBIDDEN, handler.handle(request(command)).getStatusCode());
+        }
     }
 
     @Test
@@ -143,6 +154,21 @@ class StudentMessageHandlerTest {
                 if (records.get(i).getStudentId().equals(record.getStudentId())) records.set(i, record);
             }
             return ServiceResult.ok(record);
+        }
+
+        @Override public synchronized ServiceResult<StudentRecord> saveIfUnchanged(
+                StudentRecord record, StudentRecord expected) {
+            StudentRecord current = findById(record.getStudentId()).getData();
+            if (!cn.vcampus.student.StudentProfileSnapshot.matches(current, expected)) {
+                return ServiceResult.failure(StatusCode.CONFLICT, "profile changed");
+            }
+            return save(record);
+        }
+
+        @Override public synchronized ServiceResult<StudentRecord> updateContacts(String userId,
+                StudentRecord expected, String phone, String email) {
+            if (!userId.equals(expected.getUserId())) return ServiceResult.failure(StatusCode.FORBIDDEN, "owner");
+            return saveIfUnchanged(cn.vcampus.student.StudentProfileSnapshot.withContacts(expected, phone, email), expected);
         }
     }
 }

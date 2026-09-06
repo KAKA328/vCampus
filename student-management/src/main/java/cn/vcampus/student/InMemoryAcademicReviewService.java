@@ -85,35 +85,11 @@ public final class InMemoryAcademicReviewService implements AcademicReviewServic
         }
         String normalizedStudentId = studentId.trim();
         List<CourseHistoryRecord> records = historyFor(normalizedStudentId).getData();
-        Map<String, CourseSummary> summariesByCourseId = new LinkedHashMap<String, CourseSummary>();
-
-        for (CourseHistoryRecord record : records) {
-            CourseSummary summary = summariesByCourseId.get(record.getCourseId());
-            if (summary == null) {
-                summary = new CourseSummary();
-                summariesByCourseId.put(record.getCourseId(), summary);
-            }
-            summary.seen = true;
-            summary.passed = summary.passed || record.isPassed();
-            summary.maxEarnedCredits = Math.max(summary.maxEarnedCredits, record.getEarnedCredits());
-            summary.retake = summary.retake || record.getAttemptNo() > 1 || "重修".equals(record.getAttemptType());
-        }
-
-        int totalEarnedCredits = 0;
-        int passedCourseCount = 0;
-        int failedCourseCount = 0;
-        int retakeCourseCount = 0;
-        for (CourseSummary summary : summariesByCourseId.values()) {
-            if (summary.passed) {
-                passedCourseCount++;
-                totalEarnedCredits += summary.maxEarnedCredits;
-            } else if (summary.seen) {
-                failedCourseCount++;
-            }
-            if (summary.retake) {
-                retakeCourseCount++;
-            }
-        }
+        CreditSummary summary = CreditSummary.from(normalizedStudentId, records);
+        int totalEarnedCredits = summary.getEarnedCredits();
+        int passedCourseCount = summary.getPassedCourses();
+        int failedCourseCount = summary.getPendingRetakes();
+        int retakeCourseCount = summary.getHistoricalRetakes();
 
         boolean graduationReady = totalEarnedCredits >= requiredCredits && failedCourseCount == 0;
         String remark = records.isEmpty() ? "暂无课程成绩记录" : (graduationReady ? "达到阶段学分要求" : "未达到阶段学分要求");
@@ -136,10 +112,7 @@ public final class InMemoryAcademicReviewService implements AcademicReviewServic
     }
 
     private static final class CourseSummary {
-        private boolean seen;
         private boolean passed;
-        private boolean retake;
-        private int maxEarnedCredits;
         private CourseHistoryRecord latestFailed;
     }
 

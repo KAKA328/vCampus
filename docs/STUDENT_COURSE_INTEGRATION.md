@@ -129,6 +129,6 @@ CourseSelectionService 执行轮次、专业、容量、冲突和重修规则
 
 ## 7. 当前实现和待确认项
 
-- Access 模式下教师查询学生已经按教师档案、教学班和有效选课记录限制授课范围；内存模式无授课关系时默认拒绝；
+- 教师在学籍模块只读本人教师档案与在职情况，禁止读取授课学生档案；Access 与内存模式均拒绝旧学生查询入口；
 - `--db` 模式的选课学期由 Access 选课轮次确定，内存演示仍使用 `CourseSelectionDemoFactory.DEMO_TERM`；
 - `review(studentId, requiredCredits)` 当前实时计算，不覆盖 `tblAcademicReview` 历史快照；若要持久化审核结果，需要由教务模块确认审核人和写入接口。

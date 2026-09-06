@@ -22,6 +22,17 @@ public final class AccessTeacherRepository implements TeacherRepository {
     }
 
     @Override
+    public java.util.List<TeacherProfile> findAll() {
+        try (Connection connection = open();
+                PreparedStatement statement = connection.prepareStatement("SELECT " + COLUMNS + " FROM tblTeacher ORDER BY teacher_id");
+                ResultSet results = statement.executeQuery()) {
+            java.util.List<TeacherProfile> rows = new java.util.ArrayList<TeacherProfile>();
+            while (results.next()) rows.add(read(results));
+            return rows;
+        } catch (SQLException failure) { throw databaseFailure("list teachers", failure); }
+    }
+
+    @Override
     public TeacherProfile findById(String teacherId) {
         return find("SELECT " + COLUMNS + " FROM tblTeacher WHERE teacher_id=?",
                 requireText(teacherId, "teacherId"), "find teacher by id");
@@ -133,7 +144,7 @@ public final class AccessTeacherRepository implements TeacherRepository {
         if (update) statement.setString(index, profile.getTeacherId());
     }
 
-    private static TeacherProfile read(ResultSet results) throws SQLException {
+    static TeacherProfile read(ResultSet results) throws SQLException {
         return new TeacherProfile(results.getString("teacher_id"), results.getString("user_id"),
                 results.getString("teacher_name"), results.getString("department_name"),
                 results.getString("title"), results.getBoolean("active"));
