@@ -52,9 +52,24 @@ class ModuleCardPanelTest {
         ModuleCardPanel panel = new ModuleCardPanel(descriptor, event -> { });
         JPanel bottom = (JPanel) ((BorderLayout) panel.getLayout()).getLayoutComponent(BorderLayout.SOUTH);
 
-        assertTrue(((BorderLayout) bottom.getLayout()).getLayoutComponent(BorderLayout.CENTER) instanceof JTextArea);
+        assertTrue(((BorderLayout) bottom.getLayout()).getLayoutComponent(BorderLayout.CENTER) instanceof JLabel);
         JButton enter = (JButton) ((BorderLayout) bottom.getLayout()).getLayoutComponent(BorderLayout.EAST);
         assertTrue(enter.getPreferredSize().width >= 96, "enter button should be easy to read and click");
+    }
+
+    @Test
+    void moduleStatusUsesCompactBadgeInsteadOfParagraph() {
+        ModuleDescriptor descriptor = new ModuleDescriptor(
+                "用户管理", "维护账号、权限、会话和审计。",
+                "可用：用户管理核心流程已接入");
+
+        ModuleCardPanel panel = new ModuleCardPanel(descriptor, event -> { });
+        JPanel bottom = (JPanel) ((BorderLayout) panel.getLayout()).getLayoutComponent(BorderLayout.SOUTH);
+        JLabel status = (JLabel) ((BorderLayout) bottom.getLayout()).getLayoutComponent(BorderLayout.CENTER);
+
+        assertTrue(status.isOpaque());
+        assertTrue(status.getText().contains("可用"));
+        assertTrue(status.getPreferredSize().height <= 34);
     }
 
     @Test

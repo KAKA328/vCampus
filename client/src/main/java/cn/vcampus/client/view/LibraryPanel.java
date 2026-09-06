@@ -11,6 +11,7 @@ import cn.vcampus.user.Session;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridLayout;
@@ -21,7 +22,6 @@ import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
@@ -75,9 +75,7 @@ public final class LibraryPanel extends JPanel {
         setLayout(new BorderLayout(0, 18));
         setOpaque(false);
         add(header(), BorderLayout.NORTH);
-        add(tabs(), BorderLayout.CENTER);
-        status.setForeground(VCampusTheme.MUTED);
-        add(status, BorderLayout.SOUTH);
+        add(VCampusTheme.pageScroll(body()), BorderLayout.CENTER);
 
         searchButton.addActionListener(event -> loadBooks());
         detailButton.addActionListener(event -> loadSelectedDetail());
@@ -89,6 +87,22 @@ public final class LibraryPanel extends JPanel {
         keywordField.addActionListener(event -> loadBooks());
         categoryField.addActionListener(event -> loadBooks());
         updateButtonState();
+    }
+
+    private JPanel body() {
+        JPanel panel = new ScrollablePagePanel(new BorderLayout(0, 12));
+        panel.setOpaque(false);
+        JTabbedPane tabs = tabs();
+        tabs.setPreferredSize(new Dimension(0, 430));
+        tabs.setMinimumSize(new Dimension(0, 300));
+        panel.add(tabs, BorderLayout.CENTER);
+
+        JPanel statusPanel = new JPanel(new BorderLayout());
+        VCampusTheme.panel(statusPanel);
+        status.setForeground(VCampusTheme.MUTED);
+        statusPanel.add(status, BorderLayout.CENTER);
+        panel.add(statusPanel, BorderLayout.SOUTH);
+        return panel;
     }
 
     private JPanel header() {
@@ -109,7 +123,7 @@ public final class LibraryPanel extends JPanel {
 
     private JTabbedPane tabs() {
         JTabbedPane tabs = new JTabbedPane();
-        tabs.setFont(VCampusTheme.font(Font.PLAIN, 14));
+        VCampusTheme.tabs(tabs);
         tabs.addTab("馆藏目录", catalogPanel());
         tabs.addTab("借阅记录", historyPanel());
         return tabs;
@@ -118,8 +132,10 @@ public final class LibraryPanel extends JPanel {
     private JPanel catalogPanel() {
         JPanel panel = new JPanel(new BorderLayout(0, 12));
         VCampusTheme.panel(panel);
-        JPanel search = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        JPanel search = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, 10, 6));
         search.setOpaque(false);
+        VCampusTheme.field(keywordField);
+        VCampusTheme.field(categoryField);
         search.add(new JLabel("关键词"));
         search.add(keywordField);
         search.add(new JLabel("分类"));
@@ -128,7 +144,7 @@ public final class LibraryPanel extends JPanel {
         search.add(searchButton);
 
         configureTable(bookTable, ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, 10, 6));
         actions.setOpaque(false);
         VCampusTheme.secondaryButton(detailButton);
         VCampusTheme.primaryButton(borrowButton);
@@ -139,7 +155,7 @@ public final class LibraryPanel extends JPanel {
             actions.add(addBookButton);
         }
         panel.add(search, BorderLayout.NORTH);
-        panel.add(new JScrollPane(bookTable), BorderLayout.CENTER);
+        panel.add(VCampusTheme.scrollPane(bookTable), BorderLayout.CENTER);
         panel.add(actions, BorderLayout.SOUTH);
         return panel;
     }
@@ -148,7 +164,7 @@ public final class LibraryPanel extends JPanel {
         JPanel panel = new JPanel(new BorderLayout(0, 12));
         VCampusTheme.panel(panel);
         configureTable(historyTable, ListSelectionModel.SINGLE_SELECTION);
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, 10, 6));
         actions.setOpaque(false);
         VCampusTheme.secondaryButton(historyButton);
         VCampusTheme.primaryButton(returnButton);
@@ -158,16 +174,15 @@ public final class LibraryPanel extends JPanel {
             actions.add(allHistoryButton);
         }
         actions.add(returnButton);
-        panel.add(new JScrollPane(historyTable), BorderLayout.CENTER);
+        panel.add(VCampusTheme.scrollPane(historyTable), BorderLayout.CENTER);
         panel.add(actions, BorderLayout.SOUTH);
         return panel;
     }
 
     private static void configureTable(JTable table, int selectionMode) {
+        VCampusTheme.table(table);
         table.setSelectionMode(selectionMode);
-        table.setRowHeight(28);
         table.setAutoCreateRowSorter(true);
-        table.getTableHeader().setReorderingAllowed(false);
     }
 
     private void loadBooks() {

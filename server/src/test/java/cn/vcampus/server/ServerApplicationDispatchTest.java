@@ -49,4 +49,20 @@ class ServerApplicationDispatchTest {
                 new LibraryQueryV2Command(session.getToken(), "Java")));
         assertEquals(StatusCode.OK, response.getStatusCode());
     }
+
+    // B3：isStoreMessage 白名单守护——必须恰好覆盖 MessageType 中所有 STORE_* 前缀枚举，
+    // 且不误纳任何非商店类型；防新增 STORE_* 消息漏加白名单后被静默路由到 userMessages
+    @Test
+    void isStoreMessageWhitelistMatchesStorePrefixConvention() {
+        int storeTypeCount = 0;
+        for (MessageType type : MessageType.values()) {
+            boolean expectedStore = type.name().startsWith("STORE_");
+            assertEquals(expectedStore, ServerApplication.isStoreMessage(type),
+                    "isStoreMessage 与 STORE_ 前缀约定漂移: " + type);
+            if (expectedStore) {
+                storeTypeCount++;
+            }
+        }
+        assertEquals(20, storeTypeCount, "STORE_* 消息类型数量变化，请同步核对 isStoreMessage 白名单");
+    }
 }

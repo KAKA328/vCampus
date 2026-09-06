@@ -8,6 +8,7 @@ import cn.vcampus.student.StudentRecord;
 import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridLayout;
@@ -19,6 +20,7 @@ import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
@@ -81,8 +83,7 @@ public final class StudentManagementPanel extends JPanel {
         setLayout(new BorderLayout(0, 16));
         setOpaque(false);
         add(header(), BorderLayout.NORTH);
-        add(center(), BorderLayout.CENTER);
-        add(footer(), BorderLayout.SOUTH);
+        add(VCampusTheme.pageScroll(body()), BorderLayout.CENTER);
 
         selfButton.addActionListener(event -> loadSelf());
         idButton.addActionListener(event -> loadById());
@@ -116,18 +117,33 @@ public final class StudentManagementPanel extends JPanel {
         return "，只能查看本人并修改联系方式。";
     }
 
-    private JPanel center() {
-        JPanel panel = new JPanel(new BorderLayout(0, 12));
+    private JPanel body() {
+        JPanel panel = new ScrollablePagePanel(new BorderLayout(0, 12));
         panel.setOpaque(false);
         panel.add(queryBar(), BorderLayout.NORTH);
-        panel.add(tablePanel(), BorderLayout.CENTER);
-        panel.add(editorPanel(), BorderLayout.SOUTH);
+        panel.add(workspace(), BorderLayout.CENTER);
         return panel;
     }
 
+    private JSplitPane workspace() {
+        JPanel detail = new JPanel(new BorderLayout(0, 12));
+        detail.setOpaque(false);
+        detail.add(editorPanel(), BorderLayout.CENTER);
+        detail.add(footer(), BorderLayout.SOUTH);
+
+        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, tablePanel(), detail);
+        split.setOpaque(false);
+        split.setBorder(null);
+        split.setDividerSize(10);
+        split.setResizeWeight(0.46);
+        split.setPreferredSize(new Dimension(0, 620));
+        split.setMinimumSize(new Dimension(0, 520));
+        return split;
+    }
+
     private JPanel queryBar() {
-        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        panel.setOpaque(false);
+        JPanel panel = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, 10, 6));
+        VCampusTheme.panel(panel);
         VCampusTheme.secondaryButton(selfButton);
         VCampusTheme.secondaryButton(idButton);
         VCampusTheme.secondaryButton(classButton);
@@ -154,16 +170,15 @@ public final class StudentManagementPanel extends JPanel {
     private JPanel tablePanel() {
         JPanel panel = new JPanel(new BorderLayout());
         VCampusTheme.panel(panel);
+        panel.setPreferredSize(new Dimension(0, 260));
+        panel.setMinimumSize(new Dimension(0, 180));
+        VCampusTheme.table(table);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        table.setRowHeight(28);
-        table.setGridColor(VCampusTheme.BORDER);
-        table.setShowVerticalLines(false);
-        table.getTableHeader().setReorderingAllowed(false);
         table.getColumnModel().getColumn(0).setPreferredWidth(100);
         table.getColumnModel().getColumn(1).setPreferredWidth(100);
         table.getColumnModel().getColumn(2).setPreferredWidth(160);
         table.getColumnModel().getColumn(3).setPreferredWidth(120);
-        panel.add(new JScrollPane(table), BorderLayout.CENTER);
+        panel.add(VCampusTheme.scrollPane(table), BorderLayout.CENTER);
         return panel;
     }
 
@@ -173,7 +188,7 @@ public final class StudentManagementPanel extends JPanel {
         JLabel title = new JLabel("学生档案");
         title.setFont(VCampusTheme.font(Font.BOLD, 17));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        JPanel fields = new JPanel(new GridLayout(3, 8, 8, 8));
+        JPanel fields = new JPanel(new GridLayout(0, 4, 10, 10));
         fields.setOpaque(false);
         addField(fields, "学号", studentId);
         addField(fields, "账号", userId);
@@ -188,7 +203,7 @@ public final class StudentManagementPanel extends JPanel {
         addField(fields, "邮箱", email);
         panel.add(title, BorderLayout.NORTH);
         panel.add(fields, BorderLayout.CENTER);
-        panel.setPreferredSize(new java.awt.Dimension(0, 188));
+        panel.setMinimumSize(new Dimension(0, 260));
         return panel;
     }
 

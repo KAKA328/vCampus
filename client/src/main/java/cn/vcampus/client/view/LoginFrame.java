@@ -42,13 +42,13 @@ public final class LoginFrame extends JFrame {
     private void build() {
         VCampusTheme.install();
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setMinimumSize(new Dimension(760, 460));
-        setSize(760, 460);
+        setMinimumSize(new Dimension(820, 500));
+        setSize(880, 520);
         setLocationRelativeTo(null);
 
         JPanel root = new JPanel(new BorderLayout());
         root.setBackground(VCampusTheme.BACKGROUND);
-        root.setBorder(VCampusTheme.padding(28, 32, 28, 32));
+        root.setBorder(VCampusTheme.padding(30, 34, 30, 34));
         root.add(brandPanel(), BorderLayout.WEST);
         root.add(formPanel(), BorderLayout.CENTER);
         setContentPane(root);
@@ -56,13 +56,15 @@ public final class LoginFrame extends JFrame {
 
     private JPanel brandPanel() {
         JPanel panel = new JPanel(new BorderLayout(0, 18));
-        panel.setPreferredSize(new Dimension(270, 0));
-        panel.setBackground(VCampusTheme.PRIMARY_DARK);
-        panel.setBorder(VCampusTheme.padding(36, 26, 32, 26));
+        panel.setPreferredSize(new Dimension(300, 0));
+        panel.setBackground(VCampusTheme.NAV_ACTIVE_BACKGROUND);
+        panel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(191, 219, 254)),
+                VCampusTheme.padding(40, 30, 34, 30)));
 
-        JLabel title = new JLabel("<html><div style='color:white;font-size:24px;font-weight:bold;'>vCampus<br/>虚拟校园</div></html>");
-        JLabel summary = new JLabel("<html><div style='color:#EAF3F8;line-height:1.7;'>校园业务一站式办理<br/>学习、借阅、购物与个人信息管理</div></html>");
-        JLabel foot = new JLabel("<html><div style='color:#BFD7EE;'>欢迎使用校园综合服务平台</div></html>");
+        JLabel title = new JLabel("<html><div style='color:#1E40AF;font-size:28px;font-weight:bold;'>vCampus<br/>虚拟校园</div></html>");
+        JLabel summary = new JLabel("<html><div style='color:#1E293B;line-height:1.8;'>用户、学籍、选课与商店<br/>统一接入校园服务端</div></html>");
+        JLabel foot = new JLabel("<html><div style='color:#0891B2;'>Access 持久化服务已接入</div></html>");
         panel.add(title, BorderLayout.NORTH);
         panel.add(summary, BorderLayout.CENTER);
         panel.add(foot, BorderLayout.SOUTH);
@@ -72,13 +74,13 @@ public final class LoginFrame extends JFrame {
     private JPanel formPanel() {
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setOpaque(false);
-        wrapper.setBorder(VCampusTheme.padding(0, 28, 0, 0));
+        wrapper.setBorder(VCampusTheme.padding(0, 30, 0, 0));
 
         JPanel card = new JPanel(new GridBagLayout());
         VCampusTheme.panel(card);
         card.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(VCampusTheme.BORDER),
-                VCampusTheme.padding(28, 34, 28, 34)));
+                VCampusTheme.padding(32, 36, 32, 36)));
 
         JLabel title = new JLabel("账号登录");
         title.setFont(VCampusTheme.font(Font.BOLD, 24));

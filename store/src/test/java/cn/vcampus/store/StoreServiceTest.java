@@ -1,6 +1,11 @@
 package cn.vcampus.store;
 
 import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+import java.time.LocalDateTime;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import org.junit.jupiter.api.Test;
@@ -16,8 +21,8 @@ class StoreServiceTest {
     private final InMemoryProductRepository products = new InMemoryProductRepository();
     private final InMemoryOrderRepository orders = new InMemoryOrderRepository();
     private final InMemoryCartRepository cartRepo = new InMemoryCartRepository();
-    private final InMemoryBankAccountRepository bankRepo = new InMemoryBankAccountRepository();
-    private final InMemoryStoreService service = new InMemoryStoreService(products, orders, cartRepo, bankRepo);
+    private final InMemoryWalletRepository walletRepo = new InMemoryWalletRepository();
+    private final InMemoryStoreService service = new InMemoryStoreService(products, orders, cartRepo, walletRepo);
 
     StoreServiceTest() {
         products.save(new Product("00001", "Apple", 100, 2.5, "A delicious apple", "Fruit"));
@@ -28,7 +33,7 @@ class StoreServiceTest {
         String[] funded = { "0110", "0111", "0112", "0113", "0115", "0116", "0120", "0121",
                 "0201", "0202", "0301", "0302", "0303", "0401", "0402", "0403" };
         for (String userId : funded) {
-            bankRepo.credit(userId, 100_000_000L);
+            walletRepo.save(new BankAccount(userId, 100_000_000L));
         }
     }
 
@@ -69,12 +74,12 @@ class StoreServiceTest {
         assertEquals(StatusCode.NOT_FOUND, testResult.getStatus());
     }
 
-    // 测试购买商品数量超过库存
+    // 测试购买商品数量超过库存：库存不足是资源状态冲突，与原子扣减失败统一返回 CONFLICT
     @Test
     void testPurchaseExceedsStock() {
         int toBuy = products.findById("00004").getStock() + 1;
         ServiceResult<Void> testResult = service.purchase("0120", "00004", toBuy);
-        assertEquals(StatusCode.BAD_REQUEST, testResult.getStatus());
+        assertEquals(StatusCode.CONFLICT, testResult.getStatus());
     }
 
     // 测试没有订单的学生查询订单不会报错
@@ -166,10 +171,10 @@ class StoreServiceTest {
         InMemoryProductRepository purchaseProducts = new InMemoryProductRepository();
         purchaseProducts.save(new Product("P", "P", 2, 2.0, "", "test"));
         FailingOrderRepository throwingOrders = new FailingOrderRepository(true);
-        InMemoryBankAccountRepository purchaseBank = new InMemoryBankAccountRepository();
-        purchaseBank.credit("u", 100_000L);
+        InMemoryWalletRepository purchaseWallet = new InMemoryWalletRepository();
+        purchaseWallet.save(new BankAccount("u", 100_000L));
         DefaultStoreService purchase = new DefaultStoreService(purchaseProducts, throwingOrders,
-                new InMemoryCartRepository(), purchaseBank);
+                new InMemoryCartRepository(), purchaseWallet);
 
         ServiceResult<Void> result = purchase.purchase("u", "P", 1);
 
@@ -225,11 +230,11 @@ class StoreServiceTest {
         InMemoryCartRepository checkoutCart = new InMemoryCartRepository();
         checkoutCart.addItem(new CartItem("cart-a", "u", "A", 1, java.time.LocalDateTime.now()));
         checkoutCart.addItem(new CartItem("cart-b", "u", "B", 1, java.time.LocalDateTime.now()));
-        InMemoryBankAccountRepository checkoutBank = new InMemoryBankAccountRepository();
-        checkoutBank.credit("u", 100_000L);
+        InMemoryWalletRepository checkoutWallet = new InMemoryWalletRepository();
+        checkoutWallet.save(new BankAccount("u", 100_000L));
 
         DefaultStoreService checkout = new DefaultStoreService(checkoutProducts, failingOrders, checkoutCart,
-                checkoutBank);
+                checkoutWallet);
         ServiceResult<Void> result = checkout.checkout("u");
 
         assertEquals(StatusCode.CONFLICT, result.getStatus());
@@ -244,7 +249,7 @@ class StoreServiceTest {
     @Test
     void testRestockSuccess() {
         int formerNum = products.findById("00001").getStock();
-        ServiceResult<Void> testResult = service.restock("admin", "00001", 100);
+        ServiceResult<Void> testResult = service.restock("00001", 100);
 
         assertEquals(StatusCode.OK, testResult.getStatus());
         assertEquals(formerNum + 100, products.findById("00001").getStock());
@@ -253,14 +258,14 @@ class StoreServiceTest {
     // 测试补货商品不存在
     @Test
     void testRestockProductNotFound() {
-        ServiceResult<Void> testResult = service.restock("admin", "99999999999", 100);
+        ServiceResult<Void> testResult = service.restock("99999999999", 100);
         assertEquals(StatusCode.NOT_FOUND, testResult.getStatus());
     }
 
     // 测试补货数量为负数
     @Test
     void testRestockNegativeAmount() {
-        ServiceResult<Void> testResult = service.restock("admin", "00001", -100);
+        ServiceResult<Void> testResult = service.restock("00001", -100);
         assertEquals(StatusCode.BAD_REQUEST, testResult.getStatus());
     }
 
@@ -289,7 +294,8 @@ class StoreServiceTest {
     @Test
     void testUpdateProductPrice() {
         int formerNum = products.findById("00001").getStock();
-        ServiceResult<Product> testResult = service.updateProduct("00001", "Apple", 3.0, "A delicious apple", "Fruit");
+        ServiceResult<Product> testResult = service.updateProduct("00001", "Apple", 3.0, "A delicious apple", "Fruit",
+                products.findById("00001").getVersion());
         assertEquals(StatusCode.OK, testResult.getStatus());
         assertEquals(3.0, testResult.getData().getPrice(), 0.01);
         assertEquals(formerNum, testResult.getData().getStock());
@@ -299,14 +305,48 @@ class StoreServiceTest {
     @Test
     void testUpdateProductNotFound() {
         ServiceResult<Product> testResult = service.updateProduct("99999999999", "Apple", 3.0, "A delicious apple",
-                "Fruit");
+                "Fruit", 0);
         assertEquals(StatusCode.NOT_FOUND, testResult.getStatus());
+    }
+
+    // A2：成功更新后 version +1，返回快照携带新版本号，供客户端刷新本地版本、避免下次编辑误判冲突
+    @Test
+    void testUpdateProductBumpsVersionOnSuccess() {
+        int before = products.findById("00001").getVersion();
+        ServiceResult<Product> result = service.updateProduct("00001", "Apple", 3.0, "A delicious apple", "Fruit",
+                before);
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals(before + 1, result.getData().getVersion());
+        assertEquals(before + 1, products.findById("00001").getVersion());
+    }
+
+    // A2：期望版本落后于存储版本（期间已被他人改过）→ CONFLICT，且冲突时不得写入任何字段
+    @Test
+    void testUpdateProductStaleVersionReturnsConflict() {
+        int current = products.findById("00001").getVersion();
+        // 先成功更新一次，把存储版本推到 current+1（名称/价格落到已知值）
+        assertEquals(StatusCode.OK,
+                service.updateProduct("00001", "Apple", 3.0, "d", "Fruit", current).getStatus());
+        // 再用陈旧版本 current 更新 → 版本不符，判为冲突
+        ServiceResult<Product> stale = service.updateProduct("00001", "Apple X", 9.0, "d", "Fruit", current);
+        assertEquals(StatusCode.CONFLICT, stale.getStatus());
+        // 冲突不得写入：名称/价格保持上一次成功值，版本号仍为 current+1
+        assertEquals("Apple", products.findById("00001").getName());
+        assertEquals(3.0, products.findById("00001").getPrice(), 0.001);
+        assertEquals(current + 1, products.findById("00001").getVersion());
+    }
+
+    // A2：负版本号在服务入口即拒绝为 BAD_REQUEST（纵深防御，命令层亦有校验）
+    @Test
+    void testUpdateProductRejectsNegativeVersion() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.updateProduct("00001", "Apple", 3.0, "d", "Fruit", -1).getStatus());
     }
 
     // 测试下架商品
     @Test
     void testDeactivateProduct() {
-        ServiceResult<Void> testResult = service.deactivateProduct("admin", "00001");
+        ServiceResult<Void> testResult = service.deactivateProduct("00001");
         assertEquals(StatusCode.OK, testResult.getStatus());
         assertFalse(products.findById("00001").isActive());
     }
@@ -314,11 +354,46 @@ class StoreServiceTest {
     // 测试下架商品不在列表
     @Test
     void testDeactivatedProductNotListed() {
-        service.deactivateProduct("admin", "00001");
+        service.deactivateProduct("00001");
         ServiceResult<List<Product>> testResult = service.listProducts();
         assertEquals(StatusCode.OK, testResult.getStatus());
         assertNotNull(testResult.getData());
         assertFalse(testResult.getData().contains(products.findById("00001")));
+    }
+
+    // DSH F1：重新上架——先下架再上架，active 翻回 true、库存沿用原值、商品重新出现在售列表
+    @Test
+    void testReactivateProductRestoresActiveAndListing() {
+        int stockBefore = products.findById("00001").getStock();
+        service.deactivateProduct("00001");
+        assertFalse(products.findById("00001").isActive());
+
+        ServiceResult<Void> testResult = service.reactivateProduct("00001");
+
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        Product restored = products.findById("00001");
+        assertTrue(restored.isActive());
+        assertEquals(stockBefore, restored.getStock());// 重新上架只翻 active 位、不碰库存
+        boolean listed = false;
+        for (Product candidate : service.listProducts().getData())
+            if ("00001".equals(candidate.getProductId()))
+                listed = true;
+        assertTrue(listed);// 恢复后重新出现在售列表（按 id 遍历，不依赖实例引用相等）
+    }
+
+    // DSH F1：重新上架幂等——对已在售商品直接返回 OK，不改变状态
+    @Test
+    void testReactivateProductIsIdempotentWhenAlreadyActive() {
+        assertTrue(products.findById("00001").isActive());
+        assertEquals(StatusCode.OK, service.reactivateProduct("00001").getStatus());
+        assertTrue(products.findById("00001").isActive());
+    }
+
+    // DSH F1：重新上架的入参与存在性校验，与 deactivateProduct 对齐（空→BAD_REQUEST、不存在→NOT_FOUND）
+    @Test
+    void testReactivateProductValidation() {
+        assertEquals(StatusCode.BAD_REQUEST, service.reactivateProduct(null).getStatus());
+        assertEquals(StatusCode.NOT_FOUND, service.reactivateProduct("99999999999").getStatus());
     }
 
     // 测试加入购物车
@@ -409,13 +484,13 @@ class StoreServiceTest {
         assertTrue(bananaOrderFound);
     }
 
-    // 测试结账库存不足
+    // 测试结账库存不足：库存不足统一返回 CONFLICT，购物车与库存均不得被修改
     @Test
     void testCheckoutInsufficientStock() {
         int stock = products.findById("00001").getStock();
         service.addToCart("0120", "00001", stock + 1);
         ServiceResult<Void> testResult = service.checkout("0120");
-        assertEquals(StatusCode.BAD_REQUEST, testResult.getStatus());
+        assertEquals(StatusCode.CONFLICT, testResult.getStatus());
         assertEquals(1, cartRepo.findByUserId("0120").size());
         assertEquals(stock + 1, cartRepo.findByUserId("0120").get(0).getQuantity());
         assertEquals(stock, products.findById("00001").getStock());
@@ -466,7 +541,7 @@ class StoreServiceTest {
         assertEquals("00002", testResult.getData().get(1).getProductId());
 
         // 下架后榜单不再包含它
-        service.deactivateProduct("admin", "00001");
+        service.deactivateProduct("00001");
         ServiceResult<List<Product>> afterDeactivate = service.listHotProducts(10);
         assertEquals(2, afterDeactivate.getData().size());
         assertEquals("00002", afterDeactivate.getData().get(0).getProductId());
@@ -515,17 +590,63 @@ class StoreServiceTest {
         assertEquals(activeCount, testResult.getData().size());
     }
 
+    // DSH 二轮审（管理端含下架视图）：默认视图不含下架商品（旧语义锁定），includeInactive=true 才并入
+    @Test
+    void testListProductsExcludesInactiveByDefaultAndIncludesWithFlag() {
+        service.deactivateProduct("00001");// 00001 Apple(Fruit) 下架
+        int activeCount = service.listProducts().getData().size();// 初始 4 在售 → 3
+        assertEquals(3, activeCount);
+
+        boolean inactiveVisibleByDefault = false;
+        for (Product candidate : service.listProducts().getData()) {
+            if ("00001".equals(candidate.getProductId())) {
+                inactiveVisibleByDefault = true;
+            }
+        }
+        assertFalse(inactiveVisibleByDefault);// 旧 listProducts() 语义不被破坏
+
+        ServiceResult<List<Product>> all = service.listProducts(null, true);
+        assertEquals(StatusCode.OK, all.getStatus());
+        assertEquals(activeCount + 1, all.getData().size());// 在售 3 + 下架 1
+        boolean reactivatedListed = false;
+        for (Product candidate : all.getData()) {
+            if ("00001".equals(candidate.getProductId())) {
+                reactivatedListed = true;
+                assertFalse(candidate.isActive());
+            }
+        }
+        assertTrue(reactivatedListed);
+    }
+
+    // DSH 二轮审：含下架查询与分类过滤可叠加；无下架商品的类别不受影响
+    @Test
+    void testListProductsWithInactiveCombinesWithCategoryFilter() {
+        service.deactivateProduct("00001");// Fruit 类：00001 下架、00002 在售
+
+        ServiceResult<List<Product>> fruitAll = service.listProducts("Fruit", true);
+        assertEquals(StatusCode.OK, fruitAll.getStatus());
+        assertEquals(2, fruitAll.getData().size());
+
+        ServiceResult<List<Product>> fruitOnly = service.listProducts("Fruit", false);
+        assertEquals(1, fruitOnly.getData().size());// includeInactive=false 保持旧语义
+
+        ServiceResult<List<Product>> toyOnly = service.listProducts("Toy", true);
+        assertEquals(1, toyOnly.getData().size());// 无下架商品的类别不受影响
+        ServiceResult<List<Product>> blankAll = service.listProducts("   ", true);
+        assertEquals(4, blankAll.getData().size());// 空白类别 = 全量（含下架）
+    }
+
     // 测试清空购物车失败时结账回滚
     @Test
     void checkoutRollsBackAndAllowsRetryWhenClearingCartFails() {
         InMemoryProductRepository retryProducts = new InMemoryProductRepository();
         retryProducts.save(new Product("A", "A", 5, 2.0, "", "test"));
         InMemoryOrderRepository retryOrders = new InMemoryOrderRepository();
-        InMemoryBankAccountRepository retryBank = new InMemoryBankAccountRepository();
-        retryBank.credit("u", 100_000L);
+        InMemoryWalletRepository retryWallet = new InMemoryWalletRepository();
+        retryWallet.save(new BankAccount("u", 100_000L));
         FailingCartRepository flakyCart = new FailingCartRepository(true);
         flakyCart.addItem(new CartItem("cart-a", "u", "A", 2, java.time.LocalDateTime.now()));
-        DefaultStoreService checkout = new DefaultStoreService(retryProducts, retryOrders, flakyCart, retryBank);
+        DefaultStoreService checkout = new DefaultStoreService(retryProducts, retryOrders, flakyCart, retryWallet);
 
         ServiceResult<Void> failed = checkout.checkout("u");
 
@@ -619,6 +740,173 @@ class StoreServiceTest {
         assertEquals(StatusCode.BAD_REQUEST, service.recharge("0120", -100L).getStatus());
     }
 
+    // 新-3：单笔充值超过上限被拒，且未入账
+    @Test
+    void testRechargeRejectsAmountAboveSingleLimit() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.recharge("cap-user", DefaultStoreService.MAX_SINGLE_RECHARGE_CENTS + 1).getStatus());
+        assertEquals(0L, service.getBalance("cap-user"));
+    }
+
+    // 新-3：单笔恰好等于上限放行（边界 <=）
+    @Test
+    void testRechargeAtSingleLimitAllowed() {
+        assertEquals(StatusCode.OK,
+                service.recharge("cap-user", DefaultStoreService.MAX_SINGLE_RECHARGE_CENTS).getStatus());
+        assertEquals(DefaultStoreService.MAX_SINGLE_RECHARGE_CENTS, service.getBalance("cap-user"));
+    }
+
+    // 新-3：单日累计超过上限的那一笔被拒，余额停在已入账部分
+    @Test
+    void testRechargeRejectsWhenDailyCumulativeExceedsLimit() {
+        String user = "daily-cap-user";
+        long single = DefaultStoreService.MAX_SINGLE_RECHARGE_CENTS;// 2000 元
+        assertEquals(StatusCode.OK, service.recharge(user, single).getStatus());// 累计 2000 <= 5000
+        assertEquals(StatusCode.OK, service.recharge(user, single).getStatus());// 累计 4000 <= 5000
+        assertEquals(StatusCode.BAD_REQUEST, service.recharge(user, single).getStatus());// 累计将达 6000 > 5000
+        assertEquals(2 * single, service.getBalance(user));// 停在 4000 元，第三笔未入账
+    }
+
+    // A3：购买数量超过上限被拒；上界检查在库存预检之前短路，故为 BAD_REQUEST 而非 CONFLICT
+    @Test
+    void testPurchaseRejectsQuantityAboveMax() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.purchase("0120", "00004", DefaultStoreService.MAX_QUANTITY + 1).getStatus());
+    }
+
+    // A3：加入购物车数量超过上限被拒
+    @Test
+    void testAddToCartRejectsQuantityAboveMax() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.addToCart("0120", "00004", DefaultStoreService.MAX_QUANTITY + 1).getStatus());
+    }
+
+    // A3：加购数量恰好等于上限放行（边界 <=；加购不校验库存）
+    @Test
+    void testAddToCartAtMaxQuantityAllowed() {
+        assertEquals(StatusCode.OK,
+                service.addToCart("0121", "00004", DefaultStoreService.MAX_QUANTITY).getStatus());
+    }
+
+    // A3：修改购物车数量超过上限被拒
+    @Test
+    void testUpdateCartQuantityRejectsAboveMax() {
+        service.addToCart("0121", "00004", 1);
+        CartItem item = service.getCart("0121").getData().get(0);
+        assertEquals(StatusCode.BAD_REQUEST, service
+                .updateCartQuantity("0121", item.getCartItemId(), DefaultStoreService.MAX_QUANTITY + 1).getStatus());
+    }
+
+    // A3：补货数量超过上限被拒，且库存无副作用
+    @Test
+    void testRestockRejectsAdditionalStockAboveMax() {
+        int before = products.findById("00001").getStock();
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.restock("00001", DefaultStoreService.MAX_QUANTITY + 1).getStatus());
+        assertEquals(before, products.findById("00001").getStock());// 未副作用
+    }
+
+    // A3：管理员校正余额超过绝对上限被拒，且余额无副作用
+    @Test
+    void testAdjustBalanceRejectsAboveMax() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.adjustBalance("admin", "0120", DefaultStoreService.MAX_BALANCE_CENTS + 1).getStatus());
+        assertEquals(100_000_000L, service.getBalance("0120"));// 未副作用
+    }
+
+    // 新-1（确定性）：服务层读到快照后库存被并发扣减，updateProduct 不得把 stale 库存写回
+    @Test
+    void testServiceUpdateProductDoesNotResurrectStaleStock() {
+        products.deductStock("00001", 40);// Apple 初始 100 → 60
+        ServiceResult<Product> result = service.updateProduct("00001", "Apple v2", 3.5, "新描述", "Fruit",
+                products.findById("00001").getVersion());
+        assertEquals(StatusCode.OK, result.getStatus());
+        Product after = products.findById("00001");
+        assertEquals("Apple v2", after.getName());// 信息已更新
+        assertEquals(3.5, after.getPrice(), 0.001);
+        assertEquals(60, after.getStock());// 库存保持 60，未被写回 100
+    }
+
+    // 新-1（仓储层）：updateProduct 忽略入参对象的 stock，只改信息
+    @Test
+    void testRepositoryUpdateProductIgnoresInputStock() {
+        products.deductStock("00003", 50);// Carrot 200 → 150
+        boolean updated = products.updateProduct(
+                new Product("00003", "Carrot v2", 999, 0.8, "新描述", "Vegetable"));
+        assertTrue(updated);
+        Product after = products.findById("00003");
+        assertEquals("Carrot v2", after.getName());
+        assertEquals(0.8, after.getPrice(), 0.001);
+        assertEquals(150, after.getStock());// 入参的 stale 999 被忽略
+    }
+
+    // 新-1（并发回归）：更新商品信息 与 原子扣库存 并发，最终库存 == 初始 - 成功扣减数
+    @Test
+    void concurrentUpdateProductAndDeductStockKeepsStockConsistent() throws Exception {
+        final String pid = "00002";// Banana 初始库存 150
+        final int initialStock = products.findById(pid).getStock();
+        final int updaterThreads = 4;
+        final int deductThreads = 4;
+        final int opsPerThread = 30;
+        final java.util.concurrent.atomic.AtomicInteger deducted = new java.util.concurrent.atomic.AtomicInteger();
+        final java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors
+                .newFixedThreadPool(updaterThreads + deductThreads);
+        List<java.util.concurrent.Future<?>> futures = new java.util.ArrayList<java.util.concurrent.Future<?>>();
+        for (int i = 0; i < updaterThreads; i++) {
+            final int idx = i;
+            futures.add(pool.submit(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        start.await();
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                    }
+                    for (int k = 0; k < opsPerThread; k++) {
+                        // A2：每次先读当前 version 再更新，模拟乐观并发的重读重试；版本竞争导致的 CONFLICT 不影响库存一致性断言
+                        service.updateProduct(pid, "Banana v" + idx + "-" + k, 1.5, "desc", "Fruit",
+                                products.findById(pid).getVersion());
+                    }
+                }
+            }));
+        }
+        for (int i = 0; i < deductThreads; i++) {
+            futures.add(pool.submit(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        start.await();
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                    }
+                    for (int k = 0; k < opsPerThread; k++) {
+                        if (products.deductStock(pid, 1))
+                            deducted.incrementAndGet();
+                    }
+                }
+            }));
+        }
+        start.countDown();
+        for (java.util.concurrent.Future<?> future : futures) {
+            future.get();
+        }
+        pool.shutdown();
+
+        assertEquals(initialStock - deducted.get(), products.findById(pid).getStock(),
+                "最终库存应等于初始库存减去成功扣减数（updateProduct 不得写回 stale 库存）");
+    }
+
+    // P1-1③：服务层入参校验——null 标识符返回 BAD_REQUEST 而非抛异常（纵深防御，即使命令层已校验）
+    @Test
+    void testServiceRejectsNullIdentifiers() {
+        assertEquals(StatusCode.BAD_REQUEST, service.purchase("0120", null, 1).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.findOrdersByUserId(null).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.restock(null, 5).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.updateProduct(null, "x", 1.0, "d", "c", 0).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.deactivateProduct(null).getStatus());
+    }
+
     // 测试无账户查询余额返回 0
     @Test
     void testGetBalanceReturnsZeroForUnknownUser() {
@@ -631,8 +919,8 @@ class StoreServiceTest {
         InMemoryProductRepository p = new InMemoryProductRepository();
         p.save(new Product("A", "A", 5, 2.0, "", "test"));
         InMemoryOrderRepository o = new InMemoryOrderRepository();
-        InMemoryBankAccountRepository b = new InMemoryBankAccountRepository();
-        b.credit("u", 100_000L);
+        InMemoryWalletRepository b = new InMemoryWalletRepository();
+        b.save(new BankAccount("u", 100_000L));
         FailingCartRepository c = new FailingCartRepository(true);
         c.addItem(new CartItem("cart-a", "u", "A", 2, java.time.LocalDateTime.now()));
         DefaultStoreService svc = new DefaultStoreService(p, o, c, b);
@@ -654,9 +942,9 @@ class StoreServiceTest {
         InMemoryOrderRepository o = new InMemoryOrderRepository();
         InMemoryCartRepository c = new InMemoryCartRepository();
         c.addItem(new CartItem("cart-a", "u", "A", 2, java.time.LocalDateTime.now()));
-        FailingBankAccountRepository b = new FailingBankAccountRepository();
+        FailingWalletRepository b = new FailingWalletRepository();
         b.reportedBalance = 100_000L;// 预检读到足够余额
-        b.failOnDebit = true;// 但原子扣款失败
+        b.failOnDebit = true;// 但原子扣款被拒（applied=false）
         DefaultStoreService svc = new DefaultStoreService(p, o, c, b);
 
         ServiceResult<Void> result = svc.checkout("u");
@@ -675,8 +963,8 @@ class StoreServiceTest {
         FailingOrderRepository o = new FailingOrderRepository(true);// create 抛异常
         InMemoryCartRepository c = new InMemoryCartRepository();
         c.addItem(new CartItem("cart-a", "u", "A", 2, java.time.LocalDateTime.now()));
-        InMemoryBankAccountRepository b = new InMemoryBankAccountRepository();
-        b.credit("u", 100_000L);
+        InMemoryWalletRepository b = new InMemoryWalletRepository();
+        b.save(new BankAccount("u", 100_000L));
         DefaultStoreService svc = new DefaultStoreService(p, o, c, b);
 
         ServiceResult<Void> result = svc.checkout("u");
@@ -687,42 +975,80 @@ class StoreServiceTest {
         assertTrue(o.findByUserId("u").isEmpty());
     }
 
-    // 补偿失败4：退款 credit 本身失败 → 仍返回 CONFLICT（余额被扣未退，记日志供人工对账）
+    // 补偿失败4：退款 credit 本身失败 → 补偿不完整，升级 SERVER_ERROR 并留痕待人工对账（余额被扣未退）
     @Test
-    void testRefundCreditFailureReturnsConflict() {
+    void testRefundCreditFailureReturnsServerError() {
         InMemoryProductRepository p = new InMemoryProductRepository();
         p.save(new Product("A", "A", 5, 2.0, "", "test"));
         FailingOrderRepository o = new FailingOrderRepository(true);// create 抛异常 → 触发退款
         InMemoryCartRepository c = new InMemoryCartRepository();
         c.addItem(new CartItem("cart-a", "u", "A", 2, java.time.LocalDateTime.now()));
-        FailingBankAccountRepository b = new FailingBankAccountRepository();
-        b.credit("u", 100_000L);// 真实余额
+        FailingWalletRepository b = new FailingWalletRepository();
+        b.save(new BankAccount("u", 100_000L));// 真实余额
         b.failOnCredit = true;// 但退款 credit 失败
         DefaultStoreService svc = new DefaultStoreService(p, o, c, b);
 
         ServiceResult<Void> result = svc.checkout("u");
 
-        assertEquals(StatusCode.CONFLICT, result.getStatus());
+        assertEquals(StatusCode.SERVER_ERROR, result.getStatus());// 补偿不完整不再伪装成可重试的 CONFLICT
         assertEquals(5, p.findById("A").getStock());// 库存回补成功
         assertEquals(99_600L, b.findByUserId("u").getBalanceCents());// 退款失败，余额停留在已扣状态
+        // 落一条待人工对账的记录：refund 步骤失败，含受影响用户与待退金额
+        List<CompensationFailure> failures = svc.compensationFailures();
+        assertEquals(1, failures.size());
+        assertEquals("checkout", failures.get(0).getOperation());
+        assertEquals("refund", failures.get(0).getFailedStep());
+        assertEquals("u", failures.get(0).getUserId());
+        assertEquals(400L, failures.get(0).getAmountCents());
     }
 
-    // 补偿失败5：回补库存本身失败 → 仍返回 CONFLICT
+    // 补偿失败5：回补库存本身失败 → 补偿不完整，升级 SERVER_ERROR 并留痕待人工对账
     @Test
-    void testRestoreStockFailureReturnsConflict() {
+    void testRestoreStockFailureReturnsServerError() {
         FailingProductRepository p = new FailingProductRepository();
         p.save(new Product("A", "A", 5, 2.0, "", "test"));
         p.failOnAddStock = true;// 回补库存失败
         InMemoryOrderRepository o = new InMemoryOrderRepository();
-        FailingBankAccountRepository b = new FailingBankAccountRepository();
+        FailingWalletRepository b = new FailingWalletRepository();
         b.reportedBalance = 100_000L;// 预检通过
-        b.failOnDebit = true;// 扣款失败 → 触发回补库存
+        b.failOnDebit = true;// 扣款被拒 → 触发回补库存
         DefaultStoreService svc = new DefaultStoreService(p, o, new InMemoryCartRepository(), b);
 
         ServiceResult<Void> result = svc.purchase("u", "A", 2);
 
-        assertEquals(StatusCode.CONFLICT, result.getStatus());
+        assertEquals(StatusCode.SERVER_ERROR, result.getStatus());// 回补失败不再伪装成可重试的 CONFLICT
         assertTrue(o.findByUserId("u").isEmpty());
+        // 落一条待人工对账的记录：restore_stock 步骤失败，含商品与待回补数量
+        List<CompensationFailure> failures = svc.compensationFailures();
+        assertEquals(1, failures.size());
+        assertEquals("purchase", failures.get(0).getOperation());
+        assertEquals("restore_stock", failures.get(0).getFailedStep());
+        assertEquals("A", failures.get(0).getProductId());
+        assertEquals(2, failures.get(0).getQuantity());
+    }
+
+    // 补偿失败6：购买建单抛异常触发退款，但退款 credit 失败 → 补偿不完整，升级 SERVER_ERROR 并留痕
+    @Test
+    void testPurchaseRefundFailureReturnsServerError() {
+        InMemoryProductRepository p = new InMemoryProductRepository();
+        p.save(new Product("A", "A", 5, 2.0, "", "test"));
+        FailingOrderRepository o = new FailingOrderRepository(true);// create 抛异常 → 触发退款 + 回补
+        FailingWalletRepository b = new FailingWalletRepository();
+        b.save(new BankAccount("u", 100_000L));// 真实余额
+        b.failOnCredit = true;// 退款 credit 失败
+        DefaultStoreService svc = new DefaultStoreService(p, o, new InMemoryCartRepository(), b);
+
+        ServiceResult<Void> result = svc.purchase("u", "A", 2);
+
+        assertEquals(StatusCode.SERVER_ERROR, result.getStatus());
+        assertTrue(o.findByUserId("u").isEmpty());// 订单未建成
+        assertEquals(5, p.findById("A").getStock());// 库存已回补
+        assertEquals(99_600L, b.findByUserId("u").getBalanceCents());// 扣款成功但退款失败，余额停留在已扣状态
+        List<CompensationFailure> failures = svc.compensationFailures();
+        assertEquals(1, failures.size());
+        assertEquals("purchase", failures.get(0).getOperation());
+        assertEquals("refund", failures.get(0).getFailedStep());
+        assertEquals(400L, failures.get(0).getAmountCents());
     }
 
     // 唯一业务编号：建单成功但清空购物车失败 → 回滚 → 重试，无重复 orderId，库存/余额只按成功次数扣减
@@ -731,8 +1057,8 @@ class StoreServiceTest {
         InMemoryProductRepository p = new InMemoryProductRepository();
         p.save(new Product("A", "A", 5, 2.0, "", "test"));
         InMemoryOrderRepository o = new InMemoryOrderRepository();
-        InMemoryBankAccountRepository b = new InMemoryBankAccountRepository();
-        b.credit("u", 100_000L);
+        InMemoryWalletRepository b = new InMemoryWalletRepository();
+        b.save(new BankAccount("u", 100_000L));
         FailingCartRepository c = new FailingCartRepository(true);
         c.addItem(new CartItem("cart-a", "u", "A", 2, java.time.LocalDateTime.now()));
         DefaultStoreService svc = new DefaultStoreService(p, o, c, b);
@@ -751,6 +1077,420 @@ class StoreServiceTest {
         assertNotNull(userOrders.get(0).getOrderId());
         assertEquals(3, p.findById("A").getStock());// 库存只按成功一次扣减
         assertEquals(100_000L - 400L, b.findByUserId("u").getBalanceCents());// 余额只按成功一次扣减
+    }
+
+    // 修改购物车条目数量：改自己的条目成功，仓库中数量同步更新
+    @Test
+    void testUpdateCartQuantitySuccess() {
+        service.addToCart("0120", "00001", 2);
+        String cartItemId = service.getCart("0120").getData().get(0).getCartItemId();
+
+        ServiceResult<Void> testResult = service.updateCartQuantity("0120", cartItemId, 5);
+
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertEquals(5, cartRepo.findByUserId("0120").get(0).getQuantity());
+    }
+
+    // 越权防护：拿他人 cartItemId 改数量一律按不存在处理，且他人购物车不得被改动
+    @Test
+    void testUpdateCartQuantityRejectsOtherUsersItem() {
+        service.addToCart("0120", "00001", 2);
+        String victimItemId = service.getCart("0120").getData().get(0).getCartItemId();
+
+        ServiceResult<Void> testResult = service.updateCartQuantity("0121", victimItemId, 99);
+
+        assertEquals(StatusCode.NOT_FOUND, testResult.getStatus());
+        assertEquals(2, cartRepo.findByUserId("0120").get(0).getQuantity());
+        assertTrue(cartRepo.findByUserId("0121").isEmpty());
+    }
+
+    // 新数量必须为正，否则 BAD_REQUEST 且不触碰仓库
+    @Test
+    void testUpdateCartQuantityRejectsNonPositive() {
+        service.addToCart("0120", "00001", 2);
+        String cartItemId = service.getCart("0120").getData().get(0).getCartItemId();
+
+        assertEquals(StatusCode.BAD_REQUEST, service.updateCartQuantity("0120", cartItemId, 0).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.updateCartQuantity("0120", cartItemId, -3).getStatus());
+        assertEquals(2, cartRepo.findByUserId("0120").get(0).getQuantity());
+    }
+
+    // 条目编号不存在时返回 NOT_FOUND，与 removeFromCart 的语义保持一致
+    @Test
+    void testUpdateCartQuantityRejectsUnknownItem() {
+        ServiceResult<Void> testResult = service.updateCartQuantity("0120", "cart-does-not-exist", 3);
+
+        assertEquals(StatusCode.NOT_FOUND, testResult.getStatus());
+    }
+
+    // 购物车明细携带商品名、单价（分）与小计（分），前端无需再查一次商品
+    @Test
+    void testCartDetailsCarryProductNameAndSubtotal() {
+        service.addToCart("0120", "00001", 3);
+
+        ServiceResult<List<CartLine>> testResult = service.getCartDetails("0120");
+
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertEquals(1, testResult.getData().size());
+        CartLine line = testResult.getData().get(0);
+        assertEquals("00001", line.getProductId());
+        assertEquals("Apple", line.getProductName());
+        assertEquals(250L, line.getUnitPriceCents());
+        assertEquals(3, line.getQuantity());
+        assertEquals(750L, line.getSubtotalCents());
+        assertTrue(line.isActive());
+    }
+
+    // 读取时联表的核心价值：商品调价后购物车明细立刻显示新价，无需数据迁移
+    @Test
+    void testCartDetailsReflectPriceChangeImmediately() {
+        service.addToCart("0120", "00001", 2);
+        service.updateProduct("00001", "Apple", 3.0, "A delicious apple", "Fruit",
+                products.findById("00001").getVersion());
+
+        CartLine line = service.getCartDetails("0120").getData().get(0);
+
+        assertEquals(300L, line.getUnitPriceCents());
+        assertEquals(600L, line.getSubtotalCents());
+    }
+
+    // 明细带在售标记，前端可据此灰显已下架商品，无需额外一次商品查询
+    @Test
+    void testCartDetailsMarksDeactivatedProduct() {
+        service.addToCart("0120", "00001", 1);
+        service.deactivateProduct("00001");
+
+        CartLine line = service.getCartDetails("0120").getData().get(0);
+
+        assertFalse(line.isActive());
+    }
+
+    // 商品被物理删除后明细行直接跳过：没有名称与价格可用，留一行空壳反而误导
+    @Test
+    void testCartDetailsSkipDeletedProduct() {
+        service.addToCart("0120", "00001", 1);
+        products.deleteById("00001");
+
+        assertEquals(1, cartRepo.findByUserId("0120").size());
+        assertTrue(service.getCartDetails("0120").getData().isEmpty());
+    }
+
+    // 对账口径：明细小计必须等于结账实扣金额；unitPriceCents × quantity 会因四舍五入少一分，
+    // 因此前端合计只能累加 subtotalCents
+    @Test
+    void testCartDetailsSubtotalMatchesCheckoutDebit() {
+        products.save(new Product("ROUND", "Rounding item", 10, 1.005, "", "test"));
+        walletRepo.save(new BankAccount("round_user", 100_000L));
+        service.addToCart("round_user", "ROUND", 3);
+
+        CartLine line = service.getCartDetails("round_user").getData().get(0);
+        assertEquals(100L, line.getUnitPriceCents());
+        assertEquals(301L, line.getSubtotalCents());
+        assertEquals(300L, line.getUnitPriceCents() * line.getQuantity());// 单价乘数量少一分，不可用于合计
+
+        long balanceBefore = walletRepo.findByUserId("round_user").getBalanceCents();
+        assertEquals(StatusCode.OK, service.checkout("round_user").getStatus());
+        assertEquals(balanceBefore - line.getSubtotalCents(), walletRepo.findByUserId("round_user").getBalanceCents());
+    }
+
+    // 充值成功后记一笔 RECHARGE 流水：金额为正，操作者是本人，余额快照与账户一致
+    @Test
+    void testRechargeRecordsLedgerEntry() {
+        ServiceResult<Void> testResult = service.recharge("ledger_user", 5000L);
+
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        List<WalletTransaction> entries = walletRepo.findTransactionsByUserId("ledger_user");
+        assertEquals(1, entries.size());
+        WalletTransaction entry = entries.get(0);
+        assertEquals(WalletTransactionType.RECHARGE, entry.getType());
+        assertEquals(5000L, entry.getAmountCents());
+        assertEquals(5000L, entry.getBalanceAfterCents());
+        assertEquals("ledger_user", entry.getOperatorId());
+    }
+
+    // 购买成功后记一笔 PURCHASE 流水：金额为负，备注带上订单编号，可双向追溯
+    @Test
+    void testPurchaseRecordsLedgerEntryWithOrderReference() {
+        walletRepo.save(new BankAccount("ledger_user", 100_000L));
+
+        assertEquals(StatusCode.OK, service.purchase("ledger_user", "00001", 2).getStatus());
+
+        List<WalletTransaction> entries = walletRepo.findTransactionsByUserId("ledger_user");
+        assertEquals(1, entries.size());
+        WalletTransaction entry = entries.get(0);
+        assertEquals(WalletTransactionType.PURCHASE, entry.getType());
+        assertEquals(-500L, entry.getAmountCents());// Apple 2.5 元 × 2 件
+        assertEquals(100_000L - 500L, entry.getBalanceAfterCents());
+        String orderId = orders.findByUserId("ledger_user").get(0).getOrderId();
+        assertEquals("order " + orderId, entry.getNote());
+    }
+
+    // 管理员校正余额：流水记下操作者编号，让「谁改的」不再随参数被丢弃
+    @Test
+    void testAdjustBalanceRecordsOperatorId() {
+        walletRepo.save(new BankAccount("ledger_user", 10_000L));
+
+        ServiceResult<Void> testResult = service.adjustBalance("admin001", "ledger_user", 25_000L);
+
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        List<WalletTransaction> entries = walletRepo.findTransactionsByUserId("ledger_user");
+        assertEquals(1, entries.size());
+        assertEquals(WalletTransactionType.ADJUST, entries.get(0).getType());
+        assertEquals(15_000L, entries.get(0).getAmountCents());// 25000 - 10000 的差额
+        assertEquals(25_000L, entries.get(0).getBalanceAfterCents());
+        assertEquals("admin001", entries.get(0).getOperatorId());
+    }
+
+    // 操作者编号为空即拒绝，避免出现一条查不到责任人的校正流水
+    @Test
+    void testAdjustBalanceRejectsBlankAdminId() {
+        assertEquals(StatusCode.BAD_REQUEST, service.adjustBalance("  ", "0120", 100L).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.adjustBalance(null, "0120", 100L).getStatus());
+    }
+
+    // 补偿留痕：建单失败后流水留下一正一负两笔，累加为 0，余额复原
+    @Test
+    void testCompensationLeavesOffsettingLedgerEntries() {
+        InMemoryProductRepository p = new InMemoryProductRepository();
+        p.save(new Product("A", "A", 5, 2.0, "", "test"));
+        FailingOrderRepository o = new FailingOrderRepository(true);
+        InMemoryWalletRepository wallet = new InMemoryWalletRepository();
+        wallet.save(new BankAccount("u", 100_000L));
+        DefaultStoreService svc = new DefaultStoreService(p, o, new InMemoryCartRepository(), wallet);
+
+        assertEquals(StatusCode.CONFLICT, svc.purchase("u", "A", 2).getStatus());
+
+        List<WalletTransaction> entries = wallet.findTransactionsByUserId("u");
+        assertEquals(2, entries.size());
+        // 同毫秒内的两笔流水排序不保证与业务顺序一致，故按类型查找而不是按下标
+        WalletTransaction purchaseEntry = null;
+        WalletTransaction refundEntry = null;
+        long netCents = 0L;
+        for (WalletTransaction entry : entries) {
+            netCents += entry.getAmountCents();
+            if (entry.getType() == WalletTransactionType.PURCHASE)
+                purchaseEntry = entry;
+            if (entry.getType() == WalletTransactionType.REFUND)
+                refundEntry = entry;
+        }
+        assertNotNull(purchaseEntry);
+        assertNotNull(refundEntry);
+        assertEquals(-400L, purchaseEntry.getAmountCents());
+        assertEquals(400L, refundEntry.getAmountCents());
+        assertEquals(0L, netCents);// 账面正负相抵
+        assertEquals(100_000L, wallet.findByUserId("u").getBalanceCents());// 余额已复原
+    }
+
+    // 结账逐件记账：两件商品产生两笔 CHECKOUT 流水，金额之和等于实际扣款
+    @Test
+    void testCheckoutRecordsOneLedgerEntryPerItem() {
+        walletRepo.save(new BankAccount("ledger_user", 100_000L));
+        service.addToCart("ledger_user", "00001", 2);
+        service.addToCart("ledger_user", "00002", 3);
+
+        assertEquals(StatusCode.OK, service.checkout("ledger_user").getStatus());
+
+        List<WalletTransaction> entries = walletRepo.findTransactionsByUserId("ledger_user");
+        assertEquals(2, entries.size());
+        long totalCents = 0L;
+        for (WalletTransaction entry : entries) {
+            assertEquals(WalletTransactionType.CHECKOUT, entry.getType());
+            totalCents += entry.getAmountCents();
+        }
+        assertEquals(-950L, totalCents);// Apple 2.5×2=500 分，Banana 1.5×3=450 分
+        assertEquals(100_000L - 950L, walletRepo.findByUserId("ledger_user").getBalanceCents());
+    }
+
+    // 流水写失败即回滚：钱包存储故障（余额与流水同事务写不进去）时购买返回 SERVER_ERROR，
+    // 余额未变、无订单、无流水、库存已回补，绝不静默成功
+    @Test
+    void testLedgerFailureRollsBackPurchase() {
+        InMemoryProductRepository p = new InMemoryProductRepository();
+        p.save(new Product("A", "A", 5, 2.0, "", "test"));
+        InMemoryOrderRepository o = new InMemoryOrderRepository();
+        FailingWalletRepository wallet = new FailingWalletRepository();
+        wallet.save(new BankAccount("u", 100_000L));
+        wallet.throwOnDebit = true;// 扣款（余额+流水同事务）写失败 → 抛 IllegalStateException
+        DefaultStoreService svc = new DefaultStoreService(p, o, new InMemoryCartRepository(), wallet);
+
+        ServiceResult<Void> result = svc.purchase("u", "A", 2);
+        assertEquals(StatusCode.SERVER_ERROR, result.getStatus());
+        assertEquals(5, p.findById("A").getStock());// 库存已回补
+        assertTrue(o.findByUserId("u").isEmpty());// 无订单
+        assertEquals(100_000L, wallet.findByUserId("u").getBalanceCents());// 余额未变
+        assertTrue(wallet.findTransactionsByUserId("u").isEmpty());// 无流水
+    }
+
+    // 流水按用户隔离：查自己的账看不到别人的流水
+    @Test
+    void testListTransactionsIsolatedPerUser() {
+        service.recharge("ledger_a", 1000L);
+        service.recharge("ledger_b", 2000L);
+
+        ServiceResult<List<WalletTransaction>> testResult = service.listTransactions("ledger_a");
+
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertEquals(1, testResult.getData().size());
+        assertEquals("ledger_a", testResult.getData().get(0).getUserId());
+    }
+
+    // 用户编号为空即拒绝，避免返回全表流水
+    @Test
+    void testListTransactionsRejectsBlankUserId() {
+        assertEquals(StatusCode.BAD_REQUEST, service.listTransactions("  ").getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, service.listTransactions(null).getStatus());
+    }
+
+    // 无流水的用户返回空列表而非 null，前端可直接遍历
+    @Test
+    void testListTransactionsReturnsEmptyForUnknownUser() {
+        ServiceResult<List<WalletTransaction>> testResult = service.listTransactions("nobody");
+
+        assertEquals(StatusCode.OK, testResult.getStatus());
+        assertTrue(testResult.getData().isEmpty());
+    }
+
+    // P1-2：订单与流水逐笔对账——购买后 Order 的分值派生 getter 必须与钱包 PURCHASE 流水实扣完全一致，
+    // 证明「订单快照(double 元)」与「账本(long 分)」经唯一换算入口 Money.toCents 收敛后分毫不差
+    @Test
+    void testOrderCentsReconcileWithWalletLedger() {
+        assertEquals(StatusCode.OK, service.purchase("0120", "00001", 3).getStatus());// Apple 2.5 元 × 3 = 7.5 元
+
+        Order order = service.findOrdersByUserId("0120").getData().get(0);
+        assertEquals(250L, order.getUnitPriceCents());// 单价 2.5 元 = 250 分
+        assertEquals(750L, order.getTotalPriceCents());// 总价 7.5 元 = 750 分
+
+        long purchaseDebitCents = 0L;
+        for (WalletTransaction txn : service.listTransactions("0120").getData()) {
+            if (txn.getType() == WalletTransactionType.PURCHASE) {
+                purchaseDebitCents = txn.getAmountCents();
+            }
+        }
+        assertEquals(-750L, purchaseDebitCents);// 钱包实扣 -750 分，与订单总价分值逐笔对账一致
+    }
+
+    // 防御性拷贝：查询结果不可被调用方改写，避免绕过服务层直接篡改仓库数据
+    @Test
+    void testQueryResultsAreUnmodifiable() {
+        service.addToCart("0120", "00001", 1);
+        service.purchase("0120", "00002", 1);
+        service.recharge("0120", 100L);
+
+        assertThrows(UnsupportedOperationException.class, () -> service.getCart("0120").getData().clear());
+        assertThrows(UnsupportedOperationException.class, () -> service.getCartDetails("0120").getData().clear());
+        assertThrows(UnsupportedOperationException.class,
+                () -> service.findOrdersByUserId("0120").getData().clear());
+        assertThrows(UnsupportedOperationException.class, () -> service.findAllOrders().getData().clear());
+        assertThrows(UnsupportedOperationException.class, () -> service.listTransactions("0120").getData().clear());
+    }
+
+    // DSH A5：findAll 走 ConcurrentHashMap.values() 本无固定序，必须按下单时间升序、同刻按订单号升序稳定返回
+    @Test
+    void testFindAllOrdersSortsByDateThenId() {
+        LocalDateTime early = LocalDateTime.of(2024, 1, 1, 10, 0);
+        LocalDateTime late = LocalDateTime.of(2024, 1, 2, 10, 0);
+        // 故意乱序插入：晚单在前、同刻两单 id 逆序，证明返回序来自排序而非插入序
+        orders.create(new Order("b-late", "u1", "00001", 1, 2.5, late, "Apple", 2.5));
+        orders.create(new Order("c-early", "u2", "00001", 1, 2.5, early, "Apple", 2.5));
+        orders.create(new Order("a-early", "u3", "00001", 1, 2.5, early, "Apple", 2.5));
+
+        List<Order> all = service.findAllOrders().getData();
+
+        assertEquals(3, all.size());
+        assertEquals("a-early", all.get(0).getOrderId());// 同为 early，按 id 升序 a<c
+        assertEquals("c-early", all.get(1).getOrderId());
+        assertEquals("b-late", all.get(2).getOrderId());// late 排最后
+    }
+
+    // DSH A5：findByUserId 原按插入序返回，现同样以时间+订单号双键稳定排序（对齐 Access 版 ORDER BY order_date, order_id）
+    @Test
+    void testFindOrdersByUserIdSortsByDateThenId() {
+        LocalDateTime morning = LocalDateTime.of(2024, 3, 1, 8, 0);
+        LocalDateTime evening = LocalDateTime.of(2024, 3, 1, 20, 0);
+        // 同一用户乱序插入：晚单先、早单后，且同刻两单 id 逆序
+        orders.create(new Order("z-evening", "sortUser", "00001", 1, 2.5, evening, "Apple", 2.5));
+        orders.create(new Order("m-morning2", "sortUser", "00001", 1, 2.5, morning, "Apple", 2.5));
+        orders.create(new Order("m-morning1", "sortUser", "00001", 1, 2.5, morning, "Apple", 2.5));
+
+        List<Order> mine = service.findOrdersByUserId("sortUser").getData();
+
+        assertEquals(3, mine.size());
+        assertEquals("m-morning1", mine.get(0).getOrderId());// morning 先，同刻按 id 升序 morning1<morning2
+        assertEquals("m-morning2", mine.get(1).getOrderId());
+        assertEquals("z-evening", mine.get(2).getOrderId());// evening 排最后
+    }
+
+    // DSH A5：结账补偿 note 组装——空单退回原措辞；少量单带全部订单号；多单按 VARCHAR(200) 预算截断防溢出
+    @Test
+    void testCheckoutCompensationNoteCarriesOrderIdsWithinColumnWidth() {
+        assertEquals("checkout compensation",
+                DefaultStoreService.checkoutCompensationNote(new ArrayList<Order>()));// 空列表退回原措辞
+
+        List<Order> few = new ArrayList<Order>();
+        few.add(new Order("o1", "u", "00001", 1, 2.5, LocalDateTime.now(), "Apple", 2.5));
+        few.add(new Order("o2", "u", "00002", 1, 1.5, LocalDateTime.now(), "Banana", 1.5));
+        assertEquals("checkout compensation for orders o1, o2", DefaultStoreService.checkoutCompensationNote(few));
+
+        // 20 个 UUID(36 字符)订单号必然超出列宽，须截断为「前若干完整单号 + (+N more)」且总长 ≤ 200
+        List<Order> many = new ArrayList<Order>();
+        for (int i = 0; i < 20; i++)
+            many.add(new Order(UUID.randomUUID().toString(), "u", "00001", 1, 2.5,
+                    LocalDateTime.now(), "Apple", 2.5));
+        String truncated = DefaultStoreService.checkoutCompensationNote(many);
+        assertTrue(truncated.startsWith("checkout compensation for orders "));
+        assertTrue(truncated.contains(" more)"), "超长 note 必须带 (+N more) 截断标记: " + truncated);
+        assertTrue(truncated.length() <= 200,
+                "note 不得超过 tblWalletTransaction.note VARCHAR(200): " + truncated.length());
+    }
+
+    // DSH A5：建单失败触发退款补偿时，REFUND 流水 note 必须带上被补偿的订单号，与 PURCHASE 流水逐笔对账
+    @Test
+    void testPurchaseCompensationRefundNoteCarriesOrderId() {
+        InMemoryProductRepository p = new InMemoryProductRepository();
+        p.save(new Product("A", "A", 5, 2.0, "", "test"));
+        FailingOrderRepository o = new FailingOrderRepository(true);// create 抛异常 → 触发退款补偿
+        InMemoryWalletRepository wallet = new InMemoryWalletRepository();
+        wallet.save(new BankAccount("u", 100_000L));
+        DefaultStoreService svc = new DefaultStoreService(p, o, new InMemoryCartRepository(), wallet);
+
+        assertEquals(StatusCode.CONFLICT, svc.purchase("u", "A", 2).getStatus());
+
+        WalletTransaction purchaseEntry = null;
+        WalletTransaction refundEntry = null;
+        for (WalletTransaction entry : wallet.findTransactionsByUserId("u")) {
+            if (entry.getType() == WalletTransactionType.PURCHASE)
+                purchaseEntry = entry;
+            if (entry.getType() == WalletTransactionType.REFUND)
+                refundEntry = entry;
+        }
+        assertNotNull(purchaseEntry);
+        assertNotNull(refundEntry);
+        // PURCHASE 流水 note 形如 "order <id>"；退款 note 必须复用同一订单号
+        String orderId = purchaseEntry.getNote().substring("order ".length());
+        assertEquals("purchase compensation for order " + orderId, refundEntry.getNote());
+    }
+
+    // DSH A4：getCartDetails 收敛为一次 findAll 建索引后，多商品购物车每行仍解析出正确名称/单价/小计，
+    // 且被物理删除的商品因索引 get 返 null 而跳过（与逐个 findById 的旧行为等价）
+    @Test
+    void testCartDetailsResolveMultipleDistinctProductsAndSkipDeleted() {
+        service.addToCart("0120", "00001", 2);// Apple 2.5 元
+        service.addToCart("0120", "00002", 3);// Banana 1.5 元
+        service.addToCart("0120", "00003", 1);// Carrot 0.5 元
+        products.deleteById("00002");// 删除其一：索引查不到 → 该行跳过
+
+        Map<String, CartLine> byId = new HashMap<String, CartLine>();
+        for (CartLine line : service.getCartDetails("0120").getData())
+            byId.put(line.getProductId(), line);
+
+        assertEquals(2, byId.size());
+        assertFalse(byId.containsKey("00002"));
+        assertEquals("Apple", byId.get("00001").getProductName());
+        assertEquals(250L, byId.get("00001").getUnitPriceCents());
+        assertEquals(500L, byId.get("00001").getSubtotalCents());
+        assertEquals("Carrot", byId.get("00003").getProductName());
+        assertEquals(50L, byId.get("00003").getUnitPriceCents());
+        assertEquals(50L, byId.get("00003").getSubtotalCents());
     }
 
     private static final class FailingOrderRepository implements OrderRepository {
@@ -831,11 +1571,13 @@ class StoreServiceTest {
         }
     }
 
-    // 可控银行账户替身：能单独注入 debit/credit 失败，或用 reportedBalance 让预检读到虚假余额
-    private static final class FailingBankAccountRepository implements BankAccountRepository {
-        private final InMemoryBankAccountRepository delegate = new InMemoryBankAccountRepository();
-        private boolean failOnDebit;
-        private boolean failOnCredit;
+    // 可控钱包替身：能注入 debit/credit 存储故障（抛 IllegalStateException）或业务拒绝（applied=false），
+    // 或用 reportedBalance 让预检读到虚假余额
+    private static final class FailingWalletRepository implements WalletRepository {
+        private final InMemoryWalletRepository delegate = new InMemoryWalletRepository();
+        private boolean failOnDebit;// debit 返回 applied=false（模拟余额不足被守卫拒绝）
+        private boolean failOnCredit;// credit 返回 applied=false
+        private boolean throwOnDebit;// debit 抛 IllegalStateException（模拟余额与流水同事务写失败）
         private long reportedBalance = -1L;// -1 表示用 delegate 真实余额
 
         @Override
@@ -846,27 +1588,42 @@ class StoreServiceTest {
         }
 
         @Override
+        public List<WalletTransaction> findTransactionsByUserId(String userId) {
+            return delegate.findTransactionsByUserId(userId);
+        }
+
+        @Override
         public boolean save(BankAccount account) {
             return delegate.save(account);
         }
 
         @Override
-        public boolean credit(String userId, long cents) {
-            if (failOnCredit)
-                return false;
-            return delegate.credit(userId, cents);
-        }
-
-        @Override
-        public boolean debit(String userId, long cents) {
+        public WalletMutation debit(String userId, long cents, WalletTransactionType type, String operatorId,
+                String note) {
+            if (throwOnDebit)
+                throw new IllegalStateException("ledger write failed");
             if (failOnDebit)
-                return false;
-            return delegate.debit(userId, cents);
+                return WalletMutation.rejected(currentBalance(userId));
+            return delegate.debit(userId, cents, type, operatorId, note);
         }
 
         @Override
-        public boolean setBalance(String userId, long cents) {
-            return delegate.setBalance(userId, cents);
+        public WalletMutation credit(String userId, long cents, WalletTransactionType type, String operatorId,
+                String note) {
+            if (failOnCredit)
+                return WalletMutation.rejected(currentBalance(userId));
+            return delegate.credit(userId, cents, type, operatorId, note);
+        }
+
+        @Override
+        public WalletMutation setBalance(String userId, long newBalanceCents, WalletTransactionType type,
+                String operatorId, String note) {
+            return delegate.setBalance(userId, newBalanceCents, type, operatorId, note);
+        }
+
+        private long currentBalance(String userId) {
+            BankAccount account = delegate.findByUserId(userId);
+            return account == null ? 0L : account.getBalanceCents();
         }
     }
 

@@ -10,8 +10,10 @@ import cn.vcampus.store.StoreRestockCommand;
 import cn.vcampus.store.StoreProductAddCommand;
 import cn.vcampus.store.StoreProductUpdateCommand;
 import cn.vcampus.store.StoreProductDeactivateCommand;
+import cn.vcampus.store.StoreProductReactivateCommand;
 import cn.vcampus.store.CartAddCommand;
 import cn.vcampus.store.CartRemoveCommand;
+import cn.vcampus.store.CartUpdateCommand;
 import cn.vcampus.store.CartQueryCommand;
 import cn.vcampus.store.CartCheckoutCommand;
 import cn.vcampus.store.StoreOrderListAllCommand;
@@ -54,6 +56,15 @@ public final class RemoteStoreService implements Closeable {
         return send(MessageType.STORE_QUERY, new StoreQueryCommand(token, category));
     }
 
+    /**
+     * 按类别查询商品（管理端含下架视图）：includeInactive=true 时服务端把已下架商品一并返回，
+     * 服务端要求 STORE_MANAGE 双门槛，普通买家携带此位会被拒。
+     */
+    public Message listProducts(String token, String category, boolean includeInactive)
+            throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_QUERY, new StoreQueryCommand(token, category, includeInactive));
+    }
+
     /** 管理员补充库存。 */
     public Message restock(String token, String productId, int additionalStock)
             throws IOException, ClassNotFoundException {
@@ -67,11 +78,11 @@ public final class RemoteStoreService implements Closeable {
                 new StoreProductAddCommand(token, name, price, stock, description, category));
     }
 
-    /** 管理员更新商品。 */
+    /** 管理员更新商品。version 为加载商品时的版本快照（A2 乐观并发），服务端校验不符即返回冲突，界面提示刷新重试。 */
     public Message updateProduct(String token, String productId, String name, double price, String description,
-            String category) throws IOException, ClassNotFoundException {
+            String category, int version) throws IOException, ClassNotFoundException {
         return send(MessageType.STORE_PRODUCT_UPDATE,
-                new StoreProductUpdateCommand(token, productId, name, price, description, category));
+                new StoreProductUpdateCommand(token, productId, name, price, description, category, version));
     }
 
     /** 管理员下架商品。 */
@@ -79,6 +90,13 @@ public final class RemoteStoreService implements Closeable {
             throws IOException, ClassNotFoundException {
         return send(MessageType.STORE_PRODUCT_DEACTIVATE,
                 new StoreProductDeactivateCommand(token, productId));
+    }
+
+    /** 管理员重新上架商品。 */
+    public Message reactivateProduct(String token, String productId)
+            throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_PRODUCT_REACTIVATE,
+                new StoreProductReactivateCommand(token, productId));
     }
 
     /** 将商品加入当前用户购物车。 */
@@ -93,9 +111,20 @@ public final class RemoteStoreService implements Closeable {
         return send(MessageType.STORE_CART_REMOVE, new CartRemoveCommand(token, cartItemId));
     }
 
+    /** 修改当前用户购物车条目数量；条目归属由服务端校验。 */
+    public Message updateCart(String token, String cartItemId, int newQuantity)
+            throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_CART_UPDATE, new CartUpdateCommand(token, cartItemId, newQuantity));
+    }
+
     /** 查询当前用户购物车。 */
     public Message cart(String token) throws IOException, ClassNotFoundException {
         return send(MessageType.STORE_CART_QUERY, new CartQueryCommand(token));
+    }
+
+    /** 查询当前用户购物车明细；服务端读取时与商品联表，响应为 List&lt;CartLine&gt;。 */
+    public Message cartDetail(String token) throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_CART_DETAIL, new CartQueryCommand(token));
     }
 
     /** 结算当前用户购物车。 */
@@ -128,6 +157,11 @@ public final class RemoteStoreService implements Closeable {
             throws IOException, ClassNotFoundException {
         return send(MessageType.STORE_ACCOUNT_ADJUST,
                 new StoreAccountAdjustCommand(token, targetUserId, newBalanceCents));
+    }
+
+    /** 查询当前用户钱包流水（分）；只能查本人，响应为 List&lt;WalletTransaction&gt;。 */
+    public Message ledger(String token) throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_ACCOUNT_LEDGER, new StoreAccountQueryCommand(token));
     }
 
     private Message send(MessageType type, Object payload) throws IOException, ClassNotFoundException {

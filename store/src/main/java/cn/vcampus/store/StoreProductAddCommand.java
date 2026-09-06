@@ -22,7 +22,7 @@ public final class StoreProductAddCommand implements Serializable {
         if (stock < 0)
             throw new IllegalArgumentException("stock must not be less than zero");
         this.stock = stock;
-        this.description = checkStr(description, "description");
+        this.description = optionalStr(description);
         this.category = checkStr(category, "category");
     }
 
@@ -56,5 +56,10 @@ public final class StoreProductAddCommand implements Serializable {
             throw new IllegalArgumentException(fieldName + " cannot be empty");
         }
         return value.trim();
+    }
+
+    // 说明为可选字段：允许空/null，统一规范为 trim 后的串，与服务端 Product 实体、DB 可空列一致
+    private static String optionalStr(String value) {
+        return value == null ? "" : value.trim();
     }
 }
