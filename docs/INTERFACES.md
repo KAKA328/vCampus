@@ -15,7 +15,7 @@
 所有服务方法返回 `ServiceResult<T>`，由服务器统一映射为 `Message` 响应。服务端必须再次校验会话和权限。
 
 `GradeSubmissionService` 当前负责保存一门教学班的一份成绩草稿和其中的学生成绩：
-`createDraft`、`findById`、`findByOffering`、`listEntries`、`saveDraftEntry`。每个教学班最多一份提交单；草稿或被退回时允许覆盖修改同一学生成绩。草稿数据保存在 `tblGradeSubmission`、`tblGradeEntry`，不写入 `tblCourseResult`。教师提交全班成绩、教务审核及审核通过后生成正式成绩将在后续接口中实现。
+`createDraft`、`findById`、`findByOffering`、`listEntries`、`saveDraftEntry`、`submitForReview`。每个教学班最多一份提交单；草稿、被退回或待审核时都允许覆盖修改同一学生成绩，待审核修改后的最新版本供教务读取。草稿数据保存在 `tblGradeSubmission`、`tblGradeEntry`，不写入 `tblCourseResult`。教务审核及审核通过后生成正式成绩将在后续接口中实现。
 
 ## 学籍与选课对接接口
 
@@ -81,11 +81,11 @@ StudentManagementService.findByIds(List<String> studentIds)
 - `COURSE_SELECT_OFFERING_V2` + `CourseSelectOfferingV2Command(token, roundId, offeringId)`：在指定轮次选择具体教学班；
 - `COURSE_DROP_RECORD_V2` + `CourseDropRecordV2Command(token, recordId)`：按选课记录编号退选。
 - `COURSE_TEACHING_QUERY_V2` + `CourseTeachingQueryV2Command`：教师查询本人某学期教学班，或查询本人指定教学班的有效学生名单。`MY_OFFERINGS` 返回 `List<TeachingOffering>`，`OFFERING_ROSTER` 返回 `TeachingRoster`；名单项目含学号、姓名、专业、班级和 `SelectionType`（可区分必修、选修、跨专业选修、重修）。
-- `COURSE_GRADE_DRAFT_V2` + `CourseGradeDraftV2Command`：教师打开本人教学班的成绩草稿（`OPEN_DRAFT`），或保存/覆盖一名有效选课学生的 0–100 分成绩（`SAVE_ENTRY`）。返回 `TeachingGradeDraft`，其中包含有效名单、当前提交单和已保存的成绩条目。
+- `COURSE_GRADE_DRAFT_V2` + `CourseGradeDraftV2Command`：教师打开本人教学班的成绩草稿（`OPEN_DRAFT`）、保存/覆盖一名有效选课学生的 0–100 分成绩（`SAVE_ENTRY`），或在全班成绩完整时提交审核（`SUBMIT_FOR_REVIEW`）。返回 `TeachingGradeDraft`，其中包含有效名单、当前提交单和已保存的成绩条目。
 
 客户端不提交 `studentId` 作为本人身份，服务端必须根据 `token -> user_id -> student_id` 推导学生档案；退选使用已选记录的 `recordId`。
 
-教师教学班查询和成绩草稿接口仅接受 `TEACHER` 角色且要求 `GRADE_WRITE` 权限。服务器从 `token -> user_id -> tblTeacher.teacher_id` 定位教师，教师不能在命令中传入或伪造 `teacherId`；查询名单时还会校验教学班确实归该教师，并且只返回 `ACTIVE` 选课记录。保存成绩时，学生是否属于该教学班及其 `SelectionType` 也完全由服务器按有效选课记录确定，客户端不传提交单编号或选课类别。草稿只允许保存到 `DRAFT` 或 `RETURNED` 提交单，尚不写入正式 `tblCourseResult`。教师端 Swing 页面将在成绩导入功能完成后统一接入。
+教师教学班查询和成绩草稿接口仅接受 `TEACHER` 角色且要求 `GRADE_WRITE` 权限。服务器从 `token -> user_id -> tblTeacher.teacher_id` 定位教师，教师不能在命令中传入或伪造 `teacherId`；查询名单时还会校验教学班确实归该教师，并且只返回 `ACTIVE` 选课记录。保存成绩时，学生是否属于该教学班及其 `SelectionType` 也完全由服务器按有效选课记录确定，客户端不传提交单编号或选课类别。提交审核前，系统会确认每名有效选课学生均已有成绩；提交后状态为 `PENDING_REVIEW`。教师可继续修改待审核成绩，系统自动保留待审核状态并让教务端读取最新结果；只有 `APPROVED` 成绩必须先被教务退回后才能修改。此阶段尚不写入正式 `tblCourseResult`。教师端 Swing 页面将在成绩导入功能完成后统一接入。
 
 教务人员维护课程目录、教学班和选课轮次统一使用 `COURSE_MANAGE` 与
 `CourseManagementCommand`，服务端要求 `COURSE_MANAGE` 权限。选课轮次相关操作为：

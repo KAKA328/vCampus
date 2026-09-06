@@ -54,6 +54,12 @@ public final class GradeSubmission implements Serializable {
                 newUpdatedAt);
     }
 
+    /** 改变提交单状态，同时记录本次提交或修改的时间。 */
+    public GradeSubmission withStatus(GradeSubmissionStatus newStatus, LocalDateTime newUpdatedAt) {
+        return new GradeSubmission(submissionId, offeringId, teacherId, newStatus, createdAt,
+                newUpdatedAt);
+    }
+
     private static String requireText(String value, String field) {
         if (value == null || value.trim().isEmpty()) {
             throw new IllegalArgumentException(field + " must not be blank");

@@ -115,10 +115,11 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
                     return ServiceResult.failure(StatusCode.NOT_FOUND, "grade submission not found");
                 }
                 if (submission.getStatus() != GradeSubmissionStatus.DRAFT
-                        && submission.getStatus() != GradeSubmissionStatus.RETURNED) {
+                        && submission.getStatus() != GradeSubmissionStatus.RETURNED
+                        && submission.getStatus() != GradeSubmissionStatus.PENDING_REVIEW) {
                     connection.rollback();
                     return ServiceResult.failure(StatusCode.CONFLICT,
-                            "grade entries can only be changed in draft or returned status");
+                            "approved grade entries cannot be changed until they are returned");
                 }
                 if (!updateEntry(connection, entry)) insertEntry(connection, entry);
                 try (PreparedStatement statement = connection.prepareStatement(
@@ -129,6 +130,43 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
                 }
                 connection.commit();
                 return ServiceResult.ok(entry);
+            } catch (SQLException failure) {
+                rollback(connection);
+                return databaseFailure(failure);
+            }
+        } catch (SQLException failure) {
+            return databaseFailure(failure);
+        }
+    }
+
+    @Override
+    public ServiceResult<GradeSubmission> submitForReview(String submissionId) {
+        String normalized = normalize(submissionId);
+        if (normalized == null) return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                "submissionId must not be blank");
+        try (Connection connection = open()) {
+            connection.setAutoCommit(false);
+            try {
+                GradeSubmission submission = findSubmission(connection, normalized);
+                if (submission == null) {
+                    connection.rollback();
+                    return ServiceResult.failure(StatusCode.NOT_FOUND, "grade submission not found");
+                }
+                if (submission.getStatus() == GradeSubmissionStatus.APPROVED) {
+                    connection.rollback();
+                    return ServiceResult.failure(StatusCode.CONFLICT,
+                            "approved grade submission must be returned before it can be changed");
+                }
+                LocalDateTime now = LocalDateTime.now();
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "UPDATE tblGradeSubmission SET status=?,updated_at=? WHERE submission_id=?")) {
+                    statement.setString(1, GradeSubmissionStatus.PENDING_REVIEW.name());
+                    statement.setTimestamp(2, Timestamp.valueOf(now));
+                    statement.setString(3, normalized);
+                    statement.executeUpdate();
+                }
+                connection.commit();
+                return ServiceResult.ok(submission.withStatus(GradeSubmissionStatus.PENDING_REVIEW, now));
             } catch (SQLException failure) {
                 rollback(connection);
                 return databaseFailure(failure);

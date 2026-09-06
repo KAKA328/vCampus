@@ -73,13 +73,31 @@ public final class InMemoryGradeSubmissionService implements GradeSubmissionServ
         }
         GradeSubmission submission = submissionResult.getData();
         if (submission.getStatus() != GradeSubmissionStatus.DRAFT
-                && submission.getStatus() != GradeSubmissionStatus.RETURNED) {
+                && submission.getStatus() != GradeSubmissionStatus.RETURNED
+                && submission.getStatus() != GradeSubmissionStatus.PENDING_REVIEW) {
             return ServiceResult.failure(StatusCode.CONFLICT,
-                    "grade entries can only be changed in draft or returned status");
+                    "approved grade entries cannot be changed until they are returned");
         }
         entriesBySubmission.get(submission.getSubmissionId()).put(entry.getStudentId(), entry);
         submissions.put(submission.getSubmissionId(), submission.withUpdatedAt(LocalDateTime.now()));
         return ServiceResult.ok(entry);
+    }
+
+    @Override
+    public synchronized ServiceResult<GradeSubmission> submitForReview(String submissionId) {
+        ServiceResult<GradeSubmission> submissionResult = findById(submissionId);
+        if (submissionResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(submissionResult.getStatus(), submissionResult.getMessage());
+        }
+        GradeSubmission submission = submissionResult.getData();
+        if (submission.getStatus() == GradeSubmissionStatus.APPROVED) {
+            return ServiceResult.failure(StatusCode.CONFLICT,
+                    "approved grade submission must be returned before it can be changed");
+        }
+        GradeSubmission pending = submission.withStatus(GradeSubmissionStatus.PENDING_REVIEW,
+                LocalDateTime.now());
+        submissions.put(pending.getSubmissionId(), pending);
+        return ServiceResult.ok(pending);
     }
 
     private GradeSubmission findExistingByOffering(String offeringId) {

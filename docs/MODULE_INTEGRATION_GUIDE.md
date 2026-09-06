@@ -171,7 +171,7 @@ docs/MODULE_INTEGRATION_GUIDE.md
 - `COURSE_SELECT_OFFERING_V2` + `CourseSelectOfferingV2Command(token, roundId, offeringId)`
 - `COURSE_DROP_RECORD_V2` + `CourseDropRecordV2Command(token, recordId)`
 - `COURSE_TEACHING_QUERY_V2` + `CourseTeachingQueryV2Command`：教师查询本人教学班或指定教学班有效名单；服务器根据 token 解析教师档案，名单只含有效选课记录并保留选课类别。
-- `COURSE_GRADE_DRAFT_V2` + `CourseGradeDraftV2Command`：教师打开本人教学班成绩草稿或保存一名有效选课学生的成绩；教师身份、学生选课范围和选课类别均由服务器根据 token 和有效选课记录确定，返回 `TeachingGradeDraft`。
+- `COURSE_GRADE_DRAFT_V2` + `CourseGradeDraftV2Command`：教师打开本人教学班成绩草稿、保存一名有效选课学生的成绩，或在全班成绩齐全时提交审核；教师身份、学生选课范围和选课类别均由服务器根据 token 和有效选课记录确定，返回 `TeachingGradeDraft`。待审核成绩仍可由教师修改，教务端读取最新版本。
 
 客户端不再提交 `studentId` 作为本人身份，服务器必须根据 `token -> user_id -> student_id` 推导学生档案。
 

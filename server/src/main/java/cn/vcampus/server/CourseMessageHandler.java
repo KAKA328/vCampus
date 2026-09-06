@@ -233,7 +233,7 @@ final class CourseMessageHandler {
                 course.getData()), roster));
     }
 
-    /** 教师打开或修改本人教学班成绩草稿，学生范围和选课类别均由服务端确定。 */
+    /** 教师打开、修改或提交本人教学班成绩草稿，学生范围和选课类别均由服务端确定。 */
     private ServiceResult<?> gradeDraft(CourseGradeDraftV2Command command) {
         ServiceResult<TeacherProfile> profile = teacherProfile(command.getToken());
         if (profile.getStatus() != StatusCode.OK) return profile;
@@ -253,13 +253,50 @@ final class CourseMessageHandler {
         ServiceResult<GradeSubmission> submission = findOrCreateDraft(profile.getData(),
                 command.getOfferingId());
         if (submission.getStatus() != StatusCode.OK) return submission;
+        GradeSubmission currentSubmission = submission.getData();
         if (command.getOperation() == CourseGradeDraftV2Command.Operation.SAVE_ENTRY) {
             ServiceResult<GradeEntry> saved = gradeSubmissions.saveDraftEntry(new GradeEntry(
-                    submission.getData().getSubmissionId(), selectedStudent.getStudentId(),
+                    currentSubmission.getSubmissionId(), selectedStudent.getStudentId(),
                     selectedStudent.getSelectionType(), command.getScore(), LocalDateTime.now()));
             if (saved.getStatus() != StatusCode.OK) return saved;
+            ServiceResult<GradeSubmission> refreshed = gradeSubmissions.findById(
+                    currentSubmission.getSubmissionId());
+            if (refreshed.getStatus() != StatusCode.OK) return refreshed;
+            currentSubmission = refreshed.getData();
+        } else if (command.getOperation()
+                == CourseGradeDraftV2Command.Operation.SUBMIT_FOR_REVIEW) {
+            ServiceResult<Void> completeness = requireCompleteGrades(roster.getData(),
+                    currentSubmission);
+            if (completeness.getStatus() != StatusCode.OK) return completeness;
+            ServiceResult<GradeSubmission> submitted = gradeSubmissions.submitForReview(
+                    currentSubmission.getSubmissionId());
+            if (submitted.getStatus() != StatusCode.OK) return submitted;
+            currentSubmission = submitted.getData();
         }
-        return readTeachingGradeDraft(roster.getData(), submission.getData());
+        return readTeachingGradeDraft(roster.getData(), currentSubmission);
+    }
+
+    /** 提交前要求每一名当前有效选课学生都恰有一条成绩记录。 */
+    private ServiceResult<Void> requireCompleteGrades(TeachingRoster roster,
+            GradeSubmission submission) {
+        ServiceResult<List<GradeEntry>> entries = gradeSubmissions.listEntries(
+                submission.getSubmissionId());
+        if (entries.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(entries.getStatus(), entries.getMessage());
+        }
+        Map<String, GradeEntry> entriesByStudent = new LinkedHashMap<String, GradeEntry>();
+        for (GradeEntry entry : entries.getData()) entriesByStudent.put(entry.getStudentId(), entry);
+        List<String> missingStudentIds = new ArrayList<String>();
+        for (TeachingRosterEntry student : roster.getStudents()) {
+            if (!entriesByStudent.containsKey(student.getStudentId())) {
+                missingStudentIds.add(student.getStudentId());
+            }
+        }
+        if (!missingStudentIds.isEmpty()) {
+            return ServiceResult.failure(StatusCode.CONFLICT,
+                    "all active students must have grades before submission: " + missingStudentIds);
+        }
+        return ServiceResult.ok(null);
     }
 
     /** 找到既有草稿；首次打开教学班时创建一份。并发首次打开时回读已经创建成功的草稿。 */

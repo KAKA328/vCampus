@@ -33,4 +33,21 @@ class InMemoryGradeSubmissionServiceTest {
         assertEquals(StatusCode.CONFLICT, service.createDraft(
                 GradeSubmission.draft("GRADE-002", "OFFER-001", "T001", now)).getStatus());
     }
+
+    @Test
+    void keepsLatestTeacherChangesAvailableForReviewAfterSubmission() {
+        InMemoryGradeSubmissionService service = new InMemoryGradeSubmissionService();
+        LocalDateTime now = LocalDateTime.of(2026, 9, 4, 10, 0);
+        service.createDraft(GradeSubmission.draft("GRADE-001", "OFFER-001", "T001", now));
+        service.saveDraftEntry(new GradeEntry("GRADE-001", "S001", SelectionType.REQUIRED,
+                72, now));
+
+        assertEquals(GradeSubmissionStatus.PENDING_REVIEW,
+                service.submitForReview("GRADE-001").getData().getStatus());
+        assertEquals(StatusCode.OK, service.saveDraftEntry(new GradeEntry("GRADE-001", "S001",
+                SelectionType.REQUIRED, 86, now.plusMinutes(1))).getStatus());
+        assertEquals(86, service.listEntries("GRADE-001").getData().get(0).getScore());
+        assertEquals(GradeSubmissionStatus.PENDING_REVIEW,
+                service.findById("GRADE-001").getData().getStatus());
+    }
 }

@@ -13,7 +13,8 @@ public final class CourseGradeDraftV2Command implements Serializable {
 
     public enum Operation {
         OPEN_DRAFT,
-        SAVE_ENTRY
+        SAVE_ENTRY,
+        SUBMIT_FOR_REVIEW
     }
 
     private final String token;
@@ -48,6 +49,12 @@ public final class CourseGradeDraftV2Command implements Serializable {
             String studentId, int score) {
         return new CourseGradeDraftV2Command(token, Operation.SAVE_ENTRY, offeringId, studentId,
                 Integer.valueOf(score));
+    }
+
+    /** 教师确认本班全体有效选课学生均已录入成绩后，提交教务审核。 */
+    public static CourseGradeDraftV2Command submitForReview(String token, String offeringId) {
+        return new CourseGradeDraftV2Command(token, Operation.SUBMIT_FOR_REVIEW, offeringId,
+                null, null);
     }
 
     public String getToken() { return token; }

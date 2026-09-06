@@ -4,7 +4,7 @@ package cn.vcampus.course;
 public enum GradeSubmissionStatus {
     /** 教师可持续录入、导入或修改成绩。 */
     DRAFT,
-    /** 教师已提交，等待教务老师审核，教师不能继续修改。 */
+    /** 教师已提交，等待教务老师审核；教师可继续修改，最新版本仍待审核。 */
     PENDING_REVIEW,
     /** 教务审核通过；下一阶段才会将其转换为正式课程结果。 */
     APPROVED,

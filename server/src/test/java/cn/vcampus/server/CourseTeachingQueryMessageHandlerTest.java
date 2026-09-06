@@ -13,6 +13,7 @@ import cn.vcampus.course.CourseSelectionModule;
 import cn.vcampus.course.CourseSelectionRecord;
 import cn.vcampus.course.CourseGradeDraftV2Command;
 import cn.vcampus.course.CourseTeachingQueryV2Command;
+import cn.vcampus.course.GradeSubmissionStatus;
 import cn.vcampus.course.InMemoryStudentSelectionProfileProvider;
 import cn.vcampus.course.SelectionType;
 import cn.vcampus.course.TeachingOffering;
@@ -187,6 +188,35 @@ class CourseTeachingQueryMessageHandlerTest {
                 CourseGradeDraftV2Command.openDraft(student.getToken(), "OFFER-JAVA-01")));
 
         assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
+    }
+
+    @Test
+    void teacherCanSubmitOnlyCompleteRosterAndLaterReplacePendingGrade() {
+        Message incomplete = handler.handle(Message.request("submit-incomplete-grade-draft",
+                MessageType.COURSE_GRADE_DRAFT_V2,
+                CourseGradeDraftV2Command.submitForReview(teacherOne.getToken(), "OFFER-JAVA-01")));
+        assertEquals(StatusCode.CONFLICT, incomplete.getStatusCode());
+
+        handler.handle(Message.request("save-complete-grade-draft", MessageType.COURSE_GRADE_DRAFT_V2,
+                CourseGradeDraftV2Command.saveEntry(teacherOne.getToken(), "OFFER-JAVA-01",
+                        "STU-001", 76)));
+        Message submitted = handler.handle(Message.request("submit-complete-grade-draft",
+                MessageType.COURSE_GRADE_DRAFT_V2,
+                CourseGradeDraftV2Command.submitForReview(teacherOne.getToken(), "OFFER-JAVA-01")));
+
+        assertEquals(StatusCode.OK, submitted.getStatusCode());
+        TeachingGradeDraft pending = (TeachingGradeDraft) submitted.getPayload();
+        assertEquals(GradeSubmissionStatus.PENDING_REVIEW,
+                pending.getSubmission().getStatus());
+
+        Message corrected = handler.handle(Message.request("replace-pending-grade",
+                MessageType.COURSE_GRADE_DRAFT_V2, CourseGradeDraftV2Command.saveEntry(
+                        teacherOne.getToken(), "OFFER-JAVA-01", "STU-001", 89)));
+        assertEquals(StatusCode.OK, corrected.getStatusCode());
+        TeachingGradeDraft latest = (TeachingGradeDraft) corrected.getPayload();
+        assertEquals(GradeSubmissionStatus.PENDING_REVIEW,
+                latest.getSubmission().getStatus());
+        assertEquals(89, latest.getEntries().get(0).getScore());
     }
 
     private static Session login(InMemoryUserManagementService users, String userId, Role role) {
