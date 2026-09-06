@@ -47,7 +47,7 @@ public final class AccessOrderRepository implements OrderRepository {
     public List<Order> findByUserId(String userId) {
         String sql = "SELECT order_id,user_id,product_id,quantity,"
                 + "total_price,order_date,product_name,unit_price "
-                + "FROM tblOrder WHERE user_id=? ORDER BY order_date";
+                + "FROM tblOrder WHERE user_id=? ORDER BY order_date, order_id";
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, userId);
@@ -66,7 +66,7 @@ public final class AccessOrderRepository implements OrderRepository {
     @Override
     public List<Order> findAll() {
         String sql = "SELECT order_id,user_id,product_id,quantity,total_price,order_date,product_name,unit_price "
-                + "FROM tblOrder ORDER BY order_date";
+                + "FROM tblOrder ORDER BY order_date, order_id";
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql);
                 ResultSet results = statement.executeQuery()) {

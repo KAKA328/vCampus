@@ -182,6 +182,7 @@ CREATE TABLE tblProduct (
     description VARCHAR(255),
     category VARCHAR(64) NOT NULL,
     active BIT NOT NULL,
+    version INTEGER NOT NULL,
     PRIMARY KEY (product_id)
 );
 

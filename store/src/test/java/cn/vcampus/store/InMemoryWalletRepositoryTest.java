@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 // 内存钱包仓储测试：余额与流水在同一把锁内一起改，
@@ -182,5 +183,45 @@ class InMemoryWalletRepositoryTest {
         List<WalletTransaction> ledger = repo.findTransactionsByUserId("ghost");
         assertNotNull(ledger);
         assertTrue(ledger.isEmpty());
+    }
+
+    // 新-4 契约：debit 金额必须为正，非正数抛 IllegalArgumentException（与 Access 版一致）
+    @Test
+    void testDebitRejectsNonPositiveCents() {
+        repo.save(new BankAccount("u001", 500L));
+        assertThrows(IllegalArgumentException.class,
+                () -> repo.debit("u001", 0L, WalletTransactionType.PURCHASE, "u001", null));
+        assertThrows(IllegalArgumentException.class,
+                () -> repo.debit("u001", -100L, WalletTransactionType.PURCHASE, "u001", null));
+        assertEquals(500L, repo.findByUserId("u001").getBalanceCents());// 余额未被非法调用改动
+    }
+
+    // 新-4 契约：credit 金额必须为正，非正数抛 IllegalArgumentException
+    @Test
+    void testCreditRejectsNonPositiveCents() {
+        assertThrows(IllegalArgumentException.class,
+                () -> repo.credit("u001", 0L, WalletTransactionType.RECHARGE, "u001", null));
+        assertThrows(IllegalArgumentException.class,
+                () -> repo.credit("u001", -100L, WalletTransactionType.RECHARGE, "u001", null));
+        assertNull(repo.findByUserId("u001"));// 非法入账不应懒创建账户
+    }
+
+    // 新-4 契约：setBalance 目标余额必须非负，负数抛 IllegalArgumentException
+    @Test
+    void testSetBalanceRejectsNegative() {
+        repo.save(new BankAccount("u001", 500L));
+        assertThrows(IllegalArgumentException.class,
+                () -> repo.setBalance("u001", -1L, WalletTransactionType.ADJUST, "admin", null));
+        assertEquals(500L, repo.findByUserId("u001").getBalanceCents());// 余额不变
+    }
+
+    // 新-4 边界：setBalance(0) 合法（清零），不抛异常且余额归零、记一笔负差额
+    @Test
+    void testSetBalanceZeroAllowed() {
+        repo.save(new BankAccount("u001", 500L));
+        WalletMutation mutation = repo.setBalance("u001", 0L, WalletTransactionType.ADJUST, "admin", null);
+        assertTrue(mutation.isApplied());
+        assertEquals(0L, repo.findByUserId("u001").getBalanceCents());
+        assertEquals(-500L, repo.findTransactionsByUserId("u001").get(0).getAmountCents());
     }
 }

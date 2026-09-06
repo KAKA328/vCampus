@@ -127,11 +127,11 @@ class StoreConcurrencyTest {
             orderedQty += order.getQuantity();
         }
         assertEquals(sold, orderedQty, "订单总数量应等于库存扣减量");
-        // 每个账户余额扣减量 == 其成功订单总额（换算成分）
+        // 每个账户余额扣减量 == 其成功订单总额（换算成分，走 Order.getTotalPriceCents 派生 getter → Money.toCents）
         for (String user : new String[] { "u1", "u2", "u3" }) {
             long spent = 0L;
             for (Order order : orders.findByUserId(user)) {
-                spent += Math.round(order.getTotalPrice() * 100);
+                spent += order.getTotalPriceCents();
             }
             assertEquals(100_000L - spent, wallet.findByUserId(user).getBalanceCents(),
                     user + " 余额扣减应与成功订单总额相符");

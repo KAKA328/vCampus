@@ -63,20 +63,20 @@ INSERT INTO tblAcademicReview(review_id, student_id, total_earned_credits, requi
 VALUES ('review-demo-student-1', 'demo_student', 6, 6, 0, 1, 1, 'demo_admin', NOW(), '演示数据：包含首修未通过和重修通过记录。');
 
 -- 商店模块演示商品。
-INSERT INTO tblProduct(product_id, name, stock, price, description, category, active)
-VALUES ('P001', '黑色签字笔', 200, 2.0, '0.5mm 中性笔，流畅书写', '文具', 1);
+INSERT INTO tblProduct(product_id, name, stock, price, description, category, active, version)
+VALUES ('P001', '黑色签字笔', 200, 2.0, '0.5mm 中性笔，流畅书写', '文具', 1, 0);
 
-INSERT INTO tblProduct(product_id, name, stock, price, description, category, active)
-VALUES ('P002', '笔记本 A5', 150, 5.0, '80页横线本，封面随机', '文具', 1);
+INSERT INTO tblProduct(product_id, name, stock, price, description, category, active, version)
+VALUES ('P002', '笔记本 A5', 150, 5.0, '80页横线本，封面随机', '文具', 1, 0);
 
-INSERT INTO tblProduct(product_id, name, stock, price, description, category, active)
-VALUES ('P003', '矿泉水 550ml', 300, 1.5, '天然矿泉水', '零食饮料', 1);
+INSERT INTO tblProduct(product_id, name, stock, price, description, category, active, version)
+VALUES ('P003', '矿泉水 550ml', 300, 1.5, '天然矿泉水', '零食饮料', 1, 0);
 
-INSERT INTO tblProduct(product_id, name, stock, price, description, category, active)
-VALUES ('P004', '薯片 60g', 100, 6.0, '原味薯片，酥脆可口', '零食饮料', 1);
+INSERT INTO tblProduct(product_id, name, stock, price, description, category, active, version)
+VALUES ('P004', '薯片 60g', 100, 6.0, '原味薯片，酥脆可口', '零食饮料', 1, 0);
 
-INSERT INTO tblProduct(product_id, name, stock, price, description, category, active)
-VALUES ('P005', '抽纸 3连包', 80, 8.5, '三层加厚面巾纸', '日用品', 1);
+INSERT INTO tblProduct(product_id, name, stock, price, description, category, active, version)
+VALUES ('P005', '抽纸 3连包', 80, 8.5, '三层加厚面巾纸', '日用品', 1, 0);
 
 -- 商店模块演示订单。
 INSERT INTO tblOrder(order_id, user_id, product_id, quantity, total_price, order_date, product_name, unit_price)

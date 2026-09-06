@@ -15,8 +15,10 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.io.IOException;
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -83,6 +85,9 @@ public final class StorePanel extends JPanel {
 
     private final JButton searchButton = new JButton("查询商品");
     private final JButton hotButton = new JButton("热销 Top" + HOT_PRODUCT_LIMIT);
+    // 管理端视图切换：打开后商品列表一并显示已下架商品（服务端 STORE_MANAGE 双门槛），
+    // 让「重新上架」能直接选中下架行操作，不再只能凭编号盲输
+    private final JButton inactiveButton = new JButton("显示已下架");
     private final JButton purchaseButton = new JButton("购买选中");
     private final JButton addToCartButton = new JButton("加入购物车");
     private final JButton detailButton = new JButton("商品详情");
@@ -90,6 +95,7 @@ public final class StorePanel extends JPanel {
     private final JButton editProductButton = new JButton("编辑选中");
     private final JButton restockButton = new JButton("补货");
     private final JButton deactivateButton = new JButton("下架选中");
+    private final JButton reactivateButton = new JButton("重新上架");
     private final JButton refreshCartButton = new JButton("刷新购物车");
     private final JButton updateQuantityButton = new JButton("修改数量");
     private final JButton removeFromCartButton = new JButton("移除选中");
@@ -102,6 +108,7 @@ public final class StorePanel extends JPanel {
 
     private boolean requestInProgress;
     private boolean hotViewVisible;
+    private boolean inactiveViewVisible;// 管理端「含下架」视图开关；与热销视图互斥
     private final RequestLifecycle requestLifecycle = new RequestLifecycle();
 
     public StorePanel(String host, int port, Session session) {
@@ -135,6 +142,7 @@ public final class StorePanel extends JPanel {
         editProductButton.addActionListener(event -> showEditProductDialog());
         restockButton.addActionListener(event -> restockSelected());
         deactivateButton.addActionListener(event -> deactivateSelected());
+        reactivateButton.addActionListener(event -> reactivateSelected());
         refreshCartButton.addActionListener(event -> loadCart());
         updateQuantityButton.addActionListener(event -> updateSelectedCartQuantity());
         removeFromCartButton.addActionListener(event -> removeSelectedCartItem());
@@ -145,6 +153,7 @@ public final class StorePanel extends JPanel {
         allOrdersButton.addActionListener(event -> loadAllOrders());
         if (manager) {
             adjustBalanceButton.addActionListener(event -> promptAdjustBalance());
+            inactiveButton.addActionListener(event -> toggleInactiveView());
         }
         // 回车即查询，与图书馆页的搜索框行为一致
         keywordField.addActionListener(event -> applyKeywordFilter());
@@ -253,6 +262,10 @@ public final class StorePanel extends JPanel {
         VCampusTheme.secondaryButton(hotButton);
         search.add(searchButton);
         search.add(hotButton);
+        if (manager) {
+            VCampusTheme.secondaryButton(inactiveButton);
+            search.add(inactiveButton);
+        }
 
         configureTable(productTable);
         applyMoneyColumns(productTable, MoneyCellRenderer.MoneyFormat.YUAN, 3);
@@ -272,10 +285,12 @@ public final class StorePanel extends JPanel {
             VCampusTheme.secondaryButton(editProductButton);
             VCampusTheme.secondaryButton(restockButton);
             VCampusTheme.secondaryButton(deactivateButton);
+            VCampusTheme.secondaryButton(reactivateButton);
             actions.add(addProductButton);
             actions.add(editProductButton);
             actions.add(restockButton);
             actions.add(deactivateButton);
+            actions.add(reactivateButton);
         }
 
         panel.add(search, BorderLayout.NORTH);
@@ -390,13 +405,22 @@ public final class StorePanel extends JPanel {
 
     private void loadProducts() {
         final String category = categoryField.getText().trim();
+        // 含下架视图仅管理员可开（按钮只在 manager 分支渲染；服务端另有 STORE_MANAGE 双门槛兜底）
+        final boolean includeInactive = manager && inactiveViewVisible;
         hotViewVisible = false;
         hotButton.setText("热销 Top" + HOT_PRODUCT_LIMIT);
-        runRequest(category.isEmpty() ? "正在查询商品…" : "正在查询「" + category + "」类商品…",
-                service -> category.isEmpty()
-                        ? service.listProducts(session.getToken())
-                        : service.listProducts(session.getToken(), category),
+        String suffix = includeInactive ? "（含已下架）" : "";
+        runRequest((category.isEmpty() ? "正在查询商品" : "正在查询「" + category + "」类商品") + suffix + "…",
+                service -> service.listProducts(session.getToken(),
+                        category.isEmpty() ? null : category, includeInactive),
                 this::showProducts);
+    }
+
+    /** 管理端视图切换：商品列表并入/移出已下架商品；进入时顺带退出热销视图（同一张表两种视图互斥）。 */
+    private void toggleInactiveView() {
+        inactiveViewVisible = !inactiveViewVisible;
+        inactiveButton.setText(inactiveViewVisible ? "隐藏已下架" : "显示已下架");
+        loadProducts();
     }
 
     /** 热销排行不占页签，做成商品表的视图切换，与图书馆「本人/全部借阅记录」的切换方式一致。 */
@@ -405,6 +429,9 @@ public final class StorePanel extends JPanel {
             loadProducts();
             return;
         }
+        // 进入热销视图时退出含下架视图（互斥），按钮文案同步复位
+        inactiveViewVisible = false;
+        inactiveButton.setText("显示已下架");
         loadHotProducts();
     }
 
@@ -442,8 +469,21 @@ public final class StorePanel extends JPanel {
         loadedProducts.clear();
         loadedProducts.addAll(parsed);
         applyKeywordFilter();
-        showStatus((hotViewVisible ? "已显示热销商品" : "已显示商品") + "，共 " + parsed.size() + " 个",
-                VCampusTheme.SUCCESS);
+        String summary;
+        if (hotViewVisible) {
+            summary = "已显示热销商品，共 " + parsed.size() + " 个";
+        } else if (manager && inactiveViewVisible) {
+            int inactiveCount = 0;
+            for (Product product : parsed) {
+                if (!product.isActive()) {
+                    inactiveCount++;
+                }
+            }
+            summary = "已显示商品，共 " + parsed.size() + " 个（其中 " + inactiveCount + " 个已下架）";
+        } else {
+            summary = "已显示商品，共 " + parsed.size() + " 个";
+        }
+        showStatus(summary, VCampusTheme.SUCCESS);
     }
 
     /** 关键词只在已加载的商品里本地过滤，不额外发请求；过滤结果同步写进 visibleProducts 供选中行回查。 */
@@ -508,6 +548,15 @@ public final class StorePanel extends JPanel {
         if (product.getStock() < count) {
             showStatus("「" + product.getName() + "」库存仅剩 " + product.getStock() + " 件，请调整数量",
                     VCampusTheme.DANGER);
+            return;
+        }
+        // 下单前确认：与服务端同式换算（元→分，同走 Money.toCents 唯一入口），把「将扣多少钱」显式摆给用户，避免误点
+        final long totalCents = StoreRowMapper.toCents(product.getPrice() * count);
+        int confirmed = JOptionPane.showConfirmDialog(this,
+                "确认购买「" + product.getName() + "」× " + count + "，将扣款 "
+                        + StoreRowMapper.formatYuan(totalCents) + " 元？",
+                "确认购买", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
+        if (confirmed != JOptionPane.OK_OPTION) {
             return;
         }
         final String productId = product.getProductId();
@@ -603,7 +652,7 @@ public final class StorePanel extends JPanel {
         final String productId = product.getProductId();
         runRequest("正在更新商品…",
                 service -> service.updateProduct(session.getToken(), productId, form.getName(), form.getPrice(),
-                        form.getDescription(), form.getCategory()),
+                        form.getDescription(), form.getCategory(), product.getVersion()),
                 response -> {
                     if (!isSuccessful(response)) {
                         return;
@@ -657,7 +706,7 @@ public final class StorePanel extends JPanel {
             showStatus("「" + product.getName() + "」已经下架，无需重复操作", VCampusTheme.DANGER);
             return;
         }
-        // 下架是破坏性操作且不可逆（服务端没有重新上架接口），必须二次确认
+        // 下架会中断售卖、商品从买家与管理员列表消失（可用「重新上架」凭编号恢复），属破坏性操作，必须二次确认
         if (JOptionPane.showConfirmDialog(this,
                 "确定下架「" + product.getName() + "」？\n下架后买家将无法购买，已存在的购物车条目也会标记为失效。",
                 "下架确认", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION) {
@@ -669,6 +718,50 @@ public final class StorePanel extends JPanel {
                 return;
             }
             showStatus("已下架「" + product.getName() + "」", VCampusTheme.SUCCESS);
+            SwingUtilities.invokeLater(this::loadProducts);
+        });
+    }
+
+    private void reactivateSelected() {
+        // 行内优先：含下架视图中选中了已下架商品 → 名称与编号都可见，确认后直接恢复，无需盲输编号
+        final Product selected = selectedProduct();
+        if (selected != null && !selected.isActive()) {
+            if (JOptionPane.showConfirmDialog(this,
+                    "确认重新上架「" + selected.getName() + "」（编号 " + selected.getProductId() + "）？",
+                    "重新上架确认", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE) != JOptionPane.OK_OPTION) {
+                return;
+            }
+            final String productId = selected.getProductId();
+            final String productName = selected.getName();
+            runRequest("正在重新上架…", service -> service.reactivateProduct(session.getToken(), productId),
+                    response -> {
+                        if (!isSuccessful(response)) {
+                            return;
+                        }
+                        showStatus("已重新上架「" + productName + "」", VCampusTheme.SUCCESS);
+                        SwingUtilities.invokeLater(this::loadProducts);
+                    });
+            return;
+        }
+        // 兜底：未打开含下架视图或选中的是已下架以外的行时，保留原「凭编号输入」用法
+        String hint = selected == null
+                ? "请输入要重新上架的商品编号：\n（提示：可先点「显示已下架」在列表中选中商品直接恢复）"
+                : "当前选中商品在售中；请输入要重新上架的商品编号：";
+        String input = JOptionPane.showInputDialog(this, hint,
+                "重新上架", JOptionPane.PLAIN_MESSAGE);
+        if (input == null) {
+            return;// 用户取消
+        }
+        final String productId = input.trim();
+        if (productId.isEmpty()) {
+            showStatus("商品编号不能为空", VCampusTheme.DANGER);
+            return;
+        }
+        runRequest("正在重新上架…", service -> service.reactivateProduct(session.getToken(), productId), response -> {
+            if (!isSuccessful(response)) {
+                return;
+            }
+            showStatus("已重新上架商品 " + productId, VCampusTheme.SUCCESS);
             SwingUtilities.invokeLater(this::loadProducts);
         });
     }
@@ -873,7 +966,7 @@ public final class StorePanel extends JPanel {
     }
 
     private void showBalance(Message response) {
-        // 余额只是辅助信息，查询失败不抢状态栗（留给主操作），只把标签复位
+        // 余额只是辅助信息，查询失败不抢状态栏（留给主操作），只把标签复位
         if (response.getStatusCode() == StatusCode.OK && response.getPayload() instanceof Number) {
             long cents = ((Number) response.getPayload()).longValue();
             balanceLabel.setText("余额：" + StoreRowMapper.formatYuan(cents) + " 元");
@@ -941,7 +1034,7 @@ public final class StorePanel extends JPanel {
         if (targetInput == null || targetInput.trim().isEmpty()) {
             return;
         }
-        String balanceInput = JOptionPane.showInputDialog(this, "请输入校正后的余额（元，绥对值）：", "校正余额",
+        String balanceInput = JOptionPane.showInputDialog(this, "请输入校正后的余额（元，绝对值）：", "校正余额",
                 JOptionPane.PLAIN_MESSAGE);
         if (balanceInput == null || balanceInput.trim().isEmpty()) {
             return;
@@ -992,7 +1085,17 @@ public final class StorePanel extends JPanel {
                 try {
                     responseHandler.handle(get());
                 } catch (Exception failure) {
-                    showStatus("无法连接商店服务器，请确认服务器已启动", VCampusTheme.DANGER);
+                    // 解包 SwingWorker 的 ExecutionException，区分「网络故障」与「其它异常」，不再一律报“无法连接”
+                    Throwable cause = failure instanceof ExecutionException && failure.getCause() != null
+                            ? failure.getCause()
+                            : failure;
+                    if (cause instanceof SocketTimeoutException) {
+                        showStatus("商店响应超时，请稍后重试", VCampusTheme.DANGER);
+                    } else if (cause instanceof IOException) {
+                        showStatus("无法连接商店服务器，请确认服务器已启动", VCampusTheme.DANGER);
+                    } else {
+                        showStatus(localFailureText(cause), VCampusTheme.DANGER);
+                    }
                 } finally {
                     loadingStatus.stop();
                     if (requestLifecycle.isCurrent(requestId)) {
@@ -1002,6 +1105,14 @@ public final class StorePanel extends JPanel {
                 }
             }
         }.execute();
+    }
+
+    // done() 的本地异常（命令构造/解析等非网络故障）文案：一律中文，绝不把 cause.getMessage() 的内部英文甩给用户
+    static String localFailureText(Throwable cause) {
+        if (cause instanceof IllegalArgumentException) {
+            return "提交的数据不完整或格式有误，请检查后重试";
+        }
+        return "商店请求失败，请稍后重试";
     }
 
     /** 统一响应守卫：成功返回 true，失败已顺手把原因写进状态栏，调用方直接 return 即可。 */
@@ -1036,6 +1147,8 @@ public final class StorePanel extends JPanel {
         editProductButton.setEnabled(manager && idle);
         restockButton.setEnabled(manager && idle);
         deactivateButton.setEnabled(manager && idle);
+        reactivateButton.setEnabled(manager && idle);
+        inactiveButton.setEnabled(manager && idle);
         adjustBalanceButton.setEnabled(manager && idle);
         keywordField.setEnabled(idle);
         categoryField.setEnabled(idle);
@@ -1059,7 +1172,7 @@ public final class StorePanel extends JPanel {
         if (statusCode == StatusCode.PAYMENT_REQUIRED)
             return "余额不足，请先充值";
         if (statusCode == StatusCode.CONFLICT)
-            return "库存或余额已发生变化，请刷新后重试";
+            return "商品、库存或余额已发生变化，请刷新后重试";
         return "服务器处理商店请求失败";
     }
 

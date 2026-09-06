@@ -56,13 +56,18 @@ public final class InMemoryStoreService implements StoreService {
 
     @Override
     public final ServiceResult<Product> updateProduct(String productId, String name, double price,
-            String description, String category) {
-        return delegate.updateProduct(productId, name, price, description, category);
+            String description, String category, int expectedVersion) {
+        return delegate.updateProduct(productId, name, price, description, category, expectedVersion);
     }
 
     @Override
     public final ServiceResult<Void> deactivateProduct(String productId) {
         return delegate.deactivateProduct(productId);
+    }
+
+    @Override
+    public final ServiceResult<Void> reactivateProduct(String productId) {
+        return delegate.reactivateProduct(productId);
     }
 
     @Override
@@ -108,6 +113,11 @@ public final class InMemoryStoreService implements StoreService {
     @Override
     public final ServiceResult<List<Product>> listProducts(String category) {
         return delegate.listProducts(category);
+    }
+
+    @Override
+    public final ServiceResult<List<Product>> listProducts(String category, boolean includeInactive) {
+        return delegate.listProducts(category, includeInactive);
     }
 
     @Override

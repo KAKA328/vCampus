@@ -52,6 +52,11 @@ public final class Order implements Serializable {
         return totalPrice;
     }
 
+    // 订单总价的分表示（DSH P1-2 派生 getter）：经唯一入口 Money.toCents 换算，与钱包实扣流水逐笔对账
+    public long getTotalPriceCents() {
+        return Money.toCents(totalPrice);
+    }
+
     public LocalDateTime getOrderDate() {
         return orderDate;
     }
@@ -62,6 +67,11 @@ public final class Order implements Serializable {
 
     public double getUnitPrice() {
         return unitPrice;
+    }
+
+    // 订单单价的分表示（DSH P1-2 派生 getter）：与总价同式换算，供展示与对账
+    public long getUnitPriceCents() {
+        return Money.toCents(unitPrice);
     }
 
     // 检查字符串合法性
