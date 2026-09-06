@@ -15,7 +15,7 @@
 所有服务方法返回 `ServiceResult<T>`，由服务器统一映射为 `Message` 响应。服务端必须再次校验会话和权限。
 
 `GradeSubmissionService` 当前负责保存一门教学班的一份成绩草稿和其中的学生成绩：
-`createDraft`、`findById`、`findByOffering`、`listByStatus`、`listEntries`、`saveDraftEntry`、`submitForReview`、`review`。每个教学班最多一份提交单；草稿、被退回或待审核时都允许覆盖修改同一学生成绩，待审核修改后的最新版本供教务读取。教务老师可退回并保存意见；审核通过和退回已通过成绩均由服务器的成绩审批工作流统一处理。在 Access 模式中，写入 `tblCourseResult` 的所有正式成绩与将成绩单改为 `APPROVED` 使用同一数据库事务；退回已通过成绩时，工作流又会按 `tblGradeSubmissionResult` 关联撤销这些正式成绩并改为 `RETURNED`。任一步失败即全部回滚，重复审核返回冲突，供学籍审查和重修判断读取。
+`createDraft`、`findById`、`findByOffering`、`listByStatus`、`listEntries`、`listAudit`、`saveDraftEntry`、`submitForReview`、`review`。每个教学班最多一份提交单；草稿、被退回或待审核时都允许覆盖修改同一学生成绩，待审核修改后的最新版本供教务读取。教务老师可退回并保存意见；审核通过和退回已通过成绩均由服务器的成绩审批工作流统一处理。在 Access 模式中，写入 `tblCourseResult` 的所有正式成绩与将成绩单改为 `APPROVED` 使用同一数据库事务；退回已通过成绩时，工作流又会按 `tblGradeSubmissionResult` 关联撤销这些正式成绩并改为 `RETURNED`。每次提交、通过或退回都会写入 `tblGradeSubmissionAudit`，用于追溯操作人、时间和备注。任一步失败即全部回滚，重复审核返回冲突，供学籍审查和重修判断读取。
 
 ## 学籍与选课对接接口
 
@@ -83,7 +83,7 @@ StudentManagementService.findByIds(List<String> studentIds)
 - `COURSE_TEACHING_QUERY_V2` + `CourseTeachingQueryV2Command`：教师查询本人某学期教学班，或查询本人指定教学班的有效学生名单。`MY_OFFERINGS` 返回 `List<TeachingOffering>`，`OFFERING_ROSTER` 返回 `TeachingRoster`；名单项目含学号、姓名、专业、班级和 `SelectionType`（可区分必修、选修、跨专业选修、重修）。
 - `COURSE_GRADE_DRAFT_V2` + `CourseGradeDraftV2Command`：教师打开本人教学班的成绩草稿（`OPEN_DRAFT`）、保存/覆盖一名有效选课学生的 0–100 分成绩（`SAVE_ENTRY`），或在全班成绩完整时提交审核（`SUBMIT_FOR_REVIEW`）。返回 `TeachingGradeDraft`，其中包含有效名单、当前提交单和已保存的成绩条目。
 - `COURSE_GRADE_IMPORT_V2` + `CourseGradeImportV2Command(token, offeringId, fileName, content)`：教师向本人教学班导入 CSV、XLS 或 XLSX 成绩文件。文件第一行必须包含 `学号`、`成绩`，成绩为 0–100 整数；服务器只接受当前有效选课学生，所有行验证通过后才原子写入草稿。成功返回 `GradeImportResult`（导入行数和最新草稿）。
-- `COURSE_GRADE_REVIEW_V2` + `CourseGradeReviewV2Command`：教务老师查询待审核成绩单（`LIST_PENDING`）、查看完整名单与分数（`VIEW_DETAIL`）、审核通过（`APPROVE`）或退回（`RETURN`）。退回必须提供原因；待审核成绩会直接退回，已通过成绩会先原子撤销对应正式成绩后再退回，任课教师即可修改并重新提交。
+- `COURSE_GRADE_REVIEW_V2` + `CourseGradeReviewV2Command`：教务老师查询待审核成绩单（`LIST_PENDING`）、查看完整名单与分数（`VIEW_DETAIL`）、查看流转审计（`VIEW_AUDIT`）、审核通过（`APPROVE`）或退回（`RETURN`）。退回必须提供原因；待审核成绩会直接退回，已通过成绩会先原子撤销对应正式成绩后再退回，任课教师即可修改并重新提交。
 
 客户端不提交 `studentId` 作为本人身份，服务端必须根据 `token -> user_id -> student_id` 推导学生档案；退选使用已选记录的 `recordId`。
 

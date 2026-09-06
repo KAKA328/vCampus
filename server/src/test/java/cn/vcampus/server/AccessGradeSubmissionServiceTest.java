@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.GradeEntry;
+import cn.vcampus.course.GradeSubmissionAuditAction;
 import cn.vcampus.course.GradeSubmission;
 import cn.vcampus.course.GradeSubmissionStatus;
 import cn.vcampus.course.GradeReviewDecision;
@@ -44,6 +45,10 @@ class AccessGradeSubmissionServiceTest {
                     + "submission_id VARCHAR(36) NOT NULL,student_id VARCHAR(32) NOT NULL,"
                     + "selection_type VARCHAR(16) NOT NULL,score INTEGER NOT NULL,updated_at DATETIME NOT NULL,"
                     + "PRIMARY KEY (submission_id,student_id))");
+            statement.execute("CREATE TABLE tblGradeSubmissionAudit ("
+                    + "audit_id VARCHAR(36) NOT NULL,submission_id VARCHAR(36) NOT NULL,"
+                    + "action VARCHAR(16) NOT NULL,actor_id VARCHAR(32) NOT NULL,"
+                    + "occurred_at DATETIME NOT NULL,remark VARCHAR(255),PRIMARY KEY (audit_id))");
         }
         service = new AccessGradeSubmissionService(database);
     }
@@ -102,6 +107,12 @@ class AccessGradeSubmissionServiceTest {
         AccessGradeSubmissionService restarted = new AccessGradeSubmissionService(database);
         assertEquals("academic_001", restarted.findById("GRADE-001").getData().getReviewedBy());
         assertEquals("请核对成绩", restarted.findById("GRADE-001").getData().getReviewRemark());
+        assertEquals(2, restarted.listAudit("GRADE-001").getData().size());
+        assertEquals(GradeSubmissionAuditAction.SUBMITTED,
+                restarted.listAudit("GRADE-001").getData().get(0).getAction());
+        assertEquals(GradeSubmissionAuditAction.RETURNED,
+                restarted.listAudit("GRADE-001").getData().get(1).getAction());
+        assertEquals("academic_001", restarted.listAudit("GRADE-001").getData().get(1).getActorId());
 
         restarted.submitForReview("GRADE-001");
         assertEquals(StatusCode.BAD_REQUEST, restarted.review("GRADE-001",

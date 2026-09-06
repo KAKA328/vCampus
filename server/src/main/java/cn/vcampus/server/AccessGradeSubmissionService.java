@@ -3,6 +3,8 @@ package cn.vcampus.server;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.GradeEntry;
+import cn.vcampus.course.GradeSubmissionAuditAction;
+import cn.vcampus.course.GradeSubmissionAuditRecord;
 import cn.vcampus.course.GradeSubmission;
 import cn.vcampus.course.GradeSubmissionService;
 import cn.vcampus.course.GradeSubmissionStatus;
@@ -19,6 +21,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 /** 使用 Access 保存教学班成绩草稿；本类不负责审核或写入正式课程结果。 */
 public final class AccessGradeSubmissionService implements GradeSubmissionService {
@@ -125,6 +128,28 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
     }
 
     @Override
+    public ServiceResult<List<GradeSubmissionAuditRecord>> listAudit(String submissionId) {
+        ServiceResult<GradeSubmission> submission = findById(submissionId);
+        if (submission.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(submission.getStatus(), submission.getMessage());
+        }
+        String sql = "SELECT audit_id,submission_id,action,actor_id,occurred_at,remark "
+                + "FROM tblGradeSubmissionAudit WHERE submission_id=? "
+                + "ORDER BY occurred_at,audit_id";
+        try (Connection connection = open();
+                PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, submission.getData().getSubmissionId());
+            try (ResultSet results = statement.executeQuery()) {
+                List<GradeSubmissionAuditRecord> audits = new ArrayList<GradeSubmissionAuditRecord>();
+                while (results.next()) audits.add(readAudit(results));
+                return ServiceResult.ok(Collections.unmodifiableList(audits));
+            }
+        } catch (SQLException failure) {
+            return databaseFailure(failure);
+        }
+    }
+
+    @Override
     public ServiceResult<GradeEntry> saveDraftEntry(GradeEntry entry) {
         ServiceResult<List<GradeEntry>> saved = saveDraftEntries(Collections.singletonList(entry));
         return saved.getStatus() == StatusCode.OK ? ServiceResult.ok(saved.getData().get(0))
@@ -210,6 +235,8 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
                     statement.setString(3, normalized);
                     statement.executeUpdate();
                 }
+                appendAudit(connection, normalized, GradeSubmissionAuditAction.SUBMITTED,
+                        submission.getTeacherId(), null, now);
                 connection.commit();
                 return ServiceResult.ok(submission.pendingReview(now));
             } catch (SQLException failure) {
@@ -263,6 +290,8 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
                     statement.setString(6, normalizedSubmissionId);
                     statement.executeUpdate();
                 }
+                appendAudit(connection, normalizedSubmissionId, GradeSubmissionAuditAction.RETURNED,
+                        normalizedReviewerId, normalize(remark), now);
                 connection.commit();
                 return ServiceResult.ok(submission.reviewed(status, normalizedReviewerId, remark, now));
             } catch (SQLException failure) {
@@ -313,6 +342,29 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
         return new GradeEntry(results.getString("submission_id"), results.getString("student_id"),
                 SelectionType.valueOf(results.getString("selection_type")), results.getInt("score"),
                 results.getTimestamp("updated_at").toLocalDateTime());
+    }
+
+    private static GradeSubmissionAuditRecord readAudit(ResultSet results) throws SQLException {
+        return new GradeSubmissionAuditRecord(results.getString("audit_id"),
+                results.getString("submission_id"), GradeSubmissionAuditAction.valueOf(
+                        results.getString("action")), results.getString("actor_id"),
+                results.getTimestamp("occurred_at").toLocalDateTime(), results.getString("remark"));
+    }
+
+    private static void appendAudit(Connection connection, String submissionId,
+            GradeSubmissionAuditAction action, String actorId, String remark,
+            LocalDateTime occurredAt) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "INSERT INTO tblGradeSubmissionAudit(audit_id,submission_id,action,actor_id,"
+                        + "occurred_at,remark) VALUES(?,?,?,?,?,?)")) {
+            statement.setString(1, UUID.randomUUID().toString());
+            statement.setString(2, submissionId);
+            statement.setString(3, action.name());
+            statement.setString(4, actorId);
+            statement.setTimestamp(5, Timestamp.valueOf(occurredAt));
+            statement.setString(6, normalize(remark));
+            statement.executeUpdate();
+        }
     }
 
     private static boolean updateEntry(Connection connection, GradeEntry entry) throws SQLException {

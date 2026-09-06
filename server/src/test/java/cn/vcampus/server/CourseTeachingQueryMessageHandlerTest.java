@@ -16,6 +16,8 @@ import cn.vcampus.course.CourseGradeImportV2Command;
 import cn.vcampus.course.CourseGradeReviewV2Command;
 import cn.vcampus.course.CourseTeachingQueryV2Command;
 import cn.vcampus.course.GradeSubmissionStatus;
+import cn.vcampus.course.GradeSubmissionAuditAction;
+import cn.vcampus.course.GradeSubmissionAuditRecord;
 import cn.vcampus.course.GradeSubmissionService;
 import cn.vcampus.course.GradeImportResult;
 import cn.vcampus.course.InMemoryStudentSelectionProfileProvider;
@@ -284,6 +286,17 @@ class CourseTeachingQueryMessageHandlerTest {
         assertEquals(1, formalResults.historyFor("STU-001").getData().size());
         assertEquals(88, formalResults.historyFor("STU-001").getData().get(0).getScore());
         assertEquals("重修", formalResults.historyFor("STU-001").getData().get(0).getAttemptType());
+
+        Message audit = handler.handle(Message.request("grade-audit",
+                MessageType.COURSE_GRADE_REVIEW_V2, CourseGradeReviewV2Command.viewAudit(
+                        academicAdmin.getToken(), submissionId)));
+        assertEquals(StatusCode.OK, audit.getStatusCode());
+        List<?> events = (List<?>) audit.getPayload();
+        assertEquals(2, events.size());
+        assertEquals(GradeSubmissionAuditAction.SUBMITTED,
+                ((GradeSubmissionAuditRecord) events.get(0)).getAction());
+        assertEquals(GradeSubmissionAuditAction.APPROVED,
+                ((GradeSubmissionAuditRecord) events.get(1)).getAction());
 
         Message repeated = handler.handle(Message.request("approve-grade-again",
                 MessageType.COURSE_GRADE_REVIEW_V2, CourseGradeReviewV2Command.approve(

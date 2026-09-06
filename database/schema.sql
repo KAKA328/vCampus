@@ -194,6 +194,17 @@ CREATE TABLE tblGradeEntry (
     PRIMARY KEY (submission_id, student_id)
 );
 
+-- 成绩单的状态流转审计；保留每次提交、通过和退回的操作者及原因。
+CREATE TABLE tblGradeSubmissionAudit (
+    audit_id VARCHAR(36) NOT NULL,
+    submission_id VARCHAR(36) NOT NULL,
+    action VARCHAR(16) NOT NULL,
+    actor_id VARCHAR(32) NOT NULL,
+    occurred_at DATETIME NOT NULL,
+    remark VARCHAR(255),
+    PRIMARY KEY (audit_id)
+);
+
 CREATE TABLE tblCourseResult (
     result_id VARCHAR(36) NOT NULL,
     student_id VARCHAR(32) NOT NULL,

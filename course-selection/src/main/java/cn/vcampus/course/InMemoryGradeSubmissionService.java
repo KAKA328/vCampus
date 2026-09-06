@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /** 供开发和测试使用的内存成绩草稿服务，程序重启后数据会丢失。 */
 public final class InMemoryGradeSubmissionService implements GradeSubmissionService {
@@ -15,6 +16,8 @@ public final class InMemoryGradeSubmissionService implements GradeSubmissionServ
             new LinkedHashMap<String, GradeSubmission>();
     private final Map<String, Map<String, GradeEntry>> entriesBySubmission =
             new LinkedHashMap<String, Map<String, GradeEntry>>();
+    private final Map<String, List<GradeSubmissionAuditRecord>> auditBySubmission =
+            new LinkedHashMap<String, List<GradeSubmissionAuditRecord>>();
 
     @Override
     public synchronized ServiceResult<GradeSubmission> createDraft(GradeSubmission submission) {
@@ -30,6 +33,8 @@ public final class InMemoryGradeSubmissionService implements GradeSubmissionServ
         submissions.put(submission.getSubmissionId(), submission);
         entriesBySubmission.put(submission.getSubmissionId(),
                 new LinkedHashMap<String, GradeEntry>());
+        auditBySubmission.put(submission.getSubmissionId(),
+                new ArrayList<GradeSubmissionAuditRecord>());
         return ServiceResult.ok(submission);
     }
 
@@ -73,6 +78,16 @@ public final class InMemoryGradeSubmissionService implements GradeSubmissionServ
         }
         return ServiceResult.ok(Collections.unmodifiableList(new ArrayList<GradeEntry>(
                 entriesBySubmission.get(submission.getData().getSubmissionId()).values())));
+    }
+
+    @Override
+    public synchronized ServiceResult<List<GradeSubmissionAuditRecord>> listAudit(String submissionId) {
+        ServiceResult<GradeSubmission> submission = findById(submissionId);
+        if (submission.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(submission.getStatus(), submission.getMessage());
+        }
+        return ServiceResult.ok(Collections.unmodifiableList(new ArrayList<GradeSubmissionAuditRecord>(
+                auditBySubmission.get(submission.getData().getSubmissionId()))));
     }
 
     @Override
@@ -127,6 +142,8 @@ public final class InMemoryGradeSubmissionService implements GradeSubmissionServ
         }
         GradeSubmission pending = submission.pendingReview(LocalDateTime.now());
         submissions.put(pending.getSubmissionId(), pending);
+        appendAudit(pending.getSubmissionId(), GradeSubmissionAuditAction.SUBMITTED,
+                submission.getTeacherId(), null, pending.getUpdatedAt());
         return ServiceResult.ok(pending);
     }
 
@@ -157,7 +174,16 @@ public final class InMemoryGradeSubmissionService implements GradeSubmissionServ
         GradeSubmission reviewed = found.getData().reviewed(status, reviewerId, remark,
                 LocalDateTime.now());
         submissions.put(reviewed.getSubmissionId(), reviewed);
+        appendAudit(reviewed.getSubmissionId(), decision == GradeReviewDecision.APPROVE
+                ? GradeSubmissionAuditAction.APPROVED : GradeSubmissionAuditAction.RETURNED,
+                reviewerId, remark, reviewed.getReviewedAt());
         return ServiceResult.ok(reviewed);
+    }
+
+    private void appendAudit(String submissionId, GradeSubmissionAuditAction action,
+            String actorId, String remark, LocalDateTime occurredAt) {
+        auditBySubmission.get(submissionId).add(new GradeSubmissionAuditRecord(
+                UUID.randomUUID().toString(), submissionId, action, actorId, occurredAt, remark));
     }
 
     private GradeSubmission findExistingByOffering(String offeringId) {

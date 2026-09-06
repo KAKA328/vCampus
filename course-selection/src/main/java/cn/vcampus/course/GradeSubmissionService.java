@@ -10,6 +10,7 @@ public interface GradeSubmissionService {
     ServiceResult<GradeSubmission> findByOffering(String offeringId);
     ServiceResult<List<GradeSubmission>> listByStatus(GradeSubmissionStatus status);
     ServiceResult<List<GradeEntry>> listEntries(String submissionId);
+    ServiceResult<List<GradeSubmissionAuditRecord>> listAudit(String submissionId);
 
     /** 允许教师在草稿、被退回或待审核状态下新增、覆盖同一学生的成绩。 */
     ServiceResult<GradeEntry> saveDraftEntry(GradeEntry entry);

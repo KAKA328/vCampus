@@ -414,6 +414,9 @@ final class CourseMessageHandler {
         if (command.getOperation() == CourseGradeReviewV2Command.Operation.LIST_PENDING) {
             return gradeSubmissions.listByStatus(GradeSubmissionStatus.PENDING_REVIEW);
         }
+        if (command.getOperation() == CourseGradeReviewV2Command.Operation.VIEW_AUDIT) {
+            return gradeSubmissions.listAudit(command.getSubmissionId());
+        }
         ServiceResult<TeachingGradeDraft> detail = reviewDetail(command.getSubmissionId());
         if (detail.getStatus() != StatusCode.OK) return detail;
         if (command.getOperation() == CourseGradeReviewV2Command.Operation.VIEW_DETAIL) {

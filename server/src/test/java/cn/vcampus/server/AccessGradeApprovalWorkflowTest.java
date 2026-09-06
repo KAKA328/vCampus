@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import cn.vcampus.common.StatusCode;
+import cn.vcampus.course.GradeSubmissionAuditAction;
 import cn.vcampus.course.GradeSubmissionStatus;
 import cn.vcampus.student.FormalCourseResult;
 import java.nio.file.Path;
@@ -53,6 +54,10 @@ class AccessGradeApprovalWorkflowTest {
                     + "submission_id VARCHAR(36) NOT NULL,result_id VARCHAR(36) NOT NULL,"
                     + "PRIMARY KEY (submission_id,result_id),"
                     + "CONSTRAINT uk_tblGradeSubmissionResult_result UNIQUE (result_id))");
+            statement.execute("CREATE TABLE tblGradeSubmissionAudit ("
+                    + "audit_id VARCHAR(36) NOT NULL,submission_id VARCHAR(36) NOT NULL,"
+                    + "action VARCHAR(16) NOT NULL,actor_id VARCHAR(32) NOT NULL,"
+                    + "occurred_at DATETIME NOT NULL,remark VARCHAR(255),PRIMARY KEY (audit_id))");
         }
         workflow = new AccessGradeApprovalWorkflow(database);
     }
@@ -66,6 +71,9 @@ class AccessGradeApprovalWorkflowTest {
                 .getStatus());
         assertEquals(GradeSubmissionStatus.APPROVED.name(), submissionStatus("GRADE-001"));
         assertEquals(1, formalResultCount());
+        assertEquals(GradeSubmissionAuditAction.APPROVED,
+                new AccessGradeSubmissionService(database).listAudit("GRADE-001")
+                        .getData().get(0).getAction());
     }
 
     @Test
@@ -133,6 +141,8 @@ class AccessGradeApprovalWorkflowTest {
         assertEquals(GradeSubmissionStatus.RETURNED.name(), submissionStatus("GRADE-001"));
         assertEquals(0, formalResultCount());
         assertEquals(0, publicationLinkCount());
+        assertEquals(2, new AccessGradeSubmissionService(database).listAudit("GRADE-001")
+                .getData().size());
 
         AccessGradeSubmissionService submissions = new AccessGradeSubmissionService(database);
         assertEquals(StatusCode.OK, submissions.submitForReview("GRADE-001").getStatus());

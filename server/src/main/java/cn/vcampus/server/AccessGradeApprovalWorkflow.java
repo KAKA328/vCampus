@@ -3,6 +3,7 @@ package cn.vcampus.server;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.GradeSubmission;
+import cn.vcampus.course.GradeSubmissionAuditAction;
 import cn.vcampus.course.GradeSubmissionStatus;
 import cn.vcampus.student.FormalCourseResult;
 import java.nio.file.Path;
@@ -14,6 +15,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 /** Access 模式下将正式成绩写入和成绩单审核通过放在同一数据库事务中。 */
 final class AccessGradeApprovalWorkflow implements GradeApprovalWorkflow {
@@ -63,6 +65,8 @@ final class AccessGradeApprovalWorkflow implements GradeApprovalWorkflow {
                 // 成绩单仍保持待审核，其他审核人也不会看到半成品状态。
                 insertFormalResults(connection, results);
                 linkFormalResults(connection, normalizedSubmissionId, results);
+                appendAudit(connection, normalizedSubmissionId, GradeSubmissionAuditAction.APPROVED,
+                        normalizedReviewerId, normalize(remark), now);
                 connection.commit();
                 return ServiceResult.ok(submission.reviewed(GradeSubmissionStatus.APPROVED,
                         normalizedReviewerId, remark, now));
@@ -119,6 +123,8 @@ final class AccessGradeApprovalWorkflow implements GradeApprovalWorkflow {
                     }
                     deletePublicationLinks(connection, normalizedSubmissionId);
                 }
+                appendAudit(connection, normalizedSubmissionId, GradeSubmissionAuditAction.RETURNED,
+                        normalizedReviewerId, normalizedRemark, now);
                 connection.commit();
                 return ServiceResult.ok(submission.reviewed(GradeSubmissionStatus.RETURNED,
                         normalizedReviewerId, normalizedRemark, now));
@@ -220,6 +226,22 @@ final class AccessGradeApprovalWorkflow implements GradeApprovalWorkflow {
         try (PreparedStatement statement = connection.prepareStatement(
                 "DELETE FROM tblGradeSubmissionResult WHERE submission_id=?")) {
             statement.setString(1, submissionId);
+            statement.executeUpdate();
+        }
+    }
+
+    private static void appendAudit(Connection connection, String submissionId,
+            GradeSubmissionAuditAction action, String actorId, String remark,
+            LocalDateTime occurredAt) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "INSERT INTO tblGradeSubmissionAudit(audit_id,submission_id,action,actor_id,"
+                        + "occurred_at,remark) VALUES(?,?,?,?,?,?)")) {
+            statement.setString(1, UUID.randomUUID().toString());
+            statement.setString(2, submissionId);
+            statement.setString(3, action.name());
+            statement.setString(4, actorId);
+            statement.setTimestamp(5, Timestamp.valueOf(occurredAt));
+            statement.setString(6, remark);
             statement.executeUpdate();
         }
     }

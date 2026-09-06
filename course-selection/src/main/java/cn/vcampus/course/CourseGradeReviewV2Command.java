@@ -9,6 +9,7 @@ public final class CourseGradeReviewV2Command implements Serializable {
     public enum Operation {
         LIST_PENDING,
         VIEW_DETAIL,
+        VIEW_AUDIT,
         APPROVE,
         RETURN
     }
@@ -39,6 +40,10 @@ public final class CourseGradeReviewV2Command implements Serializable {
 
     public static CourseGradeReviewV2Command viewDetail(String token, String submissionId) {
         return new CourseGradeReviewV2Command(token, Operation.VIEW_DETAIL, submissionId, null);
+    }
+
+    public static CourseGradeReviewV2Command viewAudit(String token, String submissionId) {
+        return new CourseGradeReviewV2Command(token, Operation.VIEW_AUDIT, submissionId, null);
     }
 
     public static CourseGradeReviewV2Command approve(String token, String submissionId,
