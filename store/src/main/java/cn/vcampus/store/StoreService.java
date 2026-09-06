@@ -50,6 +50,10 @@ public interface StoreService {
 
     ServiceResult<List<Product>> listProducts(String category);
 
+    // 含下架商品查询：includeInactive=true 时把已下架商品一并返回，供管理端「已下架视图/重新上架」闭环使用。
+    // 仅限管理端调用——通信层要求 STORE_READ 且（includeInactive 时）STORE_MANAGE 双门槛，普通买家带此位会被拒
+    ServiceResult<List<Product>> listProducts(String category, boolean includeInactive);
+
     // 账户：查询余额（分），无账户返回 0
     long getBalance(String userId);
 

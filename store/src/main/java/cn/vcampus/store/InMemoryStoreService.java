@@ -116,6 +116,11 @@ public final class InMemoryStoreService implements StoreService {
     }
 
     @Override
+    public final ServiceResult<List<Product>> listProducts(String category, boolean includeInactive) {
+        return delegate.listProducts(category, includeInactive);
+    }
+
+    @Override
     public final long getBalance(String userId) {
         return delegate.getBalance(userId);
     }

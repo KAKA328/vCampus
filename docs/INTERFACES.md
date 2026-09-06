@@ -93,7 +93,7 @@ StudentManagementService.findByIds(List<String> studentIds)
 
 商店当前使用以下 token-only 命令，服务端必须从 token 对应会话取得 `userId`，不得相信客户端传入的学生/用户编号：
 
-- `STORE_QUERY` + `StoreQueryCommand(token, category?)`：查询在售商品，可按类别过滤；要求 `STORE_READ`。
+- `STORE_QUERY` + `StoreQueryCommand(token, category?, includeInactive?)`：查询在售商品，可按类别过滤；要求 `STORE_READ`。`includeInactive=true`（管理端「含下架」视图，供「重新上架」闭环）时追加 **`STORE_MANAGE` 双门槛**：普通买家即使构造该位也会被 `FORBIDDEN`，已下架商品永不外泄给买家；服务端经 `StoreService.listProducts(category, includeInactive)` 过滤。
 - `STORE_PURCHASE` + `StorePurchaseCommand(token, productId, quantity)`：直接购买；要求 `STORE_PURCHASE`。
 - `STORE_ORDER_QUERY` + `StoreOrderQueryCommand(token)`：查询本人订单；要求 `STORE_READ`。
 - `STORE_CART_ADD` / `STORE_CART_REMOVE` / `STORE_CART_QUERY` / `STORE_CART_CHECKOUT`：购物车增删查和结账，分别使用对应 `Cart*Command`；增删/结账要求 `STORE_PURCHASE`，查询要求 `STORE_READ`。

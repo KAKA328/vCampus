@@ -43,6 +43,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class StoreMessageHandlerTest {
@@ -138,6 +139,33 @@ class StoreMessageHandlerTest {
 
         assertEquals(StatusCode.OK, response.getStatusCode());
         assertEquals("文具", store.lastCategory);
+        // 默认不带 includeInactive：透传给服务层的是 false，普通买家只能看到在售商品
+        assertEquals(Boolean.FALSE, store.lastListIncludeInactive);
+    }
+
+    // DSH 二轮审：含下架查询的 STORE_MANAGE 双门槛——管理员放行并把标志透传给服务层
+    @Test
+    void managerCanQueryProductsIncludingInactive() {
+        Message response = handler.handle(Message.request(
+                "store-query-inactive", MessageType.STORE_QUERY,
+                new StoreQueryCommand(managerSession.getToken(), null, true)));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertEquals(Boolean.TRUE, store.lastListIncludeInactive);
+        assertNull(store.lastCategory);// 未带类别 → 服务层收到 null 表示全部类别
+    }
+
+    // DSH 二轮审：普通学生即使构造 includeInactive=true 的报文也被 STORE_MANAGE 拦下，
+    // 绝不让下架商品对买家可见（防越权核心用例）
+    @Test
+    void studentCannotQueryProductsIncludingInactive() {
+        Message response = handler.handle(Message.request(
+                "store-query-inactive-forbidden", MessageType.STORE_QUERY,
+                new StoreQueryCommand(studentSession.getToken(), null, true)));
+
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
+        assertNull(store.lastListIncludeInactive);// 未透传到服务层
+        assertFalse(store.listCalled);
     }
 
     @Test
@@ -581,6 +609,7 @@ class StoreMessageHandlerTest {
         private int lastPurchaseQuantity;
         private String lastOrderQueryUserId;
         private String lastCategory;
+        private Boolean lastListIncludeInactive;// 最近一次商品查询是否带 includeInactive（null=从未查询）
         private String lastRestockProductId;
         private int lastRestockAmount;
         private boolean restockCalled;
@@ -634,16 +663,22 @@ class StoreMessageHandlerTest {
 
         @Override
         public ServiceResult<List<Product>> listProducts() {
-            if (listFailure != null)
-                throw listFailure;
-            listCalled = true;
-            listCallCount++;
-            return ServiceResult.ok(Collections.<Product>emptyList());
+            return listProducts(null, false);
         }
 
         @Override
         public ServiceResult<List<Product>> listProducts(String category) {
+            return listProducts(category, false);
+        }
+
+        @Override
+        public ServiceResult<List<Product>> listProducts(String category, boolean includeInactive) {
+            if (listFailure != null)
+                throw listFailure;
+            listCalled = true;
+            listCallCount++;
             lastCategory = category;
+            lastListIncludeInactive = Boolean.valueOf(includeInactive);
             return ServiceResult.ok(Collections.<Product>emptyList());
         }
 

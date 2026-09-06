@@ -52,17 +52,12 @@ public final class DefaultStoreService implements StoreService {
         this.wallet = wallet;
     }
 
-    // 列出所有商品，使用serviceresult类的ok方法打包返回
+    // 列出所有商品（仅在售），使用serviceresult类的ok方法打包返回
     // 只读方法不与 purchase/checkout 抢写锁：商品仓库自身已保证读取安全（内存版返回新列表，
     // Access 版每次独立连接），加锁只会让浏览商品被一次慢购买阻塞
     @Override
     public final ServiceResult<List<Product>> listProducts() {
-        List<Product> result = new ArrayList<Product>();
-        for (Product product : products.findAll()) {
-            if (product.isActive())
-                result.add(product);
-        }
-        return ServiceResult.ok(Collections.unmodifiableList(result));
+        return listProducts(null, false);
     }
 
     // 购买方法：预检（仅提示）→ 原子扣库存 → 原子扣款 → 建单，任一步失败按序补偿
@@ -545,15 +540,27 @@ public final class DefaultStoreService implements StoreService {
         return ServiceResult.ok(Collections.unmodifiableList(result));
     }
 
-    // 按分类列出商品
+    // 按分类列出商品（仅在售）
     @Override
     public final ServiceResult<List<Product>> listProducts(String category) {
-        if (category == null || category.trim().isEmpty())
-            return listProducts();
+        return listProducts(category, false);
+    }
+
+    // 列出商品（含下架视图）：includeInactive=false 与旧行为完全一致（只返回在售）；
+    // =true 时把已下架商品一并返回（管理端专用，通信层 STORE_MANAGE 双门槛已拦截普通买家）。
+    // category 可空/空白 = 全部类别；结果不可变
+    @Override
+    public final ServiceResult<List<Product>> listProducts(String category, boolean includeInactive) {
+        String wanted = category == null ? null : category.trim();
+        if (wanted != null && wanted.isEmpty())
+            wanted = null;
         List<Product> result = new ArrayList<Product>();
         for (Product product : products.findAll()) {
-            if (product.isActive() && category.trim().equals(product.getCategory()))
-                result.add(product);
+            if (!includeInactive && !product.isActive())
+                continue;
+            if (wanted != null && !wanted.equals(product.getCategory()))
+                continue;
+            result.add(product);
         }
         return ServiceResult.ok(Collections.unmodifiableList(result));
     }

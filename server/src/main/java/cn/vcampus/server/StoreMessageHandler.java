@@ -57,17 +57,16 @@ class StoreMessageHandler {
         try {
             ServiceResult<?> result;
             switch (request.getType()) {
-                // 仓库查询请求
+                // 仓库查询请求：常规查询仅需 STORE_READ；includeInactive（管理端含下架视图）加 STORE_MANAGE
+                // 双门槛——普通买家即便构造带此位的报文也拿不到下架商品
                 case STORE_QUERY:
                     StoreQueryCommand payload = payload(request, StoreQueryCommand.class);
                     ServiceResult<Void> queryAuth = requirePermission(payload.getToken(), "STORE_READ");
-                    if (queryAuth.getStatus() != StatusCode.OK) {
-                        result = queryAuth;
-                        break;
+                    if (queryAuth.getStatus() == StatusCode.OK && payload.isIncludeInactive()) {
+                        queryAuth = requirePermission(payload.getToken(), "STORE_MANAGE");
                     }
-                    result = payload.getCategory() == null || payload.getCategory().trim().isEmpty()
-                            ? store.listProducts()
-                            : store.listProducts(payload.getCategory());
+                    result = queryAuth.getStatus() != StatusCode.OK ? queryAuth
+                            : store.listProducts(payload.getCategory(), payload.isIncludeInactive());
                     break;
                 // 仓库购买请求
                 case STORE_PURCHASE:

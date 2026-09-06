@@ -590,6 +590,52 @@ class StoreServiceTest {
         assertEquals(activeCount, testResult.getData().size());
     }
 
+    // DSH 二轮审（管理端含下架视图）：默认视图不含下架商品（旧语义锁定），includeInactive=true 才并入
+    @Test
+    void testListProductsExcludesInactiveByDefaultAndIncludesWithFlag() {
+        service.deactivateProduct("00001");// 00001 Apple(Fruit) 下架
+        int activeCount = service.listProducts().getData().size();// 初始 4 在售 → 3
+        assertEquals(3, activeCount);
+
+        boolean inactiveVisibleByDefault = false;
+        for (Product candidate : service.listProducts().getData()) {
+            if ("00001".equals(candidate.getProductId())) {
+                inactiveVisibleByDefault = true;
+            }
+        }
+        assertFalse(inactiveVisibleByDefault);// 旧 listProducts() 语义不被破坏
+
+        ServiceResult<List<Product>> all = service.listProducts(null, true);
+        assertEquals(StatusCode.OK, all.getStatus());
+        assertEquals(activeCount + 1, all.getData().size());// 在售 3 + 下架 1
+        boolean reactivatedListed = false;
+        for (Product candidate : all.getData()) {
+            if ("00001".equals(candidate.getProductId())) {
+                reactivatedListed = true;
+                assertFalse(candidate.isActive());
+            }
+        }
+        assertTrue(reactivatedListed);
+    }
+
+    // DSH 二轮审：含下架查询与分类过滤可叠加；无下架商品的类别不受影响
+    @Test
+    void testListProductsWithInactiveCombinesWithCategoryFilter() {
+        service.deactivateProduct("00001");// Fruit 类：00001 下架、00002 在售
+
+        ServiceResult<List<Product>> fruitAll = service.listProducts("Fruit", true);
+        assertEquals(StatusCode.OK, fruitAll.getStatus());
+        assertEquals(2, fruitAll.getData().size());
+
+        ServiceResult<List<Product>> fruitOnly = service.listProducts("Fruit", false);
+        assertEquals(1, fruitOnly.getData().size());// includeInactive=false 保持旧语义
+
+        ServiceResult<List<Product>> toyOnly = service.listProducts("Toy", true);
+        assertEquals(1, toyOnly.getData().size());// 无下架商品的类别不受影响
+        ServiceResult<List<Product>> blankAll = service.listProducts("   ", true);
+        assertEquals(4, blankAll.getData().size());// 空白类别 = 全量（含下架）
+    }
+
     // 测试清空购物车失败时结账回滚
     @Test
     void checkoutRollsBackAndAllowsRetryWhenClearingCartFails() {

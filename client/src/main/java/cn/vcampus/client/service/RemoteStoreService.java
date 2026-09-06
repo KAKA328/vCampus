@@ -56,6 +56,15 @@ public final class RemoteStoreService implements Closeable {
         return send(MessageType.STORE_QUERY, new StoreQueryCommand(token, category));
     }
 
+    /**
+     * 按类别查询商品（管理端含下架视图）：includeInactive=true 时服务端把已下架商品一并返回，
+     * 服务端要求 STORE_MANAGE 双门槛，普通买家携带此位会被拒。
+     */
+    public Message listProducts(String token, String category, boolean includeInactive)
+            throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_QUERY, new StoreQueryCommand(token, category, includeInactive));
+    }
+
     /** 管理员补充库存。 */
     public Message restock(String token, String productId, int additionalStock)
             throws IOException, ClassNotFoundException {
