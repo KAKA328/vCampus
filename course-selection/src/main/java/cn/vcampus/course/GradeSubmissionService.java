@@ -14,6 +14,9 @@ public interface GradeSubmissionService {
     /** 允许教师在草稿、被退回或待审核状态下新增、覆盖同一学生的成绩。 */
     ServiceResult<GradeEntry> saveDraftEntry(GradeEntry entry);
 
+    /** 同一教学班的多条成绩必须全部有效后再作为一个批次写入。 */
+    ServiceResult<List<GradeEntry>> saveDraftEntries(List<GradeEntry> entries);
+
     /** 将完整成绩单提交（或再次提交）为待教务审核状态。 */
     ServiceResult<GradeSubmission> submitForReview(String submissionId);
 

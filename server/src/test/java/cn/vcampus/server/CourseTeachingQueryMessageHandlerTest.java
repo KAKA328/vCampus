@@ -12,9 +12,12 @@ import cn.vcampus.course.CourseSelectionDemoFactory;
 import cn.vcampus.course.CourseSelectionModule;
 import cn.vcampus.course.CourseSelectionRecord;
 import cn.vcampus.course.CourseGradeDraftV2Command;
+import cn.vcampus.course.CourseGradeImportV2Command;
 import cn.vcampus.course.CourseGradeReviewV2Command;
 import cn.vcampus.course.CourseTeachingQueryV2Command;
 import cn.vcampus.course.GradeSubmissionStatus;
+import cn.vcampus.course.GradeSubmissionService;
+import cn.vcampus.course.GradeImportResult;
 import cn.vcampus.course.InMemoryStudentSelectionProfileProvider;
 import cn.vcampus.course.SelectionType;
 import cn.vcampus.course.TeachingOffering;
@@ -32,6 +35,7 @@ import cn.vcampus.user.InMemoryUserManagementService;
 import cn.vcampus.user.Session;
 import cn.vcampus.user.UserCredentials;
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +49,7 @@ class CourseTeachingQueryMessageHandlerTest {
     private Session student;
     private Session academicAdmin;
     private InMemoryAcademicReviewService formalResults;
+    private GradeSubmissionService gradeSubmissions;
 
     @BeforeEach
     void setUp() {
@@ -56,6 +61,7 @@ class CourseTeachingQueryMessageHandlerTest {
         formalResults = new InMemoryAcademicReviewService();
 
         CourseSelectionModule module = CourseSelectionDemoFactory.createModule();
+        gradeSubmissions = module.getGradeSubmissionService();
         module.getSelectionRecordService().create(new CourseSelectionRecord("REC-ACTIVE", "STU-001",
                 "OFFER-JAVA-01", "ROUND-INITIAL", SelectionType.RETAKE, LocalDateTime.now()));
         module.getSelectionRecordService().create(new CourseSelectionRecord("REC-DROPPED", "STU-002",
@@ -224,6 +230,33 @@ class CourseTeachingQueryMessageHandlerTest {
         assertEquals(GradeSubmissionStatus.PENDING_REVIEW,
                 latest.getSubmission().getStatus());
         assertEquals(89, latest.getEntries().get(0).getScore());
+    }
+
+    @Test
+    void teacherCanAtomicallyImportOwnActiveStudentsCsvGrades() {
+        byte[] content = "学号,成绩\nSTU-001,93\n".getBytes(StandardCharsets.UTF_8);
+        Message response = handler.handle(Message.request("import-grades",
+                MessageType.COURSE_GRADE_IMPORT_V2, new CourseGradeImportV2Command(
+                        teacherOne.getToken(), "OFFER-JAVA-01", "java-grades.csv", content)));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        GradeImportResult result = (GradeImportResult) response.getPayload();
+        assertEquals(1, result.getImportedCount());
+        assertEquals(93, result.getDraft().getEntries().get(0).getScore());
+        assertEquals(SelectionType.RETAKE, result.getDraft().getEntries().get(0).getSelectionType());
+    }
+
+    @Test
+    void importRejectsDroppedStudentBeforeCreatingOrChangingGrades() {
+        byte[] content = "学号,成绩\nSTU-002,70\n".getBytes(StandardCharsets.UTF_8);
+        Message response = handler.handle(Message.request("import-dropped",
+                MessageType.COURSE_GRADE_IMPORT_V2, new CourseGradeImportV2Command(
+                        teacherOne.getToken(), "OFFER-JAVA-01", "java-grades.csv", content)));
+
+        assertEquals(StatusCode.NOT_FOUND, response.getStatusCode());
+        // 每个测试独立初始化；失败的导入不能因文件中无效学生而创建空草稿。
+        assertEquals(StatusCode.NOT_FOUND, gradeSubmissions.findByOffering("OFFER-JAVA-01")
+                .getStatus());
     }
 
     @Test

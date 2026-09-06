@@ -246,6 +246,7 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.COURSE_DROP_RECORD_V2
                 || type == MessageType.COURSE_TEACHING_QUERY_V2
                 || type == MessageType.COURSE_GRADE_DRAFT_V2
+                || type == MessageType.COURSE_GRADE_IMPORT_V2
                 || type == MessageType.COURSE_GRADE_REVIEW_V2;
     }
 

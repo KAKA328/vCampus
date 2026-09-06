@@ -126,12 +126,32 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
 
     @Override
     public ServiceResult<GradeEntry> saveDraftEntry(GradeEntry entry) {
-        if (entry == null) return ServiceResult.failure(StatusCode.BAD_REQUEST,
-                "grade entry must not be null");
+        ServiceResult<List<GradeEntry>> saved = saveDraftEntries(Collections.singletonList(entry));
+        return saved.getStatus() == StatusCode.OK ? ServiceResult.ok(saved.getData().get(0))
+                : ServiceResult.<GradeEntry>failure(saved.getStatus(), saved.getMessage());
+    }
+
+    @Override
+    public ServiceResult<List<GradeEntry>> saveDraftEntries(List<GradeEntry> entries) {
+        if (entries == null || entries.isEmpty()) return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                "grade entries must not be empty");
+        String submissionId = null;
+        java.util.LinkedHashMap<String, GradeEntry> replacement =
+                new java.util.LinkedHashMap<String, GradeEntry>();
+        for (GradeEntry entry : entries) {
+            if (entry == null) return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "grade entry must not be null");
+            if (submissionId == null) submissionId = entry.getSubmissionId();
+            if (!submissionId.equals(entry.getSubmissionId())
+                    || replacement.put(entry.getStudentId(), entry) != null) {
+                return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                        "grade batch must contain unique students from one submission");
+            }
+        }
         try (Connection connection = open()) {
             connection.setAutoCommit(false);
             try {
-                GradeSubmission submission = findSubmission(connection, entry.getSubmissionId());
+                GradeSubmission submission = findSubmission(connection, submissionId);
                 if (submission == null) {
                     connection.rollback();
                     return ServiceResult.failure(StatusCode.NOT_FOUND, "grade submission not found");
@@ -143,15 +163,17 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
                     return ServiceResult.failure(StatusCode.CONFLICT,
                             "approved grade entries cannot be changed until they are returned");
                 }
-                if (!updateEntry(connection, entry)) insertEntry(connection, entry);
+                for (GradeEntry entry : replacement.values()) {
+                    if (!updateEntry(connection, entry)) insertEntry(connection, entry);
+                }
                 try (PreparedStatement statement = connection.prepareStatement(
                         "UPDATE tblGradeSubmission SET updated_at=? WHERE submission_id=?")) {
                     statement.setTimestamp(1, Timestamp.valueOf(LocalDateTime.now()));
-                    statement.setString(2, entry.getSubmissionId());
+                    statement.setString(2, submissionId);
                     statement.executeUpdate();
                 }
                 connection.commit();
-                return ServiceResult.ok(entry);
+                return ServiceResult.ok(Collections.unmodifiableList(new ArrayList<GradeEntry>(entries)));
             } catch (SQLException failure) {
                 rollback(connection);
                 return databaseFailure(failure);

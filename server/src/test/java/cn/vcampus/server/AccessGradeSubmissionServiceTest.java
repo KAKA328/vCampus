@@ -13,6 +13,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -105,5 +106,17 @@ class AccessGradeSubmissionServiceTest {
         restarted.submitForReview("GRADE-001");
         assertEquals(GradeSubmissionStatus.APPROVED, restarted.review("GRADE-001",
                 GradeReviewDecision.APPROVE, "academic_001", "审核通过").getData().getStatus());
+    }
+
+    @Test
+    void rejectsInvalidBatchWithoutWritingAnyPartialAccessGrade() {
+        LocalDateTime now = LocalDateTime.of(2026, 9, 4, 11, 0);
+        service.createDraft(GradeSubmission.draft("GRADE-001", "OFFER-001", "T001", now));
+
+        assertEquals(StatusCode.BAD_REQUEST, service.saveDraftEntries(Arrays.asList(
+                new GradeEntry("GRADE-001", "S001", SelectionType.REQUIRED, 60, now),
+                new GradeEntry("GRADE-001", "S001", SelectionType.REQUIRED, 80, now)))
+                .getStatus());
+        assertEquals(0, service.listEntries("GRADE-001").getData().size());
     }
 }

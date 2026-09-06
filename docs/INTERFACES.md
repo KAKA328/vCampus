@@ -82,11 +82,14 @@ StudentManagementService.findByIds(List<String> studentIds)
 - `COURSE_DROP_RECORD_V2` + `CourseDropRecordV2Command(token, recordId)`：按选课记录编号退选。
 - `COURSE_TEACHING_QUERY_V2` + `CourseTeachingQueryV2Command`：教师查询本人某学期教学班，或查询本人指定教学班的有效学生名单。`MY_OFFERINGS` 返回 `List<TeachingOffering>`，`OFFERING_ROSTER` 返回 `TeachingRoster`；名单项目含学号、姓名、专业、班级和 `SelectionType`（可区分必修、选修、跨专业选修、重修）。
 - `COURSE_GRADE_DRAFT_V2` + `CourseGradeDraftV2Command`：教师打开本人教学班的成绩草稿（`OPEN_DRAFT`）、保存/覆盖一名有效选课学生的 0–100 分成绩（`SAVE_ENTRY`），或在全班成绩完整时提交审核（`SUBMIT_FOR_REVIEW`）。返回 `TeachingGradeDraft`，其中包含有效名单、当前提交单和已保存的成绩条目。
+- `COURSE_GRADE_IMPORT_V2` + `CourseGradeImportV2Command(token, offeringId, fileName, content)`：教师向本人教学班导入 CSV、XLS 或 XLSX 成绩文件。文件第一行必须包含 `学号`、`成绩`，成绩为 0–100 整数；服务器只接受当前有效选课学生，所有行验证通过后才原子写入草稿。成功返回 `GradeImportResult`（导入行数和最新草稿）。
 - `COURSE_GRADE_REVIEW_V2` + `CourseGradeReviewV2Command`：教务老师查询待审核成绩单（`LIST_PENDING`）、查看完整名单与分数（`VIEW_DETAIL`）、审核通过（`APPROVE`）或退回（`RETURN`）。退回必须提供原因；通过后才生成学生正式成绩记录。
 
 客户端不提交 `studentId` 作为本人身份，服务端必须根据 `token -> user_id -> student_id` 推导学生档案；退选使用已选记录的 `recordId`。
 
 教师教学班查询和成绩草稿接口仅接受 `TEACHER` 角色且要求 `GRADE_WRITE` 权限。服务器从 `token -> user_id -> tblTeacher.teacher_id` 定位教师，教师不能在命令中传入或伪造 `teacherId`；查询名单时还会校验教学班确实归该教师，并且只返回 `ACTIVE` 选课记录。保存成绩时，学生是否属于该教学班及其 `SelectionType` 也完全由服务器按有效选课记录确定，客户端不传提交单编号或选课类别。提交审核前，系统会确认每名有效选课学生均已有成绩；提交后状态为 `PENDING_REVIEW`。教师可继续修改待审核成绩，系统自动保留待审核状态并让教务端读取最新结果；只有 `APPROVED` 成绩必须先被教务退回后才能修改。
+
+教师成绩导入文件最大为 5 MB；CSV 使用 UTF-8 和英文逗号分隔，XLS/XLSX 只读取第一个工作表。空行会忽略，但学号或成绩缺失、重复学号、公式单元格、非整数成绩或不属于本班的学生会使整个文件失败，且不会保存任何一行。文件允许分批导入；最终提交审核时仍必须覆盖全部有效选课学生。
 
 成绩审核接口仅接受 `ACADEMIC_ADMIN` 或 `ADMIN` 角色且要求 `ACADEMIC_REVIEW` 权限。审核通过时，服务器按教学班课程、学期、选课类别和分数构造正式成绩：分数不少于 60 为通过并取得该课程学分，重修记录标记为“重修”，其余为“首修”；尝试次数从该学生该课程已有正式成绩的最大次数递增。待审核草稿本身永不被学籍模块当作成绩依据。
 

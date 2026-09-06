@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import cn.vcampus.common.StatusCode;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
 /** 验证成绩草稿支持反复修改同一学生的分数，但每个教学班只能有一份草稿。 */
@@ -69,5 +70,18 @@ class InMemoryGradeSubmissionServiceTest {
                 GradeReviewDecision.APPROVE, "academic_001", "审核通过").getData().getStatus());
         assertEquals(StatusCode.CONFLICT, service.review("GRADE-001", GradeReviewDecision.APPROVE,
                 "academic_001", "重复审核").getStatus());
+    }
+
+    @Test
+    void rejectsInvalidBatchWithoutSavingAnyPartialGrade() {
+        InMemoryGradeSubmissionService service = new InMemoryGradeSubmissionService();
+        LocalDateTime now = LocalDateTime.of(2026, 9, 4, 10, 0);
+        service.createDraft(GradeSubmission.draft("GRADE-001", "OFFER-001", "T001", now));
+
+        assertEquals(StatusCode.BAD_REQUEST, service.saveDraftEntries(Arrays.asList(
+                new GradeEntry("GRADE-001", "S001", SelectionType.REQUIRED, 72, now),
+                new GradeEntry("GRADE-001", "S001", SelectionType.REQUIRED, 86, now)))
+                .getStatus());
+        assertEquals(0, service.listEntries("GRADE-001").getData().size());
     }
 }

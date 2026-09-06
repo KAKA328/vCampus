@@ -8,6 +8,7 @@ import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.CourseDropRecordV2Command;
 import cn.vcampus.course.CourseCatalogService;
 import cn.vcampus.course.CourseGradeDraftV2Command;
+import cn.vcampus.course.CourseGradeImportV2Command;
 import cn.vcampus.course.CourseGradeReviewV2Command;
 import cn.vcampus.course.CourseManagementCommand;
 import cn.vcampus.course.CourseOfferingService;
@@ -18,6 +19,9 @@ import cn.vcampus.course.CourseSelectOfferingV2Command;
 import cn.vcampus.course.CourseSelectionService;
 import cn.vcampus.course.CourseTeachingQueryV2Command;
 import cn.vcampus.course.GradeEntry;
+import cn.vcampus.course.GradeImportFileParser;
+import cn.vcampus.course.GradeImportResult;
+import cn.vcampus.course.GradeImportRow;
 import cn.vcampus.course.GradeReviewDecision;
 import cn.vcampus.course.GradeSubmission;
 import cn.vcampus.course.GradeSubmissionService;
@@ -141,6 +145,9 @@ final class CourseMessageHandler {
                     break;
                 case COURSE_GRADE_DRAFT_V2:
                     result = gradeDraft(payload(request, CourseGradeDraftV2Command.class));
+                    break;
+                case COURSE_GRADE_IMPORT_V2:
+                    result = gradeImport(payload(request, CourseGradeImportV2Command.class));
                     break;
                 case COURSE_GRADE_REVIEW_V2:
                     result = gradeReview(payload(request, CourseGradeReviewV2Command.class));
@@ -295,6 +302,50 @@ final class CourseMessageHandler {
             currentSubmission = submitted.getData();
         }
         return readTeachingGradeDraft(roster.getData(), currentSubmission);
+    }
+
+    /** 先完整解析、校验文件，再原子写入一个教学班的成绩草稿。 */
+    private ServiceResult<?> gradeImport(CourseGradeImportV2Command command) {
+        ServiceResult<TeacherProfile> profile = teacherProfile(command.getToken());
+        if (profile.getStatus() != StatusCode.OK) return profile;
+        if (gradeSubmissions == null) return gradeDraftServiceUnavailable();
+        ServiceResult<TeachingRoster> roster = roster(profile.getData(), command.getOfferingId());
+        if (roster.getStatus() != StatusCode.OK) return roster;
+
+        List<GradeImportRow> rows = GradeImportFileParser.parse(command.getFileName(),
+                command.getContent());
+        Map<String, TeachingRosterEntry> studentsById =
+                new LinkedHashMap<String, TeachingRosterEntry>();
+        for (TeachingRosterEntry student : roster.getData().getStudents()) {
+            studentsById.put(student.getStudentId(), student);
+        }
+        for (GradeImportRow row : rows) {
+            TeachingRosterEntry student = studentsById.get(row.getStudentId());
+            if (student == null) {
+                return ServiceResult.failure(StatusCode.NOT_FOUND, "row " + row.getRowNumber()
+                        + " student is not an active selection in this offering: "
+                        + row.getStudentId());
+            }
+        }
+        ServiceResult<GradeSubmission> submission = findOrCreateDraft(profile.getData(),
+                command.getOfferingId());
+        if (submission.getStatus() != StatusCode.OK) return submission;
+        List<GradeEntry> savedEntries = new ArrayList<GradeEntry>();
+        for (GradeImportRow row : rows) {
+            TeachingRosterEntry student = studentsById.get(row.getStudentId());
+            savedEntries.add(new GradeEntry(submission.getData().getSubmissionId(),
+                    student.getStudentId(), student.getSelectionType(), row.getScore(),
+                    LocalDateTime.now()));
+        }
+        ServiceResult<List<GradeEntry>> saved = gradeSubmissions.saveDraftEntries(savedEntries);
+        if (saved.getStatus() != StatusCode.OK) return saved;
+        ServiceResult<GradeSubmission> refreshed = gradeSubmissions.findById(
+                submission.getData().getSubmissionId());
+        if (refreshed.getStatus() != StatusCode.OK) return refreshed;
+        ServiceResult<TeachingGradeDraft> draft = readTeachingGradeDraft(roster.getData(),
+                refreshed.getData());
+        if (draft.getStatus() != StatusCode.OK) return draft;
+        return ServiceResult.ok(new GradeImportResult(rows.size(), draft.getData()));
     }
 
     /** 提交前要求每一名当前有效选课学生都恰有一条成绩记录。 */

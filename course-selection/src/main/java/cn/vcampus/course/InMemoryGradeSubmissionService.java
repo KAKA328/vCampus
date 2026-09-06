@@ -77,9 +77,28 @@ public final class InMemoryGradeSubmissionService implements GradeSubmissionServ
 
     @Override
     public synchronized ServiceResult<GradeEntry> saveDraftEntry(GradeEntry entry) {
-        if (entry == null) return ServiceResult.failure(StatusCode.BAD_REQUEST,
-                "grade entry must not be null");
-        ServiceResult<GradeSubmission> submissionResult = findById(entry.getSubmissionId());
+        ServiceResult<List<GradeEntry>> saved = saveDraftEntries(Collections.singletonList(entry));
+        return saved.getStatus() == StatusCode.OK ? ServiceResult.ok(saved.getData().get(0))
+                : ServiceResult.<GradeEntry>failure(saved.getStatus(), saved.getMessage());
+    }
+
+    @Override
+    public synchronized ServiceResult<List<GradeEntry>> saveDraftEntries(List<GradeEntry> entries) {
+        if (entries == null || entries.isEmpty()) return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                "grade entries must not be empty");
+        String submissionId = null;
+        Map<String, GradeEntry> replacement = new LinkedHashMap<String, GradeEntry>();
+        for (GradeEntry entry : entries) {
+            if (entry == null) return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "grade entry must not be null");
+            if (submissionId == null) submissionId = entry.getSubmissionId();
+            if (!submissionId.equals(entry.getSubmissionId())
+                    || replacement.put(entry.getStudentId(), entry) != null) {
+                return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                        "grade batch must contain unique students from one submission");
+            }
+        }
+        ServiceResult<GradeSubmission> submissionResult = findById(submissionId);
         if (submissionResult.getStatus() != StatusCode.OK) {
             return ServiceResult.failure(submissionResult.getStatus(), submissionResult.getMessage());
         }
@@ -90,9 +109,9 @@ public final class InMemoryGradeSubmissionService implements GradeSubmissionServ
             return ServiceResult.failure(StatusCode.CONFLICT,
                     "approved grade entries cannot be changed until they are returned");
         }
-        entriesBySubmission.get(submission.getSubmissionId()).put(entry.getStudentId(), entry);
-        submissions.put(submission.getSubmissionId(), submission.withUpdatedAt(LocalDateTime.now()));
-        return ServiceResult.ok(entry);
+        entriesBySubmission.get(submissionId).putAll(replacement);
+        submissions.put(submissionId, submission.withUpdatedAt(LocalDateTime.now()));
+        return ServiceResult.ok(Collections.unmodifiableList(new ArrayList<GradeEntry>(entries)));
     }
 
     @Override
