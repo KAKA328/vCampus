@@ -132,15 +132,18 @@ public final class LoginFrame extends JFrame {
         panel.setBackground(VCampusTheme.PANEL);
 
         JTextField resetUserId = new PromptTextField(20, CredentialInputGuidance.USER_ID_HINT);
-        JPasswordField newPassword = new PromptPasswordField(20, CredentialInputGuidance.PASSWORD_HINT);
+        JTextField reason = new PromptTextField(20, "例如：忘记密码");
+        JTextField contactInfo = new PromptTextField(20, "手机号或邮箱");
         JLabel resetStatus = new JLabel("提交后等待管理员审批");
         resetStatus.setForeground(VCampusTheme.MUTED);
         VCampusTheme.field(resetUserId);
-        VCampusTheme.field(newPassword);
+        VCampusTheme.field(reason);
+        VCampusTheme.field(contactInfo);
 
         addField(panel, "账号", resetUserId, 0);
-        addField(panel, "新密码", newPassword, 1);
-        GridBagConstraints c = base(0, 2);
+        addField(panel, "申请原因", reason, 1);
+        addField(panel, "联系方式", contactInfo, 2);
+        GridBagConstraints c = base(0, 3);
         c.gridwidth = 2;
         panel.add(resetStatus, c);
 
@@ -148,13 +151,14 @@ public final class LoginFrame extends JFrame {
         JButton close = new JButton("关闭");
         VCampusTheme.primaryButton(submit);
         VCampusTheme.secondaryButton(close);
-        submit.addActionListener(event -> submitPasswordReset(resetUserId, newPassword, resetStatus, submit));
+        submit.addActionListener(event -> submitPasswordReset(
+                resetUserId, reason, contactInfo, resetStatus, submit));
         close.addActionListener(event -> dialog.dispose());
         JPanel actions = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 12, 0));
         actions.setOpaque(false);
         actions.add(submit);
         actions.add(close);
-        c = base(0, 3);
+        c = base(0, 4);
         c.gridwidth = 2;
         panel.add(actions, c);
 
@@ -164,16 +168,21 @@ public final class LoginFrame extends JFrame {
         dialog.setVisible(true);
     }
 
-    private void submitPasswordReset(JTextField resetUserId, JPasswordField newPassword,
-                                     JLabel resetStatus, JButton submit) {
-        char[] secret = newPassword.getPassword();
+    private void submitPasswordReset(JTextField resetUserId, JTextField reason,
+                                     JTextField contactInfo, JLabel resetStatus, JButton submit) {
         submit.setEnabled(false);
         try (RemoteUserService service = new RemoteUserService(host, port)) {
-            Message response = service.requestPasswordReset(resetUserId.getText().trim(), new String(secret));
+            Message response = service.requestPasswordReset(resetUserId.getText().trim(),
+                    reason.getText().trim(), contactInfo.getText().trim());
             if (response.getStatusCode() == StatusCode.OK) {
                 resetStatus.setText("申请已提交，请等待管理员审批");
                 resetStatus.setForeground(VCampusTheme.SUCCESS);
-                newPassword.setText("");
+                reason.setText("");
+                contactInfo.setText("");
+                submit.setEnabled(false);
+            } else if (response.getStatusCode() == StatusCode.CONFLICT) {
+                resetStatus.setText("该账号已有待审批申请，请勿重复提交");
+                resetStatus.setForeground(VCampusTheme.DANGER);
             } else {
                 resetStatus.setText("提交失败：" + response.getStatusCode());
                 resetStatus.setForeground(VCampusTheme.DANGER);
@@ -182,8 +191,7 @@ public final class LoginFrame extends JFrame {
             resetStatus.setText("无法提交，请检查账号格式或服务器连接");
             resetStatus.setForeground(VCampusTheme.DANGER);
         } finally {
-            Arrays.fill(secret, '\0');
-            submit.setEnabled(true);
+            if (!"申请已提交，请等待管理员审批".equals(resetStatus.getText())) submit.setEnabled(true);
         }
     }
 

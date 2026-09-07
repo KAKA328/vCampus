@@ -5,6 +5,7 @@ import cn.vcampus.common.User;
 import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.CardLayout;
 import java.awt.Container;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,26 +40,22 @@ class UserManagementPanelTest {
         BorderLayout bodyLayout = (BorderLayout) body.getLayout();
         assertNotNull(bodyLayout.getLayoutComponent(BorderLayout.CENTER));
         assertTrue(buttonTexts(panel).contains("刷新账号列表"));
-        assertTrue(buttonTexts(panel).contains("刷新审计记录"));
+        assertTrue(buttonTexts(panel).contains("刷新操作日志"));
         assertTrue(components(panel, JTable.class).size() >= 4);
     }
 
     @Test
-    void actionCardsUseResponsiveRowsForNarrowWindows() {
+    void managementFunctionsUseOneCardViewInsteadOfStackingAllLists() {
         UserManagementPanel panel = new UserManagementPanel(null,
                 "127.0.0.1", 19090, new Session("token", new User("admin", "管理员", Role.ADMIN)));
 
-        List<ResponsiveCardRowPanel> rows = components(panel, ResponsiveCardRowPanel.class);
-
-        assertTrue(rows.size() >= 2, "top actions and lower approval/audit cards should both reflow");
-        for (ResponsiveCardRowPanel row : rows) {
-            row.setBounds(0, 0, 420, 500);
-            row.doLayout();
-            if (row.getComponentCount() > 1) {
-                assertTrue(row.getComponent(1).getY() > row.getComponent(0).getY(),
-                        "cards should stack when the content area is compact");
-            }
-        }
+        assertTrue(buttonTexts(panel).contains("功能首页"));
+        assertTrue(buttonTexts(panel).contains("账号管理"));
+        assertTrue(buttonTexts(panel).contains("密码重置"));
+        assertTrue(buttonTexts(panel).contains("操作日志"));
+        assertTrue(components(panel, JPanel.class).stream()
+                .anyMatch(candidate -> candidate.getLayout() instanceof CardLayout),
+                "management content should display one selected function at a time");
     }
 
     @Test
@@ -91,7 +88,7 @@ class UserManagementPanelTest {
         assertTrue(buttonTexts(panel).contains("启用账号"));
         assertTrue(buttonTexts(panel).contains("停用账号"));
         assertTrue(buttonTexts(panel).contains("注销账号"));
-        assertTrue(buttonTexts(panel).contains("刷新审计记录"));
+        assertTrue(buttonTexts(panel).contains("刷新操作日志"));
         assertTrue(labels(panel).contains("尚未选择导入文件"));
         assertTrue(components(panel, JTable.class).size() >= 4);
         assertTrue(components(panel, JScrollPane.class).size() >= 4);
