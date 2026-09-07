@@ -168,6 +168,8 @@ public final class StorePanel extends JPanel {
 
         updateButtonState();
         loadBalance();
+        // 进入商店页自动加载一次商品列表，否则列表保持空白，必须手动点查询/切换视图才出现
+        loadProducts();
     }
 
     /**
@@ -404,6 +406,15 @@ public final class StorePanel extends JPanel {
     }
 
     private void loadProducts() {
+        loadProducts(true);
+    }
+
+    /**
+     * 加载商品列表。announce=true 时（用户主动操作）成功后在状态栏播报条数；
+     * announce=false 时（购买/结算失败后的后台静默刷新）只更新表格数据，
+     * 不覆盖状态栏里的错误提示——否则「余额不足」等提示会被刷新成功文案顶掉、一闪即逝。
+     */
+    private void loadProducts(boolean announce) {
         final String category = categoryField.getText().trim();
         // 含下架视图仅管理员可开（按钮只在 manager 分支渲染；服务端另有 STORE_MANAGE 双门槛兜底）
         final boolean includeInactive = manager && inactiveViewVisible;
@@ -413,7 +424,7 @@ public final class StorePanel extends JPanel {
         runRequest((category.isEmpty() ? "正在查询商品" : "正在查询「" + category + "」类商品") + suffix + "…",
                 service -> service.listProducts(session.getToken(),
                         category.isEmpty() ? null : category, includeInactive),
-                this::showProducts);
+                response -> showProducts(response, announce));
     }
 
     /** 管理端视图切换：商品列表并入/移出已下架商品；进入时顺带退出热销视图（同一张表两种视图互斥）。 */
@@ -449,6 +460,11 @@ public final class StorePanel extends JPanel {
     }
 
     private void showProducts(Message response) {
+        showProducts(response, true);
+    }
+
+    /** announce=false（后台静默刷新）时不播报成功条数，避免覆盖状态栏里尚未消除的错误提示。 */
+    private void showProducts(Message response, boolean announce) {
         if (!isSuccessful(response)) {
             return;
         }
@@ -469,6 +485,9 @@ public final class StorePanel extends JPanel {
         loadedProducts.clear();
         loadedProducts.addAll(parsed);
         applyKeywordFilter();
+        if (!announce) {
+            return;
+        }
         String summary;
         if (hotViewVisible) {
             summary = "已显示热销商品，共 " + parsed.size() + " 个";
@@ -563,8 +582,9 @@ public final class StorePanel extends JPanel {
         runRequest("正在提交购买请求…", service -> service.purchase(session.getToken(), productId, count),
                 response -> {
                     if (!isSuccessful(response)) {
-                        // 购买失败最常见的原因是并发下库存或余额已变，刷新后才能让用户看到真实数字
-                        SwingUtilities.invokeLater(this::loadProducts);
+                        // 失败（余额不足/库存冲突等）提示已进状态栏；后台静默刷新商品与余额，
+                        // 不覆盖错误提示——否则「余额不足」会被刷新成功文案顶掉、一闪即逝
+                        SwingUtilities.invokeLater(() -> loadProducts(false));
                         SwingUtilities.invokeLater(this::loadBalance);
                         return;
                     }
@@ -767,11 +787,21 @@ public final class StorePanel extends JPanel {
     }
 
     private void loadCart() {
+        loadCart(true);
+    }
+
+    /** announce=false（结算失败后的后台静默刷新）只更新表格，不覆盖状态栏错误提示。 */
+    private void loadCart(boolean announce) {
         // 购物车一律走明细接口（服务端读取时联表），才能拿到商品名、单价与小计
-        runRequest("正在查询购物车…", service -> service.cartDetail(session.getToken()), this::showCart);
+        runRequest("正在查询购物车…", service -> service.cartDetail(session.getToken()),
+                response -> showCart(response, announce));
     }
 
     private void showCart(Message response) {
+        showCart(response, true);
+    }
+
+    private void showCart(Message response, boolean announce) {
         if (!isSuccessful(response)) {
             return;
         }
@@ -800,7 +830,9 @@ public final class StorePanel extends JPanel {
         cartTotalCents = total;
         cartModel.replaceRows(rows);
         cartTotalLabel.setText("合计：" + StoreRowMapper.formatYuan(cartTotalCents) + " 元");
-        showStatus("已显示购物车，共 " + cartLines.size() + " 条", VCampusTheme.SUCCESS);
+        if (announce) {
+            showStatus("已显示购物车，共 " + cartLines.size() + " 条", VCampusTheme.SUCCESS);
+        }
     }
 
     private CartLine selectedCartLine() {
@@ -900,8 +932,8 @@ public final class StorePanel extends JPanel {
     private void submitCheckout() {
         runRequest("正在结算购物车…", service -> service.checkout(session.getToken()), response -> {
             if (!isSuccessful(response)) {
-                // 结算失败会触发服务端补偿回滚，刷新后才能让用户看到真实的库存与余额
-                SwingUtilities.invokeLater(this::loadCart);
+                // 结算失败会触发服务端补偿回滚；静默刷新购物车与余额（不覆盖错误提示，避免一闪即逝）
+                SwingUtilities.invokeLater(() -> loadCart(false));
                 SwingUtilities.invokeLater(this::loadBalance);
                 return;
             }
