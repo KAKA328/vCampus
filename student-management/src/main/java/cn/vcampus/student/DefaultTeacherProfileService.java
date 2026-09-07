@@ -13,6 +13,14 @@ public final class DefaultTeacherProfileService implements TeacherProfileService
     }
 
     @Override
+    public ServiceResult<java.util.List<TeacherProfile>> findAll() {
+        try { return ServiceResult.ok(teachers.findAll()); }
+        catch (IllegalStateException | UnsupportedOperationException failure) {
+            return ServiceResult.failure(StatusCode.SERVER_ERROR, "failed to list teachers");
+        }
+    }
+
+    @Override
     public ServiceResult<TeacherProfile> findById(String teacherId) {
         try {
             TeacherProfile profile = teachers.findById(teacherId);

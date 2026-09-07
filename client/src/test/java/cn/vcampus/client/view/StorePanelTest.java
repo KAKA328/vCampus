@@ -31,7 +31,7 @@ class StorePanelTest {
         assertEquals("当前账号没有执行该商店操作的权限", StorePanel.statusMessage(StatusCode.FORBIDDEN));
         assertEquals("商品、订单或购物车条目不存在", StorePanel.statusMessage(StatusCode.NOT_FOUND));
         assertEquals("余额不足，请先充值", StorePanel.statusMessage(StatusCode.PAYMENT_REQUIRED));
-        assertEquals("库存或余额已发生变化，请刷新后重试", StorePanel.statusMessage(StatusCode.CONFLICT));
+        assertEquals("商品、库存或余额已发生变化，请刷新后重试", StorePanel.statusMessage(StatusCode.CONFLICT));
     }
 
     @Test
@@ -39,5 +39,17 @@ class StorePanelTest {
         // OK 与 SERVER_ERROR 没有专属文案，统一走兜底提示，避免界面出现空白状态
         assertEquals("服务器处理商店请求失败", StorePanel.statusMessage(StatusCode.SERVER_ERROR));
         assertEquals("服务器处理商店请求失败", StorePanel.statusMessage(StatusCode.OK));
+    }
+
+    @Test
+    void localFailureTextGivesChineseHintWithoutLeakingInternalMessage() {
+        // C1：命令构造类可预期异常（如 A1 曾经的空说明 IAE）给中文提示，绝不裸奔内部英文 getMessage
+        String illegalArg = StorePanel.localFailureText(new IllegalArgumentException("description cannot be empty"));
+        assertEquals("提交的数据不完整或格式有误，请检查后重试", illegalArg);
+        assertFalse(illegalArg.contains("description cannot be empty"));
+        // 其它未知本地异常走通用中文兜底，同样不泄露 getMessage
+        String other = StorePanel.localFailureText(new IllegalStateException("some internal detail"));
+        assertEquals("商店请求失败，请稍后重试", other);
+        assertFalse(other.contains("some internal detail"));
     }
 }

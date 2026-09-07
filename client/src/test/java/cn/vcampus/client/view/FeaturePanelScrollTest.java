@@ -15,6 +15,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FeaturePanelScrollTest {
     @Test
+    void studentWorkspaceStacksOnCompactWidths() {
+        StudentManagementPanel panel = new StudentManagementPanel("127.0.0.1", 1, session(Role.ACADEMIC_ADMIN));
+        javax.swing.JTabbedPane tabs = (javax.swing.JTabbedPane) ((BorderLayout) panel.getLayout())
+                .getLayoutComponent(BorderLayout.CENTER);
+        JPanel body = (JPanel) ((JScrollPane) tabs.getComponentAt(0)).getViewport().getView();
+        JSplitPane split = (JSplitPane) ((BorderLayout) body.getLayout()).getLayoutComponent(BorderLayout.CENTER);
+        split.setSize(600, 920); split.doLayout();
+        org.junit.jupiter.api.Assertions.assertEquals(JSplitPane.VERTICAL_SPLIT, split.getOrientation());
+        split.setSize(1000, 620); split.doLayout();
+        org.junit.jupiter.api.Assertions.assertEquals(JSplitPane.HORIZONTAL_SPLIT, split.getOrientation());
+    }
+    @Test
     void studentManagementBodyCanScrollWhenWindowIsShort() {
         assertPageBodyScrolls(new StudentManagementPanel("127.0.0.1", 1,
                 session(Role.ACADEMIC_ADMIN)));
@@ -24,8 +36,9 @@ class FeaturePanelScrollTest {
     void studentManagementUsesResultAndDetailWorkspace() {
         StudentManagementPanel panel = new StudentManagementPanel("127.0.0.1", 1,
                 session(Role.ACADEMIC_ADMIN));
-        JScrollPane scroller = (JScrollPane) ((BorderLayout) panel.getLayout())
+        javax.swing.JTabbedPane tabs = (javax.swing.JTabbedPane) ((BorderLayout) panel.getLayout())
                 .getLayoutComponent(BorderLayout.CENTER);
+        JScrollPane scroller = (JScrollPane) tabs.getComponentAt(0);
         JPanel body = (JPanel) scroller.getViewport().getView();
         Component center = ((BorderLayout) body.getLayout()).getLayoutComponent(BorderLayout.CENTER);
 
@@ -64,6 +77,7 @@ class FeaturePanelScrollTest {
     private static void assertPageBodyScrolls(JPanel panel) {
         assertTrue(panel.getLayout() instanceof BorderLayout);
         Component center = ((BorderLayout) panel.getLayout()).getLayoutComponent(BorderLayout.CENTER);
+        if (center instanceof javax.swing.JTabbedPane) center = ((javax.swing.JTabbedPane) center).getComponentAt(0);
         assertTrue(center instanceof JScrollPane, "feature page center should be a page-level scroll pane");
         Component view = ((JScrollPane) center).getViewport().getView();
         assertTrue(view instanceof ScrollablePagePanel);

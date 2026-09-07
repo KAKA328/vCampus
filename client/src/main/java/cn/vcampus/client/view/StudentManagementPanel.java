@@ -22,6 +22,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTable;
+import javax.swing.JTabbedPane;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingWorker;
@@ -63,6 +64,7 @@ public final class StudentManagementPanel extends JPanel {
     private boolean requestInProgress;
     private boolean selectionUpdateInProgress;
     private boolean loadedRecord;
+    private boolean initialSelfLoadStarted;
 
     public StudentManagementPanel(String host, int port, Session session) {
         if (host == null || host.trim().isEmpty() || session == null) {
@@ -73,7 +75,7 @@ public final class StudentManagementPanel extends JPanel {
         this.session = session;
         Role role = session.getUser().getRole();
         this.canManage = role == Role.ADMIN || role == Role.ACADEMIC_ADMIN;
-        this.canQueryById = canManage || role == Role.TEACHER;
+        this.canQueryById = canManage;
         this.canQueryClass = canManage;
         this.canEdit = canManage || role == Role.STUDENT;
         build();
@@ -82,8 +84,24 @@ public final class StudentManagementPanel extends JPanel {
     private void build() {
         setLayout(new BorderLayout(0, 16));
         setOpaque(false);
+        if (session.getUser().getRole() == Role.TEACHER) {
+            add(new TeacherSelfPanel(host, port, session), BorderLayout.CENTER);
+            return;
+        }
         add(header(), BorderLayout.NORTH);
-        add(VCampusTheme.pageScroll(body()), BorderLayout.CENTER);
+        if (session.getUser().getRole() == Role.STUDENT) {
+            JTabbedPane tabs = new JTabbedPane();
+            VCampusTheme.tabs(tabs);
+            tabs.addTab("学籍档案", VCampusTheme.pageScroll(body()));
+            tabs.addTab("成绩与重修", new StudentAcademicPanel(host, port, session));
+            add(tabs, BorderLayout.CENTER);
+        } else {
+            JTabbedPane tabs = new JTabbedPane();
+            VCampusTheme.tabs(tabs);
+            tabs.addTab("学生档案维护", VCampusTheme.pageScroll(body()));
+            tabs.addTab("全员信息与毕业管理", new AcademicAdministrationPanel(host, port, session));
+            add(tabs, BorderLayout.CENTER);
+        }
 
         selfButton.addActionListener(event -> loadSelf());
         idButton.addActionListener(event -> loadById());
@@ -95,16 +113,28 @@ public final class StudentManagementPanel extends JPanel {
         });
         configureFields();
         updateButtons();
+        if (session.getUser().getRole() == Role.STUDENT) {
+            selfButton.setText("刷新本人档案");
+            saveButton.setText("保存联系方式");
+            status.setText("进入页面后自动加载本人档案");
+            addHierarchyListener(event -> {
+                if ((event.getChangeFlags() & java.awt.event.HierarchyEvent.SHOWING_CHANGED) != 0
+                        && isShowing() && !initialSelfLoadStarted) {
+                    initialSelfLoadStarted = true;
+                    loadSelf();
+                }
+            });
+        }
     }
 
     private JPanel header() {
         JPanel panel = new JPanel(new BorderLayout(0, 5));
         panel.setOpaque(false);
-        JLabel title = new JLabel("学生学籍管理");
+        JLabel title = new JLabel(canManage ? "学籍管理工作台" : "我的学籍");
         title.setFont(VCampusTheme.font(Font.BOLD, 24));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        JLabel subtitle = new JLabel("当前用户：" + session.getUser().getDisplayName()
-                + "；角色：" + session.getUser().getRole() + roleHint());
+        JLabel subtitle = new JLabel(canManage ? "维护学生档案，查看师生信息，办理学分审查与毕业。"
+                : "查看本人档案、修读记录与学分进度。");
         subtitle.setForeground(VCampusTheme.MUTED);
         panel.add(title, BorderLayout.NORTH);
         panel.add(subtitle, BorderLayout.SOUTH);
@@ -120,6 +150,16 @@ public final class StudentManagementPanel extends JPanel {
     private JPanel body() {
         JPanel panel = new ScrollablePagePanel(new BorderLayout(0, 12));
         panel.setOpaque(false);
+        if (session.getUser().getRole() == Role.STUDENT) {
+            JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+            actions.setOpaque(false);
+            VCampusTheme.secondaryButton(selfButton);
+            actions.add(selfButton);
+            panel.add(actions, BorderLayout.NORTH);
+            panel.add(editorPanel(), BorderLayout.CENTER);
+            panel.add(footer(), BorderLayout.SOUTH);
+            return panel;
+        }
         panel.add(queryBar(), BorderLayout.NORTH);
         panel.add(workspace(), BorderLayout.CENTER);
         return panel;
@@ -131,7 +171,18 @@ public final class StudentManagementPanel extends JPanel {
         detail.add(editorPanel(), BorderLayout.CENTER);
         detail.add(footer(), BorderLayout.SOUTH);
 
-        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, tablePanel(), detail);
+        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, tablePanel(), detail) {
+            @Override public void doLayout() {
+                int orientation = getWidth() > 0 && getWidth() < 740 ? JSplitPane.VERTICAL_SPLIT : JSplitPane.HORIZONTAL_SPLIT;
+                if (getOrientation() != orientation) {
+                    setOrientation(orientation);
+                    setPreferredSize(new Dimension(0, orientation == JSplitPane.VERTICAL_SPLIT ? 920 : 620));
+                    setDividerLocation(orientation == JSplitPane.VERTICAL_SPLIT ? 250 : Math.max(250, getWidth() * 46 / 100));
+                    revalidate();
+                }
+                super.doLayout();
+            }
+        };
         split.setOpaque(false);
         split.setBorder(null);
         split.setDividerSize(10);
@@ -154,7 +205,6 @@ public final class StudentManagementPanel extends JPanel {
         VCampusTheme.field(studentIdQuery);
         VCampusTheme.field(classQuery);
         VCampusTheme.field(majorQuery);
-        panel.add(selfButton);
         panel.add(new JLabel("学号"));
         panel.add(studentIdQuery);
         panel.add(idButton);
@@ -246,6 +296,7 @@ public final class StudentManagementPanel extends JPanel {
     }
 
     private void loadSelf() {
+        if (session.getUser().getRole() != Role.STUDENT || requestInProgress) return;
         clearEditor();
         runRequest("正在查询本人档案…", new StudentCall() {
             @Override public Message execute(RemoteStudentService service)
@@ -465,7 +516,7 @@ public final class StudentManagementPanel extends JPanel {
     }
 
     private void updateButtons() {
-        selfButton.setEnabled(!requestInProgress);
+        selfButton.setEnabled(!requestInProgress && session.getUser().getRole() == Role.STUDENT);
         idButton.setEnabled(!requestInProgress && canQueryById);
         classButton.setEnabled(!requestInProgress && canQueryClass);
         majorButton.setEnabled(!requestInProgress && canQueryClass);

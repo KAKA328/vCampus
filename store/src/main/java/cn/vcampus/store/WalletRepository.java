@@ -31,18 +31,21 @@ public interface WalletRepository {
      * 原子扣款 + 记流水：{@code balance_cents >= cents} 才扣，成功返回 applied=true（记
      * {@code -cents}），
      * 余额不足或账户不存在返回 applied=false 且不改余额、不记流水；存储故障抛 IllegalStateException。
+     * 契约：cents 必须为正，违反抛 IllegalArgumentException（Access/内存两实现行为一致）。
      */
     WalletMutation debit(String userId, long cents, WalletTransactionType type, String operatorId, String note);
 
     /**
      * 原子入账（懒创建）+ 记流水：账户不存在先建 0 余额再累加，成功返回 applied=true（记 {@code +cents}）；
      * 存储故障抛 IllegalStateException。
+     * 契约：cents 必须为正，违反抛 IllegalArgumentException（Access/内存两实现行为一致）。
      */
     WalletMutation credit(String userId, long cents, WalletTransactionType type, String operatorId, String note);
 
     /**
      * 原子绝对设置余额 + 记流水：在同一事务/锁内读取实际旧值，流水金额记「新余额 - 实际旧余额」的真实差额，
      * 成功返回 applied=true；存储故障抛 IllegalStateException。
+     * 契约：newBalanceCents 必须非负，违反抛 IllegalArgumentException（Access/内存两实现行为一致）。
      */
     WalletMutation setBalance(String userId, long newBalanceCents, WalletTransactionType type, String operatorId,
             String note);

@@ -35,18 +35,23 @@ public final class AccessAcademicReviewService implements AcademicReviewService 
         if (normalized == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "studentId must not be blank");
         }
+        try (Connection connection = open()) {
+            return ServiceResult.ok(readHistory(connection, normalized));
+        } catch (SQLException failure) {
+            return ServiceResult.failure(StatusCode.SERVER_ERROR, "failed to read academic history");
+        } catch (IllegalArgumentException invalidRecord) {
+            return ServiceResult.failure(StatusCode.SERVER_ERROR, "academic history contains invalid records");
+        }
+    }
+
+    static List<CourseHistoryRecord> readHistory(Connection connection, String studentId) throws SQLException {
         String sql = "SELECT r.student_id,r.course_id,c.course_name,r.semester,r.attempt_no,"
                 + "r.attempt_type,r.score,r.passed,r.earned_credits "
                 + "FROM tblCourseResult AS r LEFT JOIN tblCourse AS c ON r.course_id=c.course_id "
                 + "WHERE r.student_id=? ORDER BY r.semester,r.course_id,r.attempt_no";
-        try (Connection connection = open();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, normalized);
-            try (ResultSet results = statement.executeQuery()) {
-                return ServiceResult.ok(readHistory(results));
-            }
-        } catch (SQLException failure) {
-            return ServiceResult.failure(StatusCode.SERVER_ERROR, "failed to read academic history");
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, studentId);
+            try (ResultSet results = statement.executeQuery()) { return readHistory(results); }
         }
     }
 
@@ -90,31 +95,11 @@ public final class AccessAcademicReviewService implements AcademicReviewService 
         if (history.getStatus() != StatusCode.OK) {
             return ServiceResult.failure(history.getStatus(), history.getMessage());
         }
-        Map<String, CourseSummary> summaries = new LinkedHashMap<String, CourseSummary>();
-        for (CourseHistoryRecord record : history.getData()) {
-            CourseSummary summary = summaries.get(record.getCourseId());
-            if (summary == null) {
-                summary = new CourseSummary();
-                summaries.put(record.getCourseId(), summary);
-            }
-            summary.seen = true;
-            summary.passed = summary.passed || record.isPassed();
-            summary.maxEarnedCredits = Math.max(summary.maxEarnedCredits, record.getEarnedCredits());
-            summary.retake = summary.retake || record.getAttemptNo() > 1 || "重修".equals(record.getAttemptType());
-        }
-        int totalCredits = 0;
-        int passedCourses = 0;
-        int failedCourses = 0;
-        int retakeCourses = 0;
-        for (CourseSummary summary : summaries.values()) {
-            if (summary.passed) {
-                passedCourses++;
-                totalCredits += summary.maxEarnedCredits;
-            } else if (summary.seen) {
-                failedCourses++;
-            }
-            if (summary.retake) retakeCourses++;
-        }
+        cn.vcampus.student.CreditSummary summary = cn.vcampus.student.CreditSummary.from(normalize(studentId), history.getData());
+        int totalCredits = summary.getEarnedCredits();
+        int passedCourses = summary.getPassedCourses();
+        int failedCourses = summary.getPendingRetakes();
+        int retakeCourses = summary.getHistoricalRetakes();
         boolean ready = totalCredits >= requiredCredits && failedCourses == 0;
         String remark = history.getData().isEmpty() ? "暂无课程成绩记录"
                 : (ready ? "达到阶段学分要求" : "未达到阶段学分要求");
@@ -178,7 +163,8 @@ public final class AccessAcademicReviewService implements AcademicReviewService 
         while (results.next()) {
             int score = results.getInt("score");
             if (results.wasNull()) {
-                score = 0;
+                // V1 records cannot represent an unrecorded score. Never publish it as a real zero.
+                throw new SQLException("academic score has not been recorded");
             }
             history.add(new CourseHistoryRecord(
                     results.getString("student_id"),
@@ -213,10 +199,7 @@ public final class AccessAcademicReviewService implements AcademicReviewService 
     }
 
     private static final class CourseSummary {
-        private boolean seen;
         private boolean passed;
-        private boolean retake;
-        private int maxEarnedCredits;
         private CourseHistoryRecord latestFailed;
     }
 }

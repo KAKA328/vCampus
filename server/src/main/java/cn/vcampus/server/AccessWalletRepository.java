@@ -102,6 +102,8 @@ public final class AccessWalletRepository implements WalletRepository {
     @Override
     public synchronized WalletMutation debit(String userId, long cents, WalletTransactionType type, String operatorId,
             String note) {
+        if (cents <= 0)
+            throw new IllegalArgumentException("debit cents must be positive");
         Connection connection = null;
         try {
             connection = open();
@@ -127,6 +129,8 @@ public final class AccessWalletRepository implements WalletRepository {
     @Override
     public synchronized WalletMutation credit(String userId, long cents, WalletTransactionType type, String operatorId,
             String note) {
+        if (cents <= 0)
+            throw new IllegalArgumentException("credit cents must be positive");
         Connection connection = null;
         try {
             connection = open();
@@ -149,6 +153,8 @@ public final class AccessWalletRepository implements WalletRepository {
     @Override
     public synchronized WalletMutation setBalance(String userId, long newBalanceCents, WalletTransactionType type,
             String operatorId, String note) {
+        if (newBalanceCents < 0)
+            throw new IllegalArgumentException("balance must not be negative");
         Connection connection = null;
         try {
             connection = open();
