@@ -57,6 +57,8 @@ class InMemoryGradeSubmissionServiceTest {
         InMemoryGradeSubmissionService service = new InMemoryGradeSubmissionService();
         LocalDateTime now = LocalDateTime.of(2026, 9, 4, 10, 0);
         service.createDraft(GradeSubmission.draft("GRADE-001", "OFFER-001", "T001", now));
+        service.saveDraftEntry(new GradeEntry("GRADE-001", "S001", SelectionType.REQUIRED,
+                80, now));
         service.submitForReview("GRADE-001");
 
         assertEquals(GradeSubmissionStatus.RETURNED, service.review("GRADE-001",

@@ -425,6 +425,7 @@ final class CourseMessageHandler {
         if (command.getOperation() == CourseGradeReviewV2Command.Operation.RETURN) {
             if (gradeApprovals == null) return gradeReviewServiceUnavailable();
             return gradeApprovals.returnForRevision(command.getSubmissionId(),
+                    detail.getData().getReviewVersionNo().intValue(),
                     reviewer.getData().getUser().getUserId(), command.getRemark());
         }
         if (detail.getData().getSubmission().getStatus()
@@ -438,7 +439,8 @@ final class CourseMessageHandler {
         if (complete.getStatus() != StatusCode.OK) return complete;
         ServiceResult<List<FormalCourseResult>> recordsToPublish = formalResults(detail.getData());
         if (recordsToPublish.getStatus() != StatusCode.OK) return recordsToPublish;
-        return gradeApprovals.approve(command.getSubmissionId(), recordsToPublish.getData(),
+        return gradeApprovals.approve(command.getSubmissionId(),
+                detail.getData().getReviewVersionNo().intValue(), recordsToPublish.getData(),
                 reviewer.getData().getUser().getUserId(), command.getRemark());
     }
 
@@ -451,7 +453,13 @@ final class CourseMessageHandler {
         if (roster.getStatus() != StatusCode.OK) {
             return ServiceResult.failure(roster.getStatus(), roster.getMessage());
         }
-        return readTeachingGradeDraft(roster.getData(), submission.getData());
+        ServiceResult<cn.vcampus.course.GradeReviewSnapshot> snapshot =
+                gradeSubmissions.findLatestReviewSnapshot(submissionId);
+        if (snapshot.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(snapshot.getStatus(), snapshot.getMessage());
+        }
+        return ServiceResult.ok(new TeachingGradeDraft(roster.getData(), submission.getData(),
+                snapshot.getData()));
     }
 
     /** 教务审核允许查看任意教学班，但仍只读取有效选课名单。 */

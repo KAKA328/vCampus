@@ -128,6 +128,20 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
     }
 
     @Override
+    public ServiceResult<cn.vcampus.course.GradeReviewSnapshot> findLatestReviewSnapshot(
+            String submissionId) {
+        ServiceResult<GradeSubmission> submission = findById(submissionId);
+        if (submission.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(submission.getStatus(), submission.getMessage());
+        }
+        try (Connection connection = open()) {
+            return findLatestReviewSnapshot(connection, submission.getData().getSubmissionId());
+        } catch (SQLException failure) {
+            return databaseFailure(failure);
+        }
+    }
+
+    @Override
     public ServiceResult<List<GradeSubmissionAuditRecord>> listAudit(String submissionId) {
         ServiceResult<GradeSubmission> submission = findById(submissionId);
         if (submission.getStatus() != StatusCode.OK) {
@@ -227,6 +241,13 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
                             "approved grade submission must be returned before it can be changed");
                 }
                 LocalDateTime now = LocalDateTime.now();
+                int versionNo = nextSnapshotVersion(connection, normalized);
+                List<GradeEntry> workingEntries = readEntries(connection, normalized);
+                if (workingEntries.isEmpty()) {
+                    connection.rollback();
+                    return ServiceResult.failure(StatusCode.CONFLICT,
+                            "grade entries must not be empty before submission");
+                }
                 try (PreparedStatement statement = connection.prepareStatement(
                         "UPDATE tblGradeSubmission SET status=?,updated_at=?,reviewed_by=NULL,"
                                 + "reviewed_at=NULL,review_remark=NULL WHERE submission_id=?")) {
@@ -235,8 +256,9 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
                     statement.setString(3, normalized);
                     statement.executeUpdate();
                 }
+                createSnapshot(connection, normalized, versionNo, now, workingEntries);
                 appendAudit(connection, normalized, GradeSubmissionAuditAction.SUBMITTED,
-                        submission.getTeacherId(), null, now);
+                        submission.getTeacherId(), "提交第" + versionNo + "版", now);
                 connection.commit();
                 return ServiceResult.ok(submission.pendingReview(now));
             } catch (SQLException failure) {
@@ -342,6 +364,91 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
         return new GradeEntry(results.getString("submission_id"), results.getString("student_id"),
                 SelectionType.valueOf(results.getString("selection_type")), results.getInt("score"),
                 results.getTimestamp("updated_at").toLocalDateTime());
+    }
+
+    private static ServiceResult<cn.vcampus.course.GradeReviewSnapshot> findLatestReviewSnapshot(
+            Connection connection, String submissionId) throws SQLException {
+        String sql = "SELECT TOP 1 version_no,submitted_at FROM tblGradeSubmissionSnapshot "
+                + "WHERE submission_id=? ORDER BY version_no DESC";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, submissionId);
+            try (ResultSet results = statement.executeQuery()) {
+                if (!results.next()) return ServiceResult.failure(StatusCode.NOT_FOUND,
+                        "grade review snapshot not found");
+                int versionNo = results.getInt("version_no");
+                LocalDateTime submittedAt = results.getTimestamp("submitted_at").toLocalDateTime();
+                List<GradeEntry> entries = readSnapshotEntries(connection, submissionId, versionNo,
+                        submittedAt);
+                return ServiceResult.ok(new cn.vcampus.course.GradeReviewSnapshot(submissionId,
+                        versionNo, submittedAt, entries));
+            }
+        }
+    }
+
+    private static int nextSnapshotVersion(Connection connection, String submissionId)
+            throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT MAX(version_no) AS max_version FROM tblGradeSubmissionSnapshot "
+                        + "WHERE submission_id=?")) {
+            statement.setString(1, submissionId);
+            try (ResultSet results = statement.executeQuery()) {
+                return (results.next() ? results.getInt("max_version") : 0) + 1;
+            }
+        }
+    }
+
+    private static List<GradeEntry> readEntries(Connection connection, String submissionId)
+            throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT submission_id,student_id,selection_type,score,updated_at FROM tblGradeEntry "
+                        + "WHERE submission_id=? ORDER BY student_id")) {
+            statement.setString(1, submissionId);
+            try (ResultSet results = statement.executeQuery()) {
+                List<GradeEntry> entries = new ArrayList<GradeEntry>();
+                while (results.next()) entries.add(readEntry(results));
+                return entries;
+            }
+        }
+    }
+
+    private static List<GradeEntry> readSnapshotEntries(Connection connection, String submissionId,
+            int versionNo, LocalDateTime submittedAt) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT student_id,selection_type,score FROM tblGradeSubmissionSnapshotEntry "
+                        + "WHERE submission_id=? AND version_no=? ORDER BY student_id")) {
+            statement.setString(1, submissionId);
+            statement.setInt(2, versionNo);
+            try (ResultSet results = statement.executeQuery()) {
+                List<GradeEntry> entries = new ArrayList<GradeEntry>();
+                while (results.next()) entries.add(new GradeEntry(submissionId,
+                        results.getString("student_id"), SelectionType.valueOf(
+                                results.getString("selection_type")), results.getInt("score"), submittedAt));
+                return entries;
+            }
+        }
+    }
+
+    private static void createSnapshot(Connection connection, String submissionId, int versionNo,
+            LocalDateTime submittedAt, List<GradeEntry> entries) throws SQLException {
+        try (PreparedStatement header = connection.prepareStatement(
+                "INSERT INTO tblGradeSubmissionSnapshot(submission_id,version_no,submitted_at) "
+                        + "VALUES(?,?,?)");
+                PreparedStatement item = connection.prepareStatement(
+                        "INSERT INTO tblGradeSubmissionSnapshotEntry(submission_id,version_no,"
+                                + "student_id,selection_type,score) VALUES(?,?,?,?,?)")) {
+            header.setString(1, submissionId);
+            header.setInt(2, versionNo);
+            header.setTimestamp(3, Timestamp.valueOf(submittedAt));
+            header.executeUpdate();
+            for (GradeEntry entry : entries) {
+                item.setString(1, submissionId);
+                item.setInt(2, versionNo);
+                item.setString(3, entry.getStudentId());
+                item.setString(4, entry.getSelectionType().name());
+                item.setInt(5, entry.getScore());
+                item.executeUpdate();
+            }
+        }
     }
 
     private static GradeSubmissionAuditRecord readAudit(ResultSet results) throws SQLException {

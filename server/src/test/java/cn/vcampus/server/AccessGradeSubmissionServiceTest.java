@@ -45,6 +45,13 @@ class AccessGradeSubmissionServiceTest {
                     + "submission_id VARCHAR(36) NOT NULL,student_id VARCHAR(32) NOT NULL,"
                     + "selection_type VARCHAR(16) NOT NULL,score INTEGER NOT NULL,updated_at DATETIME NOT NULL,"
                     + "PRIMARY KEY (submission_id,student_id))");
+            statement.execute("CREATE TABLE tblGradeSubmissionSnapshot (submission_id VARCHAR(36) NOT NULL,"
+                    + "version_no INTEGER NOT NULL,submitted_at DATETIME NOT NULL,"
+                    + "PRIMARY KEY (submission_id,version_no))");
+            statement.execute("CREATE TABLE tblGradeSubmissionSnapshotEntry (submission_id VARCHAR(36) NOT NULL,"
+                    + "version_no INTEGER NOT NULL,student_id VARCHAR(32) NOT NULL,"
+                    + "selection_type VARCHAR(16) NOT NULL,score INTEGER NOT NULL,"
+                    + "PRIMARY KEY (submission_id,version_no,student_id))");
             statement.execute("CREATE TABLE tblGradeSubmissionAudit ("
                     + "audit_id VARCHAR(36) NOT NULL,submission_id VARCHAR(36) NOT NULL,"
                     + "action VARCHAR(16) NOT NULL,actor_id VARCHAR(32) NOT NULL,"
@@ -94,12 +101,24 @@ class AccessGradeSubmissionServiceTest {
         assertEquals(GradeSubmissionStatus.PENDING_REVIEW,
                 restarted.findById("GRADE-001").getData().getStatus());
         assertEquals(74, restarted.listEntries("GRADE-001").getData().get(0).getScore());
+        assertEquals(1, restarted.findLatestReviewSnapshot("GRADE-001").getData()
+                .getVersionNo());
+        assertEquals(61, restarted.findLatestReviewSnapshot("GRADE-001").getData()
+                .getEntries().get(0).getScore());
+
+        assertEquals(StatusCode.OK, restarted.submitForReview("GRADE-001").getStatus());
+        assertEquals(2, restarted.findLatestReviewSnapshot("GRADE-001").getData()
+                .getVersionNo());
+        assertEquals(74, restarted.findLatestReviewSnapshot("GRADE-001").getData()
+                .getEntries().get(0).getScore());
     }
 
     @Test
     void persistsAcademicReturnRemarkAndRejectsNonAtomicApproval() {
         LocalDateTime now = LocalDateTime.of(2026, 9, 4, 11, 0);
         service.createDraft(GradeSubmission.draft("GRADE-001", "OFFER-001", "T001", now));
+        service.saveDraftEntry(new GradeEntry("GRADE-001", "S001", SelectionType.REQUIRED,
+                70, now));
         service.submitForReview("GRADE-001");
 
         assertEquals(GradeSubmissionStatus.RETURNED, service.review("GRADE-001",

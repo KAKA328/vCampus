@@ -27,7 +27,7 @@ final class InMemoryGradeApprovalWorkflow implements GradeApprovalWorkflow {
     }
 
     @Override
-    public synchronized ServiceResult<GradeSubmission> approve(String submissionId,
+    public synchronized ServiceResult<GradeSubmission> approve(String submissionId, int reviewVersionNo,
             List<FormalCourseResult> results, String reviewerId, String remark) {
         ServiceResult<GradeSubmission> current = submissions.findById(submissionId);
         if (current.getStatus() != StatusCode.OK) {
@@ -36,6 +36,12 @@ final class InMemoryGradeApprovalWorkflow implements GradeApprovalWorkflow {
         if (current.getData().getStatus() != GradeSubmissionStatus.PENDING_REVIEW) {
             return ServiceResult.failure(StatusCode.CONFLICT,
                     "only pending grade submissions can be reviewed");
+        }
+        ServiceResult<cn.vcampus.course.GradeReviewSnapshot> snapshot =
+                submissions.findLatestReviewSnapshot(submissionId);
+        if (snapshot.getStatus() != StatusCode.OK || snapshot.getData().getVersionNo() != reviewVersionNo) {
+            return ServiceResult.failure(StatusCode.CONFLICT,
+                    "grade review snapshot was replaced by a newer submission");
         }
         ServiceResult<Void> saved = formalResults.recordAll(results);
         if (saved.getStatus() != StatusCode.OK) {
@@ -54,12 +60,20 @@ final class InMemoryGradeApprovalWorkflow implements GradeApprovalWorkflow {
 
     @Override
     public synchronized ServiceResult<GradeSubmission> returnForRevision(String submissionId,
+            int reviewVersionNo,
             String reviewerId, String remark) {
         ServiceResult<GradeSubmission> current = submissions.findById(submissionId);
         if (current.getStatus() != StatusCode.OK) {
             return ServiceResult.failure(current.getStatus(), current.getMessage());
         }
         if (current.getData().getStatus() == GradeSubmissionStatus.PENDING_REVIEW) {
+            ServiceResult<cn.vcampus.course.GradeReviewSnapshot> snapshot =
+                    submissions.findLatestReviewSnapshot(submissionId);
+            if (snapshot.getStatus() != StatusCode.OK
+                    || snapshot.getData().getVersionNo() != reviewVersionNo) {
+                return ServiceResult.failure(StatusCode.CONFLICT,
+                        "grade review snapshot was replaced by a newer submission");
+            }
             return submissions.review(submissionId, GradeReviewDecision.RETURN, reviewerId, remark);
         }
         if (current.getData().getStatus() != GradeSubmissionStatus.APPROVED) {

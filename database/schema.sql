@@ -194,6 +194,23 @@ CREATE TABLE tblGradeEntry (
     PRIMARY KEY (submission_id, student_id)
 );
 
+-- 教师每次提交时冻结一份成绩快照；后续修改只影响 tblGradeEntry 工作草稿。
+CREATE TABLE tblGradeSubmissionSnapshot (
+    submission_id VARCHAR(36) NOT NULL,
+    version_no INTEGER NOT NULL,
+    submitted_at DATETIME NOT NULL,
+    PRIMARY KEY (submission_id, version_no)
+);
+
+CREATE TABLE tblGradeSubmissionSnapshotEntry (
+    submission_id VARCHAR(36) NOT NULL,
+    version_no INTEGER NOT NULL,
+    student_id VARCHAR(32) NOT NULL,
+    selection_type VARCHAR(16) NOT NULL,
+    score INTEGER NOT NULL,
+    PRIMARY KEY (submission_id, version_no, student_id)
+);
+
 -- 成绩单的状态流转审计；保留每次提交、通过和退回的操作者及原因。
 CREATE TABLE tblGradeSubmissionAudit (
     audit_id VARCHAR(36) NOT NULL,

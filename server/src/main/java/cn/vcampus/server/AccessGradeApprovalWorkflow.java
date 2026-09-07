@@ -27,11 +27,11 @@ final class AccessGradeApprovalWorkflow implements GradeApprovalWorkflow {
     }
 
     @Override
-    public ServiceResult<GradeSubmission> approve(String submissionId,
+    public ServiceResult<GradeSubmission> approve(String submissionId, int reviewVersionNo,
             List<FormalCourseResult> results, String reviewerId, String remark) {
         String normalizedSubmissionId = normalize(submissionId);
         String normalizedReviewerId = normalize(reviewerId);
-        if (normalizedSubmissionId == null || normalizedReviewerId == null
+        if (normalizedSubmissionId == null || normalizedReviewerId == null || reviewVersionNo < 1
                 || results == null || results.isEmpty()) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST,
                     "submissionId, reviewerId and results must not be empty");
@@ -52,6 +52,11 @@ final class AccessGradeApprovalWorkflow implements GradeApprovalWorkflow {
                     rollback(connection);
                     return ServiceResult.failure(StatusCode.CONFLICT,
                             "only pending grade submissions can be reviewed");
+                }
+                if (latestSnapshotVersion(connection, normalizedSubmissionId) != reviewVersionNo) {
+                    rollback(connection);
+                    return ServiceResult.failure(StatusCode.CONFLICT,
+                            "grade review snapshot was replaced by a newer submission");
                 }
                 LocalDateTime now = LocalDateTime.now();
                 int changed = markApproved(connection, normalizedSubmissionId, normalizedReviewerId,
@@ -83,12 +88,14 @@ final class AccessGradeApprovalWorkflow implements GradeApprovalWorkflow {
     }
 
     @Override
-    public ServiceResult<GradeSubmission> returnForRevision(String submissionId, String reviewerId,
+    public ServiceResult<GradeSubmission> returnForRevision(String submissionId, int reviewVersionNo,
+            String reviewerId,
             String remark) {
         String normalizedSubmissionId = normalize(submissionId);
         String normalizedReviewerId = normalize(reviewerId);
         String normalizedRemark = normalize(remark);
-        if (normalizedSubmissionId == null || normalizedReviewerId == null || normalizedRemark == null) {
+        if (normalizedSubmissionId == null || normalizedReviewerId == null || normalizedRemark == null
+                || reviewVersionNo < 1) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST,
                     "submissionId, reviewerId and return remark must not be blank");
         }
@@ -106,6 +113,11 @@ final class AccessGradeApprovalWorkflow implements GradeApprovalWorkflow {
                     rollback(connection);
                     return ServiceResult.failure(StatusCode.CONFLICT,
                             "only pending or approved grade submissions can be returned");
+                }
+                if (latestSnapshotVersion(connection, normalizedSubmissionId) != reviewVersionNo) {
+                    rollback(connection);
+                    return ServiceResult.failure(StatusCode.CONFLICT,
+                            "grade review snapshot was replaced by a newer submission");
                 }
                 LocalDateTime now = LocalDateTime.now();
                 if (markReturned(connection, normalizedSubmissionId, normalizedReviewerId,
@@ -157,6 +169,18 @@ final class AccessGradeApprovalWorkflow implements GradeApprovalWorkflow {
                         results.getString("reviewed_by"),
                         reviewedAt == null ? null : reviewedAt.toLocalDateTime(),
                         results.getString("review_remark"));
+            }
+        }
+    }
+
+    private static int latestSnapshotVersion(Connection connection, String submissionId)
+            throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT MAX(version_no) AS max_version FROM tblGradeSubmissionSnapshot "
+                        + "WHERE submission_id=?")) {
+            statement.setString(1, submissionId);
+            try (ResultSet results = statement.executeQuery()) {
+                return results.next() ? results.getInt("max_version") : 0;
             }
         }
     }

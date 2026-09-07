@@ -232,6 +232,26 @@ class CourseTeachingQueryMessageHandlerTest {
         assertEquals(GradeSubmissionStatus.PENDING_REVIEW,
                 latest.getSubmission().getStatus());
         assertEquals(89, latest.getEntries().get(0).getScore());
+
+        String submissionId = latest.getSubmission().getSubmissionId();
+        Message reviewBeforeResubmit = handler.handle(Message.request("review-snapshot-v1",
+                MessageType.COURSE_GRADE_REVIEW_V2, CourseGradeReviewV2Command.viewDetail(
+                        academicAdmin.getToken(), submissionId)));
+        assertEquals(StatusCode.OK, reviewBeforeResubmit.getStatusCode());
+        TeachingGradeDraft snapshotV1 = (TeachingGradeDraft) reviewBeforeResubmit.getPayload();
+        assertEquals(Integer.valueOf(1), snapshotV1.getReviewVersionNo());
+        assertEquals(76, snapshotV1.getEntries().get(0).getScore());
+
+        Message resubmitted = handler.handle(Message.request("submit-revised-grade",
+                MessageType.COURSE_GRADE_DRAFT_V2,
+                CourseGradeDraftV2Command.submitForReview(teacherOne.getToken(), "OFFER-JAVA-01")));
+        assertEquals(StatusCode.OK, resubmitted.getStatusCode());
+        Message reviewAfterResubmit = handler.handle(Message.request("review-snapshot-v2",
+                MessageType.COURSE_GRADE_REVIEW_V2, CourseGradeReviewV2Command.viewDetail(
+                        academicAdmin.getToken(), submissionId)));
+        TeachingGradeDraft snapshotV2 = (TeachingGradeDraft) reviewAfterResubmit.getPayload();
+        assertEquals(Integer.valueOf(2), snapshotV2.getReviewVersionNo());
+        assertEquals(89, snapshotV2.getEntries().get(0).getScore());
     }
 
     @Test

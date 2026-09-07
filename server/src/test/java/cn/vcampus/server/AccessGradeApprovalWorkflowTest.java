@@ -54,6 +54,17 @@ class AccessGradeApprovalWorkflowTest {
                     + "submission_id VARCHAR(36) NOT NULL,result_id VARCHAR(36) NOT NULL,"
                     + "PRIMARY KEY (submission_id,result_id),"
                     + "CONSTRAINT uk_tblGradeSubmissionResult_result UNIQUE (result_id))");
+            statement.execute("CREATE TABLE tblGradeEntry (submission_id VARCHAR(36) NOT NULL,"
+                    + "student_id VARCHAR(32) NOT NULL,selection_type VARCHAR(16) NOT NULL,"
+                    + "score INTEGER NOT NULL,updated_at DATETIME NOT NULL,"
+                    + "PRIMARY KEY (submission_id,student_id))");
+            statement.execute("CREATE TABLE tblGradeSubmissionSnapshot (submission_id VARCHAR(36) NOT NULL,"
+                    + "version_no INTEGER NOT NULL,submitted_at DATETIME NOT NULL,"
+                    + "PRIMARY KEY (submission_id,version_no))");
+            statement.execute("CREATE TABLE tblGradeSubmissionSnapshotEntry (submission_id VARCHAR(36) NOT NULL,"
+                    + "version_no INTEGER NOT NULL,student_id VARCHAR(32) NOT NULL,"
+                    + "selection_type VARCHAR(16) NOT NULL,score INTEGER NOT NULL,"
+                    + "PRIMARY KEY (submission_id,version_no,student_id))");
             statement.execute("CREATE TABLE tblGradeSubmissionAudit ("
                     + "audit_id VARCHAR(36) NOT NULL,submission_id VARCHAR(36) NOT NULL,"
                     + "action VARCHAR(16) NOT NULL,actor_id VARCHAR(32) NOT NULL,"
@@ -66,7 +77,7 @@ class AccessGradeApprovalWorkflowTest {
     void commitsFormalResultAndApprovedStatusTogether() throws Exception {
         insertPending("GRADE-001");
 
-        assertEquals(StatusCode.OK, workflow.approve("GRADE-001",
+        assertEquals(StatusCode.OK, workflow.approve("GRADE-001", 1,
                 Collections.singletonList(result("RESULT-001")), "academic_001", "审核通过")
                 .getStatus());
         assertEquals(GradeSubmissionStatus.APPROVED.name(), submissionStatus("GRADE-001"));
@@ -81,7 +92,7 @@ class AccessGradeApprovalWorkflowTest {
         insertPending("GRADE-001");
         insertFormalResult("RESULT-001");
 
-        assertEquals(StatusCode.CONFLICT, workflow.approve("GRADE-001",
+        assertEquals(StatusCode.CONFLICT, workflow.approve("GRADE-001", 1,
                 Collections.singletonList(result("RESULT-001")), "academic_001", "审核通过")
                 .getStatus());
         assertEquals(GradeSubmissionStatus.PENDING_REVIEW.name(), submissionStatus("GRADE-001"));
@@ -92,12 +103,12 @@ class AccessGradeApprovalWorkflowTest {
     void rejectsSecondApprovalFromAnotherServiceInstance() throws Exception {
         insertPending("GRADE-001");
 
-        assertEquals(StatusCode.OK, workflow.approve("GRADE-001",
+        assertEquals(StatusCode.OK, workflow.approve("GRADE-001", 1,
                 Collections.singletonList(result("RESULT-001")), "academic_001", "审核通过")
                 .getStatus());
 
         AccessGradeApprovalWorkflow anotherWorkflow = new AccessGradeApprovalWorkflow(database);
-        assertEquals(StatusCode.CONFLICT, anotherWorkflow.approve("GRADE-001",
+        assertEquals(StatusCode.CONFLICT, anotherWorkflow.approve("GRADE-001", 1,
                 Collections.singletonList(result("RESULT-002")), "academic_002", "重复审核")
                 .getStatus());
         assertEquals(GradeSubmissionStatus.APPROVED.name(), submissionStatus("GRADE-001"));
@@ -132,11 +143,11 @@ class AccessGradeApprovalWorkflowTest {
     @Test
     void returnsApprovedSubmissionByRetractingOnlyItsPublishedFormalResults() throws Exception {
         insertPending("GRADE-001");
-        assertEquals(StatusCode.OK, workflow.approve("GRADE-001",
+        assertEquals(StatusCode.OK, workflow.approve("GRADE-001", 1,
                 Collections.singletonList(result("RESULT-001")), "academic_001", "审核通过")
                 .getStatus());
 
-        assertEquals(StatusCode.OK, workflow.returnForRevision("GRADE-001", "academic_002",
+        assertEquals(StatusCode.OK, workflow.returnForRevision("GRADE-001", 1, "academic_002",
                 "发现成绩录入错误，请修改后重新提交").getStatus());
         assertEquals(GradeSubmissionStatus.RETURNED.name(), submissionStatus("GRADE-001"));
         assertEquals(0, formalResultCount());
@@ -146,7 +157,7 @@ class AccessGradeApprovalWorkflowTest {
 
         AccessGradeSubmissionService submissions = new AccessGradeSubmissionService(database);
         assertEquals(StatusCode.OK, submissions.submitForReview("GRADE-001").getStatus());
-        assertEquals(StatusCode.OK, workflow.approve("GRADE-001",
+        assertEquals(StatusCode.OK, workflow.approve("GRADE-001", 2,
                 Collections.singletonList(result("RESULT-002")), "academic_003", "复核通过")
                 .getStatus());
         assertEquals(GradeSubmissionStatus.APPROVED.name(), submissionStatus("GRADE-001"));
@@ -158,7 +169,7 @@ class AccessGradeApprovalWorkflowTest {
             String reviewerId) throws Exception {
         ready.countDown();
         start.await();
-        return new AccessGradeApprovalWorkflow(database).approve("GRADE-001",
+        return new AccessGradeApprovalWorkflow(database).approve("GRADE-001", 1,
                 Collections.singletonList(result("RESULT-001")), reviewerId, "审核通过")
                 .getStatus();
     }
@@ -175,6 +186,21 @@ class AccessGradeApprovalWorkflowTest {
             statement.setTimestamp(5, java.sql.Timestamp.valueOf(now));
             statement.setTimestamp(6, java.sql.Timestamp.valueOf(now));
             statement.executeUpdate();
+        }
+        try (Connection connection = open(); PreparedStatement entry = connection.prepareStatement(
+                "INSERT INTO tblGradeEntry(submission_id,student_id,selection_type,score,updated_at) VALUES(?,?,?,?,?)");
+                PreparedStatement snapshot = connection.prepareStatement(
+                "INSERT INTO tblGradeSubmissionSnapshot(submission_id,version_no,submitted_at) VALUES(?,?,?)");
+                PreparedStatement snapshotEntry = connection.prepareStatement(
+                "INSERT INTO tblGradeSubmissionSnapshotEntry(submission_id,version_no,student_id,selection_type,score) VALUES(?,?,?,?,?)")) {
+            entry.setString(1, submissionId); entry.setString(2, "S001");
+            entry.setString(3, "REQUIRED"); entry.setInt(4, 88);
+            entry.setTimestamp(5, java.sql.Timestamp.valueOf(now)); entry.executeUpdate();
+            snapshot.setString(1, submissionId); snapshot.setInt(2, 1);
+            snapshot.setTimestamp(3, java.sql.Timestamp.valueOf(now)); snapshot.executeUpdate();
+            snapshotEntry.setString(1, submissionId); snapshotEntry.setInt(2, 1);
+            snapshotEntry.setString(3, "S001"); snapshotEntry.setString(4, "REQUIRED");
+            snapshotEntry.setInt(5, 88); snapshotEntry.executeUpdate();
         }
     }
 

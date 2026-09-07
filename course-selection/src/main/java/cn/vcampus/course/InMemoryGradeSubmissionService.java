@@ -18,6 +18,8 @@ public final class InMemoryGradeSubmissionService implements GradeSubmissionServ
             new LinkedHashMap<String, Map<String, GradeEntry>>();
     private final Map<String, List<GradeSubmissionAuditRecord>> auditBySubmission =
             new LinkedHashMap<String, List<GradeSubmissionAuditRecord>>();
+    private final Map<String, List<GradeReviewSnapshot>> snapshotsBySubmission =
+            new LinkedHashMap<String, List<GradeReviewSnapshot>>();
 
     @Override
     public synchronized ServiceResult<GradeSubmission> createDraft(GradeSubmission submission) {
@@ -35,6 +37,8 @@ public final class InMemoryGradeSubmissionService implements GradeSubmissionServ
                 new LinkedHashMap<String, GradeEntry>());
         auditBySubmission.put(submission.getSubmissionId(),
                 new ArrayList<GradeSubmissionAuditRecord>());
+        snapshotsBySubmission.put(submission.getSubmissionId(),
+                new ArrayList<GradeReviewSnapshot>());
         return ServiceResult.ok(submission);
     }
 
@@ -91,6 +95,19 @@ public final class InMemoryGradeSubmissionService implements GradeSubmissionServ
     }
 
     @Override
+    public synchronized ServiceResult<GradeReviewSnapshot> findLatestReviewSnapshot(String submissionId) {
+        ServiceResult<GradeSubmission> submission = findById(submissionId);
+        if (submission.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(submission.getStatus(), submission.getMessage());
+        }
+        List<GradeReviewSnapshot> snapshots = snapshotsBySubmission.get(
+                submission.getData().getSubmissionId());
+        if (snapshots.isEmpty()) return ServiceResult.failure(StatusCode.NOT_FOUND,
+                "grade review snapshot not found");
+        return ServiceResult.ok(snapshots.get(snapshots.size() - 1));
+    }
+
+    @Override
     public synchronized ServiceResult<GradeEntry> saveDraftEntry(GradeEntry entry) {
         ServiceResult<List<GradeEntry>> saved = saveDraftEntries(Collections.singletonList(entry));
         return saved.getStatus() == StatusCode.OK ? ServiceResult.ok(saved.getData().get(0))
@@ -140,10 +157,18 @@ public final class InMemoryGradeSubmissionService implements GradeSubmissionServ
             return ServiceResult.failure(StatusCode.CONFLICT,
                     "approved grade submission must be returned before it can be changed");
         }
-        GradeSubmission pending = submission.pendingReview(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        List<GradeEntry> workingEntries = new ArrayList<GradeEntry>(entriesBySubmission.get(
+                submission.getSubmissionId()).values());
+        if (workingEntries.isEmpty()) return ServiceResult.failure(StatusCode.CONFLICT,
+                "grade entries must not be empty before submission");
+        int version = snapshotsBySubmission.get(submission.getSubmissionId()).size() + 1;
+        snapshotsBySubmission.get(submission.getSubmissionId()).add(new GradeReviewSnapshot(
+                submission.getSubmissionId(), version, now, workingEntries));
+        GradeSubmission pending = submission.pendingReview(now);
         submissions.put(pending.getSubmissionId(), pending);
         appendAudit(pending.getSubmissionId(), GradeSubmissionAuditAction.SUBMITTED,
-                submission.getTeacherId(), null, pending.getUpdatedAt());
+                submission.getTeacherId(), "提交第" + version + "版", pending.getUpdatedAt());
         return ServiceResult.ok(pending);
     }
 

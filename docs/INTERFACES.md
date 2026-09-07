@@ -15,7 +15,7 @@
 所有服务方法返回 `ServiceResult<T>`，由服务器统一映射为 `Message` 响应。服务端必须再次校验会话和权限。
 
 `GradeSubmissionService` 当前负责保存一门教学班的一份成绩草稿和其中的学生成绩：
-`createDraft`、`findById`、`findByOffering`、`listByStatus`、`listEntries`、`listAudit`、`saveDraftEntry`、`submitForReview`、`review`。每个教学班最多一份提交单；草稿、被退回或待审核时都允许覆盖修改同一学生成绩，待审核修改后的最新版本供教务读取。教务老师可退回并保存意见；审核通过和退回已通过成绩均由服务器的成绩审批工作流统一处理。在 Access 模式中，写入 `tblCourseResult` 的所有正式成绩与将成绩单改为 `APPROVED` 使用同一数据库事务；退回已通过成绩时，工作流又会按 `tblGradeSubmissionResult` 关联撤销这些正式成绩并改为 `RETURNED`。每次提交、通过或退回都会写入 `tblGradeSubmissionAudit`，用于追溯操作人、时间和备注。任一步失败即全部回滚，重复审核返回冲突，供学籍审查和重修判断读取。
+`createDraft`、`findById`、`findByOffering`、`listEntries`、`findLatestReviewSnapshot`、`listAudit`、`saveDraftEntry`、`submitForReview`、`review`。每个教学班最多一份提交单；教师修改的是工作草稿。每次 `submitForReview` 会冻结一份递增版本的不可变快照，教务只读取最新快照；待审核期间继续修改草稿不会改变正在审核的版本，教师再次提交后才形成新的审核版本。审核通过和退回已通过成绩均由服务器的成绩审批工作流统一处理，并会校验快照版本，旧版本不能被误审核。在 Access 模式中，写入 `tblCourseResult` 的所有正式成绩与将成绩单改为 `APPROVED` 使用同一数据库事务；退回已通过成绩时，工作流又会按 `tblGradeSubmissionResult` 关联撤销这些正式成绩并改为 `RETURNED`。每次提交、通过或退回都会写入 `tblGradeSubmissionAudit`，用于追溯操作人、时间和备注。任一步失败即全部回滚，重复审核返回冲突，供学籍审查和重修判断读取。
 
 ## 学籍与选课对接接口
 
@@ -87,7 +87,7 @@ StudentManagementService.findByIds(List<String> studentIds)
 
 客户端不提交 `studentId` 作为本人身份，服务端必须根据 `token -> user_id -> student_id` 推导学生档案；退选使用已选记录的 `recordId`。
 
-教师教学班查询和成绩草稿接口仅接受 `TEACHER` 角色且要求 `GRADE_WRITE` 权限。服务器从 `token -> user_id -> tblTeacher.teacher_id` 定位教师，教师不能在命令中传入或伪造 `teacherId`；查询名单时还会校验教学班确实归该教师，并且只返回 `ACTIVE` 选课记录。保存成绩时，学生是否属于该教学班及其 `SelectionType` 也完全由服务器按有效选课记录确定，客户端不传提交单编号或选课类别。提交审核前，系统会确认每名有效选课学生均已有成绩；提交后状态为 `PENDING_REVIEW`。教师可继续修改待审核成绩，系统自动保留待审核状态并让教务端读取最新结果；只有 `APPROVED` 成绩必须先被教务退回后才能修改。
+教师教学班查询和成绩草稿接口仅接受 `TEACHER` 角色且要求 `GRADE_WRITE` 权限。服务器从 `token -> user_id -> tblTeacher.teacher_id` 定位教师，教师不能在命令中传入或伪造 `teacherId`；查询名单时还会校验教学班确实归该教师，并且只返回 `ACTIVE` 选课记录。保存成绩时，学生是否属于该教学班及其 `SelectionType` 也完全由服务器按有效选课记录确定，客户端不传提交单编号或选课类别。提交审核前，系统会确认每名有效选课学生均已有成绩；提交后状态为 `PENDING_REVIEW` 并冻结审核快照。教师仍可修改工作草稿，但教务继续读取原快照；教师再次提交后才会生成新版本并替换待审核目标。只有 `APPROVED` 成绩必须先被教务退回后才能修改。
 
 教师成绩导入文件最大为 5 MB；CSV 使用 UTF-8 和英文逗号分隔，XLS/XLSX 只读取第一个工作表。空行会忽略，但学号或成绩缺失、重复学号、公式单元格、非整数成绩或不属于本班的学生会使整个文件失败，且不会保存任何一行。文件允许分批导入；最终提交审核时仍必须覆盖全部有效选课学生。
 

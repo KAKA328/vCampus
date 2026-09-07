@@ -10,6 +10,8 @@ public interface GradeSubmissionService {
     ServiceResult<GradeSubmission> findByOffering(String offeringId);
     ServiceResult<List<GradeSubmission>> listByStatus(GradeSubmissionStatus status);
     ServiceResult<List<GradeEntry>> listEntries(String submissionId);
+    /** 返回当前供教务审核的最新不可变提交版本。 */
+    ServiceResult<GradeReviewSnapshot> findLatestReviewSnapshot(String submissionId);
     ServiceResult<List<GradeSubmissionAuditRecord>> listAudit(String submissionId);
 
     /** 允许教师在草稿、被退回或待审核状态下新增、覆盖同一学生的成绩。 */
