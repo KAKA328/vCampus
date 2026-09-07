@@ -77,13 +77,10 @@ mvn -DskipTests package
 
 ```powershell
 cd D:\codex\java协作
-$env:VCAMPUS_BOOTSTRAP_ADMIN_ID="admin001"
-$env:VCAMPUS_BOOTSTRAP_ADMIN_PASSWORD="Admin123"
-$env:VCAMPUS_BOOTSTRAP_ADMIN_NAME="系统管理员"
-java -jar .\server\target\vCampusServer.jar --port 19090
+java -jar .\server\target\vCampusServer.jar --db .\database\vCampus.accdb --port 19090
 ```
 
-看到 `vCampus server listening on port 19090` 表示服务器已启动，并保持该窗口运行。
+看到 `vCampus server listening on port 19090` 表示服务器已启动，并保持该窗口运行。验收和日常联调推荐使用 `--db .\database\vCampus.accdb`，这样会加载 `seed.sql` 对应的演示账号、105 个商店商品、钱包余额、订单、购物车、学籍和图书馆等测试数据。
 
 ### 2. 启动客户端
 
@@ -94,7 +91,7 @@ cd D:\codex\java协作
 java -jar .\client\target\vCampusClient.jar --host 127.0.0.1 --port 19090
 ```
 
-使用 `admin001 / Admin123` 登录后，在“用户管理 → 创建账号”开户注册。登录页不会显示“注册新用户”。如果没有设置 bootstrap 环境变量，也可以使用内存模式预置的 `demo_admin / Demo123` 登录。创建学生/教师账号时必须填写数据库中已存在且未绑定的学号/教师工号。
+使用 `demo_admin / Demo123` 登录后，在“用户管理 → 创建账号”开户注册。登录页不会显示“注册新用户”。也可以使用 `demo_student`、`demo_teacher`、`demo_librarian`、`demo_store_manager` 等演示账号登录各自模块。创建学生/教师账号时必须填写数据库中已存在且未绑定的学号/教师工号。
 
 ### 3. Socket 冒烟演示
 
@@ -106,13 +103,13 @@ java -jar .\client\target\vCampusClient.jar --demo --host 127.0.0.1 --port 19090
 
 该演示使用管理员会话创建临时学生账号，再测试登录、课程授权和登出。
 
-### 4. 使用 Access 数据库
+### 4. 内存演示模式
 
 ```powershell
-java -jar .\server\target\vCampusServer.jar --db D:\data\vCampus.accdb --port 19090
+java -jar .\server\target\vCampusServer.jar --port 19090
 ```
 
-数据库说明、表结构和初始化数据见 [`database/README.md`](database/README.md)、[`database/schema.sql`](database/schema.sql) 和 [`database/seed.sql`](database/seed.sql)。
+不带 `--db` 启动时使用内存演示模式，适合快速调试 Socket 和临时账号；内存模式不会读取 `database/vCampus.accdb`，商店等模块的演示数据较少，且进程退出后运行期新增数据会丢失。数据库说明、表结构和初始化数据见 [`database/README.md`](database/README.md)、[`database/schema.sql`](database/schema.sql) 和 [`database/seed.sql`](database/seed.sql)。
 
 ## 代码结构
 
