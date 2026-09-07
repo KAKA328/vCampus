@@ -69,7 +69,7 @@ class ModuleCardPanelTest {
 
         assertTrue(status.isOpaque());
         assertTrue(status.getText().contains("可用"));
-        assertTrue(status.getPreferredSize().height <= 34);
+        assertTrue(status.getPreferredSize().height <= UiMetrics.px(34));
     }
 
     @Test

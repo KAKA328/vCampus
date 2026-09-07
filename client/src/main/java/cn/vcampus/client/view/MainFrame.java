@@ -6,7 +6,6 @@ import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.Dimension;
 import java.awt.Font;
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -42,8 +41,8 @@ public final class MainFrame extends JFrame {
     private void build() {
         VCampusTheme.install();
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setMinimumSize(new Dimension(1024, 640));
-        setSize(1080, 680);
+        setMinimumSize(UiMetrics.dimension(1024, 640));
+        setSize(UiMetrics.dimension(1080, 680));
         setLocationRelativeTo(null);
 
         JPanel root = new JPanel(new BorderLayout(0, 0));
@@ -55,7 +54,7 @@ public final class MainFrame extends JFrame {
         javax.swing.JLayeredPane layered = new javax.swing.JLayeredPane() {
             @Override public void doLayout() {
                 root.setBounds(0, 0, getWidth(), getHeight());
-                int margin = Math.max(14, getWidth() / 70);
+                int margin = Math.max(UiMetrics.px(14), getWidth() / 70);
                 AssistantPanel current = assistantRef[0];
                 if (current != null) {
                     java.awt.Dimension size = current.getPreferredSize();
@@ -93,7 +92,7 @@ public final class MainFrame extends JFrame {
         JLabel subtitle = new JLabel("虚拟校园综合管理系统");
         subtitle.setForeground(new Color(219, 234, 254));
 
-        JPanel brand = new JPanel(new BorderLayout(0, 2));
+        JPanel brand = new JPanel(new BorderLayout(0, UiMetrics.px(2)));
         brand.setOpaque(false);
         brand.add(title, BorderLayout.NORTH);
         brand.add(subtitle, BorderLayout.SOUTH);
@@ -106,7 +105,7 @@ public final class MainFrame extends JFrame {
         VCampusTheme.secondaryButton(logout);
         logout.addActionListener(e -> logout());
 
-        JPanel right = new JPanel(new BorderLayout(16, 0));
+        JPanel right = new JPanel(new BorderLayout(UiMetrics.px(16), 0));
         right.setOpaque(false);
         right.add(user, BorderLayout.CENTER);
         right.add(logout, BorderLayout.EAST);
@@ -117,12 +116,12 @@ public final class MainFrame extends JFrame {
     }
 
     private JPanel nav() {
-        JPanel outer = new JPanel(new BorderLayout(0, 14));
+        JPanel outer = new JPanel(new BorderLayout(0, UiMetrics.px(14)));
         outer.setBackground(VCampusTheme.SIDEBAR);
         outer.setBorder(javax.swing.BorderFactory.createCompoundBorder(
                 javax.swing.BorderFactory.createMatteBorder(0, 0, 0, 1, VCampusTheme.BORDER),
                 VCampusTheme.padding(22, 18, 22, 18)));
-        outer.setPreferredSize(new Dimension(226, 0));
+        outer.setPreferredSize(UiMetrics.dimension(226, 0));
 
         JLabel title = new JLabel("功能导航");
         title.setForeground(VCampusTheme.PRIMARY);
@@ -147,7 +146,7 @@ public final class MainFrame extends JFrame {
         button.setAlignmentX(Component.LEFT_ALIGNMENT);
         navButtons.put(title, button);
         panel.add(button);
-        panel.add(Box.createVerticalStrut(8));
+        panel.add(Box.createVerticalStrut(UiMetrics.px(8)));
     }
 
     private JPanel contentPanel() {
@@ -164,7 +163,7 @@ public final class MainFrame extends JFrame {
     }
 
     private JPanel dashboard() {
-        JPanel panel = new JPanel(new BorderLayout(0, 18));
+        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(18)));
         panel.setOpaque(false);
         panel.add(sectionTitle("工作台", "选择当前账号可访问的业务功能。"), BorderLayout.NORTH);
 
@@ -212,11 +211,11 @@ public final class MainFrame extends JFrame {
             refreshContent();
             return;
         }
-        JPanel panel = new JPanel(new BorderLayout(0, 18));
+        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(18)));
         panel.setOpaque(false);
         panel.add(sectionTitle(module.getTitle(), module.getSummary()), BorderLayout.NORTH);
 
-        JPanel card = new JPanel(new BorderLayout(0, 12));
+        JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
         VCampusTheme.panel(card);
         JLabel status = new JLabel(module.getStatus());
         status.setFont(VCampusTheme.font(Font.BOLD, 15));

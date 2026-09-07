@@ -7,11 +7,9 @@ import cn.vcampus.user.Session;
 import cn.vcampus.user.UserCredentials;
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
-import java.awt.Insets;
 import java.io.IOException;
 import java.util.Arrays;
 import javax.swing.BorderFactory;
@@ -42,8 +40,8 @@ public final class LoginFrame extends JFrame {
     private void build() {
         VCampusTheme.install();
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setMinimumSize(new Dimension(820, 500));
-        setSize(880, 520);
+        setMinimumSize(UiMetrics.dimension(820, 500));
+        setSize(UiMetrics.dimension(880, 520));
         setLocationRelativeTo(null);
 
         JPanel root = new JPanel(new BorderLayout());
@@ -55,14 +53,15 @@ public final class LoginFrame extends JFrame {
     }
 
     private JPanel brandPanel() {
-        JPanel panel = new JPanel(new BorderLayout(0, 18));
-        panel.setPreferredSize(new Dimension(300, 0));
+        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(18)));
+        panel.setPreferredSize(UiMetrics.dimension(300, 0));
         panel.setBackground(VCampusTheme.NAV_ACTIVE_BACKGROUND);
         panel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(191, 219, 254)),
                 VCampusTheme.padding(40, 30, 34, 30)));
 
-        JLabel title = new JLabel("<html><div style='color:#1E40AF;font-size:28px;font-weight:bold;'>vCampus<br/>虚拟校园</div></html>");
+        JLabel title = new JLabel("<html><div style='color:#1E40AF;font-size:"
+                + UiMetrics.px(28) + "px;font-weight:bold;'>vCampus<br/>虚拟校园</div></html>");
         JLabel summary = new JLabel("<html><div style='color:#1E293B;line-height:1.8;'>用户、学籍、选课与商店<br/>统一接入校园服务端</div></html>");
         JLabel foot = new JLabel("<html><div style='color:#0891B2;'>Access 持久化服务已接入</div></html>");
         panel.add(title, BorderLayout.NORTH);
@@ -93,7 +92,7 @@ public final class LoginFrame extends JFrame {
         hint.setForeground(VCampusTheme.MUTED);
         c = base(0, 1);
         c.gridwidth = 2;
-        c.insets = new Insets(0, 8, 18, 8);
+        c.insets = UiMetrics.insets(0, 8, 18, 8);
         card.add(hint, c);
 
         VCampusTheme.field(userId);
@@ -150,7 +149,8 @@ public final class LoginFrame extends JFrame {
         VCampusTheme.secondaryButton(close);
         submit.addActionListener(event -> submitPasswordReset(resetUserId, newPassword, resetStatus, submit));
         close.addActionListener(event -> dialog.dispose());
-        JPanel actions = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 12, 0));
+        JPanel actions = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT,
+                UiMetrics.px(12), 0));
         actions.setOpaque(false);
         actions.add(submit);
         actions.add(close);
@@ -230,14 +230,15 @@ public final class LoginFrame extends JFrame {
         GridBagConstraints c = new GridBagConstraints();
         c.gridx = x;
         c.gridy = y;
-        c.insets = new Insets(8, 8, 8, 8);
+        c.insets = UiMetrics.insets(8, 8, 8, 8);
         c.fill = GridBagConstraints.HORIZONTAL;
         c.anchor = GridBagConstraints.WEST;
         return c;
     }
 
     private static JPanel buttons(JButton login, JButton resetPassword) {
-        JPanel panel = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 12, 0));
+        JPanel panel = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT,
+                UiMetrics.px(12), 0));
         panel.setOpaque(false);
         panel.add(login);
         panel.add(resetPassword);

@@ -8,11 +8,9 @@ import cn.vcampus.user.Session;
 import cn.vcampus.user.UserCredentials;
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
-import java.awt.Insets;
 import java.io.IOException;
 import java.util.Arrays;
 import javax.swing.JButton;
@@ -44,12 +42,12 @@ public final class RegisterDialog extends JDialog {
     }
 
     private void build() {
-        setMinimumSize(new Dimension(540, 470));
-        setSize(540, 470);
+        setMinimumSize(UiMetrics.dimension(540, 470));
+        setSize(UiMetrics.dimension(540, 470));
         setResizable(true);
         setLocationRelativeTo(getOwner());
 
-        JPanel root = new JPanel(new BorderLayout(0, 14));
+        JPanel root = new JPanel(new BorderLayout(0, UiMetrics.px(14)));
         root.setBackground(VCampusTheme.BACKGROUND);
         root.setBorder(VCampusTheme.padding(22, 26, 22, 26));
         root.add(titlePanel(), BorderLayout.NORTH);
@@ -93,7 +91,8 @@ public final class RegisterDialog extends JDialog {
     }
 
     private JPanel buttonPanel() {
-        JPanel buttons = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.RIGHT, 12, 0));
+        JPanel buttons = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.RIGHT,
+                UiMetrics.px(12), 0));
         buttons.setOpaque(false);
         JButton submit = new JButton("创建账号");
         JButton cancel = new JButton("取消");
@@ -150,7 +149,7 @@ public final class RegisterDialog extends JDialog {
         GridBagConstraints c = new GridBagConstraints();
         c.gridx = x;
         c.gridy = y;
-        c.insets = new Insets(8, 8, 8, 8);
+        c.insets = UiMetrics.insets(8, 8, 8, 8);
         c.fill = GridBagConstraints.HORIZONTAL;
         c.anchor = GridBagConstraints.WEST;
         return c;
