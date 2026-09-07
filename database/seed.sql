@@ -108,18 +108,46 @@ VALUES ('demo_admin', 10000);
 INSERT INTO tblBankAccount(user_id, balance_cents)
 VALUES ('demo_store_manager', 50);
 
--- 图书馆模块演示馆藏。
-INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, total_copies, available_copies, location)
-VALUES ('B001', 'Java核心技术（卷I）', 'Cay S. Horstmann', '9787115547392', '计算机', '机械工业出版社', 3, 3, 'A-01');
+-- 图书馆模块演示馆藏：price 为参考价格（元），可供后续遗失赔偿规则使用。
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B001', 'Java核心技术（卷I）', 'Cay S. Horstmann', '9787115547392', '计算机', '机械工业出版社', 129.00, 3, 2, 'A-01');
 
-INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, total_copies, available_copies, location)
-VALUES ('B002', '算法导论', 'Thomas H. Cormen', '9787111407010', '计算机', '机械工业出版社', 2, 2, 'A-02');
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B002', '算法导论', 'Thomas H. Cormen', '9787111407010', '计算机', '机械工业出版社', 128.00, 2, 1, 'A-02');
 
-INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, total_copies, available_copies, location)
-VALUES ('B003', '红楼梦', '曹雪芹', '9787020002207', '文学', '人民文学出版社', 2, 2, 'B-01');
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B003', '红楼梦', '曹雪芹', '9787020002207', '文学', '人民文学出版社', 59.70, 2, 2, 'B-01');
 
-INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, total_copies, available_copies, location)
-VALUES ('B004', '三体', '刘慈欣', '9787536692930', '科幻', '重庆出版社', 4, 4, 'B-02');
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B004', '三体', '刘慈欣', '9787536692930', '科幻', '重庆出版社', 39.00, 4, 3, 'B-02');
 
-INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, total_copies, available_copies, location)
-VALUES ('B005', '高等数学（第七版）', '同济大学数学系', '9787040396638', '教材', '高等教育出版社', 5, 5, 'C-01');
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B005', '高等数学（第七版）', '同济大学数学系', '9787040396638', '教材', '高等教育出版社', 56.80, 5, 5, 'C-01');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B006', '深入理解计算机系统', 'Randal E. Bryant', '9787111544937', '计算机', '机械工业出版社', 139.00, 3, 3, 'A-03');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B007', '设计模式', 'Erich Gamma', '9787111210340', '计算机', '机械工业出版社', 79.00, 2, 2, 'A-04');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B008', '计算机网络：自顶向下方法', 'James F. Kurose', '9787111599715', '计算机', '机械工业出版社', 89.00, 3, 3, 'A-05');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B009', '活着', '余华', '9787530215593', '文学', '北京十月文艺出版社', 35.00, 4, 4, 'B-03');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B010', '人类简史', '尤瓦尔·赫拉利', '9787508647357', '历史', '中信出版社', 68.00, 2, 2, 'D-01');
+
+-- 借阅演示数据使用相对日期，重建数据库后始终包含临期、普通、已归还和逾期场景。
+INSERT INTO tblBorrowRecord(record_id, order_id, user_id, book_id, borrow_date, due_date, return_date, status)
+VALUES ('demo-br-001', 'demo-bo-001', 'demo_student', 'B001', DATEADD('d', -28, NOW()), DATEADD('d', 2, NOW()), NULL, 'BORROWED');
+
+INSERT INTO tblBorrowRecord(record_id, order_id, user_id, book_id, borrow_date, due_date, return_date, status)
+VALUES ('demo-br-002', 'demo-bo-002', 'demo_student', 'B004', DATEADD('d', -23, NOW()), DATEADD('d', 7, NOW()), NULL, 'BORROWED');
+
+INSERT INTO tblBorrowRecord(record_id, order_id, user_id, book_id, borrow_date, due_date, return_date, status)
+VALUES ('demo-br-003', 'demo-bo-003', 'demo_student', 'B003', DATEADD('d', -50, NOW()), DATEADD('d', -20, NOW()), DATEADD('d', -35, NOW()), 'RETURNED');
+
+INSERT INTO tblBorrowRecord(record_id, order_id, user_id, book_id, borrow_date, due_date, return_date, status)
+VALUES ('demo-br-004', 'demo-bo-004', 'demo_teacher', 'B002', DATEADD('d', -32, NOW()), DATEADD('d', -2, NOW()), NULL, 'BORROWED');

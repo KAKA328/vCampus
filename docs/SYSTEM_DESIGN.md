@@ -176,9 +176,10 @@ database                 vCampus.accdb、schema.sql、seed.sql
 | 还书 | 是 | 是 | 可代办 |
 | 查看借阅记录 | 本人 | 本人 | 全部 |
 | 图书目录/库存维护 | 否 | 否 | 是 |
-| 逾期和罚金处理 | 查看本人 | 查看本人 | 是 |
+| 临期/逾期提醒 | 查看本人 | 查看本人 | 查看全部 |
+| 图书参考价格维护 | 否 | 否 | 是 |
 
-业务约束：库存大于 0、同一本书不可重复借阅、达到借阅上限不可借、归还只能由当前借阅人或管理员完成。
+业务约束：库存大于 0、同一本书不可重复借阅、达到借阅上限不可借、归还只能由当前借阅人或管理员完成。图书参考价格必须是有限非负数；到期提醒将已逾期与未来 3 天内到期的未归还记录分开显示。
 
 ### 4.5 商店模块
 
@@ -224,7 +225,7 @@ database                 vCampus.accdb、schema.sql、seed.sql
 
 ```text
 查询图书 → 检查库存和借阅上限 → 写入 tblBorrowRecord
-         → 原子扣减 tblBook.available_quantity
+         → 原子扣减 tblBook.available_copies
          → 返回借阅编号和应还日期
 ```
 
@@ -296,8 +297,8 @@ database                 vCampus.accdb、schema.sql、seed.sql
 | `tblCourse` | `course_id`、`course_name`、`credits`、`capacity`、`status` | 课程编号唯一；学分和容量非负 |
 | `tblCourseOffering` | `offering_id`、`course_id`、`teacher_id`、`semester`、`start_time`、`end_time` | Course/Teacher 外键 |
 | `tblCourseSelection` | `selection_id`、`offering_id`、`student_id`、`status`、`score` | Student/Offering 外键；二者组合唯一 |
-| `tblBook` | `book_id`、`isbn`、`title`、`author`、`total_quantity`、`available_quantity` | 库存不为负；ISBN 可唯一 |
-| `tblBorrowRecord` | `borrow_id`、`book_id`、`user_id`、`borrowed_at`、`due_at`、`returned_at`、`status` | Book/User 外键；借阅状态约束 |
+| `tblBook` | `book_id`、`isbn`、`title`、`author`、`price`、`total_copies`、`available_copies` | 参考价格非负；可借库存位于 `0..total_copies` |
+| `tblBorrowRecord` | `record_id`、`order_id`、`book_id`、`user_id`、`borrow_date`、`due_date`、`return_date`、`status` | 每册一条流水；批量借阅共享 `order_id` |
 | `tblProduct` | `product_id`、`product_name`、`price`、`stock`、`active` | 价格、库存非负 |
 | `tblOrder` | `order_id`、`buyer_id`、`total_amount`、`status`、`created_at` | Buyer/User 外键 |
 | `tblOrderItem` | `order_item_id`、`order_id`、`product_id`、`quantity`、`unit_price` | Order/Product 外键；数量正数 |
@@ -353,7 +354,7 @@ LoginFrame
 | 用户管理 | 创建账号、注销、重置密码、登录状态、权限反馈；管理员显示账号维护 |
 | 学籍页 | 学号、姓名、院系、班级、状态、联系方式、查询/保存 |
 | 选课页 | 课程筛选、容量、时间、选课/退选、已选课程和成绩 |
-| 图书馆页 | 关键词查询、库存、借阅、归还、借阅记录和应还日期 |
+| 图书馆页 | 关键词查询、参考价格、库存、借阅、归还、借阅记录和自动到期提醒 |
 | 商店页 | 商品、价格、库存、数量、购买、订单状态 |
 | 管理页 | 按角色显示用户、课程、图书、商品、统计操作 |
 

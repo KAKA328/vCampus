@@ -1,0 +1,2 @@
+ALTER TABLE tblBook ADD COLUMN price DOUBLE;
+UPDATE tblBook SET price=0 WHERE price IS NULL;

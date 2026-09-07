@@ -17,8 +17,10 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridLayout;
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import javax.swing.JButton;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -44,7 +46,7 @@ public final class LibraryPanel extends JPanel {
     private final boolean manager;
 
     private final BatchTableModel bookModel = new BatchTableModel(new Object[] {
-            "图书号", "书名", "作者", "ISBN", "分类", "出版社", "总量", "可借", "位置"
+            "图书号", "书名", "作者", "参考价格", "分类", "ISBN", "出版社", "总量", "可借", "位置"
     });
     private final BatchTableModel historyModel = new BatchTableModel(new Object[] {
             "记录号", "批次号", "用户", "图书号", "借阅日", "应还日", "归还日", "状态"
@@ -65,9 +67,10 @@ public final class LibraryPanel extends JPanel {
     private final JLabel catalogCountValue = metricValue();
     private final JLabel availableCountValue = metricValue();
     private final JLabel activeLoanCountValue = metricValue();
+    private final JLabel dueReminder = new JLabel("正在检查借阅期限…");
 
     private boolean requestInProgress;
-    private boolean allHistoryVisible;
+    private boolean initialLoadStarted;
     private final RequestLifecycle requestLifecycle = new RequestLifecycle();
 
     public LibraryPanel(String host, int port, Session session) {
@@ -105,12 +108,41 @@ public final class LibraryPanel extends JPanel {
     private JPanel body() {
         JPanel panel = new ScrollablePagePanel(new BorderLayout(0, 14));
         panel.setOpaque(false);
-        panel.add(summaryCards(), BorderLayout.NORTH);
+        panel.add(overviewPanel(), BorderLayout.NORTH);
 
         JTabbedPane tabs = tabs();
         tabs.setPreferredSize(new Dimension(0, 500));
         tabs.setMinimumSize(new Dimension(0, 340));
         panel.add(tabs, BorderLayout.CENTER);
+        return panel;
+    }
+
+    @Override
+    public void addNotify() {
+        super.addNotify();
+        if (!initialLoadStarted) {
+            initialLoadStarted = true;
+            SwingUtilities.invokeLater(this::loadInitialData);
+        }
+    }
+
+    private JPanel overviewPanel() {
+        JPanel panel = new JPanel(new BorderLayout(0, 10));
+        panel.setOpaque(false);
+        panel.add(summaryCards(), BorderLayout.NORTH);
+        panel.add(reminderPanel(), BorderLayout.SOUTH);
+        return panel;
+    }
+
+    private JPanel reminderPanel() {
+        JPanel panel = new JPanel(new BorderLayout(12, 0));
+        VCampusTheme.panel(panel);
+        JLabel heading = new JLabel(manager ? "全校流通提醒" : "我的到期提醒");
+        heading.setFont(VCampusTheme.font(Font.BOLD, 13));
+        heading.setForeground(VCampusTheme.PRIMARY_DARK);
+        VCampusTheme.statusPill(dueReminder, VCampusTheme.MUTED);
+        panel.add(heading, BorderLayout.WEST);
+        panel.add(dueReminder, BorderLayout.CENTER);
         return panel;
     }
 
@@ -272,7 +304,7 @@ public final class LibraryPanel extends JPanel {
                 ? ListSelectionModel.SINGLE_SELECTION
                 : ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         bookTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
-        int[] widths = {88, 180, 120, 135, 100, 130, 64, 64, 100};
+        int[] widths = {88, 180, 120, 92, 100, 135, 130, 64, 64, 100};
         applyColumnWidths(bookTable, widths);
     }
 
@@ -330,6 +362,7 @@ public final class LibraryPanel extends JPanel {
                 manager ? "选择一行可查看图书详情" : "可选择一行或多行后批量借阅");
         historyTable.getAccessibleContext().setAccessibleName(manager ? "全部借阅记录" : "我的借阅记录");
         historyTable.getAccessibleContext().setAccessibleDescription("选择借阅中的记录可办理归还");
+        dueReminder.getAccessibleContext().setAccessibleName(manager ? "全校借阅到期提醒" : "个人借阅到期提醒");
         JButton[] actions = {searchButton, resetSearchButton, detailButton, borrowButton,
                 historyButton, allHistoryButton, returnButton, addBookButton};
         for (JButton action : actions) {
@@ -351,6 +384,22 @@ public final class LibraryPanel extends JPanel {
         final String category = categoryField.getText().trim();
         runRequest("正在查询馆藏…", service -> service.search(session.getToken(), keyword, category),
                 this::showBooks);
+    }
+
+    private void loadInitialData() {
+        refreshCatalogAndHistory();
+    }
+
+    private void refreshCatalogAndHistory() {
+        final String keyword = keywordField.getText().trim();
+        final String category = categoryField.getText().trim();
+        runRequest("正在刷新馆藏与借阅期限…",
+                service -> service.search(session.getToken(), keyword, category), response -> {
+                    showBooks(response);
+                    if (response.getStatusCode() == StatusCode.OK) {
+                        SwingUtilities.invokeLater(manager ? this::loadAllHistory : this::loadOwnHistory);
+                    }
+                });
     }
 
     private void loadSelectedDetail() {
@@ -382,19 +431,19 @@ public final class LibraryPanel extends JPanel {
         runRequest("正在提交借阅请求…", service -> service.borrow(session.getToken(), bookIds), response -> {
             if (!isSuccessful(response)) return;
             int count = response.getPayload() instanceof List<?> ? ((List<?>) response.getPayload()).size() : bookIds.size();
-            showStatus("借阅成功，共 " + count + " 本；正在刷新馆藏…", VCampusTheme.SUCCESS);
-            SwingUtilities.invokeLater(this::loadBooks);
+            showStatus("借阅成功，共 " + count + " 本；正在刷新馆藏与到期提醒…", VCampusTheme.SUCCESS);
+            SwingUtilities.invokeLater(this::refreshCatalogAndHistory);
         });
     }
 
     private void loadOwnHistory() {
         runRequest("正在查询我的借阅记录…", service -> service.ownHistory(session.getToken()),
-                response -> showHistory(response, "我的借阅记录", false));
+                response -> showHistory(response, "我的借阅记录"));
     }
 
     private void loadAllHistory() {
         runRequest("正在查询全部借阅记录…", service -> service.allHistory(session.getToken()),
-                response -> showHistory(response, "全部借阅记录", true));
+                response -> showHistory(response, "全部借阅记录"));
     }
 
     private void returnSelected() {
@@ -412,8 +461,8 @@ public final class LibraryPanel extends JPanel {
         }
         runRequest("正在办理归还…", service -> service.returnBook(session.getToken(), recordId), response -> {
             if (!isSuccessful(response)) return;
-            showStatus("归还成功，正在刷新借阅记录…", VCampusTheme.SUCCESS);
-            SwingUtilities.invokeLater(allHistoryVisible ? this::loadAllHistory : this::loadOwnHistory);
+            showStatus("归还成功，正在刷新馆藏与到期提醒…", VCampusTheme.SUCCESS);
+            SwingUtilities.invokeLater(this::refreshCatalogAndHistory);
         });
     }
 
@@ -424,6 +473,7 @@ public final class LibraryPanel extends JPanel {
         final JTextField isbn = new JTextField();
         final JTextField category = new JTextField();
         final JTextField publisher = new JTextField();
+        final JTextField price = new JTextField();
         final JTextField copies = new JTextField("1");
         final JTextField location = new JTextField();
         JPanel form = new JPanel(new GridLayout(0, 2, 10, 10));
@@ -434,12 +484,13 @@ public final class LibraryPanel extends JPanel {
         addField(form, "ISBN", isbn);
         addField(form, "分类", category);
         addField(form, "出版社", publisher);
+        addField(form, "参考价格（元）*", price);
         addField(form, "初始册数*", copies);
         addField(form, "馆藏位置", location);
         JPanel dialog = new JPanel(new BorderLayout(0, 14));
         dialog.setBackground(VCampusTheme.PANEL);
         dialog.setBorder(VCampusTheme.padding(8, 8, 8, 8));
-        dialog.setPreferredSize(new Dimension(470, 350));
+        dialog.setPreferredSize(new Dimension(470, 390));
         dialog.add(sectionHeading("录入馆藏", "带 * 的字段为必填项；新书初始可借册数与总册数一致。"),
                 BorderLayout.NORTH);
         dialog.add(form, BorderLayout.CENTER);
@@ -449,17 +500,21 @@ public final class LibraryPanel extends JPanel {
         }
         try {
             int total = Integer.parseInt(copies.getText().trim());
+            double referencePrice = Double.parseDouble(price.getText().trim());
+            if (!Double.isFinite(referencePrice) || referencePrice <= 0.0d) {
+                throw new IllegalArgumentException("price must be positive");
+            }
             final Book book = new Book(id.getText(), title.getText(), author.getText(), isbn.getText(),
-                    category.getText(), publisher.getText(), total, total, location.getText());
+                    category.getText(), publisher.getText(), referencePrice, total, total, location.getText());
             runRequest("正在新增图书…", service -> service.addBook(session.getToken(), book), response -> {
                 if (!isSuccessful(response)) return;
                 showStatus("新增图书成功，正在刷新馆藏…", VCampusTheme.SUCCESS);
                 SwingUtilities.invokeLater(this::loadBooks);
             });
         } catch (NumberFormatException invalidNumber) {
-            showStatus("初始册数必须是整数", VCampusTheme.DANGER);
+            showStatus("参考价格必须是数字，初始册数必须是整数", VCampusTheme.DANGER);
         } catch (IllegalArgumentException invalidBook) {
-            showStatus("请填写图书号、书名、作者，并检查册数", VCampusTheme.DANGER);
+            showStatus("请填写图书号、书名、作者，并检查价格和册数", VCampusTheme.DANGER);
         }
     }
 
@@ -483,6 +538,7 @@ public final class LibraryPanel extends JPanel {
         addDetailRow(fields, "图书编号", book.getBookId());
         addDetailRow(fields, "ISBN", book.getIsbn());
         addDetailRow(fields, "出版社", book.getPublisher());
+        addDetailRow(fields, "参考价格", formatPrice(book.getPrice()));
         addDetailRow(fields, "馆藏位置", book.getLocation());
         addDetailRow(fields, "总册数", String.valueOf(book.getTotalCopies()));
         addDetailRow(fields, "当前可借", String.valueOf(book.getAvailableCopies()));
@@ -532,7 +588,7 @@ public final class LibraryPanel extends JPanel {
         showStatus("已显示符合条件的图书，共 " + books.size() + " 种", VCampusTheme.SUCCESS);
     }
 
-    private void showHistory(Message response, String scope, boolean allUsers) {
+    private void showHistory(Message response, String scope) {
         if (!isSuccessful(response)) return;
         if (!(response.getPayload() instanceof List<?>)) {
             showStatus("服务器返回的借阅记录格式不正确", VCampusTheme.DANGER);
@@ -540,6 +596,7 @@ public final class LibraryPanel extends JPanel {
         }
         List<?> records = (List<?>) response.getPayload();
         List<Object[]> rows = new ArrayList<Object[]>();
+        List<BorrowRecord> borrowingRecords = new ArrayList<BorrowRecord>();
         int activeLoans = 0;
         for (Object item : records) {
             if (!(item instanceof BorrowRecord)) {
@@ -547,6 +604,7 @@ public final class LibraryPanel extends JPanel {
                 return;
             }
             BorrowRecord record = (BorrowRecord) item;
+            borrowingRecords.add(record);
             rows.add(historyRow(record));
             if (record.getStatus() == BorrowStatus.BORROWED) {
                 activeLoans++;
@@ -554,8 +612,16 @@ public final class LibraryPanel extends JPanel {
         }
         historyModel.replaceRows(rows);
         activeLoanCountValue.setText(activeLoans + " 条");
-        allHistoryVisible = allUsers;
+        updateDueReminder(borrowingRecords);
         showStatus("已显示" + scope + "，共 " + records.size() + " 条", VCampusTheme.SUCCESS);
+    }
+
+    private void updateDueReminder(List<BorrowRecord> records) {
+        LibraryDueReminder.Summary summary = LibraryDueReminder.summarize(records, LocalDate.now());
+        dueReminder.setText(LibraryDueReminder.message(summary, manager));
+        Color color = summary.getOverdueCount() > 0 ? VCampusTheme.DANGER
+                : summary.getDueSoonCount() > 0 ? VCampusTheme.ACCENT : VCampusTheme.SUCCESS;
+        VCampusTheme.statusPill(dueReminder, color);
     }
 
     private String selectedBookId() {
@@ -640,9 +706,14 @@ public final class LibraryPanel extends JPanel {
     }
 
     static Object[] bookRow(Book book) {
-        return new Object[] {book.getBookId(), book.getTitle(), book.getAuthor(), book.getIsbn(),
-                book.getCategory(), book.getPublisher(), Integer.valueOf(book.getTotalCopies()),
-                Integer.valueOf(book.getAvailableCopies()), book.getLocation()};
+        return new Object[] {book.getBookId(), book.getTitle(), book.getAuthor(), formatPrice(book.getPrice()),
+                book.getCategory(), book.getIsbn(), book.getPublisher(),
+                Integer.valueOf(book.getTotalCopies()), Integer.valueOf(book.getAvailableCopies()),
+                book.getLocation()};
+    }
+
+    static String formatPrice(double price) {
+        return String.format(Locale.CHINA, "￥%.2f", Double.valueOf(price));
     }
 
     static Object[] historyRow(BorrowRecord record) {

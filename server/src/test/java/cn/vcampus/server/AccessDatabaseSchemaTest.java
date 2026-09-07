@@ -35,7 +35,30 @@ class AccessDatabaseSchemaTest {
         assertEquals(1, countWhere(database, "tblStudent", "student_id", "demo_student"));
         assertEquals(1, countWhere(database, "tblTeacher", "teacher_id", "demo_teacher"));
         assertEquals(5, count(database, "tblProduct"));
+        assertEquals(10, count(database, "tblBook"));
+        assertEquals(4, count(database, "tblBorrowRecord"));
+        assertEquals(3, countWhere(database, "tblBorrowRecord", "status", "BORROWED"));
+        assertTrue(scalarDouble(database, "SELECT price FROM tblBook WHERE book_id='B001'") > 0.0d);
         assertTrue(Files.exists(database));
+    }
+
+    @Test
+    void legacyLibraryTableCanApplyBookPriceMigration() throws Exception {
+        Path database = temporaryDirectory.resolve("legacy-library.accdb");
+        Class.forName("net.ucanaccess.jdbc.UcanaccessDriver");
+        try (Connection connection = DriverManager.getConnection(
+                "jdbc:ucanaccess://" + database
+                        + ";newDatabaseVersion=V2010;immediatelyReleaseResources=true");
+             Statement statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE tblBook (book_id VARCHAR(32) NOT NULL, "
+                    + "title VARCHAR(120) NOT NULL, PRIMARY KEY (book_id))");
+            statement.execute("INSERT INTO tblBook(book_id,title) VALUES('B001','旧馆藏')");
+        }
+
+        executeScript(database, readScript("database/migrations/014_library_book_price.up.sql"));
+
+        assertEquals(0.0d, scalarDouble(database,
+                "SELECT price FROM tblBook WHERE book_id='B001'"), 0.001d);
     }
 
     @Test
@@ -127,5 +150,14 @@ class AccessDatabaseSchemaTest {
     private static Connection open(Path database) throws SQLException {
         return DriverManager.getConnection(
                 "jdbc:ucanaccess://" + database + ";immediatelyReleaseResources=true");
+    }
+
+    private static double scalarDouble(Path database, String sql) throws SQLException {
+        try (Connection connection = open(database);
+             Statement statement = connection.createStatement();
+             ResultSet result = statement.executeQuery(sql)) {
+            result.next();
+            return result.getDouble(1);
+        }
     }
 }

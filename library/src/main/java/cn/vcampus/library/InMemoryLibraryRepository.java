@@ -4,6 +4,7 @@ import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -27,16 +28,44 @@ public final class InMemoryLibraryRepository implements LibraryRepository {
     public static InMemoryLibraryRepository withDemoCatalog() {
         List<Book> catalog = new ArrayList<Book>();
         catalog.add(new Book("B001", "Java核心技术（卷I）", "Cay S. Horstmann",
-                "9787115547392", "计算机", "机械工业出版社", 3, 3, "A-01"));
+                "9787115547392", "计算机", "机械工业出版社", 129.00d, 3, 3, "A-01"));
         catalog.add(new Book("B002", "算法导论", "Thomas H. Cormen",
-                "9787111407010", "计算机", "机械工业出版社", 2, 2, "A-02"));
+                "9787111407010", "计算机", "机械工业出版社", 128.00d, 2, 2, "A-02"));
         catalog.add(new Book("B003", "红楼梦", "曹雪芹",
-                "9787020002207", "文学", "人民文学出版社", 2, 2, "B-01"));
+                "9787020002207", "文学", "人民文学出版社", 59.70d, 2, 2, "B-01"));
         catalog.add(new Book("B004", "三体", "刘慈欣",
-                "9787536692930", "科幻", "重庆出版社", 4, 4, "B-02"));
+                "9787536692930", "科幻", "重庆出版社", 39.00d, 4, 4, "B-02"));
         catalog.add(new Book("B005", "高等数学（第七版）", "同济大学数学系",
-                "9787040396638", "教材", "高等教育出版社", 5, 5, "C-01"));
+                "9787040396638", "教材", "高等教育出版社", 56.80d, 5, 5, "C-01"));
+        catalog.add(new Book("B006", "深入理解计算机系统", "Randal E. Bryant",
+                "9787111544937", "计算机", "机械工业出版社", 139.00d, 3, 3, "A-03"));
+        catalog.add(new Book("B007", "设计模式", "Erich Gamma",
+                "9787111210340", "计算机", "机械工业出版社", 79.00d, 2, 2, "A-04"));
+        catalog.add(new Book("B008", "计算机网络：自顶向下方法", "James F. Kurose",
+                "9787111599715", "计算机", "机械工业出版社", 89.00d, 3, 3, "A-05"));
+        catalog.add(new Book("B009", "活着", "余华",
+                "9787530215593", "文学", "北京十月文艺出版社", 35.00d, 4, 4, "B-03"));
+        catalog.add(new Book("B010", "人类简史", "尤瓦尔·赫拉利",
+                "9787508647357", "历史", "中信出版社", 68.00d, 2, 2, "D-01"));
         return new InMemoryLibraryRepository(catalog);
+    }
+
+    /** Demo catalog plus dynamic loan samples for reminder and circulation acceptance checks. */
+    public static InMemoryLibraryRepository withDemoData() {
+        InMemoryLibraryRepository repository = withDemoCatalog();
+        LocalDate today = LocalDate.now();
+        repository.borrowBatch("demo_student", Collections.singletonList("B001"),
+                today.minusDays(28), today.plusDays(2));
+        repository.borrowBatch("demo_student", Collections.singletonList("B004"),
+                today.minusDays(23), today.plusDays(7));
+        ServiceResult<List<BorrowRecord>> returned = repository.borrowBatch(
+                "demo_student", Collections.singletonList("B003"),
+                today.minusDays(50), today.minusDays(20));
+        repository.returnBook("demo_student", returned.getData().get(0).getRecordId(),
+                today.minusDays(35));
+        repository.borrowBatch("demo_teacher", Collections.singletonList("B002"),
+                today.minusDays(32), today.minusDays(2));
+        return repository;
     }
 
     @Override

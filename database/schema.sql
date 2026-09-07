@@ -237,6 +237,7 @@ CREATE TABLE tblBook (
     isbn VARCHAR(32),
     category VARCHAR(64),
     publisher VARCHAR(100),
+    price DOUBLE NOT NULL,
     total_copies INTEGER NOT NULL,
     available_copies INTEGER NOT NULL,
     location VARCHAR(64),

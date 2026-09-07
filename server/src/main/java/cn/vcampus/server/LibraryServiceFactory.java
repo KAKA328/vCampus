@@ -12,7 +12,7 @@ final class LibraryServiceFactory {
     static LibraryService create(String[] args) { return create(UserServiceFactory.databasePath(args)); }
 
     static LibraryService create(Path databasePath) {
-        return databasePath == null ? new InMemoryLibraryService()
+        return databasePath == null ? InMemoryLibraryService.withDemoData()
                 : new DefaultLibraryService(new AccessLibraryRepository(databasePath));
     }
 }
