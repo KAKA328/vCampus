@@ -38,15 +38,21 @@ StudentManagementService.findByIds(List<String> studentIds)
 
 选课服务应先通过当前会话的 `userId` 调用 `findByUserId`，再使用返回的 `studentId` 进行选课；不得信任客户端自行传入的账号或学号。只有学籍状态为“在读”的学生允许新增选课，休学、毕业和退学学生保留历史但返回 `FORBIDDEN`。
 
-服务器使用 `StudentSelectionProfileAdapter` 完成上述组合：它将 `StudentRecord` 和 `pendingRetakes` 转换为选课V2所需的 `StudentSelectionProfile`。内存启动使用 `InMemoryStudentRepository + InMemoryAcademicReviewService`，`--db` 启动使用 `AccessStudentRepository + AccessAcademicReviewService`；选课模块不直接依赖学籍模块实现。
+`StudentSelectionProfileAdapter` 可将 `StudentRecord` 和 `pendingRetakes` 转换为选课 V2 的 `StudentSelectionProfile`。实际 `--db` 选课启动使用 `AccessStudentSelectionProfileProvider`：从数据库取得绑定档案和轮次学期，通过原有 SQL 读取课程号及通过标记，独立计算待重修；调用学籍服务的改动已回退。CLI 内存选课启动仍使用选课演示资料。
 
 教务端学籍查询还支持 `findByMajor(majorName)`，仅允许 `ADMIN` 和 `ACADEMIC_ADMIN` 角色调用；学生本人和教师不能按专业批量查询。`findMyStudentProfile(userId)` 是服务器完成 Token 解析后的兼容别名，等价于 `findByUserId(userId)`。
 
-教师按学号查询时，服务器通过 `tblTeacher.user_id -> tblCourseOffering.teacher_id -> tblCourseSelection.student_id` 校验授课范围，并且只认可 `ACTIVE` 选课记录。内存模式没有授课关系数据，默认拒绝教师按学号查询。学生本人权限只认可 `tblStudent.user_id` 的显式绑定，不再使用 `userId == studentId` 作为兼容旁路。
+教师在学籍模块禁止查询或修改任何学生档案，包括授课范围内学生。旧 STUDENT_QUERY 的 SELF、BY_ID、BY_CLASS、BY_MAJOR 均返回 FORBIDDEN，不先查学生是否存在。教师本人使用 TEACHER_SELF_QUERY_V1 查询绑定教师档案及在职情况。学生本人权限只认可 `tblStudent.user_id` 的显式绑定，不再使用 `userId == studentId` 作为兼容旁路。
 
-`AcademicReviewService.review(studentId, requiredCredits)` 根据课程结果实时计算学分、挂科和重修统计；`latestReview(studentId)` 读取 `tblAcademicReview` 中按审核时间倒序的最新快照。实时计算不会覆盖历史快照。
+`AcademicReviewService.review(studentId, requiredCredits)` 根据课程结果实时计算学分、挂科和重修统计。Access 的 `latestReview(studentId)` 读取 `tblAcademicReview` 中按审核时间倒序的最新快照，Access 实时计算不会覆盖该表；内存实现的 `review` 会保留最近计算结果供 `latestReview` 返回，不代表已由教务确认的持久化快照。对外开放快照查询前仍需统一该语义，并解决 Access 通过课程数来自当前成绩的时间一致性问题。
 
 `AcademicReview.getCreditShortfall()` 返回 `max(0, requiredEarnedCredits - totalEarnedCredits)`。内存和 Access 模式对空学号统一返回 `BAD_REQUEST`；课程历史的学号、课程号、学期和尝试类型不能为空。
+
+## 学生本人成绩查询 V1
+
+`STUDENT_ACADEMIC_QUERY_V1` 请求载荷为 `StudentAcademicQueryV1Command(token, QueryType)`，其中 `HISTORY` 返回本人课程历史，`PENDING_RETAKES` 返回本人待重修课程，成功均为 `List<CourseHistoryRecord>`。空数据返回 `OK + empty list`，未绑定返回 `NOT_FOUND`，失效会话返回 `UNAUTHORIZED`，非学生角色返回 `FORBIDDEN`，无效命令返回 `BAD_REQUEST`。服务端要求 `STUDENT_READ` 并从会话推导绑定学号，请求不接受学号。
+
+本接口不接收要求学分、不提供毕业结论、不写快照。当前读取现有 `tblCourseResult`，尚无审核状态过滤。NULL 分数不能表达为当前 DTO，返回 `SERVER_ERROR` 而非 0 分。客户端入口为学籍信息的“成绩与重修”，通过 `RemoteStudentService.academicQuery` 调用。字段、审核发布顺序和验收矩阵见 [成绩查询对接要求](STUDENT_ACADEMIC_QUERY_INTEGRATION.md)。
 
 ## 账号与档案绑定公共契约
 
@@ -141,3 +147,15 @@ StudentManagementService.findByIds(List<String> studentIds)
 - 停开课程或教学班时，存在选课或历史记录不得直接物理删除关联数据。
 - 选课轮次同样通过 `COURSE_MANAGE` + `CourseManagementCommand` 维护，支持查询某学期轮次、创建首修/重修轮次、修改轮次时间窗口和切换轮次状态；同一学期每种轮次类型最多一个。
 - 客户端只负责按角色隐藏无权入口，服务器 Handler 必须在调用业务接口前执行 `authorize`，拒绝时返回 `FORBIDDEN`。
+
+## 教师本人档案 V1
+教师学籍入口使用 TEACHER_SELF_QUERY_V1 + TeacherSelfQueryV1Command(token)，仅返回会话绑定的 TeacherProfile，包含非在职状态，无修改功能。具体状态码和跨模块要求见 [教师本人档案对接](TEACHER_SELF_PROFILE_INTEGRATION.md)。
+
+## 教务目录、学分审查与毕业管理
+ACADEMIC_ADMIN_V1 提供全部学生/教师目录、学生历史/学分、审查记录、保存审查和人工确认毕业，仅限 ADMIN/ACADEMIC_ADMIN。学生本人查询新增 CREDITS，返回 CreditSummary。统一学分聚合由 CreditSummary.from 执行。新审查完整保存到 tblAcademicAssessment，确认毕业与更新学籍状态在同一事务完成。详见 [教务审查与毕业对接](ACADEMIC_ADMIN_GRADUATION_INTEGRATION.md)。
+
+## 普通学籍更新的并发契约
+
+StudentManagementService新增服务端内部`updateContacts(userId, expected, phone, email)`与`saveIfUnchanged(record, expected)`。STUDENT_UPDATE命令格式保持原状；学生更新只写联系方式，教务更新在存储层核对预期档案。更新期间档案已变化则返回CONFLICT，需刷新重试；新建学生仅INSERT，不覆盖并发出现的同学号档案。详见ACADEMIC_ADMIN_GRADUATION_INTEGRATION.md。
+
+教师本人协议先检查USER_SELF_READ统一授权，强制改密期间不能读取业务档案。

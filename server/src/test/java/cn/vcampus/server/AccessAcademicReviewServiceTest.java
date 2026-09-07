@@ -21,10 +21,11 @@ class AccessAcademicReviewServiceTest {
     Path temporaryDirectory;
 
     private AccessAcademicReviewService service;
+    private Path database;
 
     @BeforeEach
     void setUp() throws Exception {
-        Path database = temporaryDirectory.resolve("academic-test.accdb");
+        database = temporaryDirectory.resolve("academic-test.accdb");
         Class.forName("net.ucanaccess.jdbc.UcanaccessDriver");
         try (Connection connection = DriverManager.getConnection(
                 "jdbc:ucanaccess://" + database
@@ -78,6 +79,33 @@ class AccessAcademicReviewServiceTest {
     @Test
     void blankStudentIdReturnsBadRequest() {
         assertEquals(StatusCode.BAD_REQUEST, service.pendingRetakes(" ").getStatus());
+    }
+
+    @Test
+    void missingScoreIsNeverPublishedAsZero() throws Exception {
+        update("UPDATE tblCourseResult SET score=NULL WHERE result_id='R003'");
+        assertEquals(StatusCode.SERVER_ERROR, service.historyFor("S001").getStatus());
+        assertEquals(StatusCode.SERVER_ERROR, service.pendingRetakes("S001").getStatus());
+        assertEquals(StatusCode.SERVER_ERROR, service.review("S001", 6).getStatus());
+    }
+
+    @Test
+    void realZeroScoreRemainsAValidFailedAttempt() throws Exception {
+        update("UPDATE tblCourseResult SET score=0 WHERE result_id='R003'");
+        assertEquals(0, service.pendingRetakes("S001").getData().get(0).getScore());
+    }
+
+    @Test
+    void invalidStoredRecordReturnsServiceError() throws Exception {
+        update("UPDATE tblCourseResult SET score=101 WHERE result_id='R003'");
+        assertEquals(StatusCode.SERVER_ERROR, service.historyFor("S001").getStatus());
+    }
+
+    private void update(String sql) throws Exception {
+        try (Connection connection = DriverManager.getConnection("jdbc:ucanaccess://" + database
+                + ";immediatelyReleaseResources=true"); Statement statement = connection.createStatement()) {
+            statement.execute(sql);
+        }
     }
 
     @Test

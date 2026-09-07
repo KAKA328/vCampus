@@ -15,11 +15,28 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class StudentManagementPanelTest {
     @Test
+    void academicTabIsAvailableOnlyToStudents() {
+        for (Role role : new Role[] {Role.STUDENT, Role.TEACHER, Role.ADMIN, Role.ACADEMIC_ADMIN}) {
+            StudentManagementPanel panel = new StudentManagementPanel("127.0.0.1", 1,
+                    new Session("token", new User("test", "测试", role)));
+            java.awt.Component center = ((java.awt.BorderLayout) panel.getLayout())
+                    .getLayoutComponent(java.awt.BorderLayout.CENTER);
+            org.junit.jupiter.api.Assertions.assertEquals(role != Role.TEACHER,
+                    center instanceof javax.swing.JTabbedPane);
+        }
+    }
+
+    @Test
     void studentPanelAllowsSelfQueryAndContactEditOnly() throws Exception {
         StudentManagementPanel panel = new StudentManagementPanel("127.0.0.1", 1,
                 new Session("token", new User("student-user", "学生", Role.STUDENT)));
 
         assertTrue(field(panel, "selfButton", JButton.class).isEnabled());
+        assertTrue(javax.swing.SwingUtilities.isDescendingFrom(field(panel, "selfButton", JButton.class), panel));
+        assertFalse(javax.swing.SwingUtilities.isDescendingFrom(field(panel, "idButton", JButton.class), panel));
+        assertFalse(javax.swing.SwingUtilities.isDescendingFrom(field(panel, "classButton", JButton.class), panel));
+        assertFalse(javax.swing.SwingUtilities.isDescendingFrom(field(panel, "majorButton", JButton.class), panel));
+        assertFalse(javax.swing.SwingUtilities.isDescendingFrom(field(panel, "table", JTable.class), panel));
         assertFalse(field(panel, "idButton", JButton.class).isEnabled());
         assertFalse(field(panel, "classButton", JButton.class).isEnabled());
         assertTrue(field(panel, "phone", JTextField.class).isEditable());
@@ -34,6 +51,8 @@ class StudentManagementPanelTest {
                 new Session("token", new User("academic-admin", "教务管理员", Role.ACADEMIC_ADMIN)));
 
         assertTrue(field(panel, "idButton", JButton.class).isEnabled());
+        assertFalse(javax.swing.SwingUtilities.isDescendingFrom(field(panel, "selfButton", JButton.class), panel));
+        assertFalse(field(panel, "selfButton", JButton.class).isEnabled());
         assertTrue(field(panel, "classButton", JButton.class).isEnabled());
         assertFalse(field(panel, "saveButton", JButton.class).isEnabled());
         assertTrue(field(panel, "academicStatus", JTextField.class).isEditable());
