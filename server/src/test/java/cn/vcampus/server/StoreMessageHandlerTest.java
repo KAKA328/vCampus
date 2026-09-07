@@ -143,7 +143,7 @@ class StoreMessageHandlerTest {
         assertEquals(Boolean.FALSE, store.lastListIncludeInactive);
     }
 
-    // DSH 二轮审：含下架查询的 STORE_MANAGE 双门槛——管理员放行并把标志透传给服务层
+    // 含下架查询现只需 STORE_READ（管理员/买家都可浏览下架陈列），标志正确透传
     @Test
     void managerCanQueryProductsIncludingInactive() {
         Message response = handler.handle(Message.request(
@@ -155,17 +155,16 @@ class StoreMessageHandlerTest {
         assertNull(store.lastCategory);// 未带类别 → 服务层收到 null 表示全部类别
     }
 
-    // DSH 二轮审：普通学生即使构造 includeInactive=true 的报文也被 STORE_MANAGE 拦下，
-    // 绝不让下架商品对买家可见（防越权核心用例）
+    // 学生（买家）也可读已下架商品——“看得到 ≠ 买得到”：购买/加购仍由服务层拒下架品
     @Test
-    void studentCannotQueryProductsIncludingInactive() {
+    void studentCanReadProductsIncludingInactive() {
         Message response = handler.handle(Message.request(
-                "store-query-inactive-forbidden", MessageType.STORE_QUERY,
+                "store-query-inactive-student", MessageType.STORE_QUERY,
                 new StoreQueryCommand(studentSession.getToken(), null, true)));
 
-        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
-        assertNull(store.lastListIncludeInactive);// 未透传到服务层
-        assertFalse(store.listCalled);
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertEquals(Boolean.TRUE, store.lastListIncludeInactive);
+        assertTrue(store.listCalled);
     }
 
     @Test
