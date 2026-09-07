@@ -19,6 +19,20 @@ import org.junit.jupiter.api.Test;
 
 class ServerApplicationDispatchTest {
     @Test
+    void dispatchRoutesAcademicQueriesUsingBoundDemoStudent() {
+        InMemoryUserManagementService users = new InMemoryUserManagementService();
+        UserCredentials account = new UserCredentials("demo_student", "password", "学生", Role.STUDENT.name());
+        users.register(account);
+        String token = users.login(account).getData().getToken();
+        ServerApplication server = new ServerApplication(0, users);
+        Message response = server.dispatch(Message.request("history", MessageType.STUDENT_ACADEMIC_QUERY_V1,
+                new cn.vcampus.student.StudentAcademicQueryV1Command(token,
+                        cn.vcampus.student.StudentAcademicQueryV1Command.QueryType.HISTORY)));
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertEquals(Collections.emptyList(), response.getPayload());
+    }
+
+    @Test
     void dispatchRoutesCurrentCourseQueryWithoutClientStudentId() {
         InMemoryUserManagementService users = new InMemoryUserManagementService();
         UserCredentials account = new UserCredentials("20260001", "password", "测试学生", Role.STUDENT.name());

@@ -17,7 +17,6 @@ import cn.vcampus.user.UserManagementService;
 final class StudentMessageHandler {
     private final StudentManagementService students;
     private final UserManagementService users;
-    private final TeacherStudentAccessPolicy teacherAccess;
 
     StudentMessageHandler(StudentManagementService students, UserManagementService users) {
         this(students, users, new DenyTeacherStudentAccessPolicy());
@@ -30,7 +29,6 @@ final class StudentMessageHandler {
         }
         this.students = students;
         this.users = users;
-        this.teacherAccess = teacherAccess;
     }
 
     Message handle(Message request) {
@@ -63,6 +61,9 @@ final class StudentMessageHandler {
             return ServiceResult.failure(scope.getStatus(), scope.getMessage());
         }
         Role role = scope.getData().getUser().getRole();
+        if (role == Role.TEACHER) {
+            return ServiceResult.failure(StatusCode.FORBIDDEN, "teachers cannot read student profiles");
+        }
         if (command.getQueryType() == StudentQueryCommand.QueryType.SELF) {
             return students.findMyStudentProfile(scope.getData().getUser().getUserId());
         }
@@ -86,16 +87,6 @@ final class StudentMessageHandler {
         if (role == Role.STUDENT && !owns(scope.getData(), record.getData())) {
             return ServiceResult.failure(StatusCode.FORBIDDEN, "student scope denied");
         }
-        if (role == Role.TEACHER) {
-            ServiceResult<Boolean> allowed = teacherAccess.canRead(
-                    scope.getData().getUser().getUserId(), record.getData().getStudentId());
-            if (allowed.getStatus() != StatusCode.OK) {
-                return ServiceResult.failure(allowed.getStatus(), allowed.getMessage());
-            }
-            if (!Boolean.TRUE.equals(allowed.getData())) {
-                return ServiceResult.failure(StatusCode.FORBIDDEN, "teacher student scope denied");
-            }
-        }
         return record;
     }
 
@@ -105,6 +96,9 @@ final class StudentMessageHandler {
             return ServiceResult.failure(scope.getStatus(), scope.getMessage());
         }
         Role role = scope.getData().getUser().getRole();
+        if (role == Role.TEACHER) {
+            return ServiceResult.failure(StatusCode.FORBIDDEN, "teachers cannot update student profiles");
+        }
         StudentRecord record = command.getRecord();
         if (role == Role.STUDENT) {
             ServiceResult<StudentRecord> existing = students.findById(record.getStudentId());
@@ -114,14 +108,23 @@ final class StudentMessageHandler {
             if (!owns(scope.getData(), existing.getData()) || !contactOnly(existing.getData(), record)) {
                 return ServiceResult.failure(StatusCode.FORBIDDEN, "student update scope denied");
             }
+            return students.updateContacts(scope.getData().getUser().getUserId(),
+                    existing.getData(), record.getPhone(), record.getEmail());
         } else {
             ServiceResult<Boolean> writePermission = users.authorize(
                     command.getToken(), Permission.STUDENT_WRITE.getCode());
             if (writePermission.getStatus() != StatusCode.OK) {
                 return ServiceResult.failure(writePermission.getStatus(), writePermission.getMessage());
             }
+            ServiceResult<StudentRecord> existing = students.findById(record.getStudentId());
+            if (existing.getStatus() != StatusCode.OK && existing.getStatus() != StatusCode.NOT_FOUND) return existing;
+            String oldStatus = existing.getStatus() == StatusCode.OK ? existing.getData().getStatus() : null;
+            if (!equals(oldStatus, record.getStatus())
+                    && ("毕业".equals(oldStatus) || "毕业".equals(record.getStatus()))) {
+                return ServiceResult.failure(StatusCode.FORBIDDEN, "毕业状态须通过教务毕业管理办理");
+            }
+            return students.saveIfUnchanged(record, existing.getStatus() == StatusCode.OK ? existing.getData() : null);
         }
-        return students.save(record);
     }
 
     private ServiceResult<Session> authorize(String token, Permission permission) {

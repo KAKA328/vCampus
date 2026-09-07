@@ -259,6 +259,26 @@ CREATE TABLE tblAcademicReview (
     PRIMARY KEY (review_id)
 );
 
+-- Complete assessments and manual graduation decisions owned by academic administration.
+CREATE TABLE tblAcademicAssessment (
+    assessment_order COUNTER,
+    assessment_id VARCHAR(36) NOT NULL,
+    student_id VARCHAR(32) NOT NULL,
+    earned_credits INTEGER NOT NULL,
+    passed_courses INTEGER NOT NULL,
+    pending_retakes INTEGER NOT NULL,
+    historical_retakes INTEGER NOT NULL,
+    required_credits INTEGER NOT NULL,
+    evidence VARCHAR(64) NOT NULL,
+    reviewed_by VARCHAR(32) NOT NULL,
+    reviewed_at DATETIME NOT NULL,
+    basis VARCHAR(255) NOT NULL,
+    graduated_by VARCHAR(32),
+    graduated_at DATETIME,
+    graduation_note VARCHAR(255),
+    PRIMARY KEY (assessment_id)
+);
+
 CREATE TABLE tblProduct (
     product_id VARCHAR(32) NOT NULL,
     name VARCHAR(100) NOT NULL,

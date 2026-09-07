@@ -9,6 +9,13 @@ public final class InMemoryTeacherRepository implements TeacherRepository {
             new LinkedHashMap<String, TeacherProfile>();
 
     @Override
+    public synchronized java.util.List<TeacherProfile> findAll() {
+        java.util.List<TeacherProfile> result = new java.util.ArrayList<TeacherProfile>(profiles.values());
+        result.sort((a, b) -> a.getTeacherId().compareTo(b.getTeacherId()));
+        return result;
+    }
+
+    @Override
     public synchronized TeacherProfile findById(String teacherId) {
         return profiles.get(requireText(teacherId, "teacherId"));
     }
