@@ -1,6 +1,7 @@
 package cn.vcampus.client.view;
 
 import java.awt.Component;
+import java.awt.Font;
 import javax.swing.JTable;
 import javax.swing.SwingConstants;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -23,8 +24,17 @@ final class MoneyCellRenderer extends DefaultTableCellRenderer {
     private final MoneyFormat format;
 
     MoneyCellRenderer(MoneyFormat format) {
+        this(format, false);
+    }
+
+    /** emphasize=true：商品列表「价格」这类重点金额用大号加粗深色，与购物车/流水等次要金额拉开层级。 */
+    MoneyCellRenderer(MoneyFormat format, boolean emphasize) {
         this.format = format;
         setHorizontalAlignment(SwingConstants.RIGHT);
+        if (emphasize) {
+            setFont(VCampusTheme.font(Font.BOLD, 15));
+            setForeground(VCampusTheme.PRIMARY_DARK);
+        }
     }
 
     @Override
