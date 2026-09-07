@@ -63,7 +63,8 @@ class VCampusThemeTest {
         VCampusTheme.navButton(button, false);
 
         assertEquals(SwingConstants.LEFT, button.getHorizontalAlignment());
-        assertTrue(button.getMaximumSize().height <= 48);
+        assertEquals(UiMetrics.px(44), button.getMaximumSize().height);
+        assertEquals(UiMetrics.px(160), button.getPreferredSize().width);
         assertEquals(VCampusTheme.SIDEBAR, button.getBackground());
         assertEquals(VCampusTheme.TEXT, button.getForeground());
 
@@ -94,7 +95,7 @@ class VCampusThemeTest {
 
         VCampusTheme.table(table);
 
-        assertTrue(table.getRowHeight() >= 32);
+        assertEquals(UiMetrics.px(34), table.getRowHeight());
         assertTrue(table.getFillsViewportHeight());
         assertTrue(!table.getShowVerticalLines());
         assertEquals(VCampusTheme.BORDER, table.getGridColor());
@@ -127,7 +128,7 @@ class VCampusThemeTest {
         JScrollBar vertical = scroller.getVerticalScrollBar();
 
         assertTrue(vertical.getUI() instanceof VCampusTheme.SlimScrollBarUI);
-        assertTrue(vertical.getPreferredSize().width <= 10);
+        assertEquals(UiMetrics.px(8), vertical.getPreferredSize().width);
     }
 
     @Test
@@ -137,6 +138,14 @@ class VCampusThemeTest {
         VCampusTheme.navButton(button, true);
 
         assertTrue(button.getBorder() instanceof VCampusTheme.ActiveNavBorder);
+    }
+
+    @Test
+    void themeDelegatesFontsAndBordersToUnifiedMetrics() {
+        assertEquals(UiMetrics.px(24), VCampusTheme.font(java.awt.Font.BOLD, 24).getSize());
+        java.awt.Insets expected = UiMetrics.insets(11, 20, 11, 16);
+        java.awt.Insets actual = new VCampusTheme.ActiveNavBorder().getBorderInsets(new JButton());
+        assertEquals(expected, actual);
     }
 
     private static double contrast(Color first, Color second) {

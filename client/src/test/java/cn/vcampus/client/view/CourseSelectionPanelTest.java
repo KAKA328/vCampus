@@ -11,6 +11,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JTable;
 import org.junit.jupiter.api.Test;
 
 class CourseSelectionPanelTest {
@@ -54,6 +55,19 @@ class CourseSelectionPanelTest {
         assertTrue(button(panel, "loadOfferingsButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
         assertTrue(button(panel, "selectButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
         assertTrue(button(panel, "dropButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+    }
+
+    @Test
+    void keepsCourseTableColumnsReadableOnCompactWindows() throws Exception {
+        CourseSelectionPanel panel = new CourseSelectionPanel("localhost", 19090,
+                new Session("token", new User("student-001", "测试学生", Role.STUDENT)));
+        Field field = CourseSelectionPanel.class.getDeclaredField("table");
+        field.setAccessible(true);
+        JTable table = (JTable) field.get(panel);
+
+        assertTrue(table.getAutoResizeMode() == JTable.AUTO_RESIZE_OFF);
+        assertTrue(table.getColumnModel().getColumn(2).getPreferredWidth() >= UiMetrics.px(170));
+        assertTrue(table.getColumnModel().getColumn(6).getPreferredWidth() >= UiMetrics.px(220));
     }
 
     private static JButton button(CourseSelectionPanel panel, String fieldName) throws Exception {

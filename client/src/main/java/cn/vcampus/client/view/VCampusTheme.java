@@ -68,11 +68,12 @@ final class VCampusTheme {
     }
 
     static Font font(int style, int size) {
-        return new Font("Microsoft YaHei UI", style, size);
+        return UiMetrics.font("Microsoft YaHei UI", style, size);
     }
 
     static Border padding(int top, int left, int bottom, int right) {
-        return BorderFactory.createEmptyBorder(top, left, bottom, right);
+        java.awt.Insets scaled = UiMetrics.insets(top, left, bottom, right);
+        return BorderFactory.createEmptyBorder(scaled.top, scaled.left, scaled.bottom, scaled.right);
     }
 
     static void panel(JComponent component) {
@@ -111,7 +112,7 @@ final class VCampusTheme {
     }
 
     static void table(JTable table) {
-        table.setRowHeight(34);
+        table.setRowHeight(UiMetrics.px(34));
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         table.setFillsViewportHeight(true);
         table.setGridColor(BORDER);
@@ -157,7 +158,7 @@ final class VCampusTheme {
 
     private static void styleScrollBar(JScrollBar scrollBar) {
         scrollBar.setUI(new SlimScrollBarUI());
-        scrollBar.setPreferredSize(new Dimension(8, 8));
+        scrollBar.setPreferredSize(UiMetrics.dimension(8, 8));
         scrollBar.setOpaque(false);
         scrollBar.setUnitIncrement(18);
     }
@@ -185,8 +186,8 @@ final class VCampusTheme {
         button.setBackground(active ? NAV_ACTIVE_BACKGROUND : SIDEBAR);
         button.setForeground(active ? PRIMARY : TEXT);
         button.setFont(font(active ? Font.BOLD : Font.PLAIN, 14));
-        button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
-        button.setPreferredSize(new Dimension(160, 44));
+        button.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiMetrics.px(44)));
+        button.setPreferredSize(UiMetrics.dimension(160, 44));
     }
 
     private static void keepButtonReadable(final AbstractButton button, final Color background,
@@ -226,14 +227,15 @@ final class VCampusTheme {
 
     static final class ActiveNavBorder extends AbstractBorder {
         @Override public java.awt.Insets getBorderInsets(Component component) {
-            return new java.awt.Insets(11, 20, 11, 16);
+            return UiMetrics.insets(11, 20, 11, 16);
         }
 
         @Override public java.awt.Insets getBorderInsets(Component component, java.awt.Insets insets) {
-            insets.top = 11;
-            insets.left = 20;
-            insets.bottom = 11;
-            insets.right = 16;
+            java.awt.Insets scaled = UiMetrics.insets(11, 20, 11, 16);
+            insets.top = scaled.top;
+            insets.left = scaled.left;
+            insets.bottom = scaled.bottom;
+            insets.right = scaled.right;
             return insets;
         }
 
@@ -242,7 +244,12 @@ final class VCampusTheme {
             Graphics2D copy = (Graphics2D) graphics.create();
             copy.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             copy.setColor(PRIMARY);
-            copy.fillRoundRect(x + 5, y + 8, 4, height - 16, 4, 4);
+            int left = UiMetrics.px(5);
+            int top = UiMetrics.px(8);
+            int indicatorWidth = UiMetrics.px(4);
+            int indicatorHeight = Math.max(0, height - UiMetrics.px(16));
+            int arc = UiMetrics.px(4);
+            copy.fillRoundRect(x + left, y + top, indicatorWidth, indicatorHeight, arc, arc);
             copy.dispose();
         }
     }
@@ -273,16 +280,21 @@ final class VCampusTheme {
             Graphics2D copy = (Graphics2D) graphics.create();
             copy.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             copy.setColor(thumbColor);
-            copy.fillRoundRect(bounds.x + 1, bounds.y + 1,
-                    Math.max(4, bounds.width - 2), Math.max(4, bounds.height - 2), 8, 8);
+            int inset = UiMetrics.px(1);
+            int minimumThumb = UiMetrics.px(4);
+            int arc = UiMetrics.px(8);
+            copy.fillRoundRect(bounds.x + inset, bounds.y + inset,
+                    Math.max(minimumThumb, bounds.width - inset * 2),
+                    Math.max(minimumThumb, bounds.height - inset * 2), arc, arc);
             copy.dispose();
         }
 
         private static JButton emptyButton() {
             JButton button = new JButton();
-            button.setPreferredSize(new Dimension(0, 0));
-            button.setMinimumSize(new Dimension(0, 0));
-            button.setMaximumSize(new Dimension(0, 0));
+            Dimension empty = UiMetrics.dimension(0, 0);
+            button.setPreferredSize(empty);
+            button.setMinimumSize(empty);
+            button.setMaximumSize(empty);
             return button;
         }
     }
@@ -299,7 +311,8 @@ final class VCampusTheme {
                 background = background.darker();
             }
             copy.setColor(background);
-            copy.fillRoundRect(0, 0, component.getWidth() - 1, component.getHeight() - 1, 8, 8);
+            int arc = UiMetrics.px(8);
+            copy.fillRoundRect(0, 0, component.getWidth() - 1, component.getHeight() - 1, arc, arc);
             copy.dispose();
             super.paint(graphics, component);
         }

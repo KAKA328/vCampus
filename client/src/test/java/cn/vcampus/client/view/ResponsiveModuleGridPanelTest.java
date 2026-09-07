@@ -18,7 +18,7 @@ class ResponsiveModuleGridPanelTest {
         ResponsiveModuleGridPanel panel = new ResponsiveModuleGridPanel();
 
         assertTrue(panel.getScrollableTracksViewportWidth());
-        assertEquals(16, panel.getHgap());
-        assertEquals(16, panel.getVgap());
+        assertEquals(UiMetrics.px(16), panel.getHgap());
+        assertEquals(UiMetrics.px(16), panel.getVgap());
     }
 }

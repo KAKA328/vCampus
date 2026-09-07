@@ -12,10 +12,10 @@ import javax.swing.JTextArea;
 
 /** Reusable dashboard card for one business module. */
 final class ModuleCardPanel extends JPanel {
-    private static final Dimension READABLE_CARD_SIZE = new Dimension(300, 180);
+    private static final Dimension READABLE_CARD_SIZE = UiMetrics.dimension(300, 180);
 
     ModuleCardPanel(ModuleDescriptor module, ActionListener enterListener) {
-        super(new BorderLayout(0, 12));
+        super(new BorderLayout(0, UiMetrics.px(12)));
         VCampusTheme.panel(this);
         setMinimumSize(READABLE_CARD_SIZE);
         setPreferredSize(READABLE_CARD_SIZE);
@@ -23,7 +23,7 @@ final class ModuleCardPanel extends JPanel {
         JLabel title = new JLabel(module.getTitle());
         title.setFont(VCampusTheme.font(Font.BOLD, 17));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        title.setBorder(javax.swing.BorderFactory.createMatteBorder(3, 0, 0, 0,
+        title.setBorder(javax.swing.BorderFactory.createMatteBorder(UiMetrics.px(3), 0, 0, 0,
                 module.getStatus().contains("可用") ? VCampusTheme.PRIMARY : VCampusTheme.BORDER));
 
         JTextArea summary = new JTextArea(module.getSummary());
@@ -46,7 +46,7 @@ final class ModuleCardPanel extends JPanel {
         } else {
             VCampusTheme.secondaryButton(enter);
         }
-        enter.setPreferredSize(new Dimension(118, enter.getPreferredSize().height));
+        enter.setPreferredSize(new Dimension(UiMetrics.px(118), enter.getPreferredSize().height));
         enter.setMinimumSize(enter.getPreferredSize());
         enter.addActionListener(enterListener);
 
