@@ -636,6 +636,32 @@ class StoreServiceTest {
         assertEquals(4, blankAll.getData().size());// 空白类别 = 全量（含下架）
     }
 
+    // 用户反馈：含下架视图里已下架商品排在最后面，方便管理员寻找待恢复商品。
+    // 服务端固定排序「在售在前、下架在后、组内按编号升序」
+    @Test
+    void testInactiveProductsSortLastInIncludedView() {
+        service.deactivateProduct("00001");// 00002 在售 Fruit
+        service.deactivateProduct("00003");// 00004 在售 Toy、00002 在售 Fruit → 在售 2 个
+
+        List<Product> data = service.listProducts(null, true).getData();
+        assertEquals(4, data.size());
+        int firstInactive = -1;
+        for (int i = 0; i < data.size(); i++) {
+            if (!data.get(i).isActive() && firstInactive < 0) {
+                firstInactive = i;
+            }
+        }
+        assertEquals(2, firstInactive);// 前 2 个全在售
+        for (int i = 0; i < firstInactive; i++) {
+            assertTrue(data.get(i).isActive());
+        }
+        for (int i = firstInactive; i < data.size(); i++) {
+            assertFalse(data.get(i).isActive());
+        }
+        assertEquals("00001", data.get(2).getProductId());// 下架组内仍按编号升序
+        assertEquals("00003", data.get(3).getProductId());
+    }
+
     // 测试清空购物车失败时结账回滚
     @Test
     void checkoutRollsBackAndAllowsRetryWhenClearingCartFails() {

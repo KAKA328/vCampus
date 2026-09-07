@@ -64,7 +64,7 @@ StudentManagementService.findByIds(List<String> studentIds)
 
 学生、教师本人操作时，客户端只携带 `token` 和具体业务参数，服务器根据 `token -> user_id` 查出当前账号，再通过 `tblStudent.user_id` 或 `tblTeacher.user_id` 转换为业务档案编号。选课、成绩录入、学籍查询等模块不得直接信任客户端传入的 `studentId`、`teacherId` 或 `userId`。商店订单和图书借阅继续以 `user_id` 作为当前用户身份。
 
-图书馆完整流程使用显式 V2 协议：`LIBRARY_QUERY_V2`、`LIBRARY_DETAIL_V2`、`LIBRARY_BORROW_V2`、`LIBRARY_RETURN_V2`、`LIBRARY_HISTORY_V2` 和 `LIBRARY_ADD_BOOK_V2`。借阅、归还和本人记录中的用户身份仅由服务器根据命令内的 token 解析；查询其他用户或全部借阅记录、增加馆藏需要 `LIBRARY_MANAGE` 权限。
+图书馆完整流程使用显式 V2 协议：`LIBRARY_QUERY_V2`、`LIBRARY_DETAIL_V2`、`LIBRARY_BORROW_V2`、`LIBRARY_RETURN_V2`、`LIBRARY_HISTORY_V2` 和 `LIBRARY_ADD_BOOK_V2`。`Book` V3 数据载荷增加非负 `price`（元）作为馆藏参考价格，客户端和服务器须使用同一版本构建。借阅、归还和本人记录中的用户身份仅由服务器根据命令内的 token 解析；查询其他用户或全部借阅记录、增加馆藏需要 `LIBRARY_MANAGE` 权限。临期提醒基于已授权借阅记录的 `dueDate` 在客户端展示，不新增或放宽数据权限。
 
 详细对接规范见 [`ACCOUNT_PROFILE_INTEGRATION.md`](ACCOUNT_PROFILE_INTEGRATION.md)。
 

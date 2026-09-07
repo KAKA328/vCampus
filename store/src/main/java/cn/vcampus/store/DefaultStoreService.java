@@ -548,7 +548,9 @@ public final class DefaultStoreService implements StoreService {
 
     // 列出商品（含下架视图）：includeInactive=false 与旧行为完全一致（只返回在售）；
     // =true 时把已下架商品一并返回（管理端专用，通信层 STORE_MANAGE 双门槛已拦截普通买家）。
-    // category 可空/空白 = 全部类别；结果不可变
+    // category 可空/空白 = 全部类别；结果不可变。
+    // 排序固定为「在售在前、已下架在后，组内按商品编号升序」：默认视图不含下架商品，顺序与
+    // Access 的 ORDER BY product_id 一致；含下架视图下已下架商品全部沉底，便于管理员定位恢复
     @Override
     public final ServiceResult<List<Product>> listProducts(String category, boolean includeInactive) {
         String wanted = category == null ? null : category.trim();
@@ -562,6 +564,13 @@ public final class DefaultStoreService implements StoreService {
                 continue;
             result.add(product);
         }
+        Collections.sort(result, (left, right) -> {
+            int leftRank = left.isActive() ? 0 : 1;
+            int rightRank = right.isActive() ? 0 : 1;
+            if (leftRank != rightRank)
+                return leftRank - rightRank;
+            return left.getProductId().compareTo(right.getProductId());
+        });
         return ServiceResult.ok(Collections.unmodifiableList(result));
     }
 

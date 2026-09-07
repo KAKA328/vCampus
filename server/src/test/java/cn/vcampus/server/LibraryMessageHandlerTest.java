@@ -57,7 +57,7 @@ class LibraryMessageHandlerTest {
 
     @Test
     void studentCannotAddBookButLibrarianCan() {
-        Book book = new Book("B006", "测试图书", "测试作者");
+        Book book = new Book("B011", "测试图书", "测试作者");
         Message denied = handler.handle(Message.request("add-denied", MessageType.LIBRARY_ADD_BOOK_V2,
                 new LibraryAddBookV2Command(student.getToken(), book)));
         assertEquals(StatusCode.FORBIDDEN, denied.getStatusCode());
