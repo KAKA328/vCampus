@@ -11,7 +11,6 @@ import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.Color;
-import java.awt.Dimension;
 import java.awt.Font;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,6 +27,10 @@ import javax.swing.SwingWorker;
  * 学生选课界面：先选择轮次，再查看可选教学班并选课；“我的已选”中可退选。
  */
 public final class CourseSelectionPanel extends JPanel {
+    private static final int[] TABLE_COLUMN_WIDTHS = {
+            86, 108, 170, 62, 126, 106, 220, 116, 88
+    };
+
     private final String host;
     private final int port;
     private final Session session;
@@ -56,7 +59,7 @@ public final class CourseSelectionPanel extends JPanel {
     }
 
     private void build() {
-        setLayout(new BorderLayout(0, 16));
+        setLayout(new BorderLayout(0, UiMetrics.px(16)));
         setOpaque(false);
         add(header(), BorderLayout.NORTH);
         add(VCampusTheme.pageScroll(body()), BorderLayout.CENTER);
@@ -71,7 +74,7 @@ public final class CourseSelectionPanel extends JPanel {
     }
 
     private JPanel body() {
-        JPanel panel = new ScrollablePagePanel(new BorderLayout(0, 12));
+        JPanel panel = new ScrollablePagePanel(new BorderLayout(0, UiMetrics.px(12)));
         panel.setOpaque(false);
         panel.add(queryBar(), BorderLayout.NORTH);
         panel.add(tablePanel(), BorderLayout.CENTER);
@@ -80,7 +83,7 @@ public final class CourseSelectionPanel extends JPanel {
     }
 
     private JPanel header() {
-        JPanel panel = new JPanel(new BorderLayout(0, 5));
+        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(5)));
         panel.setOpaque(false);
         JLabel title = new JLabel("选课系统");
         title.setFont(VCampusTheme.font(Font.BOLD, 24));
@@ -93,13 +96,14 @@ public final class CourseSelectionPanel extends JPanel {
     }
 
     private JPanel queryBar() {
-        JPanel top = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, 10, 6));
+        JPanel top = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10), UiMetrics.px(6)));
         VCampusTheme.panel(top);
         VCampusTheme.secondaryButton(loadRoundsButton);
         VCampusTheme.secondaryButton(loadOfferingsButton);
         VCampusTheme.secondaryButton(selectedButton);
         VCampusTheme.primaryButton(selectButton);
         VCampusTheme.secondaryButton(dropButton);
+        roundBox.setPreferredSize(UiMetrics.dimension(146, roundBox.getPreferredSize().height));
         top.add(loadRoundsButton); top.add(roundBox); top.add(loadOfferingsButton);
         top.add(selectedButton); top.add(selectButton); top.add(dropButton);
         return top;
@@ -108,11 +112,20 @@ public final class CourseSelectionPanel extends JPanel {
     private JPanel tablePanel() {
         JPanel panel = new JPanel(new BorderLayout());
         VCampusTheme.panel(panel);
-        panel.setPreferredSize(new Dimension(0, 420));
-        panel.setMinimumSize(new Dimension(0, 240));
-        VCampusTheme.table(table);
+        panel.setPreferredSize(UiMetrics.dimension(0, 420));
+        panel.setMinimumSize(UiMetrics.dimension(0, 240));
+        configureTable();
         panel.add(VCampusTheme.scrollPane(table), BorderLayout.CENTER);
         return panel;
+    }
+
+    /** 窄窗口优先保留列内容，通过表格自身的横向滚动查看完整信息。 */
+    private void configureTable() {
+        VCampusTheme.table(table);
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        for (int index = 0; index < TABLE_COLUMN_WIDTHS.length; index++) {
+            table.getColumnModel().getColumn(index).setPreferredWidth(UiMetrics.px(TABLE_COLUMN_WIDTHS[index]));
+        }
     }
 
     private void loadRounds() {
