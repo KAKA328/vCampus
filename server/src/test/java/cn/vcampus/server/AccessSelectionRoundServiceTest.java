@@ -18,6 +18,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -105,8 +106,8 @@ class AccessSelectionRoundServiceTest {
             });
             ready.await();
             start.countDown();
-            ServiceResult<SelectionRound> firstResult = first.get();
-            ServiceResult<SelectionRound> secondResult = second.get();
+            ServiceResult<SelectionRound> firstResult = first.get(15, TimeUnit.SECONDS);
+            ServiceResult<SelectionRound> secondResult = second.get(15, TimeUnit.SECONDS);
             int successCount = (firstResult.getStatus() == StatusCode.OK ? 1 : 0)
                     + (secondResult.getStatus() == StatusCode.OK ? 1 : 0);
             int conflictCount = (firstResult.getStatus() == StatusCode.CONFLICT ? 1 : 0)

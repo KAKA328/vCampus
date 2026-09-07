@@ -20,6 +20,8 @@ import java.util.List;
 
 /** Access 持久化的选课轮次服务，供教务人员维护并供学生选课流程读取。 */
 public final class AccessSelectionRoundService implements SelectionRoundService {
+    private static final Object WRITE_LOCK = new Object();
+
     private final Path databasePath;
 
     public AccessSelectionRoundService(Path databasePath) {
@@ -31,6 +33,12 @@ public final class AccessSelectionRoundService implements SelectionRoundService 
 
     @Override
     public ServiceResult<SelectionRound> create(SelectionRound round) {
+        synchronized (WRITE_LOCK) {
+            return createWithLock(round);
+        }
+    }
+
+    private ServiceResult<SelectionRound> createWithLock(SelectionRound round) {
         if (round == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "round must not be null");
         }
@@ -127,6 +135,13 @@ public final class AccessSelectionRoundService implements SelectionRoundService 
     @Override
     public ServiceResult<SelectionRound> updateTimeWindow(String roundId, LocalDateTime startsAt,
             LocalDateTime endsAt) {
+        synchronized (WRITE_LOCK) {
+            return updateTimeWindowWithLock(roundId, startsAt, endsAt);
+        }
+    }
+
+    private ServiceResult<SelectionRound> updateTimeWindowWithLock(String roundId, LocalDateTime startsAt,
+            LocalDateTime endsAt) {
         String normalizedRoundId = normalize(roundId);
         if (normalizedRoundId == null || startsAt == null || endsAt == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST,
@@ -156,6 +171,13 @@ public final class AccessSelectionRoundService implements SelectionRoundService 
 
     @Override
     public ServiceResult<SelectionRound> changeStatus(String roundId, SelectionRoundStatus status) {
+        synchronized (WRITE_LOCK) {
+            return changeStatusWithLock(roundId, status);
+        }
+    }
+
+    private ServiceResult<SelectionRound> changeStatusWithLock(String roundId,
+            SelectionRoundStatus status) {
         String normalizedRoundId = normalize(roundId);
         if (normalizedRoundId == null || status == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST,
@@ -204,6 +226,7 @@ public final class AccessSelectionRoundService implements SelectionRoundService 
     /**
      * 用复合主键辅助表保证同一学期、同一轮次类型只能创建一次。
      * UCanAccess 4.0.4 不支持 CREATE UNIQUE INDEX，因此不能只依赖查询判断。
+     * 写操作在同一 JVM 内串行化，用于避开 UCanAccess 并发打开/关闭同一文件时的内部死锁。
      */
     private static void reserveRoundKey(Connection connection, SelectionRound round)
             throws SQLException {

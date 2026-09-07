@@ -23,6 +23,8 @@ import java.util.List;
 
 /** 使用 Access 保存学生选课记录的服务实现。 */
 public final class AccessCourseSelectionRecordService implements CourseSelectionRecordService {
+    private static final Object WRITE_LOCK = new Object();
+
     private final Path databasePath;
     private final CourseOfferingService offerings;
 
@@ -36,6 +38,12 @@ public final class AccessCourseSelectionRecordService implements CourseSelection
 
     @Override
     public ServiceResult<CourseSelectionRecord> create(CourseSelectionRecord record) {
+        synchronized (WRITE_LOCK) {
+            return createWithLock(record);
+        }
+    }
+
+    private ServiceResult<CourseSelectionRecord> createWithLock(CourseSelectionRecord record) {
         if (record == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "record must not be null");
         }
@@ -113,6 +121,13 @@ public final class AccessCourseSelectionRecordService implements CourseSelection
 
     @Override
     public ServiceResult<CourseSelectionRecord> markDropped(String recordId,
+            LocalDateTime droppedAt) {
+        synchronized (WRITE_LOCK) {
+            return markDroppedWithLock(recordId, droppedAt);
+        }
+    }
+
+    private ServiceResult<CourseSelectionRecord> markDroppedWithLock(String recordId,
             LocalDateTime droppedAt) {
         String normalizedRecordId = normalize(recordId);
         if (normalizedRecordId == null || droppedAt == null) {
@@ -200,7 +215,8 @@ public final class AccessCourseSelectionRecordService implements CourseSelection
     }
 
     /**
-     * 先插入有效选课占用键。复合主键由数据库跨服务实例保证，不依赖 JVM 内的 synchronized。
+     * 先插入有效选课占用键。复合主键由数据库保证，同一 JVM 内的写锁只用于避开
+     * UCanAccess 连接管理在并发写入同一 Access 文件时的内部锁等待。
      */
     private static void reserveActiveSelection(Connection connection, CourseSelectionRecord record)
             throws SQLException {
