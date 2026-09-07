@@ -79,9 +79,9 @@ final class AcademicAdministrationPanel extends JPanel {
         required.setColumns(5); note.setColumns(23);
         VCampusTheme.field(required); VCampusTheme.field(note);
         assessmentRow.add(new JLabel("要求学分")); assessmentRow.add(required);
-        assessmentRow.add(new JLabel("审查 / 核查依据")); assessmentRow.add(note);
+        assessmentRow.add(new JLabel("审查说明（选填）")); assessmentRow.add(note);
         required.setToolTipText("填写适用培养方案要求的总学分");
-        note.setToolTipText("填写审查依据或毕业核查说明，最多255字");
+        note.setToolTipText("可留空；如需备注，最多255字");
         reviewBody.add(assessmentRow, BorderLayout.NORTH);
         JPanel actions = row();
         review.addActionListener(event -> submit(Action.REVIEW));
@@ -174,7 +174,8 @@ final class AcademicAdministrationPanel extends JPanel {
                     action == Action.REVIEW ? Integer.parseInt(required.getText().trim()) : 0,
                     assessment == null ? null : assessment.getId(), note.getText(), confirmed.isSelected());
         } catch (IllegalArgumentException invalid) {
-            status.setText("输入有误：请填写学号、正整数要求学分及必要说明。");
+            status.setText("输入有误：" + (invalid instanceof NumberFormatException
+                    ? "要求学分须填写正整数。" : invalid.getMessage()));
             return;
         }
         final long current = ++generation;
@@ -242,7 +243,7 @@ final class AcademicAdministrationPanel extends JPanel {
         } else {
             List<?> assessments = action == Action.ASSESSMENTS ? (List<?>) data : Collections.singletonList(data);
             columns = new String[] {"审查编号", "学号", "已获学分", "要求学分", "缺口", "待重修", "学分审查",
-                    "审查人", "时间", "审查依据", "毕业办理", "办理人", "办理时间", "核查说明"};
+                    "审查人", "时间", "审查说明", "毕业办理", "办理人", "办理时间", "毕业说明"};
             for (Object item : assessments) {
                 AcademicAssessment r = (AcademicAssessment) item;
                 rows.add(new Object[] {r.getId(), r.getStudentId(), r.getCredits().getEarnedCredits(),

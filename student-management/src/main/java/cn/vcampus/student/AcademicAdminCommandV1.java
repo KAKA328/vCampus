@@ -27,10 +27,9 @@ public final class AcademicAdminCommandV1 implements Serializable {
         if (action != Action.STUDENTS && action != Action.TEACHERS) require(studentId, "studentId");
         if (action == Action.REVIEW) {
             if (requiredCredits <= 0) throw new IllegalArgumentException("要求学分必须大于零");
-            require(note, "审查依据");
         }
         if (action == Action.GRADUATE) {
-            require(assessmentId, "assessmentId"); require(note, "毕业核查说明");
+            require(assessmentId, "assessmentId");
             if (!otherRequirementsConfirmed) throw new IllegalArgumentException("请确认已核查其他毕业条件");
         }
         if (note != null && note.length() > 255) throw new IllegalArgumentException("说明不得超过255字");
@@ -43,5 +42,6 @@ public final class AcademicAdminCommandV1 implements Serializable {
     public String getStudentId() { return studentId == null ? null : studentId.trim(); }
     public int getRequiredCredits() { return requiredCredits; }
     public String getAssessmentId() { return assessmentId; }
-    public String getNote() { return note == null ? null : note.trim(); }
+    /** Empty optional notes are stored as empty text, compatible with existing NOT NULL basis. */
+    public String getNote() { return note == null ? "" : note.trim(); }
 }

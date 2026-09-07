@@ -36,6 +36,23 @@ class AccessAcademicAdministrationTest {
         assertEquals("毕业条件已核查", persisted.getGraduationNote());
         assertEquals(StatusCode.CONFLICT, execute(Action.GRADUATE, 0, review.getId()).getStatus());
     }
+    @Test void optionalNotesCanBeEmptyAndPersistOnExistingSchema() {
+        for (String note : new String[] {null, "", "   "}) {
+            ServiceResult<?> result = service.execute(new AcademicAdminCommandV1("token", Action.REVIEW,
+                    "demo_student", 6, null, note, false), "demo_academic_admin");
+            assertEquals(StatusCode.OK, result.getStatus(), result.getMessage());
+            assertEquals("", ((AcademicAssessment) result.getData()).getBasis());
+        }
+        AcademicAssessment latest = (AcademicAssessment) ((List<?>) execute(Action.ASSESSMENTS, 0, null).getData()).get(0);
+        ServiceResult<?> graduation = service.execute(new AcademicAdminCommandV1("token", Action.GRADUATE,
+                "demo_student", 0, latest.getId(), null, true), "demo_academic_admin");
+        assertEquals(StatusCode.OK, graduation.getStatus(), graduation.getMessage());
+        service = new AcademicAdminService(new AccessAcademicAdminStore(database));
+        AcademicAssessment saved = (AcademicAssessment) ((List<?>) execute(Action.ASSESSMENTS, 0, null).getData()).get(0);
+        assertEquals("", saved.getBasis());
+        assertEquals("", saved.getGraduationNote());
+        assertTrue(saved.isGraduated());
+    }
     @Test void changedScoreAndUpdatedReviewInvalidateOldEvidenceWithoutChangingStatus() throws Exception {
         AcademicAssessment initial = review();
         AcademicAssessment newer = review();
