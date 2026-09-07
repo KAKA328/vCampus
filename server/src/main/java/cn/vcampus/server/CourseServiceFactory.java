@@ -48,7 +48,7 @@ final class CourseServiceFactory {
                 rounds, offerings, records, new DefaultCourseOfferingCapacityService(offerings, records),
                 new ScheduleConflictDetector());
         return new CourseRuntime(new CourseSelectionModule(selections, catalog, offerings, rounds, records,
-                gradeSubmissions),
+                gradeSubmissions, trainingPlans),
                 new AccessStudentSelectionProfileProvider(databasePath), teachers);
     }
 

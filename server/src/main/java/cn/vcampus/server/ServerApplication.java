@@ -11,6 +11,7 @@ import cn.vcampus.course.CourseSelectionService;
 import cn.vcampus.course.GradeSubmissionService;
 import cn.vcampus.course.SelectionRoundService;
 import cn.vcampus.course.StudentSelectionProfileProvider;
+import cn.vcampus.course.TrainingPlanService;
 import cn.vcampus.library.InMemoryLibraryService;
 import cn.vcampus.library.LibraryService;
 import cn.vcampus.store.InMemoryStoreService;
@@ -71,7 +72,8 @@ public final class ServerApplication implements Closeable {
                 bootstrap.students.results, bootstrap.gradeApprovals, bootstrap.students.profiles,
                 bootstrap.store, bootstrap.students.students, new InMemoryLibraryService(),
                 new DenyTeacherStudentAccessPolicy(), null, bootstrap.students.academics,
-                bootstrap.teachers, bootstrap.administration);
+                bootstrap.teachers, bootstrap.administration,
+                bootstrap.module.getTrainingPlanService());
     }
 
     /** 保留给只需验证学生选课查询的轻量级测试。 */
@@ -117,6 +119,20 @@ public final class ServerApplication implements Closeable {
             TeacherStudentAccessPolicy teacherAccess, AuditLogRepository storeAudit,
             AcademicReviewService academics, TeacherProfileService teachers,
             AcademicAdminService administration) {
+        this(port, users, courses, catalog, offerings, selectionRounds, records, gradeSubmissions,
+                formalResults, gradeApprovals, profiles, store, students, library, teacherAccess,
+                storeAudit, academics, teachers, administration, null);
+    }
+
+    ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
+            CourseCatalogService catalog, CourseOfferingService offerings,
+            SelectionRoundService selectionRounds, CourseSelectionRecordService records,
+            GradeSubmissionService gradeSubmissions, CourseResultRecordingService formalResults,
+            GradeApprovalWorkflow gradeApprovals, StudentSelectionProfileProvider profiles,
+            StoreService store, StudentManagementService students, LibraryService library,
+            TeacherStudentAccessPolicy teacherAccess, AuditLogRepository storeAudit,
+            AcademicReviewService academics, TeacherProfileService teachers,
+            AcademicAdminService administration, TrainingPlanService trainingPlans) {
         InMemoryAcademicReviewService fallbackAcademics = null;
         if (academics == null) {
             fallbackAcademics = new InMemoryAcademicReviewService();
@@ -136,7 +152,8 @@ public final class ServerApplication implements Closeable {
         this.port = port;
         this.userMessages = new UserMessageHandler(users);
         this.courseMessages = new CourseMessageHandler(courses, catalog, offerings, selectionRounds,
-                records, gradeSubmissions, formalResults, gradeApprovals, profiles, users, teachers, students);
+                records, gradeSubmissions, formalResults, gradeApprovals, trainingPlans, profiles, users,
+                teachers, students);
         this.storeMessages = new StoreMessageHandler(store, users, storeAudit);
         this.studentMessages = new StudentMessageHandler(students, users, teacherAccess);
         this.academicMessages = new StudentAcademicMessageHandler(students, academics, users);
@@ -229,7 +246,8 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.COURSE_TEACHING_QUERY_V2
                 || type == MessageType.COURSE_GRADE_DRAFT_V2
                 || type == MessageType.COURSE_GRADE_IMPORT_V2
-                || type == MessageType.COURSE_GRADE_REVIEW_V2;
+                || type == MessageType.COURSE_GRADE_REVIEW_V2
+                || type == MessageType.COURSE_TRAINING_PLAN_MANAGE_V2;
     }
 
     // 商店消息白名单必须覆盖全部 STORE_* 类型，由守护测试锁定。
@@ -280,7 +298,7 @@ public final class ServerApplication implements Closeable {
                 StoreServiceFactory.create(databasePath), studentServices.students,
                 LibraryServiceFactory.create(databasePath), teacherAccess(databasePath),
                 UserServiceFactory.createStoreAuditLog(args), studentServices.academics,
-                teachers, administration).start();
+                teachers, administration, module.getTrainingPlanService()).start();
     }
 
     /** 教师档案与教学班教师编号使用同一资料源，避免教师登录后找不到自己的教学班。 */

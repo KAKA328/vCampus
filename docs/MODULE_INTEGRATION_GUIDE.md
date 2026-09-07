@@ -148,7 +148,7 @@ Message response = Message.response(request, StatusCode.OK, data);
 |---|---|
 | 用户管理 | `REGISTER`、`USER_IMPORT`、`UNREGISTER`、`LOGIN`、`LOGOUT`、`AUTHORIZE` |
 | 学生学籍 | `STUDENT_QUERY`、`STUDENT_UPDATE` |
-| 选课系统 | 完整选课 V2：`COURSE_SELECTION_QUERY_V2`、`COURSE_SELECT_OFFERING_V2`、`COURSE_DROP_RECORD_V2`；课程维护：`COURSE_MANAGE` + `CourseManagementCommand`，含课程目录、教学班创建、教学信息维护和选课轮次管理 |
+| 选课系统 | 完整选课 V2：`COURSE_SELECTION_QUERY_V2`、`COURSE_SELECT_OFFERING_V2`、`COURSE_DROP_RECORD_V2`；课程维护：`COURSE_MANAGE` + `CourseManagementCommand`，含课程目录、教学班创建、教学信息维护和选课轮次管理；培养方案维护：`COURSE_TRAINING_PLAN_MANAGE_V2` + `TrainingPlanManagementCommand` |
 | 商店 | `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY`、`STORE_RESTOCK`、`STORE_PRODUCT_ADD`、`STORE_PRODUCT_UPDATE`、`STORE_PRODUCT_DEACTIVATE`、`STORE_PRODUCT_REACTIVATE`、`STORE_CART_ADD`、`STORE_CART_REMOVE`、`STORE_CART_UPDATE`、`STORE_CART_QUERY`、`STORE_CART_DETAIL`、`STORE_CART_CHECKOUT`、`STORE_ORDER_LIST_ALL`、`STORE_HOT_PRODUCTS`、`STORE_ACCOUNT_QUERY`、`STORE_ACCOUNT_RECHARGE`、`STORE_ACCOUNT_ADJUST`、`STORE_ACCOUNT_LEDGER` |
 
 如果需要新增消息类型，必须同步修改：
@@ -178,6 +178,7 @@ docs/MODULE_INTEGRATION_GUIDE.md
 - `COURSE_GRADE_DRAFT_V2` + `CourseGradeDraftV2Command`：教师打开本人教学班成绩草稿、保存一名有效选课学生的成绩，或在全班成绩齐全时提交审核；教师身份、学生选课范围和选课类别均由服务器根据 token 和有效选课记录确定，返回 `TeachingGradeDraft`。每次提交会冻结不可变审核快照；待审核期间教师可修改工作草稿，但教务端只读取该次快照，必须再次提交才会审核新版本。
 - `COURSE_GRADE_IMPORT_V2` + `CourseGradeImportV2Command`：教师将 CSV/XLS/XLSX 的“学号、成绩”表格批量导入本人教学班；所有行先校验并确认属于当前有效名单，再原子保存，失败不会留下部分成绩。
 - `COURSE_GRADE_REVIEW_V2` + `CourseGradeReviewV2Command`：仅教务管理员或系统管理员在拥有 `ACADEMIC_REVIEW` 权限时可查询待审核、查看成绩详情/审计历史、通过或退回成绩；退回原因会保存到成绩单。退回待审核成绩时直接进入修改状态；退回已通过成绩时先原子撤销该成绩单生成的 `tblCourseResult` 记录，再进入修改状态。每次提交、通过、退回均写入 `tblGradeSubmissionAudit`，可追溯操作人、时间和原因。
+- `COURSE_TRAINING_PLAN_MANAGE_V2` + `TrainingPlanManagementCommand`：教务人员维护培养方案，支持查询、新建、保存或移除方案课程要求、变更方案状态；服务端统一校验 `COURSE_MANAGE`，学生不能借此协议修改培养方案。
 
 客户端不再提交 `studentId` 作为本人身份，服务器必须根据 `token -> user_id -> student_id` 推导学生档案。
 
@@ -295,6 +296,7 @@ private Message dispatch(Message request) {
         case COURSE_SELECT_OFFERING_V2:
         case COURSE_DROP_RECORD_V2:
         case COURSE_MANAGE:
+        case COURSE_TRAINING_PLAN_MANAGE_V2:
             return courseMessages.handle(request);
         case LIBRARY_QUERY_V2:
         case LIBRARY_DETAIL_V2:
