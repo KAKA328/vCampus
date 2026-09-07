@@ -268,7 +268,7 @@ public final class MainFrame extends JFrame {
     }
 
     static boolean useCourseManagementPanel(Role role, ModuleDescriptor module) {
-        return role == Role.ACADEMIC_ADMIN
+        return (role == Role.ACADEMIC_ADMIN || role == Role.ADMIN)
                 && module != null
                 && "选课管理".equals(module.getTitle());
     }

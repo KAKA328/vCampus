@@ -11,8 +11,6 @@ import cn.vcampus.course.CourseStatus;
 import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
-import java.awt.Color;
-import java.awt.Dimension;
 import java.awt.Font;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -20,7 +18,6 @@ import java.util.List;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
@@ -67,12 +64,13 @@ public final class CourseManagementPanel extends JPanel {
     }
 
     private void build() {
-        setLayout(new BorderLayout(0, 16));
+        setLayout(new BorderLayout(0, UiMetrics.px(16)));
         setOpaque(false);
         JTabbedPane tabs = new JTabbedPane();
         VCampusTheme.tabs(tabs);
         tabs.addTab("课程目录", catalogPanel());
         tabs.addTab("教学班", offeringPanel());
+        tabs.addTab("成绩审核", new GradeReviewPanel(host, port, session));
         add(header(), BorderLayout.NORTH);
         add(VCampusTheme.pageScroll(body(tabs)), BorderLayout.CENTER);
         configureTable(courseTable);
@@ -81,22 +79,22 @@ public final class CourseManagementPanel extends JPanel {
     }
 
     private JPanel body(JTabbedPane tabs) {
-        JPanel panel = new ScrollablePagePanel(new BorderLayout(0, 12));
+        JPanel panel = new ScrollablePagePanel(new BorderLayout(0, UiMetrics.px(12)));
         panel.setOpaque(false);
-        tabs.setPreferredSize(new Dimension(0, 520));
-        tabs.setMinimumSize(new Dimension(0, 340));
+        tabs.setPreferredSize(UiMetrics.dimension(0, 520));
+        tabs.setMinimumSize(UiMetrics.dimension(0, 340));
         panel.add(tabs, BorderLayout.CENTER);
         panel.add(status, BorderLayout.SOUTH);
         return panel;
     }
 
     private JPanel header() {
-        JPanel panel = new JPanel(new BorderLayout(0, 5));
+        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(5)));
         panel.setOpaque(false);
         JLabel title = new JLabel("选课管理");
         title.setFont(VCampusTheme.font(Font.BOLD, 24));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        JLabel subtitle = new JLabel("维护课程目录、教学班、容量和开放状态。");
+        JLabel subtitle = new JLabel("维护课程目录、教学班、选课轮次，并审核教师提交的成绩。 ");
         subtitle.setForeground(VCampusTheme.MUTED);
         panel.add(title, BorderLayout.NORTH);
         panel.add(subtitle, BorderLayout.SOUTH);
@@ -104,9 +102,10 @@ public final class CourseManagementPanel extends JPanel {
     }
 
     private JPanel catalogPanel() {
-        JPanel panel = new JPanel(new BorderLayout(0, 12));
+        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
         panel.setOpaque(false);
-        JPanel form = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, 10, 6));
+        JPanel form = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
+                UiMetrics.px(6)));
         VCampusTheme.panel(form);
         styleFields(courseId, courseName, courseCredits);
         form.add(new JLabel("课程编号")); form.add(courseId);
@@ -123,9 +122,10 @@ public final class CourseManagementPanel extends JPanel {
     }
 
     private JPanel offeringPanel() {
-        JPanel panel = new JPanel(new BorderLayout(0, 12));
+        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
         panel.setOpaque(false);
-        JPanel form = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, 10, 6));
+        JPanel form = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
+                UiMetrics.px(6)));
         VCampusTheme.panel(form);
         styleFields(term, offeringId, offeringCourseId, teacherId, schedule, location,
                 requiredCapacity, electiveCapacity, crossMajorCapacity);
