@@ -3,12 +3,21 @@ package cn.vcampus.library;
 import cn.vcampus.common.ServiceResult;
 import java.util.List;
 
-/** Demo-mode facade backed by an in-memory repository and five sample books. */
+/** In-memory facade; the default keeps loan history empty for isolated tests. */
 public final class InMemoryLibraryService implements LibraryService {
     private final DefaultLibraryService delegate;
 
     public InMemoryLibraryService() {
-        this.delegate = new DefaultLibraryService(InMemoryLibraryRepository.withDemoCatalog());
+        this(InMemoryLibraryRepository.withDemoCatalog());
+    }
+
+    private InMemoryLibraryService(InMemoryLibraryRepository repository) {
+        this.delegate = new DefaultLibraryService(repository);
+    }
+
+    /** Creates the interactive demo service with catalog and relative-date loan samples. */
+    public static InMemoryLibraryService withDemoData() {
+        return new InMemoryLibraryService(InMemoryLibraryRepository.withDemoData());
     }
 
     @Override public ServiceResult<List<Book>> search(String keyword) { return delegate.search(keyword); }

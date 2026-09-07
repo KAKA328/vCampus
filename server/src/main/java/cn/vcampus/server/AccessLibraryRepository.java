@@ -33,7 +33,7 @@ public final class AccessLibraryRepository implements LibraryRepository {
         String key = normalize(keyword);
         String categoryKey = category == null ? null : normalize(category);
         List<Book> matches = new ArrayList<Book>();
-        String sql = "SELECT book_id,title,author,isbn,category,publisher,total_copies,"
+        String sql = "SELECT book_id,title,author,isbn,category,publisher,price,total_copies,"
                 + "available_copies,location FROM tblBook ORDER BY book_id";
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql);
@@ -63,8 +63,8 @@ public final class AccessLibraryRepository implements LibraryRepository {
     @Override
     public synchronized boolean addBook(Book book) {
         if (book == null || findBook(book.getBookId()) != null) return false;
-        String sql = "INSERT INTO tblBook(book_id,title,author,isbn,category,publisher,total_copies,"
-                + "available_copies,location) VALUES(?,?,?,?,?,?,?,?,?)";
+        String sql = "INSERT INTO tblBook(book_id,title,author,isbn,category,publisher,price,total_copies,"
+                + "available_copies,location) VALUES(?,?,?,?,?,?,?,?,?,?)";
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             writeBook(statement, book);
@@ -171,7 +171,7 @@ public final class AccessLibraryRepository implements LibraryRepository {
     }
 
     private Book findBook(Connection connection, String bookId) throws SQLException {
-        String sql = "SELECT book_id,title,author,isbn,category,publisher,total_copies,"
+        String sql = "SELECT book_id,title,author,isbn,category,publisher,price,total_copies,"
                 + "available_copies,location FROM tblBook WHERE book_id=?";
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, bookId);
@@ -253,7 +253,7 @@ public final class AccessLibraryRepository implements LibraryRepository {
     private static Book readBook(ResultSet results) throws SQLException {
         return new Book(results.getString("book_id"), results.getString("title"),
                 results.getString("author"), text(results, "isbn"), text(results, "category"),
-                text(results, "publisher"), results.getInt("total_copies"),
+                text(results, "publisher"), results.getDouble("price"), results.getInt("total_copies"),
                 results.getInt("available_copies"), text(results, "location"));
     }
 
@@ -273,9 +273,10 @@ public final class AccessLibraryRepository implements LibraryRepository {
         statement.setString(4, book.getIsbn());
         statement.setString(5, book.getCategory());
         statement.setString(6, book.getPublisher());
-        statement.setInt(7, book.getTotalCopies());
-        statement.setInt(8, book.getAvailableCopies());
-        statement.setString(9, book.getLocation());
+        statement.setDouble(7, book.getPrice());
+        statement.setInt(8, book.getTotalCopies());
+        statement.setInt(9, book.getAvailableCopies());
+        statement.setString(10, book.getLocation());
     }
 
     private Connection open() throws SQLException {

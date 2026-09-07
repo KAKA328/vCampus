@@ -34,7 +34,7 @@ class AccessLibraryRepositoryTest {
             statement.execute("CREATE TABLE tblBook ("
                     + "book_id VARCHAR(32) NOT NULL,title VARCHAR(120) NOT NULL,"
                     + "author VARCHAR(100) NOT NULL,isbn VARCHAR(32),category VARCHAR(64),"
-                    + "publisher VARCHAR(100),total_copies INTEGER NOT NULL,"
+                    + "publisher VARCHAR(100),price DOUBLE NOT NULL,total_copies INTEGER NOT NULL,"
                     + "available_copies INTEGER NOT NULL,location VARCHAR(64),PRIMARY KEY (book_id))");
             statement.execute("CREATE TABLE tblBorrowRecord ("
                     + "record_id VARCHAR(40) NOT NULL,order_id VARCHAR(40) NOT NULL,"
@@ -51,9 +51,10 @@ class AccessLibraryRepositoryTest {
     void catalogSearchAndAddArePersisted() {
         assertEquals(1, library.search("Java").getData().size());
         Book book = new Book("B003", "三体", "刘慈欣", "9787536692930",
-                "科幻", "重庆出版社", 3, 3, "B-02");
+                "科幻", "重庆出版社", 39.00d, 3, 3, "B-02");
         assertEquals(StatusCode.OK, library.addBook(book).getStatus());
         assertNotNull(library.getBook("B003").getData());
+        assertEquals(39.00d, library.getBook("B003").getData().getPrice(), 0.001d);
         assertEquals(StatusCode.CONFLICT, library.addBook(book).getStatus());
     }
 
@@ -95,7 +96,7 @@ class AccessLibraryRepositoryTest {
     private static void insertBook(Connection connection, String id, String title, int copies) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement(
                 "INSERT INTO tblBook(book_id,title,author,isbn,category,publisher,total_copies,"
-                        + "available_copies,location) VALUES(?,?,?,?,?,?,?,?,?)")) {
+                        + "available_copies,location,price) VALUES(?,?,?,?,?,?,?,?,?,?)")) {
             statement.setString(1, id);
             statement.setString(2, title);
             statement.setString(3, "测试作者");
@@ -105,6 +106,7 @@ class AccessLibraryRepositoryTest {
             statement.setInt(7, copies);
             statement.setInt(8, copies);
             statement.setString(9, "A-01");
+            statement.setDouble(10, 88.00d);
             statement.executeUpdate();
         }
     }

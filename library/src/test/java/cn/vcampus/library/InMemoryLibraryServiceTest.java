@@ -3,6 +3,7 @@ package cn.vcampus.library;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import cn.vcampus.common.ServiceResult;
@@ -19,12 +20,12 @@ class InMemoryLibraryServiceTest {
         assertEquals(1, service.search("三体").getData().size());
         assertEquals(1, service.search("刘慈欣").getData().size());
         assertEquals(1, service.search("9787020002207").getData().size());
-        assertEquals(2, service.search("计算机").getData().size());
+        assertEquals(5, service.search("计算机").getData().size());
     }
 
     @Test
     void emptyKeywordReturnsWholeCatalog() {
-        assertEquals(5, service.search("").getData().size());
+        assertEquals(10, service.search("").getData().size());
     }
 
     @Test
@@ -32,6 +33,7 @@ class InMemoryLibraryServiceTest {
         Book book = service.getBook("B001").getData();
         assertNotNull(book);
         assertEquals("机械工业出版社", book.getPublisher());
+        assertEquals(129.00d, book.getPrice(), 0.001d);
         assertEquals(StatusCode.NOT_FOUND, service.getBook("NOPE").getStatus());
     }
 
@@ -44,10 +46,31 @@ class InMemoryLibraryServiceTest {
 
     @Test
     void addBookSucceedsAndDuplicateIsRejected() {
-        Book book = new Book("B006", "小王子", "圣埃克苏佩里",
-                "9787020042494", "文学", "人民文学出版社", 1, 1, "B-03");
+        Book book = new Book("B011", "小王子", "圣埃克苏佩里",
+                "9787020042494", "文学", "人民文学出版社", 35.00d, 1, 1, "B-03");
         assertEquals(StatusCode.OK, service.addBook(book).getStatus());
         assertEquals(StatusCode.CONFLICT, service.addBook(book).getStatus());
+    }
+
+    @Test
+    void priceRejectsNegativeOrNonFiniteValues() {
+        assertThrows(IllegalArgumentException.class, () -> new Book("X", "书名", "作者",
+                "", "", "", -0.01d, 1, 1, ""));
+        assertThrows(IllegalArgumentException.class, () -> new Book("X", "书名", "作者",
+                "", "", "", Double.NaN, 1, 1, ""));
+    }
+
+    @Test
+    void interactiveDemoDataIncludesReminderAndCirculationScenarios() {
+        InMemoryLibraryService demo = InMemoryLibraryService.withDemoData();
+        List<BorrowRecord> studentHistory = demo.borrowHistory("demo_student").getData();
+        List<BorrowRecord> teacherHistory = demo.borrowHistory("demo_teacher").getData();
+
+        assertEquals(3, studentHistory.size());
+        assertEquals(1, teacherHistory.size());
+        assertEquals(2, studentHistory.stream().filter(record -> !record.isReturned()).count());
+        assertTrue(studentHistory.stream().anyMatch(BorrowRecord::isReturned));
+        assertTrue(teacherHistory.get(0).getDueDate().isBefore(java.time.LocalDate.now()));
     }
 
     @Test

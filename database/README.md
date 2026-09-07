@@ -76,11 +76,11 @@
 
 ## 图书馆模块表
 
-- `tblBook`：图书目录与库存快照，`available_copies` 必须保持在 `0..total_copies` 范围内。
+- `tblBook`：图书目录、参考价格与库存快照；`price` 以元为单位，可作为后续遗失赔偿核算依据，`available_copies` 必须保持在 `0..total_copies` 范围内。
 - `tblBorrowRecord`：每本书一条借阅流水；批量借阅共享 `order_id`，每条流水拥有独立 `record_id`。
 - `tblBorrowRenew`：为后续续借功能预留，当前业务代码尚未启用。
 
-借阅和归还由服务器在事务中同时更新 `tblBook.available_copies` 与 `tblBorrowRecord`，客户端只提交会话 token 和书号/借阅记录号。全新数据库直接按最新版 `schema.sql` 建表。
+借阅和归还由服务器在事务中同时更新 `tblBook.available_copies` 与 `tblBorrowRecord`，客户端只提交会话 token 和书号/借阅记录号。`seed.sql` 预置 10 种馆藏和 4 条相对当前日期生成的流通记录，覆盖临期、普通借阅、已归还和逾期检查。已有图书馆表若仅缺少价格字段，可执行 `database/migrations/014_library_book_price.up.sql`；完整验收仍推荐按最新脚本重建数据库。
 
 身份字段分工如下：`tblUser.user_id` 是登录身份；`tblStudent.student_id` 是学生学号；`tblTeacher.teacher_id` 是教师工号；`tblStudent.user_id` 和 `tblTeacher.user_id` 是档案与登录账号之间的一对一绑定字段，可为空但绑定后应保持唯一。新建或导入 `STUDENT` / `TEACHER` 账号时，服务端强制要求对应档案已存在、未被占用，并在绑定失败时删除已创建的账号，避免半成功数据。如果账号尚未关联档案，相关页面应提示“暂无对应档案，请联系管理员维护”；学业审查、课程历史和授课关系不能根据账号信息凭空生成。
 
