@@ -49,6 +49,20 @@
 
 ⚠️ 数据库一律按最新 `schema.sql` + `seed.sql` 全新重建：本轮商店钱包改动包含 `tblBankAccount`（`balance_cents` 为 `BIGINT`）与流水表 `tblWalletTransaction`，旧 `.accdb` 不含这些表、与本次改动不兼容，沿用旧库会导致钱包相关功能报错。`database/migrations/` 下的商店迁移（如 `012_store_wallet_transaction`）只各自新建单表，**不构成从旧库平滑升级的完整迁移链**，因此不再提供“已有旧库先执行 `007` / `009`”这类增量迁移指引。
 
+### 商店演示数据（长期测试数据）
+
+`seed.sql` 商店部分预置 **`tblProduct` P001..P105 共 105 种在售商品**（8 个类别：文具 / 零食饮料 / 日用品 / 数码配件 / 体育用品 / 个人护理 / 宿舍生活 / 文创纪念品），并给演示账号预置钱包余额（单位分，1 元 = 100 分）：`demo_student`、`demo_teacher` 各 **10000 元**，`demo_admin` **200 元**，`demo_store_manager` **500 元**；演示订单/购物车仍引用 P001..P003。演示账号与初始密码见仓库根 `README.md`（初始密码统一 `Demo123`）。`AccessDatabaseSchemaTest` 会跑完整 `schema.sql`+`seed.sql` 并断言商品数为 105。
+
+**加「长期测试数据」的两种方式（关键：必须用真实库，别用内存演示模式）**
+1. **能进 seed 的数据放 `seed.sql`**（随仓库可控、重建即回，适合固定商品/账号/余额）；
+2. **运行期动态数据**（用商店管理员/学生 UI 新增的商品、购买产生的订单、钱包变动）要持久，必须让服务器连真实 `.accdb`：
+   ```powershell
+   java -jar server/target/vCampusServer.jar --db database/vCampus.accdb --port 19090
+   ```
+   客户端：`java -jar client/target/vCampusClient.jar --host 127.0.0.1 --port 19090`
+   这样 UI 写入会落在 `database/vCampus.accdb`，**进程退出再重启不丢**。不带 `--db` 启动则走内存演示数据，UI 新增在进程结束即消失——这正是“退出商品就没了”的原因。
+   `AccessDatabaseSchemaTest`（见下）已在临时目录完整验证：全新 `.accdb` = 按序执行 `schema.sql` → `seed.sql` 得到。
+
 ## 图书馆模块表
 
 - `tblBook`：图书目录与库存快照，`available_copies` 必须保持在 `0..total_copies` 范围内。

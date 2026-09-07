@@ -34,7 +34,7 @@ class AccessDatabaseSchemaTest {
         assertEquals(6, count(database, "tblUser"));
         assertEquals(1, countWhere(database, "tblStudent", "student_id", "demo_student"));
         assertEquals(1, countWhere(database, "tblTeacher", "teacher_id", "demo_teacher"));
-        assertEquals(5, count(database, "tblProduct"));
+        assertEquals(105, count(database, "tblProduct"));
         assertTrue(Files.exists(database));
     }
 
