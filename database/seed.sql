@@ -40,6 +40,14 @@ VALUES ('demo_teacher', 'demo_teacher', 'Demo Teacher', '计算机科学与工�
 INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, term, schedule, location, required_capacity, elective_capacity, cross_major_capacity, status)
 VALUES ('offering-java-2025a', 'JAVA101', 'demo_teacher', '2025-2026-1', '周一第1-2节', '教学楼A201', 35, 0, 5, 'OPEN');
 
+-- 容量占用辅助表只记录当前已选人数；新建教学班的三个容量池均从 0 开始。
+INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count)
+VALUES ('offering-java-2025a', 'REQUIRED', 0);
+INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count)
+VALUES ('offering-java-2025a', 'ELECTIVE', 0);
+INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count)
+VALUES ('offering-java-2025a', 'CROSS_MAJOR', 0);
+
 INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, location)
 VALUES ('offering-java-2025a', 1, 1, 2, '教学楼A201');
 

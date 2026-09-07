@@ -70,6 +70,18 @@ class AccessCourseOfferingServiceTest {
     }
 
     @Test
+    void listsOnlyOfferingsAssignedToTeacherInRequestedTerm() {
+        service.create(offering("OFFER-001", CourseOfferingStatus.OPEN));
+        service.create(offering("OFFER-002", "CS101", "T002", CourseOfferingStatus.OPEN));
+
+        ServiceResult<List<CourseOffering>> assigned = service.listByTeacher("T001", TERM);
+
+        assertEquals(StatusCode.OK, assigned.getStatus());
+        assertEquals(1, assigned.getData().size());
+        assertEquals("OFFER-001", assigned.getData().get(0).getOfferingId());
+    }
+
+    @Test
     void updatesTeacherLocationStatusAndIncreasingCapacity() {
         service.create(offering("OFFER-001", CourseOfferingStatus.DRAFT));
 
@@ -169,6 +181,12 @@ class AccessCourseOfferingServiceTest {
                 + "round_id VARCHAR(36) NOT NULL,selection_type VARCHAR(16) NOT NULL,"
                 + "selected_at DATETIME NOT NULL,status VARCHAR(16) NOT NULL,dropped_at DATETIME,"
                 + "PRIMARY KEY (selection_id))");
+        statement.execute("CREATE TABLE tblActiveCourseSelection ("
+                + "student_id VARCHAR(32) NOT NULL,offering_id VARCHAR(36) NOT NULL,"
+                + "PRIMARY KEY (student_id,offering_id))");
+        statement.execute("CREATE TABLE tblCourseOfferingCapacityUsage ("
+                + "offering_id VARCHAR(36) NOT NULL,capacity_bucket VARCHAR(16) NOT NULL,"
+                + "used_count INTEGER NOT NULL,PRIMARY KEY (offering_id,capacity_bucket))");
     }
 
     private static void createCurrentMeetingTable(Statement statement) throws Exception {

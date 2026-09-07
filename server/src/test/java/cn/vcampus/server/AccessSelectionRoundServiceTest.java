@@ -14,6 +14,10 @@ import java.sql.DriverManager;
 import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -42,6 +46,9 @@ class AccessSelectionRoundServiceTest {
                     + "ends_at DATETIME NOT NULL,"
                     + "status VARCHAR(16) NOT NULL,"
                     + "PRIMARY KEY (round_id))");
+            statement.execute("CREATE TABLE tblSelectionRoundKey ("
+                    + "term VARCHAR(32) NOT NULL,round_type VARCHAR(16) NOT NULL,"
+                    + "PRIMARY KEY (term,round_type))");
         }
         service = new AccessSelectionRoundService(database);
     }
@@ -74,6 +81,41 @@ class AccessSelectionRoundServiceTest {
                 SelectionRoundType.INITIAL, SelectionRoundStatus.DRAFT));
 
         assertEquals(StatusCode.CONFLICT, result.getStatus());
+    }
+
+    @Test
+    void databaseUniqueIndexRejectsConcurrentSameTermAndType() throws Exception {
+        AccessSelectionRoundService secondService = new AccessSelectionRoundService(
+                temporaryDirectory.resolve("selection-round-test.accdb"));
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            Future<ServiceResult<SelectionRound>> first = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return service.create(round("ROUND-INITIAL-1", SelectionRoundType.INITIAL,
+                        SelectionRoundStatus.DRAFT));
+            });
+            Future<ServiceResult<SelectionRound>> second = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return secondService.create(round("ROUND-INITIAL-2", SelectionRoundType.INITIAL,
+                        SelectionRoundStatus.DRAFT));
+            });
+            ready.await();
+            start.countDown();
+            ServiceResult<SelectionRound> firstResult = first.get();
+            ServiceResult<SelectionRound> secondResult = second.get();
+            int successCount = (firstResult.getStatus() == StatusCode.OK ? 1 : 0)
+                    + (secondResult.getStatus() == StatusCode.OK ? 1 : 0);
+            int conflictCount = (firstResult.getStatus() == StatusCode.CONFLICT ? 1 : 0)
+                    + (secondResult.getStatus() == StatusCode.CONFLICT ? 1 : 0);
+            assertEquals(1, successCount);
+            assertEquals(1, conflictCount);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @Test
