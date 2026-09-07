@@ -173,3 +173,5 @@ ACADEMIC_ADMIN_V1 提供全部学生/教师目录、学生历史/学分、审查
 StudentManagementService新增服务端内部`updateContacts(userId, expected, phone, email)`与`saveIfUnchanged(record, expected)`。STUDENT_UPDATE命令格式保持原状；学生更新只写联系方式，教务更新在存储层核对预期档案。更新期间档案已变化则返回CONFLICT，需刷新重试；新建学生仅INSERT，不覆盖并发出现的同学号档案。详见ACADEMIC_ADMIN_GRADUATION_INTEGRATION.md。
 
 教师本人协议先检查USER_SELF_READ统一授权，强制改密期间不能读取业务档案。
+
+教务REVIEW/GRADUATE的note现为可选审查说明，允许null、空串和纯空白，统一保存为空文本；非空仍限255字。无须变更表结构，毕业条件确认仍必需。
