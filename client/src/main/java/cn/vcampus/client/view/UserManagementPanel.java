@@ -12,6 +12,7 @@ import cn.vcampus.user.UserImportResult;
 import cn.vcampus.user.UserImportRow;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.CardLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -57,7 +58,7 @@ final class UserManagementPanel extends JPanel {
     private final JButton disableAccountButton = new JButton("停用账号");
     private final JButton unregisterAccountButton = new JButton("注销账号");
     private final DefaultTableModel resetTableModel = new DefaultTableModel(
-            new Object[]{"账号", "申请时间", "状态"}, 0) {
+            new Object[]{"账号", "姓名", "角色", "档案编号", "申请原因", "联系方式", "申请时间", "状态"}, 0) {
         @Override public boolean isCellEditable(int row, int column) { return false; }
     };
     private final JTable resetTable = new JTable(resetTableModel);
@@ -70,8 +71,8 @@ final class UserManagementPanel extends JPanel {
         @Override public boolean isCellEditable(int row, int column) { return false; }
     };
     private final JTable auditTable = new JTable(auditTableModel);
-    private final JLabel auditStatus = new JLabel("刷新后查看账号管理审计记录。");
-    private final JButton refreshAuditButton = new JButton("刷新审计记录");
+    private final JLabel auditStatus = new JLabel("刷新后查看账号管理操作日志。");
+    private final JButton refreshAuditButton = new JButton("刷新操作日志");
     private final UserImportFileReader fileReader = new UserImportFileReader();
     private boolean requestInProgress;
 
@@ -116,7 +117,7 @@ final class UserManagementPanel extends JPanel {
         JLabel title = new JLabel("用户管理");
         title.setFont(VCampusTheme.font(Font.BOLD, 24));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        JLabel subtitle = new JLabel("创建账号、从文件批量导入账号，并留下导入人和审计记录。");
+        JLabel subtitle = new JLabel("创建账号、从文件批量导入账号，并留下导入人和操作日志。");
         subtitle.setForeground(VCampusTheme.MUTED);
         panel.add(title, BorderLayout.NORTH);
         panel.add(subtitle, BorderLayout.SOUTH);
@@ -127,25 +128,54 @@ final class UserManagementPanel extends JPanel {
         JPanel panel = new ScrollablePagePanel(new BorderLayout(0, 0));
         panel.setOpaque(false);
 
-        ResponsiveCardRowPanel accountActions = new ResponsiveCardRowPanel(300, 18);
-        accountActions.add(singleAccountCard());
-        accountActions.add(importCard());
+        CardLayout layout = new CardLayout();
+        JPanel views = new JPanel(layout);
+        views.setOpaque(false);
+        views.setMinimumSize(new Dimension(680, 420));
+        views.setPreferredSize(new Dimension(900, 460));
+        views.add(managementHome(), "home");
+        views.add(singleAccountCard(), "create");
+        views.add(importCard(), "import");
+        views.add(accountListCard(), "accounts");
+        views.add(passwordResetCard(), "resets");
+        views.add(auditCard(), "audit");
 
-        ResponsiveCardRowPanel lowerCards = new ResponsiveCardRowPanel(300, 18);
-        lowerCards.add(passwordResetCard());
-        lowerCards.add(auditCard());
-
-        JPanel stack = new JPanel();
-        stack.setOpaque(false);
-        stack.setLayout(new BoxLayout(stack, BoxLayout.Y_AXIS));
-        stack.add(accountActions);
-        stack.add(Box.createVerticalStrut(18));
-        stack.add(accountListCard());
-        stack.add(Box.createVerticalStrut(18));
-        stack.add(lowerCards);
-
-        panel.add(stack, BorderLayout.CENTER);
+        panel.add(managementNavigation(layout, views), BorderLayout.NORTH);
+        panel.add(views, BorderLayout.CENTER);
         return panel;
+    }
+
+    private JPanel managementNavigation(CardLayout layout, JPanel views) {
+        JPanel bar = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, 8, 4));
+        bar.setOpaque(false);
+        bar.setBorder(VCampusTheme.padding(0, 0, 14, 0));
+        addViewButton(bar, "功能首页", () -> layout.show(views, "home"));
+        addViewButton(bar, "创建账号", () -> layout.show(views, "create"));
+        addViewButton(bar, "批量导入", () -> layout.show(views, "import"));
+        addViewButton(bar, "账号管理", () -> { layout.show(views, "accounts"); loadAccounts(); });
+        addViewButton(bar, "密码重置", () -> { layout.show(views, "resets"); loadPasswordResetApplications(); });
+        addViewButton(bar, "操作日志", () -> { layout.show(views, "audit"); loadAuditEvents(); });
+        return bar;
+    }
+
+    private void addViewButton(JPanel bar, String label, Runnable action) {
+        JButton button = new JButton(label);
+        VCampusTheme.secondaryButton(button);
+        button.addActionListener(event -> action.run());
+        bar.add(button);
+    }
+
+    private JPanel managementHome() {
+        JPanel home = new JPanel(new BorderLayout(0, 14));
+        VCampusTheme.panel(home);
+        JLabel title = new JLabel("选择管理功能");
+        title.setFont(VCampusTheme.font(Font.BOLD, 20));
+        title.setForeground(VCampusTheme.PRIMARY_DARK);
+        JLabel hint = new JLabel("<html>通过上方入口创建或导入账号、维护账号状态、审批密码重置，或查看操作日志。</html>");
+        hint.setForeground(VCampusTheme.MUTED);
+        home.add(title, BorderLayout.NORTH);
+        home.add(hint, BorderLayout.CENTER);
+        return home;
     }
 
     private JPanel singleAccountCard() {
@@ -271,7 +301,7 @@ final class UserManagementPanel extends JPanel {
         card.setPreferredSize(new Dimension(0, 260));
         card.setMinimumSize(new Dimension(0, 220));
 
-        JLabel title = new JLabel("审计记录");
+        JLabel title = new JLabel("操作日志");
         title.setFont(VCampusTheme.font(Font.BOLD, 18));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
 
@@ -321,9 +351,14 @@ final class UserManagementPanel extends JPanel {
         VCampusTheme.table(resetTable);
         resetTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         resetTable.getSelectionModel().addListSelectionListener(event -> updateButtonState());
-        resetTable.getColumnModel().getColumn(0).setPreferredWidth(90);
-        resetTable.getColumnModel().getColumn(1).setPreferredWidth(150);
-        resetTable.getColumnModel().getColumn(2).setPreferredWidth(70);
+        resetTable.getColumnModel().getColumn(0).setPreferredWidth(100);
+        resetTable.getColumnModel().getColumn(1).setPreferredWidth(110);
+        resetTable.getColumnModel().getColumn(2).setPreferredWidth(100);
+        resetTable.getColumnModel().getColumn(3).setPreferredWidth(110);
+        resetTable.getColumnModel().getColumn(4).setPreferredWidth(160);
+        resetTable.getColumnModel().getColumn(5).setPreferredWidth(130);
+        resetTable.getColumnModel().getColumn(6).setPreferredWidth(160);
+        resetTable.getColumnModel().getColumn(7).setPreferredWidth(70);
     }
 
     private void configureAuditTable() {
@@ -561,7 +596,7 @@ final class UserManagementPanel extends JPanel {
     private void loadAuditEvents() {
         requestInProgress = true;
         updateButtonState();
-        showAuditStatus("正在刷新审计记录…", VCampusTheme.MUTED);
+        showAuditStatus("正在刷新操作日志…", VCampusTheme.MUTED);
 
         new SwingWorker<Message, Void>() {
             @Override protected Message doInBackground() throws Exception {
@@ -589,7 +624,7 @@ final class UserManagementPanel extends JPanel {
             return;
         }
         if (!(response.getPayload() instanceof List<?>)) {
-            showAuditStatus("服务器返回的审计记录格式不正确", VCampusTheme.DANGER);
+            showAuditStatus("服务器返回的操作日志格式不正确", VCampusTheme.DANGER);
             return;
         }
         auditTableModel.setRowCount(0);
@@ -602,7 +637,7 @@ final class UserManagementPanel extends JPanel {
                         event.getTargetType() + ":" + event.getTargetId()});
             }
         }
-        showAuditStatus("审计记录共 " + auditTableModel.getRowCount() + " 条", VCampusTheme.SUCCESS);
+        showAuditStatus("操作日志共 " + auditTableModel.getRowCount() + " 条", VCampusTheme.SUCCESS);
     }
 
     private String selectedAccountUserId() {
@@ -652,8 +687,10 @@ final class UserManagementPanel extends JPanel {
         for (Object row : rows) {
             if (row instanceof PasswordResetApplicationSummary) {
                 PasswordResetApplicationSummary summary = (PasswordResetApplicationSummary) row;
-                resetTableModel.addRow(new Object[]{
-                        summary.getUserId(), String.valueOf(summary.getSubmittedAt()), summary.getStatus().name()});
+                resetTableModel.addRow(new Object[]{summary.getUserId(), summary.getDisplayName(),
+                        summary.getRoleCode(), summary.getProfileId(), summary.getReason(),
+                        summary.getContactInfo(), String.valueOf(summary.getSubmittedAt()),
+                        summary.getStatus().name()});
             }
         }
         showResetStatus("待审批申请 " + resetTableModel.getRowCount() + " 条", VCampusTheme.SUCCESS);

@@ -191,6 +191,9 @@ public final class DefaultUserManagementService implements UserManagementService
         if (account == null || !account.isActive()) {
             return ServiceResult.failure(StatusCode.NOT_FOUND, "user not found");
         }
+        if (passwordResets.findPendingByUserId(command.getUserId()) != null) {
+            return ServiceResult.failure(StatusCode.CONFLICT, "password reset request already pending");
+        }
         Instant submittedAt = Instant.now();
         PasswordResetApplication application = new PasswordResetApplication(
                 command.getUserId(), command.getReason(), command.getContactInfo(), submittedAt,

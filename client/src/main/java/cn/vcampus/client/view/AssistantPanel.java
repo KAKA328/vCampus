@@ -52,7 +52,7 @@ final class AssistantPanel extends JPanel {
         add(avatarRow, BorderLayout.SOUTH);
         card = card(role);
         add(card, BorderLayout.CENTER);
-        setPreferredSize(new Dimension(340, 420));
+        setPreferredSize(new Dimension(305, 315));
     }
 
     void resizeForWindow(int width, int height) {
@@ -61,16 +61,16 @@ final class AssistantPanel extends JPanel {
         java.net.URL url = AssistantPanel.class.getResource("/assistant/assistant-idle.png");
         if (url != null) avatar.setIcon(new ImageIcon(new ImageIcon(url).getImage()
                 .getScaledInstance(size - 10, size - 10, java.awt.Image.SCALE_SMOOTH)));
-        int cardWidth = Math.max(300, Math.min(390, width / 3));
-        card.setPreferredSize(new Dimension(cardWidth, 330));
-        setPreferredSize(new Dimension(cardWidth + 10, size + 368));
+        int cardWidth = Math.max(280, Math.min(330, width / 4));
+        card.setPreferredSize(new Dimension(cardWidth, 235));
+        setPreferredSize(new Dimension(cardWidth + 10, size + 273));
         revalidate();
     }
 
     private JPanel card(Role role) {
         JPanel card = new JPanel(new BorderLayout(0, 8));
         VCampusTheme.panel(card);
-        card.setPreferredSize(new Dimension(330, 330));
+        card.setPreferredSize(new Dimension(300, 235));
         card.setVisible(false);
         JLabel title = new JLabel("校园助手 · " + role.name());
         title.setFont(VCampusTheme.font(Font.BOLD, 15));
@@ -90,7 +90,7 @@ final class AssistantPanel extends JPanel {
         answers.setOpaque(false);
         answers.setLayout(new BoxLayout(answers, BoxLayout.Y_AXIS));
         JScrollPane scroll = VCampusTheme.pageScroll(answers);
-        scroll.setPreferredSize(new Dimension(290, 195));
+        scroll.setPreferredSize(new Dimension(260, 105));
         scroll.setBorder(BorderFactory.createEmptyBorder());
         card.add(scroll, BorderLayout.CENTER);
 
@@ -100,7 +100,7 @@ final class AssistantPanel extends JPanel {
         VCampusTheme.field(question);
         JButton ask = new JButton("提问");
         VCampusTheme.primaryButton(ask);
-        ask.setPreferredSize(new Dimension(72, 42));
+        ask.setPreferredSize(new Dimension(62, 38));
         ask.addActionListener(e -> answer(question.getText()));
         question.addActionListener(e -> answer(question.getText()));
         input.add(question, BorderLayout.CENTER);
@@ -170,7 +170,11 @@ final class AssistantPanel extends JPanel {
             JButton open = new JButton("打开“" + module.getTitle() + "”");
             VCampusTheme.primaryButton(open);
             open.setAlignmentX(LEFT_ALIGNMENT);
-            open.addActionListener(e -> { openModule.accept(module); collapse(); });
+            open.addActionListener(e -> {
+                openModule.accept(module);
+                resetConversation();
+                collapse();
+            });
             answers.add(open);
         }
         answers.revalidate();
@@ -195,5 +199,13 @@ final class AssistantPanel extends JPanel {
         card.setVisible(false);
         revalidate();
         repaint();
+    }
+
+    private void resetConversation() {
+        introduced = false;
+        question.setText("");
+        answers.removeAll();
+        answers.revalidate();
+        answers.repaint();
     }
 }

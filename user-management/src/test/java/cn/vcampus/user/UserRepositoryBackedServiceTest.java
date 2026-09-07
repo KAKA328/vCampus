@@ -405,4 +405,19 @@ class UserRepositoryBackedServiceTest {
         assertEquals(StatusCode.OK, service.logout(studentSession.getToken()).getStatus());
         assertEquals(StatusCode.OK, service.login(student).getStatus());
     }
+
+    @Test
+    void duplicatePendingPasswordResetRequestIsRejected() {
+        InMemoryUserRepository users = new InMemoryUserRepository();
+        DefaultUserManagementService service = new DefaultUserManagementService(
+                users, new SessionManager(), new InMemoryAuditLogRepository(),
+                new InMemoryPasswordResetApplicationRepository());
+        assertEquals(StatusCode.OK, service.register(new UserCredentials(
+                "reset_duplicate", "Old123", "重复申请用户", Role.STUDENT.name())).getStatus());
+
+        assertEquals(StatusCode.OK, service.requestPasswordReset(
+                new PasswordResetRequestCommand("reset_duplicate", "忘记密码", "13800000000")).getStatus());
+        assertEquals(StatusCode.CONFLICT, service.requestPasswordReset(
+                new PasswordResetRequestCommand("reset_duplicate", "再次申请", "13800000000")).getStatus());
+    }
 }
