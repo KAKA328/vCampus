@@ -7,11 +7,15 @@
 | 用户管理 | `UserManagementService` | `register`、`importUsers`、`unregister`、`login`、`currentSession`、`logout`、`authorize`；`register` 作为管理员端开户注册能力，批量导入使用 `USER_IMPORT`，载荷见 `UserCredentials`、`UserImportCommand`、`UserCommand`、`AuthorizationRequest` |
 | 学生学籍 | `StudentManagementService` | `findById`、`findByUserId`、`findMyStudentProfile`、`findByClass`、`findByMajor`、`findByIds`、`save` |
 | 教师档案 | `TeacherProfileService` | `findById`、`findByUserId`、`save`；提供教师工号、账号绑定、院系、职称和在职状态 |
-| 学业审查 | `AcademicReviewService` | `historyFor`、`pendingRetakes`、`review`、`latestReview` |
-| 选课 | `CourseSelectionService` | 完整选课流程使用 V2 消息：查询轮次/教学班/已选记录、按教学班选课、按选课记录退选；课程维护消息见下文 |
+| 学业审查 | `AcademicReviewService`、`CourseResultRecordingService` | 前者读取历史、待重修和学业审查；后者由教务审核流程批量写入正式成绩并计算下一次尝试序号 |
+| 选课 | `CourseSelectionService`、`GradeSubmissionService` | 完整选课流程使用 V2 消息：查询轮次/教学班/已选记录、按教学班选课、按选课记录退选；成绩草稿与课程维护能力见下文 |
+| 图书馆 | `LibraryService` | `search`/分类筛选、`getBook`、原子 `borrowBatch`、按记录 `returnBook`、本人/全量 `borrowHistory`、`addBook` |
 | 商店 | `StoreService` | 商品查询/分类、购买、购物车（含改数量与明细联表）、钱包（含余额与流水审计）、本人/全量订单、热销排行和商品维护；商店消息使用 token-only 命令，用户编号由服务器会话解析 |
 
 所有服务方法返回 `ServiceResult<T>`，由服务器统一映射为 `Message` 响应。服务端必须再次校验会话和权限。
+
+`GradeSubmissionService` 当前负责保存一门教学班的一份成绩草稿和其中的学生成绩：
+`createDraft`、`findById`、`findByOffering`、`listEntries`、`findLatestReviewSnapshot`、`listAudit`、`saveDraftEntry`、`submitForReview`、`review`。每个教学班最多一份提交单；教师修改的是工作草稿。每次 `submitForReview` 会冻结一份递增版本的不可变快照，教务只读取最新快照；待审核期间继续修改草稿不会改变正在审核的版本，教师再次提交后才形成新的审核版本。审核通过和退回已通过成绩均由服务器的成绩审批工作流统一处理，并会校验快照版本，旧版本不能被误审核。在 Access 模式中，写入 `tblCourseResult` 的所有正式成绩与将成绩单改为 `APPROVED` 使用同一数据库事务；退回已通过成绩时，工作流又会按 `tblGradeSubmissionResult` 关联撤销这些正式成绩并改为 `RETURNED`。每次提交、通过或退回都会写入 `tblGradeSubmissionAudit`，用于追溯操作人、时间和备注。任一步失败即全部回滚，重复审核返回冲突，供学籍审查和重修判断读取。
 
 ## 学籍与选课对接接口
 
@@ -82,8 +86,18 @@ StudentManagementService.findByIds(List<String> studentIds)
 - `COURSE_SELECTION_QUERY_V2` + `CourseSelectionQueryV2Command(token, roundId?)`：查询可用选课轮次、指定轮次的教学班、本人已选教学班；
 - `COURSE_SELECT_OFFERING_V2` + `CourseSelectOfferingV2Command(token, roundId, offeringId)`：在指定轮次选择具体教学班；
 - `COURSE_DROP_RECORD_V2` + `CourseDropRecordV2Command(token, recordId)`：按选课记录编号退选。
+- `COURSE_TEACHING_QUERY_V2` + `CourseTeachingQueryV2Command`：教师查询本人某学期教学班，或查询本人指定教学班的有效学生名单。`MY_OFFERINGS` 返回 `List<TeachingOffering>`，`OFFERING_ROSTER` 返回 `TeachingRoster`；名单项目含学号、姓名、专业、班级和 `SelectionType`（可区分必修、选修、跨专业选修、重修）。
+- `COURSE_GRADE_DRAFT_V2` + `CourseGradeDraftV2Command`：教师打开本人教学班的成绩草稿（`OPEN_DRAFT`）、保存/覆盖一名有效选课学生的 0–100 分成绩（`SAVE_ENTRY`），或在全班成绩完整时提交审核（`SUBMIT_FOR_REVIEW`）。返回 `TeachingGradeDraft`，其中包含有效名单、当前提交单和已保存的成绩条目。
+- `COURSE_GRADE_IMPORT_V2` + `CourseGradeImportV2Command(token, offeringId, fileName, content)`：教师向本人教学班导入 CSV、XLS 或 XLSX 成绩文件。文件第一行必须包含 `学号`、`成绩`，成绩为 0–100 整数；服务器只接受当前有效选课学生，所有行验证通过后才原子写入草稿。成功返回 `GradeImportResult`（导入行数和最新草稿）。
+- `COURSE_GRADE_REVIEW_V2` + `CourseGradeReviewV2Command`：教务老师查询待审核成绩单（`LIST_PENDING`）、查看完整名单与分数（`VIEW_DETAIL`）、查看流转审计（`VIEW_AUDIT`）、审核通过（`APPROVE`）或退回（`RETURN`）。退回必须提供原因；待审核成绩会直接退回，已通过成绩会先原子撤销对应正式成绩后再退回，任课教师即可修改并重新提交。
 
 客户端不提交 `studentId` 作为本人身份，服务端必须根据 `token -> user_id -> student_id` 推导学生档案；退选使用已选记录的 `recordId`。
+
+教师教学班查询和成绩草稿接口仅接受 `TEACHER` 角色且要求 `GRADE_WRITE` 权限。服务器从 `token -> user_id -> tblTeacher.teacher_id` 定位教师，教师不能在命令中传入或伪造 `teacherId`；查询名单时还会校验教学班确实归该教师，并且只返回 `ACTIVE` 选课记录。保存成绩时，学生是否属于该教学班及其 `SelectionType` 也完全由服务器按有效选课记录确定，客户端不传提交单编号或选课类别。提交审核前，系统会确认每名有效选课学生均已有成绩；提交后状态为 `PENDING_REVIEW` 并冻结审核快照。教师仍可修改工作草稿，但教务继续读取原快照；教师再次提交后才会生成新版本并替换待审核目标。只有 `APPROVED` 成绩必须先被教务退回后才能修改。
+
+教师成绩导入文件最大为 5 MB；CSV 使用 UTF-8 和英文逗号分隔，XLS/XLSX 只读取第一个工作表。空行会忽略，但学号或成绩缺失、重复学号、公式单元格、非整数成绩或不属于本班的学生会使整个文件失败，且不会保存任何一行。文件允许分批导入；最终提交审核时仍必须覆盖全部有效选课学生。
+
+成绩审核接口仅接受 `ACADEMIC_ADMIN` 或 `ADMIN` 角色且要求 `ACADEMIC_REVIEW` 权限。审核通过时，服务器按教学班课程、学期、选课类别和分数构造正式成绩：分数不少于 60 为通过并取得该课程学分，重修记录标记为“重修”，其余为“首修”；尝试次数从该学生该课程已有正式成绩的最大次数递增。教务可以退回待审核或已通过成绩；后一种情况会撤销该成绩单生成的正式成绩，学生学业审查将不再读取旧成绩。待审核草稿本身永不被学籍模块当作成绩依据。
 
 教务人员维护课程目录、教学班和选课轮次统一使用 `COURSE_MANAGE` 与
 `CourseManagementCommand`，服务端要求 `COURSE_MANAGE` 权限。选课轮次相关操作为：
@@ -159,3 +173,5 @@ ACADEMIC_ADMIN_V1 提供全部学生/教师目录、学生历史/学分、审查
 StudentManagementService新增服务端内部`updateContacts(userId, expected, phone, email)`与`saveIfUnchanged(record, expected)`。STUDENT_UPDATE命令格式保持原状；学生更新只写联系方式，教务更新在存储层核对预期档案。更新期间档案已变化则返回CONFLICT，需刷新重试；新建学生仅INSERT，不覆盖并发出现的同学号档案。详见ACADEMIC_ADMIN_GRADUATION_INTEGRATION.md。
 
 教师本人协议先检查USER_SELF_READ统一授权，强制改密期间不能读取业务档案。
+
+教务REVIEW/GRADUATE的note现为可选审查说明，允许null、空串和纯空白，统一保存为空文本；非空仍限255字。无须变更表结构，毕业条件确认仍必需。

@@ -112,6 +112,25 @@ public final class InMemoryCourseOfferingService implements CourseOfferingServic
     }
 
     @Override
+    public synchronized ServiceResult<List<CourseOffering>> listByTeacher(String teacherId,
+            String term) {
+        String normalizedTeacherId = normalize(teacherId);
+        String normalizedTerm = normalize(term);
+        if (normalizedTeacherId == null || normalizedTerm == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "teacherId and term must not be blank");
+        }
+        List<CourseOffering> offerings = new ArrayList<CourseOffering>();
+        for (CourseOffering offering : offeringsById.values()) {
+            if (normalizedTeacherId.equals(offering.getTeacherId())
+                    && normalizedTerm.equals(offering.getTerm())) {
+                offerings.add(offering);
+            }
+        }
+        return ServiceResult.ok(Collections.unmodifiableList(offerings));
+    }
+
+    @Override
     public synchronized ServiceResult<List<CourseOffering>> listByCourse(String courseId,
             String term) {
         return listByCourseAndStatus(courseId, term, null);

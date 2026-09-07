@@ -20,6 +20,8 @@ import java.util.List;
 
 /** Access 持久化的选课轮次服务，供教务人员维护并供学生选课流程读取。 */
 public final class AccessSelectionRoundService implements SelectionRoundService {
+    private static final Object WRITE_LOCK = new Object();
+
     private final Path databasePath;
 
     public AccessSelectionRoundService(Path databasePath) {
@@ -30,7 +32,13 @@ public final class AccessSelectionRoundService implements SelectionRoundService 
     }
 
     @Override
-    public synchronized ServiceResult<SelectionRound> create(SelectionRound round) {
+    public ServiceResult<SelectionRound> create(SelectionRound round) {
+        synchronized (WRITE_LOCK) {
+            return createWithLock(round);
+        }
+    }
+
+    private ServiceResult<SelectionRound> createWithLock(SelectionRound round) {
         if (round == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "round must not be null");
         }
@@ -52,9 +60,17 @@ public final class AccessSelectionRoundService implements SelectionRoundService 
                 + "VALUES(?,?,?,?,?,?)";
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
-            writeRound(statement, round);
-            statement.executeUpdate();
-            return ServiceResult.ok(round);
+            connection.setAutoCommit(false);
+            try {
+                reserveRoundKey(connection, round);
+                writeRound(statement, round);
+                statement.executeUpdate();
+                connection.commit();
+                return ServiceResult.ok(round);
+            } catch (SQLException failure) {
+                rollbackQuietly(connection);
+                return databaseFailure(failure);
+            }
         } catch (SQLException failure) {
             return databaseFailure(failure);
         }
@@ -119,6 +135,13 @@ public final class AccessSelectionRoundService implements SelectionRoundService 
     @Override
     public ServiceResult<SelectionRound> updateTimeWindow(String roundId, LocalDateTime startsAt,
             LocalDateTime endsAt) {
+        synchronized (WRITE_LOCK) {
+            return updateTimeWindowWithLock(roundId, startsAt, endsAt);
+        }
+    }
+
+    private ServiceResult<SelectionRound> updateTimeWindowWithLock(String roundId, LocalDateTime startsAt,
+            LocalDateTime endsAt) {
         String normalizedRoundId = normalize(roundId);
         if (normalizedRoundId == null || startsAt == null || endsAt == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST,
@@ -148,6 +171,13 @@ public final class AccessSelectionRoundService implements SelectionRoundService 
 
     @Override
     public ServiceResult<SelectionRound> changeStatus(String roundId, SelectionRoundStatus status) {
+        synchronized (WRITE_LOCK) {
+            return changeStatusWithLock(roundId, status);
+        }
+    }
+
+    private ServiceResult<SelectionRound> changeStatusWithLock(String roundId,
+            SelectionRoundStatus status) {
         String normalizedRoundId = normalize(roundId);
         if (normalizedRoundId == null || status == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST,
@@ -193,6 +223,21 @@ public final class AccessSelectionRoundService implements SelectionRoundService 
         statement.setString(6, round.getStatus().name());
     }
 
+    /**
+     * 用复合主键辅助表保证同一学期、同一轮次类型只能创建一次。
+     * UCanAccess 4.0.4 不支持 CREATE UNIQUE INDEX，因此不能只依赖查询判断。
+     * 写操作在同一 JVM 内串行化，用于避开 UCanAccess 并发打开/关闭同一文件时的内部死锁。
+     */
+    private static void reserveRoundKey(Connection connection, SelectionRound round)
+            throws SQLException {
+        String sql = "INSERT INTO tblSelectionRoundKey(term,round_type) VALUES(?,?)";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, round.getTerm());
+            statement.setString(2, round.getType().name());
+            statement.executeUpdate();
+        }
+    }
+
     private static SelectionRound readRound(ResultSet results) throws SQLException {
         return new SelectionRound(results.getString("round_id"), results.getString("term"),
                 SelectionRoundType.valueOf(results.getString("round_type")),
@@ -213,7 +258,34 @@ public final class AccessSelectionRoundService implements SelectionRoundService 
     }
 
     private static <T> ServiceResult<T> databaseFailure(SQLException failure) {
+        if (isConstraintViolation(failure)) {
+            return ServiceResult.failure(StatusCode.CONFLICT,
+                    "selection round conflicts with existing term and type");
+        }
         return ServiceResult.failure(StatusCode.SERVER_ERROR,
                 "selection round database operation failed: " + failure.getMessage());
+    }
+
+    private static void rollbackQuietly(Connection connection) {
+        try {
+            connection.rollback();
+        } catch (SQLException ignored) {
+            // 原始数据库错误会由调用方转换为本次请求的失败结果。
+        }
+    }
+
+    /** UCanAccess 会包装唯一索引异常，沿异常链识别后统一返回业务冲突。 */
+    private static boolean isConstraintViolation(SQLException failure) {
+        for (SQLException current = failure; current != null; current = current.getNextException()) {
+            String message = current.getMessage();
+            if (message != null) {
+                String normalized = message.toLowerCase(java.util.Locale.ROOT);
+                if (normalized.contains("unique") || normalized.contains("duplicate")
+                        || normalized.contains("primary key") || normalized.contains("constraint")) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

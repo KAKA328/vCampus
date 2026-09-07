@@ -103,6 +103,21 @@ class AcademicAdministrationTest {
         assertThrows(IllegalArgumentException.class, () -> new AcademicAdminCommandV1(admin, Action.GRADUATE,
                 "S001", 0, "id", "依据", false));
     }
+    @Test void blankNotesAreOptionalButLengthAndGraduationConfirmationAreStillEnforced() {
+        for (String note : new String[] {null, "", "   "}) {
+            Message saved = send(new AcademicAdminCommandV1(admin, Action.REVIEW, "S001", 3, null, note, false));
+            assertEquals(StatusCode.OK, saved.getStatusCode());
+            assertEquals("", ((AcademicAssessment) saved.getPayload()).getBasis());
+        }
+        AcademicAssessment latest = (AcademicAssessment) ((List<?>) send(command(admin,
+                Action.ASSESSMENTS, "S001", 0, null)).getPayload()).get(0);
+        Message graduated = send(new AcademicAdminCommandV1(admin, Action.GRADUATE,
+                "S001", 0, latest.getId(), "", true));
+        assertEquals(StatusCode.OK, graduated.getStatusCode());
+        assertEquals("", ((AcademicAssessment) graduated.getPayload()).getGraduationNote());
+        assertThrows(IllegalArgumentException.class, () -> new AcademicAdminCommandV1(admin, Action.REVIEW,
+                "S001", 3, null, String.join("", Collections.nCopies(256, "字")), false));
+    }
     @Test void deserializedUnconfirmedGraduationCannotBypassValidation() throws Exception {
         AcademicAdminCommandV1 command = command(admin, Action.GRADUATE, "S001", 0, review(3).getId());
         java.lang.reflect.Field field = command.getClass().getDeclaredField("otherRequirementsConfirmed");

@@ -2,6 +2,8 @@
 
 最终提交时放入机房兼容版本的 `vCampus.accdb`，并补充 `schema.sql` 与 `seed.sql`。当前脚本已使用 UCanAccess 4.0.4 实测：全新 `.accdb` 可以按顺序执行两份脚本完成建库和种子数据导入。本阶段允许弃用旧 `.accdb`，验收和部署统一按最新 `schema.sql` + `seed.sql` 重建数据库；不再承诺把历史库逐条迁移到最新结构。
 
+当前服务器使用 UCanAccess 4.0.4。该驱动不支持执行独立 `CREATE INDEX` 语句，因此 `schema.sql` 只保留主键和表内唯一约束来保证数据正确性；查询索引不是本项目演示环境的必要条件。
+
 运行数据库统一使用 Access：服务器通过 `--db database/vCampus.accdb` 连接该文件，客户端不直接连接数据库。用户批量导入的外部源文件可以使用 `.xlsx`、`.csv` 或 `.tsv` 表格模板；这些文件只负责把账号清单读入系统，最终账号、导入人、导入时间和导入批次仍写入 `vCampus.accdb`。不建议把另一个 `.accdb/.mdb` 文件作为用户导入源，避免导入源表结构与系统运行数据库结构混淆。
 
 ## 用户模块表
@@ -17,13 +19,22 @@
 
 - `tblCourse`：课程目录，保存课程号、课程名称、学分和启用/停用状态；实际可选人数由 `tblCourseOffering` 的具体教学班容量决定。
 - `tblCourseSelection`：学生选课记录，包含学生、教学班、选课轮次、选课身份、选课/退选时间和状态。已退选记录会保留，但不计入容量和名单。
+- `tblActiveCourseSelection`：当前有效选课的唯一占用键，保证同一学生、同一教学班最多只有一条有效记录；退选时删除该占用键。
+- `tblCourseOfferingCapacityUsage`：教学班三个容量池当前已占用人数。选课通过数据库条件更新预留名额，避免多人同时选课时超额。
 - `tblSelectionRound`：教务人员维护的选课轮次，保存学期、首修/重修类型、起止时间和状态；同一学期每种轮次类型最多一条。
 - `tblTrainingPlan`、`tblTrainingPlanCourse`：教务人员维护的培养方案及课程要求，按专业和入学年份确定学生首修阶段可见的课程。
 - `tblCourseMeeting`：教学班的结构化上课时间，保存星期、起止节次和实际上课地点；同一教学班可有多条记录，用于时间冲突检测。
+- `tblGradeSubmission`：某教学班的一份成绩提交单，保存任课教师、草稿/待审核/已通过/退回状态、创建修改时间以及教务审核人、审核时间和退回意见；一个教学班最多一份。
+- `tblGradeEntry`：成绩提交单中的学生分数和选课类别。同一提交单内每名学生最多一条，可在草稿、退回或待审核阶段覆盖修改；教务端始终读取最新版本。
+- `tblGradeSubmissionSnapshot`、`tblGradeSubmissionSnapshotEntry`：教师每次提交时冻结的成绩版本及其明细。教务审核只读取最新提交快照；待审核期间修改 `tblGradeEntry` 只会影响工作草稿，教师必须再次提交才会产生新的审核版本。
+- `tblGradeSubmissionAudit`：成绩单状态流转审计，保存教师提交、教务通过、教务退回的操作人、操作时间和备注；不会因重新提交而覆盖历史记录。
+- `tblGradeSubmissionResult`：成绩单与其审核通过后生成的正式成绩之间的一对多关联。教务若退回已通过成绩，服务器会按此关联精确撤销对应 `tblCourseResult` 记录，再允许任课教师修改并重新提交。
 
-服务端会阻止同一学生重复选择同一个教学班；教学班容量根据 `tblCourseSelection` 中状态为 `ACTIVE` 的记录统计，已退选记录不会占用容量。已选人数不单独存入 `tblCourse`，避免人数数据不一致。
+服务端会通过数据库唯一键阻止同一学生重复选择同一个教学班，并通过容量占用表原子预留名额；已退选记录不会占用容量。已选人数不存入 `tblCourse`，避免课程目录与教学班人数数据不一致。
 
-使用 `--db` 启动时，选课服务会从 `tblStudent` 按登录 `user_id` 读取学生资料，从 `tblCourseResult` 计算待重修课程，并从 `tblSelectionRound` 确定当前学期。因此教务人员需要先维护学生档案、培养方案和选课轮次，学生才会看到可选择的教学班。
+`tblGradeSubmission`、`tblGradeEntry` 仅保存教师录入的待处理数据，不能被学籍模块当作成绩依据。只有教务审核通过后，后续流程才会把结果写入 `tblCourseResult`，供学籍审查和重修判断使用。若教务退回一份已经通过的成绩，`tblGradeSubmissionResult` 所关联的正式成绩会与成绩单状态变更在同一事务中一起撤销，避免学籍模块读取到已被退回的旧分数。
+
+使用 `--db` 启动时，选课服务会从 `tblStudent` 按登录 `user_id` 读取学生资料，从 `tblCourseResult` 计算待重修课程，并从 `tblSelectionRound` 确定当前学期。因此教务人员需要先维护学生档案、培养方案、教学班和选课轮次，学生才会看到可选择的教学班。`seed.sql` 不预置开放轮次；如需演示选课，应由教务管理员先创建并开放首修或重修轮次。
 
 ## 学籍审查规划表
 
@@ -48,6 +59,20 @@
 查询、购物车和购买只处理 `tblProduct.active=1` 的商品；`active` 字段由最新 `schema.sql` 建表时直接创建，无需再单独执行历史迁移。
 
 ⚠️ 数据库一律按最新 `schema.sql` + `seed.sql` 全新重建：本轮商店钱包改动包含 `tblBankAccount`（`balance_cents` 为 `BIGINT`）与流水表 `tblWalletTransaction`，旧 `.accdb` 不含这些表、与本次改动不兼容，沿用旧库会导致钱包相关功能报错。`database/migrations/` 下的商店迁移（如 `012_store_wallet_transaction`）只各自新建单表，**不构成从旧库平滑升级的完整迁移链**，因此不再提供“已有旧库先执行 `007` / `009`”这类增量迁移指引。
+
+### 商店演示数据（长期测试数据）
+
+`seed.sql` 商店部分预置 **`tblProduct` P001..P105 共 105 种在售商品**（8 个类别：文具 / 零食饮料 / 日用品 / 数码配件 / 体育用品 / 个人护理 / 宿舍生活 / 文创纪念品），并给演示账号预置钱包余额（单位分，1 元 = 100 分）：`demo_student`、`demo_teacher` 各 **10000 元**，`demo_admin` **200 元**，`demo_store_manager` **500 元**；演示订单/购物车仍引用 P001..P003。演示账号与初始密码见仓库根 `README.md`（初始密码统一 `Demo123`）。`AccessDatabaseSchemaTest` 会跑完整 `schema.sql`+`seed.sql` 并断言商品数为 105。
+
+**加「长期测试数据」的两种方式（关键：必须用真实库，别用内存演示模式）**
+1. **能进 seed 的数据放 `seed.sql`**（随仓库可控、重建即回，适合固定商品/账号/余额）；
+2. **运行期动态数据**（用商店管理员/学生 UI 新增的商品、购买产生的订单、钱包变动）要持久，必须让服务器连真实 `.accdb`：
+   ```powershell
+   java -jar server/target/vCampusServer.jar --db database/vCampus.accdb --port 19090
+   ```
+   客户端：`java -jar client/target/vCampusClient.jar --host 127.0.0.1 --port 19090`
+   这样 UI 写入会落在 `database/vCampus.accdb`，**进程退出再重启不丢**。不带 `--db` 启动则走内存演示数据，UI 新增在进程结束即消失——这正是“退出商品就没了”的原因。
+   `AccessDatabaseSchemaTest`（见下）已在临时目录完整验证：全新 `.accdb` = 按序执行 `schema.sql` → `seed.sql` 得到。
 
 ## 图书馆模块表
 

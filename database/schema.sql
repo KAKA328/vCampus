@@ -1,4 +1,5 @@
 -- vCampus database baseline. Adapt data types to the installed Access version.
+-- UCanAccess 4.0.4 不能执行独立 CREATE INDEX 语句；本脚本只保留主键和表内唯一约束。
 CREATE TABLE tblUser (
     user_id VARCHAR(32) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
@@ -52,6 +53,23 @@ CREATE TABLE tblCourseSelection (
     status VARCHAR(16) NOT NULL,
     dropped_at DATETIME,
     PRIMARY KEY (selection_id)
+);
+
+-- 仅保存当前有效选课的占用键。退选时删除对应行，完整历史仍保留在 tblCourseSelection。
+-- 复合主键由 Access 保证：同一学生不能同时重复选择同一教学班。
+CREATE TABLE tblActiveCourseSelection (
+    student_id VARCHAR(32) NOT NULL,
+    offering_id VARCHAR(36) NOT NULL,
+    PRIMARY KEY (student_id, offering_id)
+);
+
+
+-- 每个教学班的三个容量池保存当前已占用人数，选课时通过条件 UPDATE 原子预留名额。
+CREATE TABLE tblCourseOfferingCapacityUsage (
+    offering_id VARCHAR(36) NOT NULL,
+    capacity_bucket VARCHAR(16) NOT NULL,
+    used_count INTEGER NOT NULL,
+    PRIMARY KEY (offering_id, capacity_bucket)
 );
 
 -- 学籍审查与后续教务管理规划表。
@@ -145,6 +163,65 @@ CREATE TABLE tblSelectionRound (
     PRIMARY KEY (round_id)
 );
 
+-- UCanAccess 4.0.4 不支持 CREATE UNIQUE INDEX；以复合主键辅助表保存轮次唯一键。
+CREATE TABLE tblSelectionRoundKey (
+    term VARCHAR(32) NOT NULL,
+    round_type VARCHAR(16) NOT NULL,
+    PRIMARY KEY (term, round_type)
+);
+
+-- 教师录入的教学班成绩草稿。草稿不会被学籍模块当作正式成绩读取。
+CREATE TABLE tblGradeSubmission (
+    submission_id VARCHAR(36) NOT NULL,
+    offering_id VARCHAR(36) NOT NULL,
+    teacher_id VARCHAR(32) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    reviewed_by VARCHAR(32),
+    reviewed_at DATETIME,
+    review_remark VARCHAR(255),
+    PRIMARY KEY (submission_id),
+    CONSTRAINT uk_tblGradeSubmission_offering UNIQUE (offering_id)
+);
+
+CREATE TABLE tblGradeEntry (
+    submission_id VARCHAR(36) NOT NULL,
+    student_id VARCHAR(32) NOT NULL,
+    selection_type VARCHAR(16) NOT NULL,
+    score INTEGER NOT NULL,
+    updated_at DATETIME NOT NULL,
+    PRIMARY KEY (submission_id, student_id)
+);
+
+-- 教师每次提交时冻结一份成绩快照；后续修改只影响 tblGradeEntry 工作草稿。
+CREATE TABLE tblGradeSubmissionSnapshot (
+    submission_id VARCHAR(36) NOT NULL,
+    version_no INTEGER NOT NULL,
+    submitted_at DATETIME NOT NULL,
+    PRIMARY KEY (submission_id, version_no)
+);
+
+CREATE TABLE tblGradeSubmissionSnapshotEntry (
+    submission_id VARCHAR(36) NOT NULL,
+    version_no INTEGER NOT NULL,
+    student_id VARCHAR(32) NOT NULL,
+    selection_type VARCHAR(16) NOT NULL,
+    score INTEGER NOT NULL,
+    PRIMARY KEY (submission_id, version_no, student_id)
+);
+
+-- 成绩单的状态流转审计；保留每次提交、通过和退回的操作者及原因。
+CREATE TABLE tblGradeSubmissionAudit (
+    audit_id VARCHAR(36) NOT NULL,
+    submission_id VARCHAR(36) NOT NULL,
+    action VARCHAR(16) NOT NULL,
+    actor_id VARCHAR(32) NOT NULL,
+    occurred_at DATETIME NOT NULL,
+    remark VARCHAR(255),
+    PRIMARY KEY (audit_id)
+);
+
 CREATE TABLE tblCourseResult (
     result_id VARCHAR(36) NOT NULL,
     student_id VARCHAR(32) NOT NULL,
@@ -158,6 +235,14 @@ CREATE TABLE tblCourseResult (
     earned_credits INTEGER NOT NULL,
     recorded_at DATETIME NOT NULL,
     PRIMARY KEY (result_id)
+);
+
+-- 记录某份成绩单发布了哪些正式成绩，供教务退回已通过成绩时精确撤销。
+CREATE TABLE tblGradeSubmissionResult (
+    submission_id VARCHAR(36) NOT NULL,
+    result_id VARCHAR(36) NOT NULL,
+    PRIMARY KEY (submission_id, result_id),
+    CONSTRAINT uk_tblGradeSubmissionResult_result UNIQUE (result_id)
 );
 
 CREATE TABLE tblAcademicReview (

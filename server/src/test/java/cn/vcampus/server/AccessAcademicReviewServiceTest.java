@@ -2,11 +2,14 @@ package cn.vcampus.server;
 
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.student.CourseHistoryRecord;
+import cn.vcampus.student.FormalCourseResult;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
+import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -79,6 +82,18 @@ class AccessAcademicReviewServiceTest {
     @Test
     void blankStudentIdReturnsBadRequest() {
         assertEquals(StatusCode.BAD_REQUEST, service.pendingRetakes(" ").getStatus());
+    }
+
+    @Test
+    void recordsApprovedResultsAtomicallyForAcademicHistory() {
+        LocalDateTime now = LocalDateTime.of(2026, 9, 6, 12, 0);
+        FormalCourseResult result = new FormalCourseResult("R004", "S001", "C002", "OFFER-C002",
+                "2026-2027-1", 2, "重修", 80, true, 3, now);
+
+        assertEquals(2, service.nextAttemptNo("S001", "C002").getData().intValue());
+        assertEquals(StatusCode.OK, service.recordAll(Arrays.asList(result)).getStatus());
+        assertEquals(4, service.historyFor("S001").getData().size());
+        assertEquals(80, service.historyFor("S001").getData().get(3).getScore());
     }
 
     @Test

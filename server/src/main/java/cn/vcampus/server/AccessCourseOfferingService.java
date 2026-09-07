@@ -11,6 +11,7 @@ import cn.vcampus.course.CourseOfferingStatus;
 import cn.vcampus.course.CourseSchedule;
 import cn.vcampus.course.CourseSelectionRecord;
 import cn.vcampus.course.CourseSelectionRecordService;
+import cn.vcampus.course.CapacityBucket;
 import cn.vcampus.course.SelectionType;
 import cn.vcampus.student.DefaultTeacherProfileService;
 import cn.vcampus.student.TeacherProfile;
@@ -91,6 +92,7 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
                 writeOffering(statement, offering);
                 statement.executeUpdate();
                 writeMeetingSchedule(connection, offering);
+                initializeCapacityUsage(connection, offering);
                 connection.commit();
                 return ServiceResult.ok(offering);
             } catch (SQLException failure) {
@@ -134,6 +136,25 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, normalizedTerm);
+            return readOfferings(statement, connection);
+        } catch (SQLException failure) {
+            return databaseFailure(failure);
+        }
+    }
+
+    @Override
+    public ServiceResult<List<CourseOffering>> listByTeacher(String teacherId, String term) {
+        String normalizedTeacherId = normalize(teacherId);
+        String normalizedTerm = normalize(term);
+        if (normalizedTeacherId == null || normalizedTerm == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "teacherId and term must not be blank");
+        }
+        String sql = selectOfferings() + " WHERE teacher_id=? AND term=? ORDER BY offering_id";
+        try (Connection connection = open();
+                PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, normalizedTeacherId);
+            statement.setString(2, normalizedTerm);
             return readOfferings(statement, connection);
         } catch (SQLException failure) {
             return databaseFailure(failure);
@@ -417,6 +438,22 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
                 statement.setInt(3, meeting.getStartPeriod());
                 statement.setInt(4, meeting.getEndPeriod());
                 statement.setString(5, meeting.getLocation());
+                statement.addBatch();
+            }
+            statement.executeBatch();
+        }
+    }
+
+    /** 为新教学班的三个容量池建立当前占用人数，初始均为零。 */
+    private static void initializeCapacityUsage(Connection connection, CourseOffering offering)
+            throws SQLException {
+        String sql = "INSERT INTO tblCourseOfferingCapacityUsage("
+                + "offering_id,capacity_bucket,used_count) VALUES(?,?,?)";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            for (CapacityBucket bucket : CapacityBucket.values()) {
+                statement.setString(1, offering.getOfferingId());
+                statement.setString(2, bucket.name());
+                statement.setInt(3, 0);
                 statement.addBatch();
             }
             statement.executeBatch();
