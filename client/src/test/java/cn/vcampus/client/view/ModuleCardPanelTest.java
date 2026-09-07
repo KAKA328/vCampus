@@ -54,7 +54,8 @@ class ModuleCardPanelTest {
 
         assertTrue(((BorderLayout) bottom.getLayout()).getLayoutComponent(BorderLayout.CENTER) instanceof JLabel);
         JButton enter = (JButton) ((BorderLayout) bottom.getLayout()).getLayoutComponent(BorderLayout.EAST);
-        assertTrue(enter.getPreferredSize().width >= 96, "enter button should be easy to read and click");
+        assertTrue(enter.getPreferredSize().width >= UiMetrics.px(96),
+                "enter button should be easy to read and click");
     }
 
     @Test

@@ -19,7 +19,8 @@ final class ResponsiveModuleGridPanel extends JPanel implements Scrollable {
     private final int vgap;
 
     ResponsiveModuleGridPanel() {
-        this(DEFAULT_MIN_CARD_WIDTH, DEFAULT_CARD_HEIGHT, DEFAULT_GAP, DEFAULT_GAP);
+        this(UiMetrics.px(DEFAULT_MIN_CARD_WIDTH), UiMetrics.px(DEFAULT_CARD_HEIGHT),
+                UiMetrics.px(DEFAULT_GAP), UiMetrics.px(DEFAULT_GAP));
     }
 
     ResponsiveModuleGridPanel(int minCardWidth, int cardHeight, int hgap, int vgap) {
@@ -92,11 +93,12 @@ final class ResponsiveModuleGridPanel extends JPanel implements Scrollable {
     }
 
     @Override public int getScrollableUnitIncrement(Rectangle visibleRect, int orientation, int direction) {
-        return 24;
+        return UiMetrics.px(24);
     }
 
     @Override public int getScrollableBlockIncrement(Rectangle visibleRect, int orientation, int direction) {
-        return orientation == SwingConstants.VERTICAL ? Math.max(24, visibleRect.height - 24) : visibleRect.width;
+        int unit = UiMetrics.px(24);
+        return orientation == SwingConstants.VERTICAL ? Math.max(unit, visibleRect.height - unit) : visibleRect.width;
     }
 
     @Override public boolean getScrollableTracksViewportWidth() {

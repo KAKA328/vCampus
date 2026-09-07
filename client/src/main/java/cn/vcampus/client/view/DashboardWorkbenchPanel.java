@@ -32,7 +32,7 @@ final class DashboardWorkbenchPanel extends JPanel {
             ModuleComponentFactory moduleFactory, ModuleAction moduleAction) {
         super(new BorderLayout());
         setOpaque(false);
-        ScrollablePagePanel page = new ScrollablePagePanel(new BorderLayout(0, 18));
+        ScrollablePagePanel page = new ScrollablePagePanel(new BorderLayout(0, UiMetrics.px(18)));
         page.setOpaque(false);
         page.add(statRow(displayName, role, modules), BorderLayout.NORTH);
         page.add(workspace(modules, moduleFactory, moduleAction), BorderLayout.CENTER);
@@ -40,7 +40,7 @@ final class DashboardWorkbenchPanel extends JPanel {
     }
 
     private JPanel statRow(String displayName, String role, List<ModuleDescriptor> modules) {
-        ResponsiveCardRowPanel stats = new ResponsiveCardRowPanel(220, 14);
+        ResponsiveCardRowPanel stats = new ResponsiveCardRowPanel(UiMetrics.px(220), UiMetrics.px(14));
         stats.add(statCard("当前账号", displayName, "角色 " + role, VCampusTheme.PRIMARY));
         stats.add(statCard("可用模块", String.valueOf(modules.size()), "按当前权限显示", VCampusTheme.ACCENT));
         stats.add(statCard("数据状态", "Access", "服务端持久化接入", VCampusTheme.SUCCESS));
@@ -48,12 +48,12 @@ final class DashboardWorkbenchPanel extends JPanel {
     }
 
     private JPanel statCard(String titleText, String valueText, String noteText, java.awt.Color accent) {
-        JPanel card = new JPanel(new BorderLayout(0, 4));
+        JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(4)));
         VCampusTheme.panel(card);
-        card.setPreferredSize(new Dimension(220, 112));
-        card.setMinimumSize(new Dimension(200, 106));
+        card.setPreferredSize(UiMetrics.dimension(220, 112));
+        card.setMinimumSize(UiMetrics.dimension(200, 106));
         card.setBorder(javax.swing.BorderFactory.createCompoundBorder(
-                javax.swing.BorderFactory.createMatteBorder(3, 0, 0, 0, accent),
+                javax.swing.BorderFactory.createMatteBorder(UiMetrics.px(3), 0, 0, 0, accent),
                 VCampusTheme.padding(16, 18, 16, 18)));
 
         JLabel title = new JLabel(titleText);
@@ -81,22 +81,22 @@ final class DashboardWorkbenchPanel extends JPanel {
     private JPanel insightRail(List<ModuleDescriptor> modules, ModuleAction moduleAction) {
         JPanel rail = new JPanel();
         rail.setOpaque(false);
-        rail.setPreferredSize(new Dimension(260, 0));
+        rail.setPreferredSize(UiMetrics.dimension(260, 0));
         rail.setLayout(new BoxLayout(rail, BoxLayout.Y_AXIS));
         rail.add(infoCard("系统状态", new String[] {
                 "Access 数据库已接入",
                 "用户、学籍、选课、图书馆、商店分模块运行",
                 "操作结果通过服务端返回"
         }));
-        rail.add(Box.createVerticalStrut(14));
+        rail.add(Box.createVerticalStrut(UiMetrics.px(14)));
         rail.add(quickActionCard(modules, moduleAction));
         return rail;
     }
 
     private JPanel quickActionCard(List<ModuleDescriptor> modules, ModuleAction moduleAction) {
-        JPanel card = new JPanel(new BorderLayout(0, 12));
+        JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
         VCampusTheme.panel(card);
-        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 220));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiMetrics.px(220)));
 
         JLabel title = new JLabel("快捷操作");
         title.setFont(VCampusTheme.font(Font.BOLD, 16));
@@ -116,7 +116,7 @@ final class DashboardWorkbenchPanel extends JPanel {
                 action.setAlignmentX(Component.LEFT_ALIGNMENT);
                 action.addActionListener(event -> moduleAction.open(module));
                 rows.add(action);
-                rows.add(Box.createVerticalStrut(8));
+                rows.add(Box.createVerticalStrut(UiMetrics.px(8)));
             }
         }
         card.add(title, BorderLayout.NORTH);
@@ -125,9 +125,9 @@ final class DashboardWorkbenchPanel extends JPanel {
     }
 
     private JPanel infoCard(String titleText, String[] items) {
-        JPanel card = new JPanel(new BorderLayout(0, 12));
+        JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
         VCampusTheme.panel(card);
-        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 220));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiMetrics.px(220)));
 
         JLabel title = new JLabel(titleText);
         title.setFont(VCampusTheme.font(Font.BOLD, 16));
@@ -138,7 +138,7 @@ final class DashboardWorkbenchPanel extends JPanel {
         rows.setLayout(new BoxLayout(rows, BoxLayout.Y_AXIS));
         for (String item : items) {
             rows.add(chipRow(item));
-            rows.add(Box.createVerticalStrut(8));
+            rows.add(Box.createVerticalStrut(UiMetrics.px(8)));
         }
 
         card.add(title, BorderLayout.NORTH);
@@ -156,9 +156,9 @@ final class DashboardWorkbenchPanel extends JPanel {
     }
 
     private static final class DashboardWorkspacePanel extends JPanel {
-        private static final int GAP = 18;
-        private static final int RAIL_WIDTH = 260;
-        private static final int STACK_BREAKPOINT = 760;
+        private static final int LOGICAL_GAP = 18;
+        private static final int LOGICAL_RAIL_WIDTH = 260;
+        private static final int LOGICAL_STACK_BREAKPOINT = 760;
 
         private final ResponsiveModuleGridPanel grid;
         private final JPanel rail;
@@ -176,22 +176,23 @@ final class DashboardWorkbenchPanel extends JPanel {
             Insets insets = getInsets();
             int width = Math.max(0, getWidth() - insets.left - insets.right);
             int height = Math.max(0, getHeight() - insets.top - insets.bottom);
+            int gap = UiMetrics.px(LOGICAL_GAP);
             if (stacks(width)) {
                 Dimension gridSize = grid.preferredSizeForWidth(width);
                 Dimension railSize = rail.getPreferredSize();
                 grid.setBounds(insets.left, insets.top, width, gridSize.height);
-                rail.setBounds(insets.left, insets.top + gridSize.height + GAP,
-                        width, Math.max(railSize.height, 180));
+                rail.setBounds(insets.left, insets.top + gridSize.height + gap,
+                        width, Math.max(railSize.height, UiMetrics.px(180)));
                 return;
             }
 
-            int railWidth = Math.min(RAIL_WIDTH, width / 3);
-            int gridWidth = Math.max(0, width - railWidth - GAP);
+            int railWidth = Math.min(UiMetrics.px(LOGICAL_RAIL_WIDTH), width / 3);
+            int gridWidth = Math.max(0, width - railWidth - gap);
             Dimension gridSize = grid.preferredSizeForWidth(gridWidth);
             Dimension railSize = rail.getPreferredSize();
             int layoutHeight = Math.max(height, Math.max(gridSize.height, railSize.height));
             grid.setBounds(insets.left, insets.top, gridWidth, layoutHeight);
-            rail.setBounds(insets.left + gridWidth + GAP, insets.top, railWidth, layoutHeight);
+            rail.setBounds(insets.left + gridWidth + gap, insets.top, railWidth, layoutHeight);
         }
 
         @Override public Dimension getPreferredSize() {
@@ -201,12 +202,13 @@ final class DashboardWorkbenchPanel extends JPanel {
             Dimension gridSize;
             Dimension railSize = rail.getPreferredSize();
             int height;
+            int gap = UiMetrics.px(LOGICAL_GAP);
             if (stacks(contentWidth)) {
                 gridSize = grid.preferredSizeForWidth(contentWidth);
-                height = gridSize.height + GAP + Math.max(railSize.height, 180);
+                height = gridSize.height + gap + Math.max(railSize.height, UiMetrics.px(180));
             } else {
-                int railWidth = Math.min(RAIL_WIDTH, contentWidth / 3);
-                int gridWidth = Math.max(0, contentWidth - railWidth - GAP);
+                int railWidth = Math.min(UiMetrics.px(LOGICAL_RAIL_WIDTH), contentWidth / 3);
+                int gridWidth = Math.max(0, contentWidth - railWidth - gap);
                 gridSize = grid.preferredSizeForWidth(gridWidth);
                 height = Math.max(gridSize.height, railSize.height);
             }
@@ -220,11 +222,11 @@ final class DashboardWorkbenchPanel extends JPanel {
             if (getParent() != null && getParent().getWidth() > 0) {
                 return getParent().getWidth();
             }
-            return STACK_BREAKPOINT;
+            return UiMetrics.px(LOGICAL_STACK_BREAKPOINT);
         }
 
-        private static boolean stacks(int width) {
-            return width < STACK_BREAKPOINT;
+        private boolean stacks(int width) {
+            return width < UiMetrics.px(LOGICAL_STACK_BREAKPOINT);
         }
     }
 }

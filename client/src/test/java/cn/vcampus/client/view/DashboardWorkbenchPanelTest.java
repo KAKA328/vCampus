@@ -41,7 +41,7 @@ class DashboardWorkbenchPanelTest {
         DashboardWorkbenchPanel panel = dashboard();
         Component workspace = workspace(panel);
 
-        workspace.setBounds(0, 0, 620, 700);
+        workspace.setBounds(0, 0, UiMetrics.px(620), UiMetrics.px(700));
         workspace.doLayout();
 
         Component grid = ((Container) workspace).getComponent(0);
@@ -56,13 +56,13 @@ class DashboardWorkbenchPanelTest {
         DashboardWorkbenchPanel panel = dashboard();
         Component workspace = workspace(panel);
 
-        workspace.setBounds(0, 0, 920, 700);
+        workspace.setBounds(0, 0, UiMetrics.px(920), UiMetrics.px(700));
         workspace.doLayout();
 
         Component grid = ((Container) workspace).getComponent(0);
         Component rail = ((Container) workspace).getComponent(1);
         assertTrue(rail.getX() > grid.getX(), "insight rail should be a side column when width allows");
-        assertTrue(grid.getWidth() >= 300);
+        assertTrue(grid.getWidth() >= UiMetrics.px(300));
     }
 
     @Test
