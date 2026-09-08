@@ -87,7 +87,9 @@ class StudentGraduationConcurrencyTest {
                     command(studentId, AcademicAdminCommandV1.Action.ASSESSMENTS, null), "academic").getData();
             assertTrue(((AcademicAssessment) rows.get(0)).isGraduated());
             // A newly loaded graduated profile can still update contacts without undoing graduation.
-            ServiceResult<StudentRecord> contacts = students.updateContacts(studentId, after, "fresh", null);
+            // Access 分支的学生主键是 20260001，但联系方式权限仍按绑定登录账号 demo_student 校验。
+            ServiceResult<StudentRecord> contacts = students.updateContacts(after.getUserId(), after,
+                    "fresh", null);
             assertEquals(StatusCode.OK, contacts.getStatus());
             assertEquals("毕业", repository.findById(studentId).getStatus());
             assertEquals("fresh", repository.findById(studentId).getPhone());
