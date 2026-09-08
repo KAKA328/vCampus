@@ -336,6 +336,11 @@ final class TeacherTeachingPanel extends JPanel {
             showStatus("还有 " + missing + " 名有效选课学生未录入成绩，不能提交审核", VCampusTheme.DANGER);
             return;
         }
+        if (!CourseUiSupport.confirmHighImpact(this, "确认提交成绩审核",
+                "确定将当前教学班成绩提交给教务审核吗？",
+                "教务将以本次提交生成审核快照；后续修改成绩后需要重新提交。")) {
+            return;
+        }
         request(service -> service.submitGradesForReview(session.getToken(),
                 currentDraft.getSubmission().getOfferingId()), response -> {
                     if (response.getStatusCode() != StatusCode.OK
@@ -458,8 +463,7 @@ final class TeacherTeachingPanel extends JPanel {
     }
 
     private void showStatus(String message, Color color) {
-        status.setText(message);
-        VCampusTheme.statusPill(status, color);
+        CourseUiSupport.showStatus(status, message, color);
     }
 
     private void updateInteractiveState() {

@@ -255,11 +255,9 @@ final class GradeReviewPanel extends JPanel {
             showStatus("请先选择一份待审核成绩单", VCampusTheme.DANGER);
             return;
         }
-        int choice = JOptionPane.showConfirmDialog(this,
-                "审核通过后将写入学生正式成绩。确认通过教学班 “"
-                        + submission.getOfferingId() + "” 的成绩单吗？",
-                "确认审核通过", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
-        if (choice != JOptionPane.OK_OPTION) {
+        if (!CourseUiSupport.confirmHighImpact(this, "确认审核通过",
+                "确定通过教学班“" + submission.getOfferingId() + "”的成绩单吗？",
+                "通过后将写入学生正式成绩，教师不能继续直接修改这份成绩单。")) {
             return;
         }
         request(service -> service.approveGradeSubmission(session.getToken(),
@@ -352,8 +350,7 @@ final class GradeReviewPanel extends JPanel {
     }
 
     private void showStatus(String message, Color color) {
-        status.setText(message);
-        VCampusTheme.statusPill(status, color);
+        CourseUiSupport.showStatus(status, message, color);
     }
 
     private void updateInteractiveState() {

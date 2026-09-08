@@ -42,7 +42,7 @@ public final class CourseSelectionPanel extends JPanel {
     private final BatchTableModel tableModel = new BatchTableModel(
             new Object[] { "类别", "课程编号", "课程名称", "学分", "教学班", "教师", "时间", "地点", "剩余名额" });
     private final JTable table = new JTable(tableModel);
-    private final JLabel status = new JLabel("请先加载选课轮次");
+    private final JLabel status = new JLabel();
     private final JButton loadRoundsButton = new JButton("加载选课轮次");
     private final JButton loadOfferingsButton = new JButton("查看本轮可选教学班");
     private final JButton selectedButton = new JButton("我的已选课程");
@@ -64,7 +64,7 @@ public final class CourseSelectionPanel extends JPanel {
         setOpaque(false);
         add(header(), BorderLayout.NORTH);
         add(VCampusTheme.pageScroll(body()), BorderLayout.CENTER);
-        status.setForeground(VCampusTheme.MUTED);
+        showStatus("请先加载选课轮次", VCampusTheme.MUTED);
 
         loadRoundsButton.addActionListener(e -> loadRounds());
         loadOfferingsButton.addActionListener(e -> loadOfferings());
@@ -148,13 +148,14 @@ public final class CourseSelectionPanel extends JPanel {
             offeringIds.clear();
             recordIds.clear();
             tableModel.replaceRows(new ArrayList<Object[]>());
-            status.setText(rounds.isEmpty() ? "当前没有可用选课轮次" : "请选择一个选课轮次");
+            showStatus(rounds.isEmpty() ? "当前没有可用选课轮次" : "请选择一个选课轮次",
+                    rounds.isEmpty() ? VCampusTheme.MUTED : VCampusTheme.SUCCESS);
         });
     }
 
     private void loadOfferings() {
         int index = roundBox.getSelectedIndex();
-        if (index < 0) { status.setText("请先选择选课轮次"); return; }
+        if (index < 0) { showStatus("请先选择选课轮次", VCampusTheme.DANGER); return; }
         final String roundId = rounds.get(index).getRoundId();
         request(service -> service.availableOfferings(session.getToken(), roundId), response -> {
             if (!ok(response) || !(response.getPayload() instanceof List<?>)) return;
@@ -166,7 +167,8 @@ public final class CourseSelectionPanel extends JPanel {
                 rows.add(new Object[] { value.getSelectionType().getDisplayName(), value.getCourse().getCourseId(), value.getCourse().getName(), value.getCourse().getCredits(), value.getOffering().getOfferingId(), value.getOffering().getTeacherId(), value.getOffering().getSchedule(), value.getOffering().getLocation(), value.getCapacityUsage().getRemainingCapacity() });
             }
             tableModel.replaceRows(rows);
-            status.setText("已显示可选教学班");
+            showStatus(rows.isEmpty() ? "本轮暂时没有可选教学班" : "已显示可选教学班",
+                    rows.isEmpty() ? VCampusTheme.MUTED : VCampusTheme.SUCCESS);
         });
     }
 
@@ -181,29 +183,43 @@ public final class CourseSelectionPanel extends JPanel {
                 rows.add(new Object[] { value.getRecord().getSelectionType().getDisplayName(), value.getCourse().getCourseId(), value.getCourse().getName(), value.getCourse().getCredits(), value.getOffering().getOfferingId(), value.getOffering().getTeacherId(), value.getOffering().getSchedule(), value.getOffering().getLocation(), "-" });
             }
             tableModel.replaceRows(rows);
-            status.setText("已显示当前有效选课记录");
+            showStatus(rows.isEmpty() ? "当前没有有效选课记录" : "已显示当前有效选课记录",
+                    rows.isEmpty() ? VCampusTheme.MUTED : VCampusTheme.SUCCESS);
         });
     }
 
     private void select() {
         int row = table.getSelectedRow(); int roundIndex = roundBox.getSelectedIndex();
-        if (showingSelected || row < 0 || roundIndex < 0) { status.setText("请在本轮可选教学班中选择一行"); return; }
+        if (showingSelected || row < 0 || roundIndex < 0) {
+            showStatus("请在本轮可选教学班中选择一行", VCampusTheme.DANGER);
+            return;
+        }
         request(service -> service.select(session.getToken(), rounds.get(roundIndex).getRoundId(), offeringIds.get(row)), response -> {
-            if (ok(response)) { status.setText("选课成功，请刷新列表"); }
+            if (ok(response)) { showStatus("选课成功，请刷新列表", VCampusTheme.SUCCESS); }
         });
     }
 
     private void drop() {
         int row = table.getSelectedRow();
-        if (!showingSelected || row < 0) { status.setText("请先进入“我的已选课程”并选择一行"); return; }
+        if (!showingSelected || row < 0) {
+            showStatus("请先进入“我的已选课程”并选择一行", VCampusTheme.DANGER);
+            return;
+        }
+        String courseName = String.valueOf(tableModel.getValueAt(row, 2));
+        if (!CourseUiSupport.confirmHighImpact(this, "确认退选",
+                "确定退选课程“" + courseName + "”吗？",
+                "该课程将不再属于你的当前有效选课记录。")) {
+            return;
+        }
         request(service -> service.drop(session.getToken(), recordIds.get(row)), response -> {
-            if (ok(response)) { status.setText("退选成功，请刷新我的已选课程"); }
+            if (ok(response)) { showStatus("退选成功，请刷新我的已选课程", VCampusTheme.SUCCESS); }
         });
     }
 
     private boolean ok(Message response) {
         if (response.getStatusCode() == StatusCode.OK) return true;
-        status.setText(response.getPayload() instanceof String ? (String) response.getPayload() : "服务器未能完成操作：" + response.getStatusCode());
+        showStatus(response.getPayload() instanceof String ? (String) response.getPayload()
+                : "服务器未能完成操作：" + response.getStatusCode(), VCampusTheme.DANGER);
         return false;
     }
 
@@ -214,7 +230,7 @@ public final class CourseSelectionPanel extends JPanel {
         final int requestId = requestLifecycle.begin();
         requestInProgress = true;
         updateInteractiveState();
-        status.setText("正在请求服务器，请稍候…");
+        showStatus("正在请求服务器，请稍候…", VCampusTheme.MUTED);
         new SwingWorker<Message, Void>() {
             @Override protected Message doInBackground() throws Exception { try (RemoteCourseService service = new RemoteCourseService(host, port)) { return request.run(service); } }
             @Override protected void done() {
@@ -222,7 +238,7 @@ public final class CourseSelectionPanel extends JPanel {
                 try {
                     response.handle(get());
                 } catch (Exception failure) {
-                    status.setText("无法连接选课服务器");
+                    showStatus("无法连接选课服务器", VCampusTheme.DANGER);
                 } finally {
                     requestInProgress = false;
                     updateInteractiveState();
@@ -247,6 +263,10 @@ public final class CourseSelectionPanel extends JPanel {
         dropButton.setEnabled(interactive && selectedRecord);
         roundBox.setEnabled(interactive && !rounds.isEmpty());
         table.setEnabled(interactive);
+    }
+
+    private void showStatus(String message, Color color) {
+        CourseUiSupport.showStatus(status, message, color);
     }
 
     private interface Request { Message run(RemoteCourseService service) throws IOException, ClassNotFoundException; }
