@@ -25,6 +25,8 @@ class TeacherTeachingPanelTest {
         assertFalse(button(panel, "openDraftButton").isEnabled());
         assertFalse(button(panel, "saveGradeButton").isEnabled());
         assertFalse(button(panel, "submitGradesButton").isEnabled());
+        assertFalse(button(panel, "chooseGradeFileButton").isEnabled());
+        assertFalse(button(panel, "importGradesButton").isEnabled());
     }
 
     @Test
@@ -43,6 +45,8 @@ class TeacherTeachingPanelTest {
         assertFalse(button(panel, "openDraftButton").isEnabled());
         assertFalse(button(panel, "saveGradeButton").isEnabled());
         assertFalse(button(panel, "submitGradesButton").isEnabled());
+        assertFalse(button(panel, "chooseGradeFileButton").isEnabled());
+        assertFalse(button(panel, "importGradesButton").isEnabled());
     }
 
     private static TeacherTeachingPanel panel() {

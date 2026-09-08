@@ -3,7 +3,9 @@ package cn.vcampus.client.view;
 import cn.vcampus.client.service.RemoteCourseService;
 import cn.vcampus.common.Message;
 import cn.vcampus.common.StatusCode;
+import cn.vcampus.course.CourseGradeImportV2Command;
 import cn.vcampus.course.GradeEntry;
+import cn.vcampus.course.GradeImportResult;
 import cn.vcampus.course.GradeSubmissionStatus;
 import cn.vcampus.course.TeachingOffering;
 import cn.vcampus.course.TeachingGradeDraft;
@@ -15,11 +17,14 @@ import java.awt.Color;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import javax.swing.JButton;
+import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSplitPane;
@@ -27,6 +32,7 @@ import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingWorker;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 /** 任课老师按学期查看本人负责教学班的入口页面。 */
 final class TeacherTeachingPanel extends JPanel {
@@ -43,6 +49,9 @@ final class TeacherTeachingPanel extends JPanel {
     private final JTextField score = new JTextField(5);
     private final JButton saveGradeButton = new JButton("保存所选学生成绩");
     private final JButton submitGradesButton = new JButton("提交教务审核");
+    private final JButton chooseGradeFileButton = new JButton("选择成绩文件");
+    private final JButton importGradesButton = new JButton("导入文件成绩");
+    private final JLabel selectedGradeFile = new JLabel("未选择成绩文件（支持 CSV、XLS、XLSX）");
     private final BatchTableModel tableModel = new BatchTableModel(new Object[] {
             "课程编号", "课程名称", "学分", "教学班", "上课时间", "地点", "教学班状态" });
     private final JTable table = new JTable(tableModel);
@@ -56,6 +65,7 @@ final class TeacherTeachingPanel extends JPanel {
     private final RequestLifecycle requestLifecycle = new RequestLifecycle();
     private boolean requestInProgress;
     private TeachingGradeDraft currentDraft;
+    private Path gradeImportFile;
 
     TeacherTeachingPanel(String host, int port, Session session) {
         if (host == null || host.trim().isEmpty() || session == null) {
@@ -77,11 +87,15 @@ final class TeacherTeachingPanel extends JPanel {
         VCampusTheme.secondaryButton(openDraftButton);
         VCampusTheme.primaryButton(saveGradeButton);
         VCampusTheme.primaryButton(submitGradesButton);
+        VCampusTheme.secondaryButton(chooseGradeFileButton);
+        VCampusTheme.primaryButton(importGradesButton);
         refreshButton.addActionListener(e -> loadOfferings());
         viewRosterButton.addActionListener(e -> loadRoster());
         openDraftButton.addActionListener(e -> openDraft());
         saveGradeButton.addActionListener(e -> saveSelectedGrade());
         submitGradesButton.addActionListener(e -> submitGrades());
+        chooseGradeFileButton.addActionListener(e -> chooseGradeFile());
+        importGradesButton.addActionListener(e -> importGrades());
         table.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 updateInteractiveState();
@@ -118,6 +132,15 @@ final class TeacherTeachingPanel extends JPanel {
     private JPanel body() {
         JPanel panel = new ScrollablePagePanel(new BorderLayout(0, UiMetrics.px(12)));
         panel.setOpaque(false);
+        panel.add(controls(), BorderLayout.NORTH);
+        panel.add(workspace(), BorderLayout.CENTER);
+        panel.add(status, BorderLayout.SOUTH);
+        return panel;
+    }
+
+    private JPanel controls() {
+        JPanel controls = new JPanel(new BorderLayout(0, UiMetrics.px(10)));
+        controls.setOpaque(false);
         JPanel query = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
                 UiMetrics.px(6)));
         VCampusTheme.panel(query);
@@ -126,14 +149,26 @@ final class TeacherTeachingPanel extends JPanel {
         query.add(refreshButton);
         query.add(viewRosterButton);
         query.add(openDraftButton);
-        query.add(new JLabel("分数"));
-        query.add(score);
-        query.add(saveGradeButton);
-        query.add(submitGradesButton);
-        panel.add(query, BorderLayout.NORTH);
-        panel.add(workspace(), BorderLayout.CENTER);
-        panel.add(status, BorderLayout.SOUTH);
-        return panel;
+
+        JPanel grades = new JPanel(new BorderLayout(0, UiMetrics.px(6)));
+        VCampusTheme.panel(grades);
+        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
+                UiMetrics.px(4)));
+        actions.setOpaque(false);
+        actions.add(new JLabel("手工录入"));
+        actions.add(new JLabel("分数"));
+        actions.add(score);
+        actions.add(saveGradeButton);
+        actions.add(submitGradesButton);
+        actions.add(new JLabel("批量导入"));
+        actions.add(chooseGradeFileButton);
+        actions.add(importGradesButton);
+        selectedGradeFile.setForeground(VCampusTheme.MUTED);
+        grades.add(actions, BorderLayout.NORTH);
+        grades.add(selectedGradeFile, BorderLayout.SOUTH);
+        controls.add(query, BorderLayout.NORTH);
+        controls.add(grades, BorderLayout.SOUTH);
+        return controls;
     }
 
     private JSplitPane workspace() {
@@ -314,6 +349,69 @@ final class TeacherTeachingPanel extends JPanel {
                 });
     }
 
+    /** 选择由服务器解析的成绩源文件；客户端只限制格式和大小，不自行修改成绩。 */
+    private void chooseGradeFile() {
+        if (!canEditDraft()) {
+            showStatus(currentDraft == null ? "请先打开成绩草稿" : "已通过的成绩单必须先由教务退回",
+                    VCampusTheme.DANGER);
+            return;
+        }
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("选择教学班成绩文件");
+        chooser.setFileFilter(new FileNameExtensionFilter("成绩文件 (*.csv, *.xls, *.xlsx)",
+                "csv", "xls", "xlsx"));
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        Path selected = chooser.getSelectedFile().toPath();
+        try {
+            long bytes = Files.size(selected);
+            if (bytes < 1 || bytes > CourseGradeImportV2Command.MAX_FILE_BYTES) {
+                showStatus("成绩文件大小必须在 1 字节到 5 MB 之间", VCampusTheme.DANGER);
+                return;
+            }
+            gradeImportFile = selected;
+            selectedGradeFile.setText(selected.getFileName() + "（" + bytes + " 字节，待导入）");
+            showStatus("文件已选择。服务器会校验“学号、成绩”列及本教学班名单。", VCampusTheme.SUCCESS);
+            updateInteractiveState();
+        } catch (IOException failure) {
+            showStatus("无法读取所选成绩文件", VCampusTheme.DANGER);
+        }
+    }
+
+    private void importGrades() {
+        if (!canEditDraft()) {
+            showStatus(currentDraft == null ? "请先打开成绩草稿" : "已通过的成绩单必须先由教务退回",
+                    VCampusTheme.DANGER);
+            return;
+        }
+        if (gradeImportFile == null) {
+            showStatus("请先选择 CSV、XLS 或 XLSX 成绩文件", VCampusTheme.DANGER);
+            return;
+        }
+        final byte[] content;
+        try {
+            content = Files.readAllBytes(gradeImportFile);
+        } catch (IOException failure) {
+            showStatus("无法读取所选成绩文件，请重新选择", VCampusTheme.DANGER);
+            return;
+        }
+        final String fileName = gradeImportFile.getFileName().toString();
+        request(service -> service.importGrades(session.getToken(),
+                currentDraft.getSubmission().getOfferingId(), fileName, content), response -> {
+                    if (response.getStatusCode() != StatusCode.OK
+                            || !(response.getPayload() instanceof GradeImportResult)) {
+                        showFailure(response);
+                        return;
+                    }
+                    GradeImportResult result = (GradeImportResult) response.getPayload();
+                    currentDraft = result.getDraft();
+                    renderRoster(currentDraft.getRoster(), currentDraft);
+                    showStatus("已从 “" + fileName + "” 导入 " + result.getImportedCount()
+                            + " 条成绩。确认全班完整后可提交教务审核。", VCampusTheme.SUCCESS);
+                });
+    }
+
     private TeachingOffering selectedOffering() {
         int row = table.getSelectedRow();
         return row >= 0 && row < offerings.size() ? offerings.get(row) : null;
@@ -371,6 +469,8 @@ final class TeacherTeachingPanel extends JPanel {
         saveGradeButton.setEnabled(interactive && canEditDraft()
                 && rosterTable.getSelectedRow() >= 0);
         submitGradesButton.setEnabled(interactive && canEditDraft());
+        chooseGradeFileButton.setEnabled(interactive && canEditDraft());
+        importGradesButton.setEnabled(interactive && canEditDraft() && gradeImportFile != null);
         term.setEnabled(interactive);
         table.setEnabled(interactive);
         rosterTable.setEnabled(interactive);
@@ -412,6 +512,12 @@ final class TeacherTeachingPanel extends JPanel {
         rosterModel.replaceRows(new ArrayList<Object[]>());
         rosterTitle.setText("学生名单与成绩草稿");
         score.setText("");
+        clearGradeImportFile();
+    }
+
+    private void clearGradeImportFile() {
+        gradeImportFile = null;
+        selectedGradeFile.setText("未选择成绩文件（支持 CSV、XLS、XLSX）");
     }
 
     private void fillScoreFromSelection() {
@@ -434,7 +540,9 @@ final class TeacherTeachingPanel extends JPanel {
     }
 
     private boolean canEditDraft() {
-        return currentDraft != null
+        TeachingOffering selected = selectedOffering();
+        return currentDraft != null && selected != null
+                && currentDraft.getSubmission().getOfferingId().equals(selected.getOffering().getOfferingId())
                 && currentDraft.getSubmission().getStatus() != GradeSubmissionStatus.APPROVED;
     }
 
