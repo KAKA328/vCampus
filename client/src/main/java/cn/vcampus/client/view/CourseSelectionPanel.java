@@ -22,6 +22,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.SwingWorker;
+import javax.swing.ListSelectionModel;
 
 /**
  * 学生选课界面：先选择轮次，再查看可选教学班并选课；“我的已选”中可退选。
@@ -70,6 +71,12 @@ public final class CourseSelectionPanel extends JPanel {
         selectedButton.addActionListener(e -> loadSelected());
         selectButton.addActionListener(e -> select());
         dropButton.addActionListener(e -> drop());
+        roundBox.addActionListener(e -> updateInteractiveState());
+        table.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                updateInteractiveState();
+            }
+        });
         updateInteractiveState();
     }
 
@@ -122,6 +129,7 @@ public final class CourseSelectionPanel extends JPanel {
     /** 窄窗口优先保留列内容，通过表格自身的横向滚动查看完整信息。 */
     private void configureTable() {
         VCampusTheme.table(table);
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         for (int index = 0; index < TABLE_COLUMN_WIDTHS.length; index++) {
             table.getColumnModel().getColumn(index).setPreferredWidth(UiMetrics.px(TABLE_COLUMN_WIDTHS[index]));
@@ -136,6 +144,10 @@ public final class CourseSelectionPanel extends JPanel {
                 SelectionRound round = (SelectionRound) item; rounds.add(round);
                 roundBox.addItem(round.getType() == cn.vcampus.course.SelectionRoundType.INITIAL ? "首修轮次" : "重修轮次");
             }
+            showingSelected = false;
+            offeringIds.clear();
+            recordIds.clear();
+            tableModel.replaceRows(new ArrayList<Object[]>());
             status.setText(rounds.isEmpty() ? "当前没有可用选课轮次" : "请选择一个选课轮次");
         });
     }
@@ -222,12 +234,18 @@ public final class CourseSelectionPanel extends JPanel {
     /** 根据登录角色与请求状态统一控制界面，避免重复提交或错选行。 */
     private void updateInteractiveState() {
         boolean interactive = session.getUser().getRole() == Role.STUDENT && !requestInProgress;
+        int selectedRow = table.getSelectedRow();
+        boolean hasRound = roundBox.getSelectedIndex() >= 0;
+        boolean selectedOffering = !showingSelected && selectedRow >= 0
+                && selectedRow < offeringIds.size();
+        boolean selectedRecord = showingSelected && selectedRow >= 0
+                && selectedRow < recordIds.size();
         loadRoundsButton.setEnabled(interactive);
-        loadOfferingsButton.setEnabled(interactive);
+        loadOfferingsButton.setEnabled(interactive && hasRound);
         selectedButton.setEnabled(interactive);
-        selectButton.setEnabled(interactive);
-        dropButton.setEnabled(interactive);
-        roundBox.setEnabled(interactive);
+        selectButton.setEnabled(interactive && selectedOffering);
+        dropButton.setEnabled(interactive && selectedRecord);
+        roundBox.setEnabled(interactive && !rounds.isEmpty());
         table.setEnabled(interactive);
     }
 

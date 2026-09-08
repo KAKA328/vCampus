@@ -257,6 +257,7 @@ final class TeacherTeachingPanel extends JPanel {
                         return;
                     }
                     currentDraft = null;
+                    clearGradeImportFile();
                     renderRoster((TeachingRoster) response.getPayload(), null);
                     int count = rosterStudents.size();
                     showStatus(count == 0 ? "该教学班当前没有有效选课学生" : "已加载 "

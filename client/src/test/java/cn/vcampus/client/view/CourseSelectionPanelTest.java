@@ -44,7 +44,10 @@ class CourseSelectionPanelTest {
 
         busy.setBoolean(panel, false);
         update.invoke(panel);
-        assertTrue(button(panel, "selectButton").isEnabled());
+        assertTrue(button(panel, "loadRoundsButton").isEnabled());
+        assertFalse(button(panel, "loadOfferingsButton").isEnabled());
+        assertFalse(button(panel, "selectButton").isEnabled());
+        assertFalse(button(panel, "dropButton").isEnabled());
     }
 
     @Test
