@@ -51,6 +51,7 @@ final class GradeReviewPanel extends JPanel {
     private final List<GradeSubmission> submissions = new ArrayList<GradeSubmission>();
     private final JLabel status = new JLabel();
     private final JLabel detailHint = new JLabel("选择待审核成绩单后查看成绩明细。 ");
+    private final JLabel selectionHint = new JLabel("请选择一份待审核成绩单，查看成绩快照后再作出处理。 ");
     private final JButton refreshButton = new JButton("刷新待审核列表");
     private final JButton detailButton = new JButton("查看成绩明细");
     private final JButton auditButton = new JButton("查看审核记录");
@@ -83,40 +84,23 @@ final class GradeReviewPanel extends JPanel {
         returnButton.addActionListener(e -> returnForRevision());
         submissionTable.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
+                updateSelectionHint();
                 updateInteractiveState();
             }
         });
 
-        add(toolbar(), BorderLayout.NORTH);
         add(workspace(), BorderLayout.CENTER);
         add(status, BorderLayout.SOUTH);
         showStatus("请先刷新待审核成绩单", VCampusTheme.MUTED);
         updateInteractiveState();
     }
 
-    private JPanel toolbar() {
-        JPanel panel = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
-                UiMetrics.px(6)));
-        VCampusTheme.panel(panel);
-        VCampusTheme.secondaryButton(refreshButton);
-        VCampusTheme.secondaryButton(detailButton);
-        VCampusTheme.secondaryButton(auditButton);
-        VCampusTheme.primaryButton(approveButton);
-        VCampusTheme.secondaryButton(returnButton);
-        panel.add(refreshButton);
-        panel.add(detailButton);
-        panel.add(auditButton);
-        panel.add(approveButton);
-        panel.add(returnButton);
-        return panel;
-    }
-
     private JSplitPane workspace() {
-        JPanel pending = card("待审核成绩单", submissionTable);
+        JPanel pending = pendingCard();
         JTabbedPane details = new JTabbedPane();
         VCampusTheme.tabs(details);
         details.addTab("成绩明细", detailCard());
-        details.addTab("审核记录", card("成绩单流转记录", auditTable));
+        details.addTab("审核记录", card("成绩单流转记录", "查看本成绩单的提交、退回和审核历史。", auditTable));
 
         JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, pending, details);
         split.setBorder(null);
@@ -128,14 +112,48 @@ final class GradeReviewPanel extends JPanel {
         return split;
     }
 
+    /** 审核动作紧贴待审核列表，保持“选择、核验、处理”的操作顺序。 */
+    private JPanel pendingCard() {
+        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(10)));
+        VCampusTheme.panel(panel);
+        JPanel header = new JPanel(new BorderLayout(0, UiMetrics.px(3)));
+        header.setOpaque(false);
+        JLabel title = sectionTitle("第 1 步：选择待审核成绩单");
+        JLabel hint = sectionHint("选择一行后，先查看成绩快照和审核记录，再决定通过或退回。 ");
+        header.add(title, BorderLayout.NORTH);
+        header.add(hint, BorderLayout.SOUTH);
+        VCampusTheme.secondaryButton(refreshButton);
+        header.add(refreshButton, BorderLayout.EAST);
+
+        JPanel actions = new JPanel(new BorderLayout(0, UiMetrics.px(6)));
+        actions.setOpaque(false);
+        selectionHint.setForeground(VCampusTheme.MUTED);
+        JPanel buttons = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(8),
+                UiMetrics.px(4)));
+        buttons.setOpaque(false);
+        VCampusTheme.secondaryButton(detailButton);
+        VCampusTheme.secondaryButton(auditButton);
+        VCampusTheme.primaryButton(approveButton);
+        VCampusTheme.secondaryButton(returnButton);
+        buttons.add(detailButton);
+        buttons.add(auditButton);
+        buttons.add(approveButton);
+        buttons.add(returnButton);
+        actions.add(selectionHint, BorderLayout.NORTH);
+        actions.add(buttons, BorderLayout.SOUTH);
+
+        panel.add(header, BorderLayout.NORTH);
+        panel.add(VCampusTheme.scrollPane(submissionTable), BorderLayout.CENTER);
+        panel.add(actions, BorderLayout.SOUTH);
+        return panel;
+    }
+
     private JPanel detailCard() {
         JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(10)));
         VCampusTheme.panel(panel);
         JPanel header = new JPanel(new BorderLayout(0, UiMetrics.px(3)));
         header.setOpaque(false);
-        JLabel title = new JLabel("成绩快照");
-        title.setFont(VCampusTheme.font(Font.BOLD, 16));
-        title.setForeground(VCampusTheme.PRIMARY_DARK);
+        JLabel title = sectionTitle("第 2 步：核验成绩快照");
         detailHint.setFont(VCampusTheme.font(Font.PLAIN, 13));
         detailHint.setForeground(VCampusTheme.MUTED);
         header.add(title, BorderLayout.NORTH);
@@ -145,13 +163,14 @@ final class GradeReviewPanel extends JPanel {
         return panel;
     }
 
-    private static JPanel card(String titleText, JTable table) {
+    private JPanel card(String titleText, String hintText, JTable table) {
         JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(10)));
         VCampusTheme.panel(panel);
-        JLabel title = new JLabel(titleText);
-        title.setFont(VCampusTheme.font(Font.BOLD, 16));
-        title.setForeground(VCampusTheme.PRIMARY_DARK);
-        panel.add(title, BorderLayout.NORTH);
+        JPanel header = new JPanel(new BorderLayout(0, UiMetrics.px(3)));
+        header.setOpaque(false);
+        header.add(sectionTitle(titleText), BorderLayout.NORTH);
+        header.add(sectionHint(hintText), BorderLayout.SOUTH);
+        panel.add(header, BorderLayout.NORTH);
         panel.add(VCampusTheme.scrollPane(table), BorderLayout.CENTER);
         return panel;
     }
@@ -185,6 +204,7 @@ final class GradeReviewPanel extends JPanel {
             detailModel.replaceRows(new ArrayList<Object[]>());
             auditModel.replaceRows(new ArrayList<Object[]>());
             detailHint.setText("选择待审核成绩单后查看成绩明细。 ");
+            updateSelectionHint();
             showStatus(rows.isEmpty() ? "当前没有待审核成绩单" : "已加载 " + rows.size()
                     + " 份待审核成绩单", rows.isEmpty() ? VCampusTheme.MUTED : VCampusTheme.SUCCESS);
         });
@@ -286,6 +306,11 @@ final class GradeReviewPanel extends JPanel {
             showStatus("退回原因不能为空", VCampusTheme.DANGER);
             return;
         }
+        if (!CourseUiSupport.confirmHighImpact(this, "确认退回成绩单",
+                "确定退回教学班“" + submission.getOfferingId() + "”的成绩单吗？",
+                "任课教师需要根据退回原因修改成绩后重新提交审核。")) {
+            return;
+        }
         request(service -> service.returnGradeSubmission(session.getToken(),
                 submission.getSubmissionId(), remark.trim()), response -> {
                     if (response.getStatusCode() != StatusCode.OK) {
@@ -300,6 +325,16 @@ final class GradeReviewPanel extends JPanel {
     private GradeSubmission selectedSubmission() {
         int row = submissionTable.getSelectedRow();
         return row >= 0 && row < submissions.size() ? submissions.get(row) : null;
+    }
+
+    private void updateSelectionHint() {
+        GradeSubmission submission = selectedSubmission();
+        if (submission == null) {
+            selectionHint.setText("请选择一份待审核成绩单，查看成绩快照后再作出处理。 ");
+            return;
+        }
+        selectionHint.setText("已选择教学班“" + submission.getOfferingId()
+                + "”。请先核验成绩快照，再选择审核通过或退回修改。 ");
     }
 
     private void request(Request request, Response response) {
@@ -351,6 +386,19 @@ final class GradeReviewPanel extends JPanel {
 
     private void showStatus(String message, Color color) {
         CourseUiSupport.showStatus(status, message, color);
+    }
+
+    private JLabel sectionTitle(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(VCampusTheme.font(Font.BOLD, 16));
+        label.setForeground(VCampusTheme.PRIMARY_DARK);
+        return label;
+    }
+
+    private JLabel sectionHint(String text) {
+        JLabel label = new JLabel(text);
+        label.setForeground(VCampusTheme.MUTED);
+        return label;
     }
 
     private void updateInteractiveState() {
