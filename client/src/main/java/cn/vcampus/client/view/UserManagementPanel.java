@@ -6,6 +6,7 @@ import cn.vcampus.common.Role;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.user.AuditEvent;
 import cn.vcampus.user.PasswordResetApplicationSummary;
+import cn.vcampus.user.PasswordResetReviewResult;
 import cn.vcampus.user.Session;
 import cn.vcampus.user.UserAccountSummary;
 import cn.vcampus.user.UserImportResult;
@@ -20,6 +21,7 @@ import java.awt.Frame;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import javax.swing.JComboBox;
 import javax.swing.JButton;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -56,6 +58,7 @@ final class UserManagementPanel extends JPanel {
     private final JButton refreshAccountsButton = new JButton("刷新账号列表");
     private final JButton enableAccountButton = new JButton("启用账号");
     private final JButton disableAccountButton = new JButton("停用账号");
+    private final JButton changeRoleButton = new JButton("修改角色");
     private final JButton unregisterAccountButton = new JButton("注销账号");
     private final DefaultTableModel resetTableModel = new DefaultTableModel(
             new Object[]{"账号", "姓名", "角色", "档案编号", "申请原因", "联系方式", "申请时间", "状态"}, 0) {
@@ -99,6 +102,7 @@ final class UserManagementPanel extends JPanel {
         refreshAccountsButton.addActionListener(event -> loadAccounts());
         enableAccountButton.addActionListener(event -> setSelectedAccountActive(true));
         disableAccountButton.addActionListener(event -> setSelectedAccountActive(false));
+        changeRoleButton.addActionListener(event -> changeSelectedAccountRole());
         unregisterAccountButton.addActionListener(event -> unregisterSelectedAccount());
         refreshResetButton.addActionListener(event -> loadPasswordResetApplications());
         approveResetButton.addActionListener(event -> reviewSelectedPasswordReset(true));
@@ -222,10 +226,12 @@ final class UserManagementPanel extends JPanel {
         VCampusTheme.secondaryButton(refreshAccountsButton);
         VCampusTheme.primaryButton(enableAccountButton);
         VCampusTheme.secondaryButton(disableAccountButton);
+        VCampusTheme.secondaryButton(changeRoleButton);
         VCampusTheme.secondaryButton(unregisterAccountButton);
         actions.add(refreshAccountsButton);
         actions.add(enableAccountButton);
         actions.add(disableAccountButton);
+        actions.add(changeRoleButton);
         actions.add(unregisterAccountButton);
         accountStatus.setForeground(VCampusTheme.MUTED);
         footer.add(actions, BorderLayout.NORTH);
@@ -593,6 +599,64 @@ final class UserManagementPanel extends JPanel {
         }.execute();
     }
 
+    private void changeSelectedAccountRole() {
+        final String targetUserId = selectedAccountUserId();
+        if (targetUserId == null) {
+            showAccountStatus("请先选择一条账号", VCampusTheme.DANGER);
+            return;
+        }
+        int row = accountTable.getSelectedRow();
+        String currentRole = String.valueOf(accountTableModel.getValueAt(row, 2));
+        JComboBox<Role> roleBox = new JComboBox<Role>(Role.values());
+        try {
+            roleBox.setSelectedItem(Role.valueOf(currentRole));
+        } catch (IllegalArgumentException ignored) {
+            // The server remains the final authority if an old or unknown role is displayed.
+        }
+        JPanel form = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        form.add(new JLabel("目标角色"));
+        form.add(roleBox);
+        if (JOptionPane.showConfirmDialog(this, form,
+                "修改账号角色：" + targetUserId, JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) {
+            return;
+        }
+        final Role selectedRole = (Role) roleBox.getSelectedItem();
+        if (selectedRole == null) {
+            showAccountStatus("请选择目标角色", VCampusTheme.DANGER);
+            return;
+        }
+        requestInProgress = true;
+        updateButtonState();
+        showAccountStatus("正在修改账号角色…", VCampusTheme.MUTED);
+        new SwingWorker<Message, Void>() {
+            @Override protected Message doInBackground() throws Exception {
+                try (RemoteUserService service = new RemoteUserService(host, port)) {
+                    return service.changeUserRole(session.getToken(), targetUserId, selectedRole.name());
+                }
+            }
+
+            @Override protected void done() {
+                try {
+                    Message response = get();
+                    if (response.getStatusCode() == StatusCode.OK) {
+                        loadAccounts();
+                        showAccountStatus("账号角色已修改为 " + selectedRole.name(), VCampusTheme.SUCCESS);
+                    } else {
+                        showAccountStatus("修改角色失败：" + statusMessage(response.getStatusCode()),
+                                VCampusTheme.DANGER);
+                    }
+                } catch (Exception failure) {
+                    showAccountStatus("修改角色失败，请确认服务器已启动且网络连接正常",
+                            VCampusTheme.DANGER);
+                } finally {
+                    requestInProgress = false;
+                    updateButtonState();
+                }
+            }
+        }.execute();
+    }
+
     private void loadAuditEvents() {
         requestInProgress = true;
         updateButtonState();
@@ -719,8 +783,22 @@ final class UserManagementPanel extends JPanel {
                 try {
                     Message response = get();
                     if (response.getStatusCode() == StatusCode.OK) {
+                        if (approved && !(response.getPayload() instanceof PasswordResetReviewResult)) {
+                            showResetStatus("审批成功，但服务器没有返回临时密码，请联系管理员核对",
+                                    VCampusTheme.DANGER);
+                            return;
+                        }
                         resetTableModel.removeRow(selectedRow);
-                        showResetStatus(approved ? "已通过重置申请" : "已拒绝重置申请", VCampusTheme.SUCCESS);
+                        if (approved) {
+                            PasswordResetReviewResult result =
+                                    (PasswordResetReviewResult) response.getPayload();
+                            String message = reviewResultMessage(true, result.getTemporaryPassword());
+                            showResetStatus("已通过重置申请，临时密码已生成", VCampusTheme.SUCCESS);
+                            JOptionPane.showMessageDialog(UserManagementPanel.this, message,
+                                    "密码重置结果", JOptionPane.INFORMATION_MESSAGE);
+                        } else {
+                            showResetStatus(reviewResultMessage(false, ""), VCampusTheme.SUCCESS);
+                        }
                     } else {
                         showResetStatus("处理失败：" + statusMessage(response.getStatusCode()), VCampusTheme.DANGER);
                     }
@@ -742,6 +820,7 @@ final class UserManagementPanel extends JPanel {
         refreshAccountsButton.setEnabled(!requestInProgress);
         enableAccountButton.setEnabled(!requestInProgress && accountTable.getSelectedRow() >= 0);
         disableAccountButton.setEnabled(!requestInProgress && accountTable.getSelectedRow() >= 0);
+        changeRoleButton.setEnabled(!requestInProgress && accountTable.getSelectedRow() >= 0);
         unregisterAccountButton.setEnabled(!requestInProgress && accountTable.getSelectedRow() >= 0);
         accountTable.setEnabled(!requestInProgress);
         refreshResetButton.setEnabled(!requestInProgress);
@@ -789,6 +868,17 @@ final class UserManagementPanel extends JPanel {
             return "未找到目标账号";
         }
         return "服务器处理请求失败";
+    }
+
+    static String reviewResultMessage(boolean approved, String temporaryPassword) {
+        if (!approved) {
+            return "已拒绝重置申请";
+        }
+        if (temporaryPassword == null || temporaryPassword.trim().isEmpty()) {
+            return "已通过重置申请，但没有生成临时密码，请联系管理员处理";
+        }
+        return "已通过重置申请。\n请将以下一次性临时密码发给用户，并提醒用户登录后立即修改：\n"
+                + temporaryPassword;
     }
 
 }
