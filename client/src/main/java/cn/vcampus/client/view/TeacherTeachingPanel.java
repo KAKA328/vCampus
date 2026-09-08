@@ -3,7 +3,10 @@ package cn.vcampus.client.view;
 import cn.vcampus.client.service.RemoteCourseService;
 import cn.vcampus.common.Message;
 import cn.vcampus.common.StatusCode;
+import cn.vcampus.course.GradeEntry;
+import cn.vcampus.course.GradeSubmissionStatus;
 import cn.vcampus.course.TeachingOffering;
+import cn.vcampus.course.TeachingGradeDraft;
 import cn.vcampus.course.TeachingRoster;
 import cn.vcampus.course.TeachingRosterEntry;
 import cn.vcampus.user.Session;
@@ -13,7 +16,9 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -26,7 +31,7 @@ import javax.swing.SwingWorker;
 /** 任课老师按学期查看本人负责教学班的入口页面。 */
 final class TeacherTeachingPanel extends JPanel {
     private static final int[] OFFERING_COLUMN_WIDTHS = { 120, 180, 70, 160, 220, 120, 100 };
-    private static final int[] ROSTER_COLUMN_WIDTHS = { 130, 120, 180, 130, 130 };
+    private static final int[] ROSTER_COLUMN_WIDTHS = { 130, 120, 180, 130, 130, 90 };
 
     private final String host;
     private final int port;
@@ -34,17 +39,23 @@ final class TeacherTeachingPanel extends JPanel {
     private final JTextField term = new JTextField("2026-2027-1", 12);
     private final JButton refreshButton = new JButton("查询我的教学班");
     private final JButton viewRosterButton = new JButton("查看学生名单");
+    private final JButton openDraftButton = new JButton("打开成绩草稿");
+    private final JTextField score = new JTextField(5);
+    private final JButton saveGradeButton = new JButton("保存所选学生成绩");
+    private final JButton submitGradesButton = new JButton("提交教务审核");
     private final BatchTableModel tableModel = new BatchTableModel(new Object[] {
             "课程编号", "课程名称", "学分", "教学班", "上课时间", "地点", "教学班状态" });
     private final JTable table = new JTable(tableModel);
     private final BatchTableModel rosterModel = new BatchTableModel(new Object[] {
-            "学号", "姓名", "专业", "班级", "选课类别" });
+            "学号", "姓名", "专业", "班级", "选课类别", "成绩" });
     private final JTable rosterTable = new JTable(rosterModel);
     private final List<TeachingOffering> offerings = new ArrayList<TeachingOffering>();
+    private final List<TeachingRosterEntry> rosterStudents = new ArrayList<TeachingRosterEntry>();
     private final JLabel rosterTitle = new JLabel("学生名单");
     private final JLabel status = new JLabel();
     private final RequestLifecycle requestLifecycle = new RequestLifecycle();
     private boolean requestInProgress;
+    private TeachingGradeDraft currentDraft;
 
     TeacherTeachingPanel(String host, int port, Session session) {
         if (host == null || host.trim().isEmpty() || session == null) {
@@ -60,12 +71,25 @@ final class TeacherTeachingPanel extends JPanel {
         setLayout(new BorderLayout(0, UiMetrics.px(16)));
         setOpaque(false);
         VCampusTheme.field(term);
+        VCampusTheme.field(score);
         VCampusTheme.secondaryButton(refreshButton);
         VCampusTheme.primaryButton(viewRosterButton);
+        VCampusTheme.secondaryButton(openDraftButton);
+        VCampusTheme.primaryButton(saveGradeButton);
+        VCampusTheme.primaryButton(submitGradesButton);
         refreshButton.addActionListener(e -> loadOfferings());
         viewRosterButton.addActionListener(e -> loadRoster());
+        openDraftButton.addActionListener(e -> openDraft());
+        saveGradeButton.addActionListener(e -> saveSelectedGrade());
+        submitGradesButton.addActionListener(e -> submitGrades());
         table.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
+                updateInteractiveState();
+            }
+        });
+        rosterTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                fillScoreFromSelection();
                 updateInteractiveState();
             }
         });
@@ -84,7 +108,7 @@ final class TeacherTeachingPanel extends JPanel {
         JLabel title = new JLabel("我的教学班");
         title.setFont(VCampusTheme.font(Font.BOLD, 24));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        JLabel subtitle = new JLabel("按学期查看本人教学班，并查看当前有效选课学生名单。 ");
+        JLabel subtitle = new JLabel("查看本人教学班和名单，维护成绩草稿后提交教务审核。 ");
         subtitle.setForeground(VCampusTheme.MUTED);
         panel.add(title, BorderLayout.NORTH);
         panel.add(subtitle, BorderLayout.SOUTH);
@@ -101,6 +125,11 @@ final class TeacherTeachingPanel extends JPanel {
         query.add(term);
         query.add(refreshButton);
         query.add(viewRosterButton);
+        query.add(openDraftButton);
+        query.add(new JLabel("分数"));
+        query.add(score);
+        query.add(saveGradeButton);
+        query.add(submitGradesButton);
         panel.add(query, BorderLayout.NORTH);
         panel.add(workspace(), BorderLayout.CENTER);
         panel.add(status, BorderLayout.SOUTH);
@@ -173,8 +202,7 @@ final class TeacherTeachingPanel extends JPanel {
                 }
             }
             tableModel.replaceRows(rows);
-            rosterModel.replaceRows(new ArrayList<Object[]>());
-            rosterTitle.setText("学生名单");
+            clearRosterAndDraft();
             showStatus(rows.isEmpty() ? "该学期没有分配给你的教学班" : "已加载 " + rows.size()
                     + " 个本人教学班", rows.isEmpty() ? VCampusTheme.MUTED : VCampusTheme.SUCCESS);
         });
@@ -193,20 +221,96 @@ final class TeacherTeachingPanel extends JPanel {
                         showFailure(response);
                         return;
                     }
-                    TeachingRoster roster = (TeachingRoster) response.getPayload();
-                    List<Object[]> rows = new ArrayList<Object[]>();
-                    for (TeachingRosterEntry student : roster.getStudents()) {
-                        rows.add(new Object[] { student.getStudentId(), student.getStudentName(),
-                                safe(student.getMajorName()), safe(student.getClassId()),
-                                student.getSelectionType().getDisplayName() });
-                    }
-                    rosterModel.replaceRows(rows);
-                    rosterTitle.setText("学生名单："
-                            + roster.getTeachingOffering().getOffering().getOfferingId()
-                            + "（" + rows.size() + " 人）");
-                    showStatus(rows.isEmpty() ? "该教学班当前没有有效选课学生" : "已加载 "
-                            + rows.size() + " 名学生", rows.isEmpty() ? VCampusTheme.MUTED
+                    currentDraft = null;
+                    renderRoster((TeachingRoster) response.getPayload(), null);
+                    int count = rosterStudents.size();
+                    showStatus(count == 0 ? "该教学班当前没有有效选课学生" : "已加载 "
+                            + count + " 名学生", count == 0 ? VCampusTheme.MUTED
                                     : VCampusTheme.SUCCESS);
+                });
+    }
+
+    private void openDraft() {
+        TeachingOffering selected = selectedOffering();
+        if (selected == null) {
+            showStatus("请先选择一个教学班", VCampusTheme.DANGER);
+            return;
+        }
+        request(service -> service.openGradeDraft(session.getToken(),
+                selected.getOffering().getOfferingId()), response -> {
+                    if (response.getStatusCode() != StatusCode.OK
+                            || !(response.getPayload() instanceof TeachingGradeDraft)) {
+                        showFailure(response);
+                        return;
+                    }
+                    currentDraft = (TeachingGradeDraft) response.getPayload();
+                    renderRoster(currentDraft.getRoster(), currentDraft);
+                    GradeSubmissionStatus draftStatus = currentDraft.getSubmission().getStatus();
+                    showStatus("已打开成绩草稿，当前状态：" + draftStatusText(draftStatus),
+                            draftStatus == GradeSubmissionStatus.APPROVED ? VCampusTheme.MUTED
+                                    : VCampusTheme.SUCCESS);
+                });
+    }
+
+    private void saveSelectedGrade() {
+        if (!canEditDraft()) {
+            showStatus(currentDraft == null ? "请先打开成绩草稿" : "已通过的成绩单必须先由教务退回",
+                    VCampusTheme.DANGER);
+            return;
+        }
+        int row = rosterTable.getSelectedRow();
+        if (row < 0 || row >= rosterStudents.size()) {
+            showStatus("请先选择一名学生", VCampusTheme.DANGER);
+            return;
+        }
+        int selectedScore;
+        try {
+            selectedScore = Integer.parseInt(score.getText().trim());
+            if (selectedScore < 0 || selectedScore > 100) {
+                throw new NumberFormatException();
+            }
+        } catch (NumberFormatException invalid) {
+            showStatus("分数必须是 0 到 100 的整数", VCampusTheme.DANGER);
+            return;
+        }
+        String studentId = rosterStudents.get(row).getStudentId();
+        request(service -> service.saveGradeEntry(session.getToken(),
+                currentDraft.getSubmission().getOfferingId(), studentId, selectedScore), response -> {
+                    if (response.getStatusCode() != StatusCode.OK
+                            || !(response.getPayload() instanceof TeachingGradeDraft)) {
+                        showFailure(response);
+                        return;
+                    }
+                    currentDraft = (TeachingGradeDraft) response.getPayload();
+                    renderRoster(currentDraft.getRoster(), currentDraft);
+                    showStatus("已保存 " + studentId + " 的成绩；当前状态："
+                            + draftStatusText(currentDraft.getSubmission().getStatus()),
+                            VCampusTheme.SUCCESS);
+                });
+    }
+
+    private void submitGrades() {
+        if (!canEditDraft()) {
+            showStatus(currentDraft == null ? "请先打开成绩草稿" : "已通过的成绩单必须先由教务退回",
+                    VCampusTheme.DANGER);
+            return;
+        }
+        int missing = missingGradeCount();
+        if (missing > 0) {
+            showStatus("还有 " + missing + " 名有效选课学生未录入成绩，不能提交审核", VCampusTheme.DANGER);
+            return;
+        }
+        request(service -> service.submitGradesForReview(session.getToken(),
+                currentDraft.getSubmission().getOfferingId()), response -> {
+                    if (response.getStatusCode() != StatusCode.OK
+                            || !(response.getPayload() instanceof TeachingGradeDraft)) {
+                        showFailure(response);
+                        return;
+                    }
+                    currentDraft = (TeachingGradeDraft) response.getPayload();
+                    renderRoster(currentDraft.getRoster(), currentDraft);
+                    showStatus("成绩已提交教务审核。后续修改后需再次提交，教务将审核最新版本。",
+                            VCampusTheme.SUCCESS);
                 });
     }
 
@@ -263,13 +367,105 @@ final class TeacherTeachingPanel extends JPanel {
         boolean interactive = !requestInProgress;
         refreshButton.setEnabled(interactive);
         viewRosterButton.setEnabled(interactive && selectedOffering() != null);
+        openDraftButton.setEnabled(interactive && selectedOffering() != null);
+        saveGradeButton.setEnabled(interactive && canEditDraft()
+                && rosterTable.getSelectedRow() >= 0);
+        submitGradesButton.setEnabled(interactive && canEditDraft());
         term.setEnabled(interactive);
         table.setEnabled(interactive);
         rosterTable.setEnabled(interactive);
+        score.setEnabled(interactive && canEditDraft());
     }
 
     private static String safe(String value) {
         return value == null || value.trim().isEmpty() ? "-" : value;
+    }
+
+    private void renderRoster(TeachingRoster roster, TeachingGradeDraft draft) {
+        rosterStudents.clear();
+        rosterStudents.addAll(roster.getStudents());
+        Map<String, GradeEntry> entriesByStudent = new LinkedHashMap<String, GradeEntry>();
+        if (draft != null) {
+            for (GradeEntry entry : draft.getEntries()) {
+                entriesByStudent.put(entry.getStudentId(), entry);
+            }
+        }
+        List<Object[]> rows = new ArrayList<Object[]>();
+        for (TeachingRosterEntry student : rosterStudents) {
+            GradeEntry entry = entriesByStudent.get(student.getStudentId());
+            rows.add(new Object[] { student.getStudentId(), student.getStudentName(),
+                    safe(student.getMajorName()), safe(student.getClassId()),
+                    student.getSelectionType().getDisplayName(),
+                    entry == null ? "未录入" : Integer.valueOf(entry.getScore()) });
+        }
+        rosterModel.replaceRows(rows);
+        String draftStatus = draft == null ? "" : "，草稿状态："
+                + draftStatusText(draft.getSubmission().getStatus());
+        rosterTitle.setText("学生名单：" + roster.getTeachingOffering().getOffering().getOfferingId()
+                + "（" + rows.size() + " 人" + draftStatus + "）");
+        score.setText("");
+    }
+
+    private void clearRosterAndDraft() {
+        currentDraft = null;
+        rosterStudents.clear();
+        rosterModel.replaceRows(new ArrayList<Object[]>());
+        rosterTitle.setText("学生名单与成绩草稿");
+        score.setText("");
+    }
+
+    private void fillScoreFromSelection() {
+        if (currentDraft == null) {
+            score.setText("");
+            return;
+        }
+        int row = rosterTable.getSelectedRow();
+        if (row < 0 || row >= rosterStudents.size()) {
+            return;
+        }
+        String studentId = rosterStudents.get(row).getStudentId();
+        for (GradeEntry entry : currentDraft.getEntries()) {
+            if (studentId.equals(entry.getStudentId())) {
+                score.setText(String.valueOf(entry.getScore()));
+                return;
+            }
+        }
+        score.setText("");
+    }
+
+    private boolean canEditDraft() {
+        return currentDraft != null
+                && currentDraft.getSubmission().getStatus() != GradeSubmissionStatus.APPROVED;
+    }
+
+    private int missingGradeCount() {
+        if (currentDraft == null) {
+            return 0;
+        }
+        Map<String, GradeEntry> entriesByStudent = new LinkedHashMap<String, GradeEntry>();
+        for (GradeEntry entry : currentDraft.getEntries()) {
+            entriesByStudent.put(entry.getStudentId(), entry);
+        }
+        int missing = 0;
+        for (TeachingRosterEntry student : rosterStudents) {
+            if (!entriesByStudent.containsKey(student.getStudentId())) {
+                missing++;
+            }
+        }
+        return missing;
+    }
+
+    private static String draftStatusText(GradeSubmissionStatus value) {
+        if (value == GradeSubmissionStatus.DRAFT) {
+            return "草稿";
+        }
+        if (value == GradeSubmissionStatus.PENDING_REVIEW) {
+            return "待审核";
+        }
+        if (value == GradeSubmissionStatus.APPROVED) {
+            return "已通过";
+        }
+        return "已退回修改";
     }
 
     private interface Request {

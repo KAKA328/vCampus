@@ -22,6 +22,9 @@ class TeacherTeachingPanelTest {
         assertTrue(table.getColumnModel().getColumn(4).getPreferredWidth() >= UiMetrics.px(220));
         assertTrue(button(panel).isEnabled());
         assertFalse(button(panel, "viewRosterButton").isEnabled());
+        assertFalse(button(panel, "openDraftButton").isEnabled());
+        assertFalse(button(panel, "saveGradeButton").isEnabled());
+        assertFalse(button(panel, "submitGradesButton").isEnabled());
     }
 
     @Test
@@ -37,6 +40,9 @@ class TeacherTeachingPanelTest {
 
         assertFalse(button(panel).isEnabled());
         assertFalse(button(panel, "viewRosterButton").isEnabled());
+        assertFalse(button(panel, "openDraftButton").isEnabled());
+        assertFalse(button(panel, "saveGradeButton").isEnabled());
+        assertFalse(button(panel, "submitGradesButton").isEnabled());
     }
 
     private static TeacherTeachingPanel panel() {

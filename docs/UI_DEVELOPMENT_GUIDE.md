@@ -142,7 +142,7 @@ panel.add(VCampusTheme.scrollPane(table), BorderLayout.CENTER);
 | 主框架 | `MainFrame` | 主窗口、侧栏、头部、工作台外壳 |
 | 工作台 | `DashboardWorkbenchPanel`、`ResponsiveModuleGridPanel` | 卡片网格、统计卡片、窄屏堆叠、信息栏 |
 | 选课页面 | `CourseSelectionPanel` | 换行工具栏、轮次选择、可横向滚动的教学班表格 |
-| 教师教学班 | `TeacherTeachingPanel` | 学期筛选、本人教学班列表、长时间字段横向滚动 |
+| 教师教学班 | `TeacherTeachingPanel` | 学期筛选、本人教学班列表、学生名单、成绩草稿保存和提交审核 |
 | 教务选课管理 | `CourseManagementPanel`、`SelectionRoundManagementPanel`、`TrainingPlanManagementPanel`、`GradeReviewPanel` | 课程/教学班、选课轮次、培养方案和成绩审核工作区 |
 
 旧页面中仍可能存在固定像素写法。它们只是待改造对象，不是新页面的参考标准。
