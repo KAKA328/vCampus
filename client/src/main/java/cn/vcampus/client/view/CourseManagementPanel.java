@@ -90,8 +90,10 @@ public final class CourseManagementPanel extends JPanel {
     private JPanel body(JTabbedPane tabs) {
         JPanel panel = new ScrollablePagePanel(new BorderLayout(0, UiMetrics.px(12)));
         panel.setOpaque(false);
-        tabs.setPreferredSize(UiMetrics.dimension(0, 520));
-        tabs.setMinimumSize(UiMetrics.dimension(0, 340));
+        // 轮次与培养方案页包含“表单 + 上下表格工作区”，为其保留足够高度；
+        // 窗口较矮时由外层页面滚动条承接，而不是压缩表格和操作区。
+        tabs.setPreferredSize(UiMetrics.dimension(0, 720));
+        tabs.setMinimumSize(UiMetrics.dimension(0, 460));
         panel.add(tabs, BorderLayout.CENTER);
         panel.add(status, BorderLayout.SOUTH);
         return panel;

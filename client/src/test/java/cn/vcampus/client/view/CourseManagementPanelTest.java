@@ -33,6 +33,7 @@ class CourseManagementPanelTest {
         assertEquals("培养方案", tabs.getTitleAt(3));
         assertTrue(tabs.getComponentAt(3) instanceof TrainingPlanManagementPanel);
         assertEquals("成绩审核", tabs.getTitleAt(4));
+        assertTrue(tabs.getPreferredSize().height >= UiMetrics.px(720));
     }
 
     @Test
