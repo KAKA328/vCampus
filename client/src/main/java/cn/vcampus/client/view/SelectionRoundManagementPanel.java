@@ -20,6 +20,7 @@ import java.util.List;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
@@ -53,6 +54,7 @@ final class SelectionRoundManagementPanel extends JPanel {
     private final JButton updateTimeButton = new JButton("更新开放时间");
     private final JButton changeStatusButton = new JButton("更新轮次状态");
     private final JLabel statusHint = new JLabel();
+    private final List<JComponent> inputs = new ArrayList<JComponent>();
     private final RequestLifecycle requestLifecycle = new RequestLifecycle();
     private boolean requestInProgress;
 
@@ -69,9 +71,11 @@ final class SelectionRoundManagementPanel extends JPanel {
     private void build() {
         setLayout(new BorderLayout(0, UiMetrics.px(12)));
         setOpaque(false);
-        styleFields(term, roundId, startsAt, endsAt);
+        styleAndTrackFields(term, roundId, startsAt, endsAt);
         VCampusTheme.field(type);
         VCampusTheme.field(status);
+        inputs.add(type);
+        inputs.add(status);
         styleRoundCombo(type);
         styleRoundStatusCombo(status);
 
@@ -85,42 +89,80 @@ final class SelectionRoundManagementPanel extends JPanel {
             }
         });
 
-        add(form(), BorderLayout.NORTH);
+        add(controls(), BorderLayout.NORTH);
         add(tableCard(), BorderLayout.CENTER);
         add(statusHint, BorderLayout.SOUTH);
         showStatus("填写学期后查询，或新建首修/重修轮次", VCampusTheme.MUTED);
         updateInteractiveState();
     }
 
-    private JPanel form() {
-        JPanel form = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
-                UiMetrics.px(6)));
-        VCampusTheme.panel(form);
-        form.add(new JLabel("学期"));
-        form.add(term);
-        form.add(new JLabel("轮次编号"));
-        form.add(roundId);
-        form.add(new JLabel("类型"));
-        form.add(type);
-        form.add(new JLabel("开始"));
-        form.add(startsAt);
-        form.add(new JLabel("结束"));
-        form.add(endsAt);
-        form.add(new JLabel("状态"));
-        form.add(status);
-        addSecondary(form, refreshButton);
-        addPrimary(form, createButton);
-        addSecondary(form, updateTimeButton);
-        addSecondary(form, changeStatusButton);
-        return form;
+    private JPanel controls() {
+        JPanel controls = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
+        controls.setOpaque(false);
+        controls.add(queryCard(), BorderLayout.NORTH);
+        controls.add(roundFormCard(), BorderLayout.CENTER);
+        return controls;
+    }
+
+    /** 先按学期定位轮次，避免在不同学期的轮次之间误改状态。 */
+    private JPanel queryCard() {
+        JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
+        VCampusTheme.panel(card);
+        JLabel title = sectionTitle("第 1 步：查询选课轮次");
+        JLabel hint = sectionHint("同一学期的首修轮次和重修轮次各只能创建一个。 ");
+        JPanel fields = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
+                UiMetrics.px(4)));
+        fields.setOpaque(false);
+        fields.add(new JLabel("学期"));
+        fields.add(term);
+        addSecondary(fields, refreshButton);
+        card.add(title, BorderLayout.NORTH);
+        card.add(fields, BorderLayout.CENTER);
+        card.add(hint, BorderLayout.SOUTH);
+        return card;
+    }
+
+    private JPanel roundFormCard() {
+        JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
+        VCampusTheme.panel(card);
+        JLabel title = sectionTitle("第 2 步：新建或维护选课轮次");
+        JLabel hint = sectionHint("从下方选择一行后，信息会自动带入；开放轮次会向符合条件的学生显示。 ");
+        JPanel fields = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
+                UiMetrics.px(4)));
+        fields.setOpaque(false);
+        fields.add(new JLabel("轮次编号")); fields.add(roundId);
+        fields.add(new JLabel("轮次类型")); fields.add(type);
+        fields.add(new JLabel("开始时间")); fields.add(startsAt);
+        fields.add(new JLabel("结束时间")); fields.add(endsAt);
+        fields.add(new JLabel("轮次状态")); fields.add(status);
+        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(8),
+                UiMetrics.px(4)));
+        actions.setOpaque(false);
+        addPrimary(actions, createButton);
+        addSecondary(actions, updateTimeButton);
+        addSecondary(actions, changeStatusButton);
+        JPanel content = new JPanel(new BorderLayout(0, UiMetrics.px(4)));
+        content.setOpaque(false);
+        content.add(fields, BorderLayout.NORTH);
+        content.add(actions, BorderLayout.SOUTH);
+        JPanel header = new JPanel(new BorderLayout(0, UiMetrics.px(2)));
+        header.setOpaque(false);
+        header.add(title, BorderLayout.NORTH);
+        header.add(hint, BorderLayout.SOUTH);
+        card.add(header, BorderLayout.NORTH);
+        card.add(content, BorderLayout.CENTER);
+        return card;
     }
 
     private JPanel tableCard() {
         JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(10)));
         VCampusTheme.panel(panel);
-        JLabel title = new JLabel("本学期选课轮次");
-        title.setFont(VCampusTheme.font(java.awt.Font.BOLD, 16));
-        title.setForeground(VCampusTheme.PRIMARY_DARK);
+        JPanel header = new JPanel(new BorderLayout(0, UiMetrics.px(3)));
+        header.setOpaque(false);
+        JLabel title = sectionTitle("本学期选课轮次");
+        JLabel hint = sectionHint("选择一行后，可调整时间窗口或轮次状态。 ");
+        header.add(title, BorderLayout.NORTH);
+        header.add(hint, BorderLayout.SOUTH);
         VCampusTheme.table(table);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
@@ -130,7 +172,7 @@ final class SelectionRoundManagementPanel extends JPanel {
         setColumnWidth(3, 170);
         setColumnWidth(4, 170);
         setColumnWidth(5, 90);
-        panel.add(title, BorderLayout.NORTH);
+        panel.add(header, BorderLayout.NORTH);
         panel.add(VCampusTheme.scrollPane(table), BorderLayout.CENTER);
         return panel;
     }
@@ -184,6 +226,11 @@ final class SelectionRoundManagementPanel extends JPanel {
             String id = text(roundId, "轮次编号");
             LocalDateTime start = parseTime(startsAt, "开始时间");
             LocalDateTime end = parseTime(endsAt, "结束时间");
+            if (!CourseUiSupport.confirmHighImpact(this, "确认修改开放时间",
+                    "确定更新轮次“" + id + "”的开放时间吗？",
+                    "时间窗口会直接影响学生能否进入该轮次选课。")) {
+                return;
+            }
             request(service -> service.updateSelectionRoundTimeWindow(session.getToken(), id, start, end),
                     response -> showSuccess(response, "开放时间已更新，请重新查询确认"));
         } catch (IllegalArgumentException invalid) {
@@ -195,6 +242,11 @@ final class SelectionRoundManagementPanel extends JPanel {
         try {
             String id = text(roundId, "轮次编号");
             SelectionRoundStatus selectedStatus = (SelectionRoundStatus) status.getSelectedItem();
+            if (!CourseUiSupport.confirmHighImpact(this, "确认修改轮次状态",
+                    "确定将轮次“" + id + "”设为“" + selectedStatus.getDisplayName() + "”吗？",
+                    "轮次状态会决定学生是否能看到并参与本轮选课。")) {
+                return;
+            }
             request(service -> service.changeSelectionRoundStatus(session.getToken(), id, selectedStatus),
                     response -> showSuccess(response, "轮次状态已更新，请重新查询确认"));
         } catch (IllegalArgumentException invalid) {
@@ -272,8 +324,7 @@ final class SelectionRoundManagementPanel extends JPanel {
     }
 
     private void showStatus(String message, Color color) {
-        statusHint.setText(message);
-        VCampusTheme.statusPill(statusHint, color);
+        CourseUiSupport.showStatus(statusHint, message, color);
     }
 
     private void updateInteractiveState() {
@@ -283,15 +334,32 @@ final class SelectionRoundManagementPanel extends JPanel {
         updateTimeButton.setEnabled(interactive);
         changeStatusButton.setEnabled(interactive);
         table.setEnabled(interactive);
+        for (JComponent input : inputs) {
+            input.setEnabled(interactive);
+        }
     }
 
     private void setColumnWidth(int index, int width) {
         table.getColumnModel().getColumn(index).setPreferredWidth(UiMetrics.px(width));
     }
 
-    private static void styleFields(JTextField... fields) {
+    private JLabel sectionTitle(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(VCampusTheme.font(java.awt.Font.BOLD, 16));
+        label.setForeground(VCampusTheme.PRIMARY_DARK);
+        return label;
+    }
+
+    private JLabel sectionHint(String text) {
+        JLabel label = new JLabel(text);
+        label.setForeground(VCampusTheme.MUTED);
+        return label;
+    }
+
+    private void styleAndTrackFields(JTextField... fields) {
         for (JTextField field : fields) {
             VCampusTheme.field(field);
+            inputs.add(field);
         }
     }
 

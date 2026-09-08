@@ -19,6 +19,7 @@ import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
@@ -57,6 +58,7 @@ final class TrainingPlanManagementPanel extends JPanel {
     private final JButton removeCourseButton = new JButton("移除课程要求");
     private final JButton changeStatusButton = new JButton("变更方案状态");
     private final JLabel statusHint = new JLabel();
+    private final List<JComponent> inputs = new ArrayList<JComponent>();
     private final RequestLifecycle requestLifecycle = new RequestLifecycle();
     private boolean requestInProgress;
 
@@ -73,13 +75,16 @@ final class TrainingPlanManagementPanel extends JPanel {
     private void build() {
         setLayout(new BorderLayout(0, UiMetrics.px(12)));
         setOpaque(false);
-        styleFields(planId, majorName, enrollmentYear, courseId, recommendedTerm);
+        styleAndTrackFields(planId, majorName, enrollmentYear, courseId, recommendedTerm);
         VCampusTheme.field(selectionType);
         VCampusTheme.field(planStatus);
+        inputs.add(selectionType);
+        inputs.add(planStatus);
         selectionType.setRenderer(selectionTypeRenderer());
         planStatus.setRenderer(planStatusRenderer());
         crossMajorAllowed.setOpaque(false);
         crossMajorAllowed.setFont(VCampusTheme.font(java.awt.Font.PLAIN, 14));
+        inputs.add(crossMajorAllowed);
 
         refreshButton.addActionListener(e -> loadPlans());
         createButton.addActionListener(e -> createPlan());
@@ -97,38 +102,81 @@ final class TrainingPlanManagementPanel extends JPanel {
             }
         });
 
-        add(form(), BorderLayout.NORTH);
+        add(controls(), BorderLayout.NORTH);
         add(workspace(), BorderLayout.CENTER);
         add(statusHint, BorderLayout.SOUTH);
         showStatus("请先刷新培养方案；新建方案必须为草稿，且至少填写一门课程要求", VCampusTheme.MUTED);
         updateInteractiveState();
     }
 
-    private JPanel form() {
-        JPanel form = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
-                UiMetrics.px(6)));
-        VCampusTheme.panel(form);
-        form.add(new JLabel("方案编号"));
-        form.add(planId);
-        form.add(new JLabel("专业"));
-        form.add(majorName);
-        form.add(new JLabel("入学年份"));
-        form.add(enrollmentYear);
-        form.add(new JLabel("课程"));
-        form.add(courseId);
-        form.add(new JLabel("建议学期"));
-        form.add(recommendedTerm);
-        form.add(new JLabel("课程类别"));
-        form.add(selectionType);
-        form.add(crossMajorAllowed);
-        form.add(new JLabel("方案状态"));
-        form.add(planStatus);
-        addSecondary(form, refreshButton);
-        addPrimary(form, createButton);
-        addSecondary(form, saveCourseButton);
-        addSecondary(form, removeCourseButton);
-        addSecondary(form, changeStatusButton);
-        return form;
+    private JPanel controls() {
+        JPanel controls = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
+        controls.setOpaque(false);
+        controls.add(planFormCard(), BorderLayout.NORTH);
+        controls.add(courseFormCard(), BorderLayout.CENTER);
+        return controls;
+    }
+
+    /** 先确定培养方案，再维护它包含的课程要求，避免课程被写入错误方案。 */
+    private JPanel planFormCard() {
+        JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
+        VCampusTheme.panel(card);
+        JLabel title = sectionTitle("第 1 步：查询或新建培养方案");
+        JLabel hint = sectionHint("新建方案必须是草稿状态，并在创建时至少包含一门课程要求。 ");
+        JPanel fields = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
+                UiMetrics.px(4)));
+        fields.setOpaque(false);
+        fields.add(new JLabel("方案编号")); fields.add(planId);
+        fields.add(new JLabel("专业")); fields.add(majorName);
+        fields.add(new JLabel("入学年份")); fields.add(enrollmentYear);
+        fields.add(new JLabel("方案状态")); fields.add(planStatus);
+        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(8),
+                UiMetrics.px(4)));
+        actions.setOpaque(false);
+        addSecondary(actions, refreshButton);
+        addPrimary(actions, createButton);
+        addSecondary(actions, changeStatusButton);
+        JPanel content = new JPanel(new BorderLayout(0, UiMetrics.px(4)));
+        content.setOpaque(false);
+        content.add(fields, BorderLayout.NORTH);
+        content.add(actions, BorderLayout.SOUTH);
+        JPanel header = new JPanel(new BorderLayout(0, UiMetrics.px(2)));
+        header.setOpaque(false);
+        header.add(title, BorderLayout.NORTH);
+        header.add(hint, BorderLayout.SOUTH);
+        card.add(header, BorderLayout.NORTH);
+        card.add(content, BorderLayout.CENTER);
+        return card;
+    }
+
+    private JPanel courseFormCard() {
+        JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
+        VCampusTheme.panel(card);
+        JLabel title = sectionTitle("第 2 步：维护方案课程要求");
+        JLabel hint = sectionHint("先从下方选择培养方案；选择课程要求后可修改并保存。 ");
+        JPanel fields = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
+                UiMetrics.px(4)));
+        fields.setOpaque(false);
+        fields.add(new JLabel("课程编号")); fields.add(courseId);
+        fields.add(new JLabel("建议学期")); fields.add(recommendedTerm);
+        fields.add(new JLabel("课程类别")); fields.add(selectionType);
+        fields.add(crossMajorAllowed);
+        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(8),
+                UiMetrics.px(4)));
+        actions.setOpaque(false);
+        addPrimary(actions, saveCourseButton);
+        addSecondary(actions, removeCourseButton);
+        JPanel content = new JPanel(new BorderLayout(0, UiMetrics.px(4)));
+        content.setOpaque(false);
+        content.add(fields, BorderLayout.NORTH);
+        content.add(actions, BorderLayout.SOUTH);
+        JPanel header = new JPanel(new BorderLayout(0, UiMetrics.px(2)));
+        header.setOpaque(false);
+        header.add(title, BorderLayout.NORTH);
+        header.add(hint, BorderLayout.SOUTH);
+        card.add(header, BorderLayout.NORTH);
+        card.add(content, BorderLayout.CENTER);
+        return card;
     }
 
     private JSplitPane workspace() {
@@ -143,24 +191,25 @@ final class TrainingPlanManagementPanel extends JPanel {
     }
 
     private JPanel planCard() {
-        JPanel panel = card("培养方案列表", planTable);
+        JPanel panel = card("培养方案列表", "选择一行后，课程要求会显示在下方。", planTable);
         configureTable(planTable, 200, 180, 100, 80, 100);
         return panel;
     }
 
     private JPanel courseCard() {
-        JPanel panel = card("当前方案的课程要求", courseTable);
+        JPanel panel = card("当前方案的课程要求", "选择一行后，可在上方修改或移除该课程要求。", courseTable);
         configureTable(courseTable, 160, 110, 140, 140);
         return panel;
     }
 
-    private static JPanel card(String titleText, JTable table) {
+    private JPanel card(String titleText, String hintText, JTable table) {
         JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(10)));
         VCampusTheme.panel(panel);
-        JLabel title = new JLabel(titleText);
-        title.setFont(VCampusTheme.font(java.awt.Font.BOLD, 16));
-        title.setForeground(VCampusTheme.PRIMARY_DARK);
-        panel.add(title, BorderLayout.NORTH);
+        JPanel header = new JPanel(new BorderLayout(0, UiMetrics.px(3)));
+        header.setOpaque(false);
+        header.add(sectionTitle(titleText), BorderLayout.NORTH);
+        header.add(sectionHint(hintText), BorderLayout.SOUTH);
+        panel.add(header, BorderLayout.NORTH);
         panel.add(VCampusTheme.scrollPane(table), BorderLayout.CENTER);
         return panel;
     }
@@ -219,6 +268,11 @@ final class TrainingPlanManagementPanel extends JPanel {
         try {
             String selectedPlanId = text(planId, "方案编号");
             String selectedCourseId = text(courseId, "课程编号");
+            if (!CourseUiSupport.confirmHighImpact(this, "确认移除课程要求",
+                    "确定从培养方案“" + selectedPlanId + "”中移除课程“" + selectedCourseId + "”吗？",
+                    "移除后，该课程将不再作为此方案学生的课程要求。")) {
+                return;
+            }
             request(service -> service.removeTrainingPlanCourse(session.getToken(), selectedPlanId,
                     selectedCourseId), response -> showSuccess(response,
                     "课程要求已移除，请刷新列表确认"));
@@ -231,6 +285,12 @@ final class TrainingPlanManagementPanel extends JPanel {
         try {
             String selectedPlanId = text(planId, "方案编号");
             TrainingPlanStatus selectedStatus = (TrainingPlanStatus) planStatus.getSelectedItem();
+            if (!CourseUiSupport.confirmHighImpact(this, "确认修改方案状态",
+                    "确定将培养方案“" + selectedPlanId + "”设为“"
+                            + planStatusText(selectedStatus) + "”吗？",
+                    "发布后会影响对应专业和入学年份学生可见的课程要求。")) {
+                return;
+            }
             request(service -> service.changeTrainingPlanStatus(session.getToken(), selectedPlanId,
                     selectedStatus), response -> showSuccess(response,
                     "培养方案状态已更新，请刷新列表确认"));
@@ -339,8 +399,7 @@ final class TrainingPlanManagementPanel extends JPanel {
     }
 
     private void showStatus(String message, Color color) {
-        statusHint.setText(message);
-        VCampusTheme.statusPill(statusHint, color);
+        CourseUiSupport.showStatus(statusHint, message, color);
     }
 
     private void updateInteractiveState() {
@@ -352,6 +411,9 @@ final class TrainingPlanManagementPanel extends JPanel {
         changeStatusButton.setEnabled(interactive);
         planTable.setEnabled(interactive);
         courseTable.setEnabled(interactive);
+        for (JComponent input : inputs) {
+            input.setEnabled(interactive);
+        }
     }
 
     private static void configureTable(JTable table, int... widths) {
@@ -363,9 +425,23 @@ final class TrainingPlanManagementPanel extends JPanel {
         }
     }
 
-    private static void styleFields(JTextField... fields) {
+    private JLabel sectionTitle(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(VCampusTheme.font(java.awt.Font.BOLD, 16));
+        label.setForeground(VCampusTheme.PRIMARY_DARK);
+        return label;
+    }
+
+    private JLabel sectionHint(String text) {
+        JLabel label = new JLabel(text);
+        label.setForeground(VCampusTheme.MUTED);
+        return label;
+    }
+
+    private void styleAndTrackFields(JTextField... fields) {
         for (JTextField field : fields) {
             VCampusTheme.field(field);
+            inputs.add(field);
         }
     }
 
