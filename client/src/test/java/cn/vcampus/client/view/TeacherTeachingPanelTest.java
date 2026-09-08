@@ -21,6 +21,7 @@ class TeacherTeachingPanelTest {
         assertTrue(table.getAutoResizeMode() == JTable.AUTO_RESIZE_OFF);
         assertTrue(table.getColumnModel().getColumn(4).getPreferredWidth() >= UiMetrics.px(220));
         assertTrue(button(panel).isEnabled());
+        assertFalse(button(panel, "viewRosterButton").isEnabled());
     }
 
     @Test
@@ -35,6 +36,7 @@ class TeacherTeachingPanelTest {
         update.invoke(panel);
 
         assertFalse(button(panel).isEnabled());
+        assertFalse(button(panel, "viewRosterButton").isEnabled());
     }
 
     private static TeacherTeachingPanel panel() {
@@ -43,7 +45,11 @@ class TeacherTeachingPanelTest {
     }
 
     private static JButton button(TeacherTeachingPanel panel) throws Exception {
-        Field field = TeacherTeachingPanel.class.getDeclaredField("refreshButton");
+        return button(panel, "refreshButton");
+    }
+
+    private static JButton button(TeacherTeachingPanel panel, String name) throws Exception {
+        Field field = TeacherTeachingPanel.class.getDeclaredField(name);
         field.setAccessible(true);
         return (JButton) field.get(panel);
     }
