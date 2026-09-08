@@ -45,7 +45,7 @@
 | `demo_student_retake` | `Demo123` | 学生 | 有数据库原理待重修记录，演示重修轮次和重修选课 |
 | `demo_student_elective` | `Demo123` | 学生 | 已选数据库原理选修班，演示选修容量和退选 |
 | `demo_student_cross` | `Demo123` | 学生 | 已选大学写作跨专业班，演示跨专业容量 |
-| `demo_teacher` | `Demo123` | 教师 | 学籍查询、课程成绩和图书逾期提醒 |
+| `demo_teacher` | `Demo123` | 教师 | 教师信息、课程成绩和图书逾期提醒 |
 | `demo_teacher_002` | `Demo123` | 教师 | 查看数据库原理教学班和退回成绩单 |
 | `demo_teacher_003` | `Demo123` | 教师 | 查看大学写作跨专业教学班 |
 

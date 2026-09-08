@@ -64,6 +64,9 @@ INSERT INTO tblStudent(student_id, user_id, student_name, gender, department_nam
 VALUES ('20260004', 'demo_student_elective', 'Demo Elective Student', '未知', '计算机科学与工程学院', '计算机科学与技术', 'CS2026-01', 2026, '在读', '', '');
 INSERT INTO tblStudent(student_id, user_id, student_name, gender, department_name, major_name, class_id, enrollment_year, status, phone, email)
 VALUES ('20260005', 'demo_student_cross', 'Demo Cross Major Student', '未知', '计算机科学与工程学院', '计算机科学与技术', 'CS2026-01', 2026, '在读', '', '');
+-- 为 ClientApplication --demo 保留一个未绑定档案，演示管理员开户注册和档案绑定闭环。
+INSERT INTO tblStudent(student_id, user_id, student_name, gender, department_name, major_name, class_id, enrollment_year, status, phone, email)
+VALUES ('20260006', NULL, 'Demo Registration Student', '未知', '计算机科学与工程学院', '计算机科学与技术', 'CS2026-01', 2026, '在读', '', '');
 
 INSERT INTO tblTeacher(teacher_id, user_id, teacher_name, department_name, title, active)
 VALUES ('教师001', 'demo_teacher', 'Demo Teacher One', '计算机科学与工程学院', '讲师', 1);

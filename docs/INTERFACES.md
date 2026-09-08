@@ -137,6 +137,8 @@ StudentManagementService.findByIds(List<String> studentIds)
 
 用户批量导入使用 `USER_IMPORT`。请求 payload 为 `UserImportCommand(token, rows)`，其中 `rows` 是 `UserImportRow(userId, password, displayName, roleCode)` 列表；响应 payload 为 `UserImportResult(importBatchId, totalCount, successCount, failures)`，失败明细为 `UserImportFailure(rowNumber, userId, message)`。客户端用户管理页可从 `.xlsx`、`.csv`、`.tsv` 外部表格读取账号清单并转为 `rows`；这些表格只是导入源文件，不替代 Access 运行数据库。该能力要求 `USER_MANAGE`，服务端会记录导入管理员、导入时间、导入批次，并为每个成功创建的账号写入 `IMPORT_USER` 审计记录。单行失败不会影响同批次其它有效账号。
 
+登录页的“申请重置密码”使用 `PASSWORD_RESET_REQUEST`，未登录用户只提交账号、申请原因和联系方式，不提交新密码。管理员在用户管理页的“密码重置”中审批申请；通过后服务端生成一次性临时密码并返回给管理员，同时使目标账号已有会话失效，用户使用临时密码登录后必须完成强制改密。申请状态和审批动作写入底层 `tblPasswordResetApplication` / `tblAuditLog`，客户端将 `tblAuditLog` 的展示名称统一为“操作日志”。
+
 商店订单查询需要同时明确：
 
 - 学生、教师查询本人订单；

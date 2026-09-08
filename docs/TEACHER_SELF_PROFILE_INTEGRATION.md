@@ -4,7 +4,7 @@
 
 ## 已实现
 
-- 教师登录后进入“学籍查询”，显示“我的教师信息”：教师工号、绑定账号、姓名、院系、职称、在职/非在职。全部只读，无学生检索、学生列表、联系方式或保存按钮。
+- 教师登录后进入“教师信息”，显示“我的教师信息”：教师工号、绑定账号、姓名、院系、职称、在职/非在职。全部只读，无学生检索、学生列表、联系方式或保存按钮。
 - 新消息 `TEACHER_SELF_QUERY_V1`，载荷 `TeacherSelfQueryV1Command(token)`，成功返回 `TeacherProfile`。没有可指定他人工号/账号的参数。
 - 服务端按 token → 当前教师会话 userId → TeacherProfileService.findByUserId 查档案。sender 不作为身份依据。Access 启动读取同库 tblTeacher，内存启动提供绑定 demo_teacher 的示例。
 - 未绑定返回 NOT_FOUND；非教师角色 FORBIDDEN；失效会话 UNAUTHORIZED；错误载荷/空 token BAD_REQUEST；数据库错误由教师服务映射 SERVER_ERROR。
