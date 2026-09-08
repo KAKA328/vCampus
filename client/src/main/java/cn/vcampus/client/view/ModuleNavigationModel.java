@@ -11,7 +11,7 @@ public final class ModuleNavigationModel {
     private static final List<ModuleDescriptor> ADMIN_MODULES = Collections.unmodifiableList(Arrays.asList(
             new ModuleDescriptor("用户管理", "维护用户账号、角色权限、登录会话和注销审计。", "可用：用户管理核心流程已接入"),
             new ModuleDescriptor("学籍管理", "维护学生基本信息、班级、专业和联系方式。", "可用：学生档案查询和维护已接入"),
-            new ModuleDescriptor("选课管理", "管理课程、教学班、选课轮次并审核教师成绩。", "可用：教务选课管理与成绩审核已接入"),
+            new ModuleDescriptor("选课管理", "管理课程、教学班、选课轮次、培养方案并审核教师成绩。", "可用：教务选课管理与成绩审核已接入"),
             new ModuleDescriptor("图书管理", "管理图书信息、借阅、归还和借阅记录。", "可用：馆藏维护和全部借阅记录已接入"),
             new ModuleDescriptor("商店管理", "管理商品信息、库存、购买记录、订单查询和钱包余额。", "可用：商品维护、库存补货、全部订单和余额校正已接入")));
 
@@ -29,7 +29,7 @@ public final class ModuleNavigationModel {
 
     private static final List<ModuleDescriptor> ACADEMIC_ADMIN_MODULES = Collections.unmodifiableList(Arrays.asList(
             new ModuleDescriptor("学籍管理", "维护学籍信息并执行学业审查。", "可用：学生档案查询和维护已接入"),
-            new ModuleDescriptor("选课管理", "维护课程、教学班、选课轮次并审核教师成绩。", "可用：课程维护和成绩审核已接入")));
+            new ModuleDescriptor("选课管理", "维护课程、教学班、选课轮次、培养方案并审核教师成绩。", "可用：课程维护和成绩审核已接入")));
 
     private static final List<ModuleDescriptor> LIBRARY_MODULES = Collections.singletonList(
             new ModuleDescriptor("图书馆", "维护图书资料、借阅归还和借阅记录。", "可用：馆藏维护和全部借阅记录已接入"));

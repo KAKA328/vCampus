@@ -24,7 +24,7 @@ import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingWorker;
 
-/** 教务管理员维护课程目录和具体教学班的页面。 */
+/** 教务管理员维护课程、教学班、选课轮次、培养方案和成绩审核的工作台。 */
 public final class CourseManagementPanel extends JPanel {
     private final String host;
     private final int port;
@@ -70,6 +70,8 @@ public final class CourseManagementPanel extends JPanel {
         VCampusTheme.tabs(tabs);
         tabs.addTab("课程目录", catalogPanel());
         tabs.addTab("教学班", offeringPanel());
+        tabs.addTab("选课轮次", new SelectionRoundManagementPanel(host, port, session));
+        tabs.addTab("培养方案", new TrainingPlanManagementPanel(host, port, session));
         tabs.addTab("成绩审核", new GradeReviewPanel(host, port, session));
         add(header(), BorderLayout.NORTH);
         add(VCampusTheme.pageScroll(body(tabs)), BorderLayout.CENTER);
@@ -94,7 +96,7 @@ public final class CourseManagementPanel extends JPanel {
         JLabel title = new JLabel("选课管理");
         title.setFont(VCampusTheme.font(Font.BOLD, 24));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        JLabel subtitle = new JLabel("维护课程目录、教学班、选课轮次，并审核教师提交的成绩。 ");
+        JLabel subtitle = new JLabel("维护课程目录、教学班、选课轮次和培养方案，并审核教师提交的成绩。 ");
         subtitle.setForeground(VCampusTheme.MUTED);
         panel.add(title, BorderLayout.NORTH);
         panel.add(subtitle, BorderLayout.SOUTH);
