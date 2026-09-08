@@ -1,6 +1,7 @@
 package cn.vcampus.client.view;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import cn.vcampus.common.Role;
@@ -8,6 +9,7 @@ import cn.vcampus.common.User;
 import cn.vcampus.user.Session;
 import java.lang.reflect.Field;
 import javax.swing.JButton;
+import javax.swing.JLabel;
 import javax.swing.JTable;
 import org.junit.jupiter.api.Test;
 
@@ -49,6 +51,18 @@ class TeacherTeachingPanelTest {
         assertFalse(button(panel, "importGradesButton").isEnabled());
     }
 
+    @Test
+    void presentsTeachingAndGradeWorkAsSeparateSteps() throws Exception {
+        TeacherTeachingPanel panel = panel();
+
+        assertEquals("学生名单与成绩草稿", label(panel, "rosterTitle").getText());
+        assertTrue(label(panel, "rosterHint").getText().contains("选择一个教学班"));
+        assertTrue(button(panel, "viewRosterButton").getUI()
+                instanceof VCampusTheme.ReadableButtonUI);
+        assertTrue(button(panel, "submitGradesButton").getUI()
+                instanceof VCampusTheme.ReadableButtonUI);
+    }
+
     private static TeacherTeachingPanel panel() {
         return new TeacherTeachingPanel("localhost", 19090,
                 new Session("token", new User("teacher-001", "任课老师", Role.TEACHER)));
@@ -68,5 +82,11 @@ class TeacherTeachingPanelTest {
         Field field = TeacherTeachingPanel.class.getDeclaredField("table");
         field.setAccessible(true);
         return (JTable) field.get(panel);
+    }
+
+    private static JLabel label(TeacherTeachingPanel panel, String name) throws Exception {
+        Field field = TeacherTeachingPanel.class.getDeclaredField(name);
+        field.setAccessible(true);
+        return (JLabel) field.get(panel);
     }
 }

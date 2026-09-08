@@ -60,7 +60,8 @@ final class TeacherTeachingPanel extends JPanel {
     private final JTable rosterTable = new JTable(rosterModel);
     private final List<TeachingOffering> offerings = new ArrayList<TeachingOffering>();
     private final List<TeachingRosterEntry> rosterStudents = new ArrayList<TeachingRosterEntry>();
-    private final JLabel rosterTitle = new JLabel("学生名单");
+    private final JLabel rosterTitle = new JLabel("学生名单与成绩草稿");
+    private final JLabel rosterHint = new JLabel("选择一个教学班后，可先查看名单或打开成绩草稿。 ");
     private final JLabel status = new JLabel();
     private final RequestLifecycle requestLifecycle = new RequestLifecycle();
     private boolean requestInProgress;
@@ -130,45 +131,33 @@ final class TeacherTeachingPanel extends JPanel {
     }
 
     private JPanel body() {
-        JPanel panel = new ScrollablePagePanel(new BorderLayout(0, UiMetrics.px(12)));
+        JPanel panel = new ScrollablePagePanel(new BorderLayout(0, UiMetrics.px(16)));
         panel.setOpaque(false);
-        panel.add(controls(), BorderLayout.NORTH);
+        panel.add(termCard(), BorderLayout.NORTH);
         panel.add(workspace(), BorderLayout.CENTER);
         panel.add(status, BorderLayout.SOUTH);
         return panel;
     }
 
-    private JPanel controls() {
-        JPanel controls = new JPanel(new BorderLayout(0, UiMetrics.px(10)));
-        controls.setOpaque(false);
-        JPanel query = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
-                UiMetrics.px(6)));
-        VCampusTheme.panel(query);
-        query.add(new JLabel("学期"));
-        query.add(term);
-        query.add(refreshButton);
-        query.add(viewRosterButton);
-        query.add(openDraftButton);
-
-        JPanel grades = new JPanel(new BorderLayout(0, UiMetrics.px(6)));
-        VCampusTheme.panel(grades);
-        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
+    /** 第一步只处理学期与教学班列表，成绩操作在选中教学班后才出现。 */
+    private JPanel termCard() {
+        JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
+        VCampusTheme.panel(card);
+        JLabel title = new JLabel("第 1 步：查询本人教学班");
+        title.setFont(VCampusTheme.font(Font.BOLD, 15));
+        title.setForeground(VCampusTheme.PRIMARY_DARK);
+        JLabel hint = new JLabel("选择学期后加载系统分配给你的教学班。 ");
+        hint.setForeground(VCampusTheme.MUTED);
+        JPanel fields = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
                 UiMetrics.px(4)));
-        actions.setOpaque(false);
-        actions.add(new JLabel("手工录入"));
-        actions.add(new JLabel("分数"));
-        actions.add(score);
-        actions.add(saveGradeButton);
-        actions.add(submitGradesButton);
-        actions.add(new JLabel("批量导入"));
-        actions.add(chooseGradeFileButton);
-        actions.add(importGradesButton);
-        selectedGradeFile.setForeground(VCampusTheme.MUTED);
-        grades.add(actions, BorderLayout.NORTH);
-        grades.add(selectedGradeFile, BorderLayout.SOUTH);
-        controls.add(query, BorderLayout.NORTH);
-        controls.add(grades, BorderLayout.SOUTH);
-        return controls;
+        fields.setOpaque(false);
+        fields.add(new JLabel("学期"));
+        fields.add(term);
+        fields.add(refreshButton);
+        card.add(title, BorderLayout.NORTH);
+        card.add(fields, BorderLayout.CENTER);
+        card.add(hint, BorderLayout.SOUTH);
+        return card;
     }
 
     private JSplitPane workspace() {
@@ -185,10 +174,25 @@ final class TeacherTeachingPanel extends JPanel {
     private JPanel offeringCard() {
         JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(10)));
         VCampusTheme.panel(panel);
-        JLabel title = new JLabel("本人教学班列表");
+        JPanel header = new JPanel(new BorderLayout(0, UiMetrics.px(6)));
+        header.setOpaque(false);
+        JLabel title = new JLabel("第 2 步：选择教学班");
         title.setFont(VCampusTheme.font(Font.BOLD, 16));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        panel.add(title, BorderLayout.NORTH);
+        JLabel hint = new JLabel("选择一行后，可查看学生名单，或打开该教学班的成绩草稿。 ");
+        hint.setForeground(VCampusTheme.MUTED);
+        JPanel titleBlock = new JPanel(new BorderLayout(0, UiMetrics.px(2)));
+        titleBlock.setOpaque(false);
+        titleBlock.add(title, BorderLayout.NORTH);
+        titleBlock.add(hint, BorderLayout.SOUTH);
+        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(8),
+                UiMetrics.px(2)));
+        actions.setOpaque(false);
+        actions.add(viewRosterButton);
+        actions.add(openDraftButton);
+        header.add(titleBlock, BorderLayout.NORTH);
+        header.add(actions, BorderLayout.SOUTH);
+        panel.add(header, BorderLayout.NORTH);
         panel.add(VCampusTheme.scrollPane(table), BorderLayout.CENTER);
         return panel;
     }
@@ -196,10 +200,39 @@ final class TeacherTeachingPanel extends JPanel {
     private JPanel rosterCard() {
         JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(10)));
         VCampusTheme.panel(panel);
+        JPanel header = new JPanel(new BorderLayout(0, UiMetrics.px(3)));
+        header.setOpaque(false);
         rosterTitle.setFont(VCampusTheme.font(Font.BOLD, 16));
         rosterTitle.setForeground(VCampusTheme.PRIMARY_DARK);
-        panel.add(rosterTitle, BorderLayout.NORTH);
+        rosterHint.setForeground(VCampusTheme.MUTED);
+        header.add(rosterTitle, BorderLayout.NORTH);
+        header.add(rosterHint, BorderLayout.SOUTH);
+        panel.add(header, BorderLayout.NORTH);
         panel.add(VCampusTheme.scrollPane(rosterTable), BorderLayout.CENTER);
+        panel.add(gradeWorkflow(), BorderLayout.SOUTH);
+        return panel;
+    }
+
+    /** 成绩动作紧贴名单，且按“手工录入、批量导入、提交审核”顺序展示。 */
+    private JPanel gradeWorkflow() {
+        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(6)));
+        panel.setOpaque(false);
+        JLabel title = new JLabel("第 3 步：维护并提交成绩");
+        title.setFont(VCampusTheme.font(Font.BOLD, 15));
+        title.setForeground(VCampusTheme.PRIMARY_DARK);
+        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
+                UiMetrics.px(4)));
+        actions.setOpaque(false);
+        actions.add(new JLabel("选中学生成绩"));
+        actions.add(score);
+        actions.add(saveGradeButton);
+        actions.add(chooseGradeFileButton);
+        actions.add(importGradesButton);
+        actions.add(submitGradesButton);
+        selectedGradeFile.setForeground(VCampusTheme.MUTED);
+        panel.add(title, BorderLayout.NORTH);
+        panel.add(actions, BorderLayout.CENTER);
+        panel.add(selectedGradeFile, BorderLayout.SOUTH);
         return panel;
     }
 
@@ -508,6 +541,9 @@ final class TeacherTeachingPanel extends JPanel {
                 + draftStatusText(draft.getSubmission().getStatus());
         rosterTitle.setText("学生名单：" + roster.getTeachingOffering().getOffering().getOfferingId()
                 + "（" + rows.size() + " 人" + draftStatus + "）");
+        rosterHint.setText(draft == null
+                ? "当前为名单查看模式；打开成绩草稿后，才能录入、导入或提交成绩。"
+                : "已打开成绩草稿。每名学生都有成绩后，才可以提交教务审核。 ");
         score.setText("");
     }
 
@@ -516,6 +552,7 @@ final class TeacherTeachingPanel extends JPanel {
         rosterStudents.clear();
         rosterModel.replaceRows(new ArrayList<Object[]>());
         rosterTitle.setText("学生名单与成绩草稿");
+        rosterHint.setText("选择一个教学班后，可先查看名单或打开成绩草稿。 ");
         score.setText("");
         clearGradeImportFile();
     }
