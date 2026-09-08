@@ -1,6 +1,7 @@
 package cn.vcampus.client.view;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -9,8 +10,9 @@ import cn.vcampus.common.User;
 import cn.vcampus.user.Session;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import javax.swing.JButton;
+import javax.swing.AbstractButton;
 import javax.swing.JComboBox;
+import javax.swing.JLabel;
 import javax.swing.JTable;
 import org.junit.jupiter.api.Test;
 
@@ -37,14 +39,16 @@ class CourseSelectionPanelTest {
         update.invoke(panel);
 
         assertFalse(button(panel, "loadRoundsButton").isEnabled());
-        assertFalse(button(panel, "loadOfferingsButton").isEnabled());
-        assertFalse(button(panel, "selectedButton").isEnabled());
-        assertFalse(button(panel, "selectButton").isEnabled());
-        assertFalse(button(panel, "dropButton").isEnabled());
+        assertFalse(button(panel, "refreshViewButton").isEnabled());
+        assertFalse(button(panel, "offeringsViewButton").isEnabled());
+        assertFalse(button(panel, "selectedViewButton").isEnabled());
+        assertFalse(button(panel, "primaryActionButton").isEnabled());
 
         busy.setBoolean(panel, false);
         update.invoke(panel);
-        assertTrue(button(panel, "selectButton").isEnabled());
+        assertTrue(button(panel, "loadRoundsButton").isEnabled());
+        assertFalse(button(panel, "refreshViewButton").isEnabled());
+        assertFalse(button(panel, "primaryActionButton").isEnabled());
     }
 
     @Test
@@ -52,9 +56,21 @@ class CourseSelectionPanelTest {
         CourseSelectionPanel panel = new CourseSelectionPanel("localhost", 19090,
                 new Session("token", new User("student-001", "测试学生", Role.STUDENT)));
         assertTrue(button(panel, "loadRoundsButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
-        assertTrue(button(panel, "loadOfferingsButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
-        assertTrue(button(panel, "selectButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
-        assertTrue(button(panel, "dropButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+        assertTrue(button(panel, "refreshViewButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+        assertTrue(button(panel, "offeringsViewButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+        assertTrue(button(panel, "selectedViewButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+        assertTrue(button(panel, "primaryActionButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+    }
+
+    @Test
+    void presentsStudentFlowAsOfferingsFirstThenSelectedCourses() throws Exception {
+        CourseSelectionPanel panel = new CourseSelectionPanel("localhost", 19090,
+                new Session("token", new User("student-001", "测试学生", Role.STUDENT)));
+
+        assertTrue(button(panel, "offeringsViewButton").isSelected());
+        assertFalse(button(panel, "selectedViewButton").isSelected());
+        assertEquals("本轮可选教学班", label(panel, "tableTitle").getText());
+        assertEquals("选择所选教学班", button(panel, "primaryActionButton").getText());
     }
 
     @Test
@@ -70,9 +86,15 @@ class CourseSelectionPanelTest {
         assertTrue(table.getColumnModel().getColumn(6).getPreferredWidth() >= UiMetrics.px(220));
     }
 
-    private static JButton button(CourseSelectionPanel panel, String fieldName) throws Exception {
+    private static AbstractButton button(CourseSelectionPanel panel, String fieldName) throws Exception {
         Field field = CourseSelectionPanel.class.getDeclaredField(fieldName);
         field.setAccessible(true);
-        return (JButton) field.get(panel);
+        return (AbstractButton) field.get(panel);
+    }
+
+    private static JLabel label(CourseSelectionPanel panel, String fieldName) throws Exception {
+        Field field = CourseSelectionPanel.class.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return (JLabel) field.get(panel);
     }
 }

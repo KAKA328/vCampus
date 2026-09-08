@@ -20,6 +20,11 @@ import cn.vcampus.course.SelectionRound;
 import cn.vcampus.course.SelectionRoundStatus;
 import cn.vcampus.course.SelectionRoundType;
 import cn.vcampus.course.StudentSelectionProfile;
+import cn.vcampus.course.TrainingPlan;
+import cn.vcampus.course.TrainingPlanCourse;
+import cn.vcampus.course.TrainingPlanManagementCommand;
+import cn.vcampus.course.TrainingPlanStatus;
+import cn.vcampus.course.SelectionType;
 import cn.vcampus.user.DefaultUserManagementService;
 import cn.vcampus.user.InMemoryAuditLogRepository;
 import cn.vcampus.user.InMemoryUserRepository;
@@ -83,7 +88,7 @@ class CourseMessageHandlerTest {
         CourseSelectionModule module = CourseSelectionDemoFactory.createModule();
         CourseMessageHandler managementHandler = new CourseMessageHandler(
                 module.getSelectionService(), module.getCatalogService(), module.getOfferingService(),
-                module.getSelectionRoundService(),
+                module.getSelectionRoundService(), module.getTrainingPlanService(),
                 new InMemoryStudentSelectionProfileProvider(Collections.<StudentSelectionProfile>emptyList()),
                 users);
 
@@ -127,12 +132,34 @@ class CourseMessageHandlerTest {
                         academicSession.getToken(), "ROUND-EXTRA", startsAt.plusDays(1),
                         endsAt.plusDays(1))));
         assertEquals(StatusCode.OK, updateRoundTime.getStatusCode());
+
+        TrainingPlan plan = new TrainingPlan("PLAN-CS-2030", "计算机科学与技术", 2030,
+                Collections.singletonList(new TrainingPlanCourse("CS201", 1,
+                        SelectionType.REQUIRED, false)));
+        Message createPlan = managementHandler.handle(Message.request("create-plan",
+                MessageType.COURSE_TRAINING_PLAN_MANAGE_V2,
+                TrainingPlanManagementCommand.create(academicSession.getToken(), plan)));
+        assertEquals(StatusCode.OK, createPlan.getStatusCode());
+
+        Message publishPlan = managementHandler.handle(Message.request("publish-plan",
+                MessageType.COURSE_TRAINING_PLAN_MANAGE_V2,
+                TrainingPlanManagementCommand.changeStatus(academicSession.getToken(),
+                        "PLAN-CS-2030", TrainingPlanStatus.PUBLISHED)));
+        assertEquals(StatusCode.OK, publishPlan.getStatusCode());
     }
 
     @Test
     void studentCannotCallCourseManagementMessage() {
         Message response = handler.handle(Message.request("manage", MessageType.COURSE_MANAGE,
                 CourseManagementCommand.listCourses(session.getToken())));
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
+    }
+
+    @Test
+    void studentCannotCallTrainingPlanManagementMessage() {
+        Message response = handler.handle(Message.request("manage-plans",
+                MessageType.COURSE_TRAINING_PLAN_MANAGE_V2,
+                TrainingPlanManagementCommand.list(session.getToken())));
         assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
     }
 }

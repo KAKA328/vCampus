@@ -66,13 +66,17 @@ class ModuleNavigationModelTest {
     }
 
     @Test
-    void studentsAndTeachersUseCourseSelectionPanel() {
+    void studentsAndTeachersUseTheirOwnCoursePanels() {
         ModuleNavigationModel model = new ModuleNavigationModel();
 
         assertTrue(MainFrame.useCourseSelectionPanel(
                 Role.STUDENT, model.findModule(Role.STUDENT, "选课系统")));
-        assertTrue(MainFrame.useCourseSelectionPanel(
+        assertTrue(MainFrame.useTeacherTeachingPanel(
                 Role.TEACHER, model.findModule(Role.TEACHER, "选课系统")));
+        assertFalse(MainFrame.useCourseSelectionPanel(
+                Role.TEACHER, model.findModule(Role.TEACHER, "选课系统")));
+        assertFalse(MainFrame.useTeacherTeachingPanel(
+                Role.STUDENT, model.findModule(Role.STUDENT, "选课系统")));
         assertFalse(MainFrame.useCourseSelectionPanel(
                 Role.ACADEMIC_ADMIN, model.findModule(Role.ACADEMIC_ADMIN, "选课管理")));
         assertFalse(MainFrame.useCourseSelectionPanel(
@@ -80,15 +84,17 @@ class ModuleNavigationModelTest {
     }
 
     @Test
-    void onlyAcademicAdminUsesCourseManagementPanel() {
+    void academicAdministratorsAndAdminsUseCourseManagementPanel() {
         ModuleNavigationModel model = new ModuleNavigationModel();
 
         assertTrue(MainFrame.useCourseManagementPanel(Role.ACADEMIC_ADMIN,
                 model.findModule(Role.ACADEMIC_ADMIN, "选课管理")));
+        assertTrue(MainFrame.useCourseManagementPanel(Role.ADMIN,
+                model.findModule(Role.ADMIN, "选课管理")));
         assertFalse(MainFrame.useCourseManagementPanel(Role.STUDENT,
                 model.findModule(Role.STUDENT, "选课系统")));
-        assertFalse(MainFrame.useCourseManagementPanel(Role.ADMIN,
-                model.findModule(Role.ADMIN, "选课管理")));
+        assertFalse(MainFrame.useCourseManagementPanel(Role.TEACHER,
+                model.findModule(Role.TEACHER, "选课系统")));
     }
 
     @Test

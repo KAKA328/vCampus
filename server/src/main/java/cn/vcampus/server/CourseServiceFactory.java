@@ -31,8 +31,8 @@ final class CourseServiceFactory {
     static CourseRuntime create(Path databasePath) {
         if (databasePath == null) {
             TeacherProfileService teachers = demoTeacherProfiles();
-            return new CourseRuntime(CourseSelectionDemoFactory.createModule(),
-                    CourseSelectionDemoFactory.createProfileProvider(), teachers);
+            return new CourseRuntime(CourseSelectionDemoFactory.createRichDemoModule(),
+                    CourseSelectionDemoFactory.createRichProfileProvider(), teachers);
         }
         CourseCatalogService catalog = new AccessCourseCatalogService(databasePath);
         TeacherProfileService teachers = new DefaultTeacherProfileService(
@@ -48,14 +48,14 @@ final class CourseServiceFactory {
                 rounds, offerings, records, new DefaultCourseOfferingCapacityService(offerings, records),
                 new ScheduleConflictDetector());
         return new CourseRuntime(new CourseSelectionModule(selections, catalog, offerings, rounds, records,
-                gradeSubmissions),
+                gradeSubmissions, trainingPlans),
                 new AccessStudentSelectionProfileProvider(databasePath), teachers);
     }
 
     private static TeacherProfileService demoTeacherProfiles() {
         InMemoryTeacherRepository repository = new InMemoryTeacherRepository();
         TeacherProfileService teachers = new DefaultTeacherProfileService(repository);
-        teachers.save(new TeacherProfile("教师001", "demo_teacher_001", "演示教师一", "计算机学院", "讲师", true));
+        teachers.save(new TeacherProfile("教师001", "demo_teacher", "演示任课教师一", "计算机学院", "讲师", true));
         teachers.save(new TeacherProfile("教师002", "demo_teacher_002", "演示教师二", "计算机学院", "讲师", true));
         teachers.save(new TeacherProfile("教师003", "demo_teacher_003", "演示教师三", "通识教育学院", "讲师", true));
         return teachers;

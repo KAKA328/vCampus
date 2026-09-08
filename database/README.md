@@ -34,7 +34,9 @@
 
 `tblGradeSubmission`、`tblGradeEntry` 仅保存教师录入的待处理数据，不能被学籍模块当作成绩依据。只有教务审核通过后，后续流程才会把结果写入 `tblCourseResult`，供学籍审查和重修判断使用。若教务退回一份已经通过的成绩，`tblGradeSubmissionResult` 所关联的正式成绩会与成绩单状态变更在同一事务中一起撤销，避免学籍模块读取到已被退回的旧分数。
 
-使用 `--db` 启动时，选课服务会从 `tblStudent` 按登录 `user_id` 读取学生资料，从 `tblCourseResult` 计算待重修课程，并从 `tblSelectionRound` 确定当前学期。因此教务人员需要先维护学生档案、培养方案、教学班和选课轮次，学生才会看到可选择的教学班。`seed.sql` 不预置开放轮次；如需演示选课，应由教务管理员先创建并开放首修或重修轮次。
+使用 `--db` 启动时，选课服务会从 `tblStudent` 按登录 `user_id` 读取学生资料，从 `tblCourseResult` 计算待重修课程，并从 `tblSelectionRound` 确定当前学期。最新版 `seed.sql` 已预置当前学期的首修和重修开放轮次、课程目录、教学班、培养方案、选课记录和成绩审核演示数据；使用全新数据库执行脚本后即可直接演示。正式部署仍应由教务人员维护真实学生档案、培养方案、教学班和选课轮次。
+
+选课联调账号均使用初始密码 `Demo123`：`demo_student_new` 用于空列表和首修选课，`demo_student_retake` 用于待重修课程，`demo_student_elective` 用于选修容量，`demo_student_cross` 用于跨专业容量；`demo_teacher`、`demo_teacher_002`、`demo_teacher_003` 分别绑定到 Java、数据库、大学写作教学班。演示数据库中还包含一份待审核 Java 成绩单和一份已退回的数据库成绩单。
 
 ## 学籍审查规划表
 

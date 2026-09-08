@@ -17,6 +17,20 @@ VALUES ('demo_student', 'IZBIc+YD2QyDs5+HFIF4yQ==:jZiW3CFhJ854HF2PQsi2QVG0VRdz+S
 INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
 VALUES ('demo_teacher', 'cSoOs3pVGxBnmJO0OZy1Rg==:qmNTtyQn+Lprr8EEzSRs/ZNxtQKgSEzVy3WOSl7VYdQ=', 'Demo Teacher', 'TEACHER', 1, 0);
 
+-- 选课联调账号：同一初始密码 Demo123，分别覆盖无选课、重修、选修与跨专业场景。
+INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
+VALUES ('demo_student_new', 'IZBIc+YD2QyDs5+HFIF4yQ==:jZiW3CFhJ854HF2PQsi2QVG0VRdz+SdW59ig/fMh1MY=', 'Demo New Student', 'STUDENT', 1, 0);
+INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
+VALUES ('demo_student_retake', 'IZBIc+YD2QyDs5+HFIF4yQ==:jZiW3CFhJ854HF2PQsi2QVG0VRdz+SdW59ig/fMh1MY=', 'Demo Retake Student', 'STUDENT', 1, 0);
+INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
+VALUES ('demo_student_elective', 'IZBIc+YD2QyDs5+HFIF4yQ==:jZiW3CFhJ854HF2PQsi2QVG0VRdz+SdW59ig/fMh1MY=', 'Demo Elective Student', 'STUDENT', 1, 0);
+INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
+VALUES ('demo_student_cross', 'IZBIc+YD2QyDs5+HFIF4yQ==:jZiW3CFhJ854HF2PQsi2QVG0VRdz+SdW59ig/fMh1MY=', 'Demo Cross Major Student', 'STUDENT', 1, 0);
+INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
+VALUES ('demo_teacher_002', 'cSoOs3pVGxBnmJO0OZy1Rg==:qmNTtyQn+Lprr8EEzSRs/ZNxtQKgSEzVy3WOSl7VYdQ=', 'Demo Teacher Two', 'TEACHER', 1, 0);
+INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
+VALUES ('demo_teacher_003', 'cSoOs3pVGxBnmJO0OZy1Rg==:qmNTtyQn+Lprr8EEzSRs/ZNxtQKgSEzVy3WOSl7VYdQ=', 'Demo Teacher Three', 'TEACHER', 1, 0);
+
 -- 选课模块演示课程。
 INSERT INTO tblCourse(course_id, course_name, credits, status)
 VALUES ('JAVA101', 'Java 程序设计', 3, 'ACTIVE');
@@ -27,48 +41,165 @@ VALUES ('DB101', '数据库原理', 3, 'ACTIVE');
 INSERT INTO tblCourse(course_id, course_name, credits, status)
 VALUES ('NET101', '计算机网络', 3, 'ACTIVE');
 
--- 学籍与学业审查演示数据：演示账号已预先绑定档案；正式历史成绩由教务维护或导入。
+INSERT INTO tblCourse(course_id, course_name, credits, status)
+VALUES ('GE101', '大学写作', 2, 'ACTIVE');
+INSERT INTO tblCourse(course_id, course_name, credits, status)
+VALUES ('OS101', '操作系统', 3, 'ACTIVE');
+INSERT INTO tblCourse(course_id, course_name, credits, status)
+VALUES ('MATH101', '高等数学', 4, 'ACTIVE');
+
+-- 学籍与学业审查演示数据：每个选课联调账号都预先绑定档案。
+INSERT INTO tblClass(class_id, class_name, department_name, major_name, grade_year)
+VALUES ('CS2026-01', '计算机科学与技术2026级1班', '计算机科学与工程学院', '计算机科学与技术', 2026);
 INSERT INTO tblClass(class_id, class_name, department_name, major_name, grade_year)
 VALUES ('SE2023-01', '软件工程2023级1班', '计算机科学与工程学院', '软件工程', 2023);
 
 INSERT INTO tblStudent(student_id, user_id, student_name, gender, department_name, major_name, class_id, enrollment_year, status, phone, email)
-VALUES ('demo_student', 'demo_student', 'Demo Student', '未知', '计算机科学与工程学院', '软件工程', 'SE2023-01', 2023, '在读', '', '');
+VALUES ('20260001', 'demo_student', 'Demo Student', '未知', '计算机科学与工程学院', '计算机科学与技术', 'CS2026-01', 2026, '在读', '', '');
+INSERT INTO tblStudent(student_id, user_id, student_name, gender, department_name, major_name, class_id, enrollment_year, status, phone, email)
+VALUES ('20260002', 'demo_student_new', 'Demo New Student', '未知', '计算机科学与工程学院', '计算机科学与技术', 'CS2026-01', 2026, '在读', '', '');
+INSERT INTO tblStudent(student_id, user_id, student_name, gender, department_name, major_name, class_id, enrollment_year, status, phone, email)
+VALUES ('20230003', 'demo_student_retake', 'Demo Retake Student', '未知', '计算机科学与工程学院', '软件工程', 'SE2023-01', 2023, '在读', '', '');
+INSERT INTO tblStudent(student_id, user_id, student_name, gender, department_name, major_name, class_id, enrollment_year, status, phone, email)
+VALUES ('20260004', 'demo_student_elective', 'Demo Elective Student', '未知', '计算机科学与工程学院', '计算机科学与技术', 'CS2026-01', 2026, '在读', '', '');
+INSERT INTO tblStudent(student_id, user_id, student_name, gender, department_name, major_name, class_id, enrollment_year, status, phone, email)
+VALUES ('20260005', 'demo_student_cross', 'Demo Cross Major Student', '未知', '计算机科学与工程学院', '计算机科学与技术', 'CS2026-01', 2026, '在读', '', '');
 
 INSERT INTO tblTeacher(teacher_id, user_id, teacher_name, department_name, title, active)
-VALUES ('demo_teacher', 'demo_teacher', 'Demo Teacher', '计算机科学与工程学院', '讲师', 1);
+VALUES ('教师001', 'demo_teacher', 'Demo Teacher One', '计算机科学与工程学院', '讲师', 1);
+INSERT INTO tblTeacher(teacher_id, user_id, teacher_name, department_name, title, active)
+VALUES ('教师002', 'demo_teacher_002', 'Demo Teacher Two', '计算机科学与工程学院', '讲师', 1);
+INSERT INTO tblTeacher(teacher_id, user_id, teacher_name, department_name, title, active)
+VALUES ('教师003', 'demo_teacher_003', 'Demo Teacher Three', '通识教育学院', '讲师', 1);
 
 INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, term, schedule, location, required_capacity, elective_capacity, cross_major_capacity, status)
-VALUES ('offering-java-2025a', 'JAVA101', 'demo_teacher', '2025-2026-1', '周一第1-2节', '教学楼A201', 35, 0, 5, 'OPEN');
+VALUES ('offering-java-2026a', 'JAVA101', '教师001', '2026-2027-1', '周一第1-2节', '教学楼A201', 40, 20, 10, 'OPEN');
+INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, term, schedule, location, required_capacity, elective_capacity, cross_major_capacity, status)
+VALUES ('offering-java-2026b', 'JAVA101', '教师001', '2026-2027-1', '周三第3-4节', '教学楼A202', 40, 20, 10, 'OPEN');
+INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, term, schedule, location, required_capacity, elective_capacity, cross_major_capacity, status)
+VALUES ('offering-db-2026a', 'DB101', '教师002', '2026-2027-1', '周二第3-4节', '教学楼A203', 20, 30, 10, 'OPEN');
+INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, term, schedule, location, required_capacity, elective_capacity, cross_major_capacity, status)
+VALUES ('offering-net-2026a', 'NET101', '教师001', '2026-2027-1', '周四第5-6节', '教学楼B301', 30, 10, 5, 'OPEN');
+INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, term, schedule, location, required_capacity, elective_capacity, cross_major_capacity, status)
+VALUES ('offering-net-2026b', 'NET101', '教师001', '2026-2027-1', '周一第1-2节', '教学楼A205', 30, 10, 5, 'OPEN');
+INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, term, schedule, location, required_capacity, elective_capacity, cross_major_capacity, status)
+VALUES ('offering-ge-2026a', 'GE101', '教师003', '2026-2027-1', '周三第5-6节', '教学楼A204', 0, 10, 20, 'OPEN');
+INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, term, schedule, location, required_capacity, elective_capacity, cross_major_capacity, status)
+VALUES ('offering-os-draft', 'OS101', '教师002', '2026-2027-1', '周五第1-2节', '教学楼B302', 30, 10, 5, 'DRAFT');
 
 -- 容量占用辅助表只记录当前已选人数；新建教学班的三个容量池均从 0 开始。
 INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count)
-VALUES ('offering-java-2025a', 'REQUIRED', 0);
+VALUES ('offering-java-2026a', 'REQUIRED', 1);
 INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count)
-VALUES ('offering-java-2025a', 'ELECTIVE', 0);
+VALUES ('offering-java-2026a', 'ELECTIVE', 0);
 INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count)
-VALUES ('offering-java-2025a', 'CROSS_MAJOR', 0);
+VALUES ('offering-java-2026a', 'CROSS_MAJOR', 0);
+INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count) VALUES ('offering-java-2026b', 'REQUIRED', 0);
+INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count) VALUES ('offering-java-2026b', 'ELECTIVE', 0);
+INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count) VALUES ('offering-java-2026b', 'CROSS_MAJOR', 0);
+INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count) VALUES ('offering-db-2026a', 'REQUIRED', 1);
+INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count) VALUES ('offering-db-2026a', 'ELECTIVE', 1);
+INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count) VALUES ('offering-db-2026a', 'CROSS_MAJOR', 0);
+INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count) VALUES ('offering-net-2026a', 'REQUIRED', 0);
+INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count) VALUES ('offering-net-2026a', 'ELECTIVE', 0);
+INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count) VALUES ('offering-net-2026a', 'CROSS_MAJOR', 0);
+INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count) VALUES ('offering-net-2026b', 'REQUIRED', 0);
+INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count) VALUES ('offering-net-2026b', 'ELECTIVE', 0);
+INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count) VALUES ('offering-net-2026b', 'CROSS_MAJOR', 0);
+INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count) VALUES ('offering-ge-2026a', 'REQUIRED', 0);
+INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count) VALUES ('offering-ge-2026a', 'ELECTIVE', 0);
+INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count) VALUES ('offering-ge-2026a', 'CROSS_MAJOR', 1);
+INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count) VALUES ('offering-os-draft', 'REQUIRED', 0);
+INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count) VALUES ('offering-os-draft', 'ELECTIVE', 0);
+INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count) VALUES ('offering-os-draft', 'CROSS_MAJOR', 0);
 
 INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, location)
-VALUES ('offering-java-2025a', 1, 1, 2, '教学楼A201');
+VALUES ('offering-java-2026a', 1, 1, 2, '教学楼A201');
+INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, location) VALUES ('offering-java-2026b', 3, 3, 4, '教学楼A202');
+INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, location) VALUES ('offering-db-2026a', 2, 3, 4, '教学楼A203');
+INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, location) VALUES ('offering-net-2026a', 4, 5, 6, '教学楼B301');
+INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, location) VALUES ('offering-net-2026b', 1, 1, 2, '教学楼A205');
+INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, location) VALUES ('offering-ge-2026a', 3, 5, 6, '教学楼A204');
+INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, location) VALUES ('offering-os-draft', 5, 1, 2, '教学楼B302');
 
 INSERT INTO tblTrainingPlan(plan_id, major_name, enrollment_year, status)
-VALUES ('plan-se-2026', '软件工程', 2026, 'PUBLISHED');
+VALUES ('plan-cs-2026', '计算机科学与技术', 2026, 'PUBLISHED');
 INSERT INTO tblTrainingPlanCourse(plan_id, course_id, recommended_term, selection_type, cross_major_allowed)
-VALUES ('plan-se-2026', 'JAVA101', 1, 'REQUIRED', 0);
+VALUES ('plan-cs-2026', 'JAVA101', 1, 'REQUIRED', 0);
 INSERT INTO tblTrainingPlanCourse(plan_id, course_id, recommended_term, selection_type, cross_major_allowed)
-VALUES ('plan-se-2026', 'DB101', 1, 'ELECTIVE', 0);
+VALUES ('plan-cs-2026', 'DB101', 1, 'ELECTIVE', 0);
+INSERT INTO tblTrainingPlanCourse(plan_id, course_id, recommended_term, selection_type, cross_major_allowed)
+VALUES ('plan-cs-2026', 'NET101', 1, 'REQUIRED', 0);
+INSERT INTO tblTrainingPlan(plan_id, major_name, enrollment_year, status)
+VALUES ('plan-cn-2026', '汉语言文学', 2026, 'PUBLISHED');
+INSERT INTO tblTrainingPlanCourse(plan_id, course_id, recommended_term, selection_type, cross_major_allowed)
+VALUES ('plan-cn-2026', 'GE101', 1, 'ELECTIVE', 1);
+INSERT INTO tblTrainingPlan(plan_id, major_name, enrollment_year, status)
+VALUES ('plan-se-2023', '软件工程', 2023, 'PUBLISHED');
+INSERT INTO tblTrainingPlanCourse(plan_id, course_id, recommended_term, selection_type, cross_major_allowed)
+VALUES ('plan-se-2023', 'JAVA101', 7, 'REQUIRED', 0);
+INSERT INTO tblTrainingPlanCourse(plan_id, course_id, recommended_term, selection_type, cross_major_allowed)
+VALUES ('plan-se-2023', 'DB101', 7, 'ELECTIVE', 0);
+
+-- 当前学期的首修与重修轮次均处于开放状态，便于直接演示学生端轮次选择。
+INSERT INTO tblSelectionRound(round_id, term, round_type, starts_at, ends_at, status)
+VALUES ('round-2026-initial', '2026-2027-1', 'INITIAL', DATEADD('d', -1, NOW()), DATEADD('d', 30, NOW()), 'OPEN');
+INSERT INTO tblSelectionRound(round_id, term, round_type, starts_at, ends_at, status)
+VALUES ('round-2026-retake', '2026-2027-1', 'RETAKE', DATEADD('d', -1, NOW()), DATEADD('d', 30, NOW()), 'OPEN');
+INSERT INTO tblSelectionRoundKey(term, round_type) VALUES ('2026-2027-1', 'INITIAL');
+INSERT INTO tblSelectionRoundKey(term, round_type) VALUES ('2026-2027-1', 'RETAKE');
+
+-- 当前有效选课记录：覆盖必修、选修、跨专业选修和重修四种身份。
+INSERT INTO tblCourseSelection(selection_id, student_id, offering_id, round_id, selection_type, selected_at, status, dropped_at)
+VALUES ('selection-demo-java-001', '20260001', 'offering-java-2026a', 'round-2026-initial', 'REQUIRED', DATEADD('d', -2, NOW()), 'ACTIVE', NULL);
+INSERT INTO tblCourseSelection(selection_id, student_id, offering_id, round_id, selection_type, selected_at, status, dropped_at)
+VALUES ('selection-demo-db-retake', '20230003', 'offering-db-2026a', 'round-2026-retake', 'RETAKE', DATEADD('d', -2, NOW()), 'ACTIVE', NULL);
+INSERT INTO tblCourseSelection(selection_id, student_id, offering_id, round_id, selection_type, selected_at, status, dropped_at)
+VALUES ('selection-demo-db-elective', '20260004', 'offering-db-2026a', 'round-2026-initial', 'ELECTIVE', DATEADD('d', -1, NOW()), 'ACTIVE', NULL);
+INSERT INTO tblCourseSelection(selection_id, student_id, offering_id, round_id, selection_type, selected_at, status, dropped_at)
+VALUES ('selection-demo-ge-cross', '20260005', 'offering-ge-2026a', 'round-2026-initial', 'CROSS_MAJOR', DATEADD('h', -12, NOW()), 'ACTIVE', NULL);
+INSERT INTO tblActiveCourseSelection(student_id, offering_id) VALUES ('20260001', 'offering-java-2026a');
+INSERT INTO tblActiveCourseSelection(student_id, offering_id) VALUES ('20230003', 'offering-db-2026a');
+INSERT INTO tblActiveCourseSelection(student_id, offering_id) VALUES ('20260004', 'offering-db-2026a');
+INSERT INTO tblActiveCourseSelection(student_id, offering_id) VALUES ('20260005', 'offering-ge-2026a');
+
+-- 教师与教务审核联调：Java 成绩单待审核；数据库成绩单已被退回修改。
+INSERT INTO tblGradeSubmission(submission_id, offering_id, teacher_id, status, created_at, updated_at, reviewed_by, reviewed_at, review_remark)
+VALUES ('grade-demo-java-001', 'offering-java-2026a', '教师001', 'PENDING_REVIEW', DATEADD('h', -5, NOW()), DATEADD('h', -4, NOW()), NULL, NULL, NULL);
+INSERT INTO tblGradeEntry(submission_id, student_id, selection_type, score, updated_at)
+VALUES ('grade-demo-java-001', '20260001', 'REQUIRED', 92, DATEADD('h', -4, NOW()));
+INSERT INTO tblGradeSubmissionSnapshot(submission_id, version_no, submitted_at)
+VALUES ('grade-demo-java-001', 1, DATEADD('h', -4, NOW()));
+INSERT INTO tblGradeSubmissionSnapshotEntry(submission_id, version_no, student_id, selection_type, score)
+VALUES ('grade-demo-java-001', 1, '20260001', 'REQUIRED', 92);
+INSERT INTO tblGradeSubmissionAudit(audit_id, submission_id, action, actor_id, occurred_at, remark)
+VALUES ('grade-audit-java-001', 'grade-demo-java-001', 'SUBMITTED', '教师001', DATEADD('h', -4, NOW()), '提交第1版');
+INSERT INTO tblGradeSubmission(submission_id, offering_id, teacher_id, status, created_at, updated_at, reviewed_by, reviewed_at, review_remark)
+VALUES ('grade-demo-db-001', 'offering-db-2026a', '教师002', 'RETURNED', DATEADD('h', -4, NOW()), DATEADD('h', -1, NOW()), 'demo_academic_admin', DATEADD('h', -1, NOW()), '请复核重修学生的成绩依据');
+INSERT INTO tblGradeEntry(submission_id, student_id, selection_type, score, updated_at)
+VALUES ('grade-demo-db-001', '20230003', 'RETAKE', 58, DATEADD('h', -3, NOW()));
+INSERT INTO tblGradeEntry(submission_id, student_id, selection_type, score, updated_at)
+VALUES ('grade-demo-db-001', '20260004', 'ELECTIVE', 88, DATEADD('h', -3, NOW()));
+INSERT INTO tblGradeSubmissionSnapshot(submission_id, version_no, submitted_at)
+VALUES ('grade-demo-db-001', 1, DATEADD('h', -2, NOW()));
+INSERT INTO tblGradeSubmissionSnapshotEntry(submission_id, version_no, student_id, selection_type, score)
+VALUES ('grade-demo-db-001', 1, '20230003', 'RETAKE', 58);
+INSERT INTO tblGradeSubmissionSnapshotEntry(submission_id, version_no, student_id, selection_type, score)
+VALUES ('grade-demo-db-001', 1, '20260004', 'ELECTIVE', 88);
+INSERT INTO tblGradeSubmissionAudit(audit_id, submission_id, action, actor_id, occurred_at, remark)
+VALUES ('grade-audit-db-001', 'grade-demo-db-001', 'SUBMITTED', '教师002', DATEADD('h', -2, NOW()), '提交第1版');
+INSERT INTO tblGradeSubmissionAudit(audit_id, submission_id, action, actor_id, occurred_at, remark)
+VALUES ('grade-audit-db-002', 'grade-demo-db-001', 'RETURNED', 'demo_academic_admin', DATEADD('h', -1, NOW()), '请复核重修学生的成绩依据');
 
 INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at)
-VALUES ('result-java-demo-1', 'demo_student', 'JAVA101', 'offering-java-2025a', '2025-2026-1', 1, '首修', 86, 1, 3, NOW());
-
+VALUES ('result-db-retake-failed', '20230003', 'DB101', NULL, '2025-2026-2', 1, '首修', 48, 0, 0, NOW());
 INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at)
-VALUES ('result-db-demo-1', 'demo_student', 'DB101', NULL, '2025-2026-1', 1, '首修', 52, 0, 0, NOW());
-
+VALUES ('result-java-demo-1', '20260001', 'JAVA101', 'offering-java-2026a', '2025-2026-2', 1, '首修', 90, 1, 3, NOW());
 INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at)
-VALUES ('result-db-demo-2', 'demo_student', 'DB101', NULL, '2025-2026-2', 2, '重修', 75, 1, 3, NOW());
+VALUES ('result-db-demo-1', '20260001', 'DB101', 'offering-db-2026a', '2025-2026-2', 1, '首修', 86, 1, 3, NOW());
 
 INSERT INTO tblAcademicReview(review_id, student_id, total_earned_credits, required_earned_credits, failed_course_count, retake_course_count, graduation_ready, reviewed_by, reviewed_at, remark)
-VALUES ('review-demo-student-1', 'demo_student', 6, 6, 0, 1, 1, 'demo_admin', NOW(), '演示数据：包含首修未通过和重修通过记录。');
+VALUES ('review-demo-retake-1', '20230003', 0, 6, 1, 1, 0, 'demo_academic_admin', NOW(), '演示数据：数据库原理首修未通过，当前处于重修轮次。');
 
 -- 商店模块演示商品。
 INSERT INTO tblProduct(product_id, name, stock, price, description, category, active, version)

@@ -191,6 +191,11 @@ public final class MainFrame extends JFrame {
             refreshContent();
             return;
         }
+        if (useTeacherTeachingPanel(session.getUser().getRole(), module)) {
+            content.add(new TeacherTeachingPanel(host, port, session), BorderLayout.CENTER);
+            refreshContent();
+            return;
+        }
         if (useStudentManagementPanel(session.getUser().getRole(), module)) {
             content.add(new StudentManagementPanel(host, port, session), BorderLayout.CENTER);
             refreshContent();
@@ -262,13 +267,19 @@ public final class MainFrame extends JFrame {
     }
 
     static boolean useCourseSelectionPanel(Role role, ModuleDescriptor module) {
-        return (role == Role.STUDENT || role == Role.TEACHER)
+        return role == Role.STUDENT
+                && module != null
+                && "选课系统".equals(module.getTitle());
+    }
+
+    static boolean useTeacherTeachingPanel(Role role, ModuleDescriptor module) {
+        return role == Role.TEACHER
                 && module != null
                 && "选课系统".equals(module.getTitle());
     }
 
     static boolean useCourseManagementPanel(Role role, ModuleDescriptor module) {
-        return role == Role.ACADEMIC_ADMIN
+        return (role == Role.ACADEMIC_ADMIN || role == Role.ADMIN)
                 && module != null
                 && "选课管理".equals(module.getTitle());
     }

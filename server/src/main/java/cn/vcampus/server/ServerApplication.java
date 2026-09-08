@@ -11,12 +11,14 @@ import cn.vcampus.course.CourseSelectionService;
 import cn.vcampus.course.GradeSubmissionService;
 import cn.vcampus.course.SelectionRoundService;
 import cn.vcampus.course.StudentSelectionProfileProvider;
+import cn.vcampus.course.TrainingPlanService;
 import cn.vcampus.library.InMemoryLibraryService;
 import cn.vcampus.library.LibraryService;
 import cn.vcampus.store.InMemoryStoreService;
 import cn.vcampus.store.StoreService;
 import cn.vcampus.student.AcademicAdminService;
 import cn.vcampus.student.AcademicReviewService;
+import cn.vcampus.student.CourseHistoryRecord;
 import cn.vcampus.student.CourseResultRecordingService;
 import cn.vcampus.student.DefaultStudentManagementService;
 import cn.vcampus.student.DefaultTeacherProfileService;
@@ -71,7 +73,8 @@ public final class ServerApplication implements Closeable {
                 bootstrap.students.results, bootstrap.gradeApprovals, bootstrap.students.profiles,
                 bootstrap.store, bootstrap.students.students, new InMemoryLibraryService(),
                 new DenyTeacherStudentAccessPolicy(), null, bootstrap.students.academics,
-                bootstrap.teachers, bootstrap.administration);
+                bootstrap.teachers, bootstrap.administration,
+                bootstrap.module.getTrainingPlanService());
     }
 
     /** 保留给只需验证学生选课查询的轻量级测试。 */
@@ -117,6 +120,20 @@ public final class ServerApplication implements Closeable {
             TeacherStudentAccessPolicy teacherAccess, AuditLogRepository storeAudit,
             AcademicReviewService academics, TeacherProfileService teachers,
             AcademicAdminService administration) {
+        this(port, users, courses, catalog, offerings, selectionRounds, records, gradeSubmissions,
+                formalResults, gradeApprovals, profiles, store, students, library, teacherAccess,
+                storeAudit, academics, teachers, administration, null);
+    }
+
+    ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
+            CourseCatalogService catalog, CourseOfferingService offerings,
+            SelectionRoundService selectionRounds, CourseSelectionRecordService records,
+            GradeSubmissionService gradeSubmissions, CourseResultRecordingService formalResults,
+            GradeApprovalWorkflow gradeApprovals, StudentSelectionProfileProvider profiles,
+            StoreService store, StudentManagementService students, LibraryService library,
+            TeacherStudentAccessPolicy teacherAccess, AuditLogRepository storeAudit,
+            AcademicReviewService academics, TeacherProfileService teachers,
+            AcademicAdminService administration, TrainingPlanService trainingPlans) {
         InMemoryAcademicReviewService fallbackAcademics = null;
         if (academics == null) {
             fallbackAcademics = new InMemoryAcademicReviewService();
@@ -136,7 +153,8 @@ public final class ServerApplication implements Closeable {
         this.port = port;
         this.userMessages = new UserMessageHandler(users);
         this.courseMessages = new CourseMessageHandler(courses, catalog, offerings, selectionRounds,
-                records, gradeSubmissions, formalResults, gradeApprovals, profiles, users, teachers, students);
+                records, gradeSubmissions, formalResults, gradeApprovals, trainingPlans, profiles, users,
+                teachers, students);
         this.storeMessages = new StoreMessageHandler(store, users, storeAudit);
         this.studentMessages = new StudentMessageHandler(students, users, teacherAccess);
         this.academicMessages = new StudentAcademicMessageHandler(students, academics, users);
@@ -229,7 +247,8 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.COURSE_TEACHING_QUERY_V2
                 || type == MessageType.COURSE_GRADE_DRAFT_V2
                 || type == MessageType.COURSE_GRADE_IMPORT_V2
-                || type == MessageType.COURSE_GRADE_REVIEW_V2;
+                || type == MessageType.COURSE_GRADE_REVIEW_V2
+                || type == MessageType.COURSE_TRAINING_PLAN_MANAGE_V2;
     }
 
     // 商店消息白名单必须覆盖全部 STORE_* 类型，由守护测试锁定。
@@ -262,7 +281,7 @@ public final class ServerApplication implements Closeable {
         Path databasePath = UserServiceFactory.databasePath(args);
         CourseServiceFactory.CourseRuntime courses = CourseServiceFactory.create(databasePath);
         StudentServices studentServices = databasePath == null
-                ? memoryStudentServices() : accessStudentServices(databasePath);
+                ? memoryStudentServices(true) : accessStudentServices(databasePath);
         TeacherProfileService teachers = teacherProfiles(databasePath);
         AcademicAdminService administration = new AcademicAdminService(databasePath == null
                 ? new InMemoryAcademicAdminStore(studentServices.students, teachers,
@@ -280,7 +299,7 @@ public final class ServerApplication implements Closeable {
                 StoreServiceFactory.create(databasePath), studentServices.students,
                 LibraryServiceFactory.create(databasePath), teacherAccess(databasePath),
                 UserServiceFactory.createStoreAuditLog(args), studentServices.academics,
-                teachers, administration).start();
+                teachers, administration, module.getTrainingPlanService()).start();
     }
 
     /** 教师档案与教学班教师编号使用同一资料源，避免教师登录后找不到自己的教学班。 */
@@ -289,25 +308,45 @@ public final class ServerApplication implements Closeable {
             return new DefaultTeacherProfileService(new AccessTeacherRepository(databasePath));
         }
         InMemoryTeacherRepository repository = new InMemoryTeacherRepository();
-        repository.save(new TeacherProfile("教师001", "demo_teacher_001", "演示教师一",
+        repository.save(new TeacherProfile("教师001", "demo_teacher", "演示任课教师一",
                 "计算机学院", "讲师", true));
         repository.save(new TeacherProfile("教师002", "demo_teacher_002", "演示教师二",
                 "计算机学院", "讲师", true));
         repository.save(new TeacherProfile("教师003", "demo_teacher_003", "演示教师三",
                 "通识教育学院", "讲师", true));
-        // 保留学籍模块原有的教师自助查询演示账号。
-        repository.save(new TeacherProfile("T20260001", "demo_teacher", "演示教师",
-                "计算机学院", "讲师", true));
         return new DefaultTeacherProfileService(repository);
     }
 
     private static StudentServices memoryStudentServices() {
+        return memoryStudentServices(false);
+    }
+
+    /** 生产内存演示可加载完整样例；测试构造器默认使用最小资料，避免测试相互污染。 */
+    private static StudentServices memoryStudentServices(boolean richDemo) {
         InMemoryStudentRepository repository = new InMemoryStudentRepository();
         repository.save(new StudentRecord("20260001", "demo_student", "演示学生", "未知",
                 "计算机学院", "计算机科学与技术", "CS2026-01", 2026,
                 "在读", "", ""));
+        if (richDemo) {
+            repository.save(new StudentRecord("20260002", "demo_student_new", "演示新生", "未知",
+                    "计算机学院", "计算机科学与技术", "CS2026-01", 2026,
+                    "在读", "", ""));
+            repository.save(new StudentRecord("20230003", "demo_student_retake", "演示重修学生", "未知",
+                    "计算机学院", "软件工程", "SE2023-01", 2023,
+                    "在读", "", ""));
+            repository.save(new StudentRecord("20260004", "demo_student_elective", "演示选修学生", "未知",
+                    "计算机学院", "计算机科学与技术", "CS2026-01", 2026,
+                    "在读", "", ""));
+            repository.save(new StudentRecord("20260005", "demo_student_cross", "演示跨专业学生", "未知",
+                    "计算机学院", "计算机科学与技术", "CS2026-01", 2026,
+                    "在读", "", ""));
+        }
         StudentManagementService students = new DefaultStudentManagementService(repository);
         InMemoryAcademicReviewService academics = new InMemoryAcademicReviewService();
+        if (richDemo) {
+            academics.addHistory(new CourseHistoryRecord("20230003", "DB101", "数据库原理",
+                    "2025-2026-2", 1, "首修", 48, false, 0));
+        }
         return new StudentServices(students, new StudentSelectionProfileAdapter(students, academics,
                 CourseSelectionDemoFactory.DEMO_TERM), academics, academics);
     }

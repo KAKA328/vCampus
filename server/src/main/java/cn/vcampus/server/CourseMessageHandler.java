@@ -32,6 +32,8 @@ import cn.vcampus.course.TeachingOffering;
 import cn.vcampus.course.TeachingGradeDraft;
 import cn.vcampus.course.TeachingRoster;
 import cn.vcampus.course.TeachingRosterEntry;
+import cn.vcampus.course.TrainingPlanManagementCommand;
+import cn.vcampus.course.TrainingPlanService;
 import cn.vcampus.student.StudentManagementService;
 import cn.vcampus.student.StudentRecord;
 import cn.vcampus.student.CourseResultRecordingService;
@@ -59,6 +61,7 @@ final class CourseMessageHandler {
     private final GradeSubmissionService gradeSubmissions;
     private final CourseResultRecordingService formalResults;
     private final GradeApprovalWorkflow gradeApprovals;
+    private final TrainingPlanService trainingPlans;
     private final StudentSelectionProfileProvider profiles;
     private final UserManagementService users;
     private final TeacherProfileService teachers;
@@ -79,6 +82,14 @@ final class CourseMessageHandler {
             CourseOfferingService offerings, SelectionRoundService selectionRounds,
             StudentSelectionProfileProvider profiles, UserManagementService users) {
         this(courses, catalog, offerings, selectionRounds, null, null, null, profiles, users, null, null);
+    }
+
+    CourseMessageHandler(CourseSelectionService courses, CourseCatalogService catalog,
+            CourseOfferingService offerings, SelectionRoundService selectionRounds,
+            TrainingPlanService trainingPlans, StudentSelectionProfileProvider profiles,
+            UserManagementService users) {
+        this(courses, catalog, offerings, selectionRounds, null, null, null, null, trainingPlans,
+                profiles, users, null, null);
     }
 
     CourseMessageHandler(CourseSelectionService courses, CourseCatalogService catalog,
@@ -115,6 +126,17 @@ final class CourseMessageHandler {
             CourseResultRecordingService formalResults, GradeApprovalWorkflow gradeApprovals,
             StudentSelectionProfileProvider profiles, UserManagementService users,
             TeacherProfileService teachers, StudentManagementService students) {
+        this(courses, catalog, offerings, selectionRounds, records, gradeSubmissions, formalResults,
+                gradeApprovals, null, profiles, users, teachers, students);
+    }
+
+    CourseMessageHandler(CourseSelectionService courses, CourseCatalogService catalog,
+            CourseOfferingService offerings, SelectionRoundService selectionRounds,
+            CourseSelectionRecordService records, GradeSubmissionService gradeSubmissions,
+            CourseResultRecordingService formalResults, GradeApprovalWorkflow gradeApprovals,
+            TrainingPlanService trainingPlans, StudentSelectionProfileProvider profiles,
+            UserManagementService users, TeacherProfileService teachers,
+            StudentManagementService students) {
         if (courses == null || profiles == null || users == null) {
             throw new IllegalArgumentException("course handler dependencies must not be null");
         }
@@ -128,6 +150,7 @@ final class CourseMessageHandler {
         this.gradeApprovals = gradeApprovals != null ? gradeApprovals
                 : (gradeSubmissions == null || formalResults == null ? null
                         : new InMemoryGradeApprovalWorkflow(gradeSubmissions, formalResults));
+        this.trainingPlans = trainingPlans;
         this.profiles = profiles;
         this.users = users;
         this.teachers = teachers;
@@ -164,6 +187,10 @@ final class CourseMessageHandler {
                     break;
                 case COURSE_GRADE_REVIEW_V2:
                     result = gradeReview(payload(request, CourseGradeReviewV2Command.class));
+                    break;
+                case COURSE_TRAINING_PLAN_MANAGE_V2:
+                    result = manageTrainingPlans(
+                            payload(request, TrainingPlanManagementCommand.class));
                     break;
                 case COURSE_MANAGE:
                     result = manage(payload(request, CourseManagementCommand.class));
@@ -592,6 +619,32 @@ final class CourseMessageHandler {
                                 command.getSelectionRoundStatus());
             default:
                 return ServiceResult.failure(StatusCode.BAD_REQUEST, "unsupported management operation");
+        }
+    }
+
+    /** 培养方案使用独立管理命令，仍复用教务课程管理权限。 */
+    private ServiceResult<?> manageTrainingPlans(TrainingPlanManagementCommand command) {
+        ServiceResult<Void> authorization = authorizeCourseManager(command.getToken());
+        if (authorization.getStatus() != StatusCode.OK) {
+            return authorization;
+        }
+        if (trainingPlans == null) {
+            return managementServiceUnavailable();
+        }
+        switch (command.getOperation()) {
+            case LIST:
+                return trainingPlans.listAll();
+            case CREATE:
+                return trainingPlans.create(command.getPlan());
+            case SAVE_COURSE:
+                return trainingPlans.saveCourse(command.getPlanId(), command.getCourse());
+            case REMOVE_COURSE:
+                return trainingPlans.removeCourse(command.getPlanId(), command.getCourseId());
+            case CHANGE_STATUS:
+                return trainingPlans.changeStatus(command.getPlanId(), command.getStatus());
+            default:
+                return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                        "unsupported training plan management operation");
         }
     }
 

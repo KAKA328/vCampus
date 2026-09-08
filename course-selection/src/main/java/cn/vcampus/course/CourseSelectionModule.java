@@ -13,6 +13,7 @@ public final class CourseSelectionModule {
     private final SelectionRoundService selectionRoundService;
     private final CourseSelectionRecordService selectionRecordService;
     private final GradeSubmissionService gradeSubmissionService;
+    private final TrainingPlanService trainingPlanService;
 
     public CourseSelectionModule(CourseSelectionService selectionService,
             CourseCatalogService catalogService, CourseOfferingService offeringService) {
@@ -38,6 +39,16 @@ public final class CourseSelectionModule {
             SelectionRoundService selectionRoundService,
             CourseSelectionRecordService selectionRecordService,
             GradeSubmissionService gradeSubmissionService) {
+        this(selectionService, catalogService, offeringService, selectionRoundService,
+                selectionRecordService, gradeSubmissionService, null);
+    }
+
+    public CourseSelectionModule(CourseSelectionService selectionService,
+            CourseCatalogService catalogService, CourseOfferingService offeringService,
+            SelectionRoundService selectionRoundService,
+            CourseSelectionRecordService selectionRecordService,
+            GradeSubmissionService gradeSubmissionService,
+            TrainingPlanService trainingPlanService) {
         if (selectionService == null || catalogService == null || offeringService == null) {
             throw new IllegalArgumentException("course module services must not be null");
         }
@@ -47,6 +58,7 @@ public final class CourseSelectionModule {
         this.selectionRoundService = selectionRoundService;
         this.selectionRecordService = selectionRecordService;
         this.gradeSubmissionService = gradeSubmissionService;
+        this.trainingPlanService = trainingPlanService;
     }
 
     public CourseSelectionService getSelectionService() {
@@ -74,5 +86,10 @@ public final class CourseSelectionModule {
     /** 返回教学班成绩草稿服务；旧模块组装方式未提供时返回 null。 */
     public GradeSubmissionService getGradeSubmissionService() {
         return gradeSubmissionService;
+    }
+
+    /** 返回教务维护培养方案的服务；旧模块组装方式未提供时返回 null。 */
+    public TrainingPlanService getTrainingPlanService() {
+        return trainingPlanService;
     }
 }

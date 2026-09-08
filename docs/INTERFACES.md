@@ -111,6 +111,12 @@ StudentManagementService.findByIds(List<String> studentIds)
 `SelectionRound` 或其列表。数据库表为 `tblSelectionRound`，项目直接按最新版
 `schema.sql` 创建数据库，不保留旧表迁移要求。
 
+培养方案维护使用独立的 `COURSE_TRAINING_PLAN_MANAGE_V2` 与
+`TrainingPlanManagementCommand`，同样要求 `COURSE_MANAGE` 权限。支持 `LIST`、
+`CREATE`、`SAVE_COURSE`、`REMOVE_COURSE` 和 `CHANGE_STATUS` 操作；响应为
+`TrainingPlan` 或 `List<TrainingPlan>`。学生端不通过该协议修改培养方案，后续教务 UI
+只能调用客户端 `RemoteCourseService` 已封装的对应方法。
+
 商店当前使用以下 token-only 命令，服务端必须从 token 对应会话取得 `userId`，不得相信客户端传入的学生/用户编号：
 
 - `STORE_QUERY` + `StoreQueryCommand(token, category?, includeInactive?)`：查询在售商品，可按类别过滤；要求 `STORE_READ`。`includeInactive=true`（含已下架视图）学生/教师等买家**也可开启**浏览下架陈列，但"看得到 ≠ 买得到"——购买/加购仍由服务层对下架品拒绝；服务端经 `StoreService.listProducts(category, includeInactive)` 过滤。
@@ -160,6 +166,7 @@ StudentManagementService.findByIds(List<String> studentIds)
   - `UPDATE_OFFERING_TEACHING_INFO(offeringId, teacherId, location)`：仅修改任课教师和上课地点，响应 `CourseOffering`，不得修改既有 `schedule` 文本或 `meetingSchedule` 结构化上课时间。
 - 停开课程或教学班时，存在选课或历史记录不得直接物理删除关联数据。
 - 选课轮次同样通过 `COURSE_MANAGE` + `CourseManagementCommand` 维护，支持查询某学期轮次、创建首修/重修轮次、修改轮次时间窗口和切换轮次状态；同一学期每种轮次类型最多一个。
+- 培养方案维护使用 `COURSE_TRAINING_PLAN_MANAGE_V2` + `TrainingPlanManagementCommand`，同样要求 `COURSE_MANAGE` 权限；支持查询、新建、维护课程要求、移除课程要求和变更方案状态。
 - 客户端只负责按角色隐藏无权入口，服务器 Handler 必须在调用业务接口前执行 `authorize`，拒绝时返回 `FORBIDDEN`。
 
 ## 教师本人档案 V1
