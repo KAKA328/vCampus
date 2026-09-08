@@ -41,7 +41,13 @@
 | `demo_librarian` | `Demo123` | 图书管理员 | 馆藏价格、全量借阅记录和逾期流通检查 |
 | `demo_store_manager` | `Demo123` | 商店管理员 | 商品、库存和订单管理 |
 | `demo_student` | `Demo123` | 学生 | 本人学籍、选课、图书借还、临期提醒和商店 |
+| `demo_student_new` | `Demo123` | 学生 | 无历史选课的首修学生，演示空列表、首修课程查询和选课 |
+| `demo_student_retake` | `Demo123` | 学生 | 有数据库原理待重修记录，演示重修轮次和重修选课 |
+| `demo_student_elective` | `Demo123` | 学生 | 已选数据库原理选修班，演示选修容量和退选 |
+| `demo_student_cross` | `Demo123` | 学生 | 已选大学写作跨专业班，演示跨专业容量 |
 | `demo_teacher` | `Demo123` | 教师 | 学籍查询、课程成绩和图书逾期提醒 |
+| `demo_teacher_002` | `Demo123` | 教师 | 查看数据库原理教学班和退回成绩单 |
+| `demo_teacher_003` | `Demo123` | 教师 | 查看大学写作跨专业教学班 |
 
 内存模式也可以通过环境变量临时创建管理员：
 
@@ -80,7 +86,7 @@ cd D:\codex\java协作
 java -jar .\server\target\vCampusServer.jar --db .\database\vCampus.accdb --port 19090
 ```
 
-看到 `vCampus server listening on port 19090` 表示服务器已启动，并保持该窗口运行。验收和日常联调推荐使用 `--db .\database\vCampus.accdb`，这样会加载 `seed.sql` 对应的演示账号、105 个商店商品、钱包余额、订单、购物车、学籍和图书馆等测试数据。
+看到 `vCampus server listening on port 19090` 表示服务器已启动，并保持该窗口运行。验收和日常联调推荐使用 `--db .\database\vCampus.accdb`，这样会加载 `seed.sql` 对应的演示账号、课程目录、开放选课轮次、教学班、选课记录、成绩审核样例、105 个商店商品、钱包余额、订单、购物车、学籍和图书馆等测试数据。若本地数据库尚未按最新版脚本重建，请先按 [`database/README.md`](database/README.md) 的说明创建全新 `.accdb`。
 
 ### 2. 启动客户端
 

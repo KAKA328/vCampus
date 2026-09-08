@@ -23,12 +23,12 @@ class AccessAcademicAdministrationTest {
         service = new AcademicAdminService(new AccessAcademicAdminStore(database));
     }
     @Test void directoryAssessmentGraduationAndRestartUseOneDatabase() {
-        assertEquals(1, ((List<?>) execute(Action.STUDENTS, 0, null).getData()).size());
-        assertEquals(1, ((List<?>) execute(Action.TEACHERS, 0, null).getData()).size());
+        assertEquals(5, ((List<?>) execute(Action.STUDENTS, 0, null).getData()).size());
+        assertEquals(3, ((List<?>) execute(Action.TEACHERS, 0, null).getData()).size());
         AcademicAssessment review = review();
         assertEquals(6, review.getCredits().getEarnedCredits());
         assertEquals(StatusCode.OK, execute(Action.GRADUATE, 0, review.getId()).getStatus());
-        assertEquals("毕业", new AccessStudentRepository(database).findById("demo_student").getStatus());
+        assertEquals("毕业", new AccessStudentRepository(database).findById("20260001").getStatus());
         service = new AcademicAdminService(new AccessAcademicAdminStore(database));
         AcademicAssessment persisted = (AcademicAssessment) ((List<?>) execute(Action.ASSESSMENTS, 0, null).getData()).get(0);
         assertEquals("demo_academic_admin", persisted.getGraduatedBy());
@@ -39,13 +39,13 @@ class AccessAcademicAdministrationTest {
     @Test void optionalNotesCanBeEmptyAndPersistOnExistingSchema() {
         for (String note : new String[] {null, "", "   "}) {
             ServiceResult<?> result = service.execute(new AcademicAdminCommandV1("token", Action.REVIEW,
-                    "demo_student", 6, null, note, false), "demo_academic_admin");
+                    "20260001", 6, null, note, false), "demo_academic_admin");
             assertEquals(StatusCode.OK, result.getStatus(), result.getMessage());
             assertEquals("", ((AcademicAssessment) result.getData()).getBasis());
         }
         AcademicAssessment latest = (AcademicAssessment) ((List<?>) execute(Action.ASSESSMENTS, 0, null).getData()).get(0);
         ServiceResult<?> graduation = service.execute(new AcademicAdminCommandV1("token", Action.GRADUATE,
-                "demo_student", 0, latest.getId(), null, true), "demo_academic_admin");
+                "20260001", 0, latest.getId(), null, true), "demo_academic_admin");
         assertEquals(StatusCode.OK, graduation.getStatus(), graduation.getMessage());
         service = new AcademicAdminService(new AccessAcademicAdminStore(database));
         AcademicAssessment saved = (AcademicAssessment) ((List<?>) execute(Action.ASSESSMENTS, 0, null).getData()).get(0);
@@ -64,7 +64,7 @@ class AccessAcademicAdministrationTest {
         AcademicAssessment stored = (AcademicAssessment) ((List<?>) execute(Action.ASSESSMENTS, 0, null).getData()).get(0);
         assertEquals(6, stored.getCredits().getEarnedCredits());
         assertFalse(stored.isGraduated());
-        assertEquals("在读", new AccessStudentRepository(database).findById("demo_student").getStatus());
+        assertEquals("在读", new AccessStudentRepository(database).findById("20260001").getStatus());
     }
     @Test void failedGraduationRecordWriteRollsBackStudentStatus() throws Exception {
         AcademicAssessment review = review();
@@ -72,9 +72,9 @@ class AccessAcademicAdministrationTest {
                 review.getReviewedBy(), review.getReviewedAt(), "basis", null, null, null).graduate("actor", "note");
         AccessAcademicAdminStore store = new AccessAcademicAdminStore(database);
         assertThrows(SQLException.class, () -> store.transaction(context -> {
-            context.graduate(context.student("demo_student"), missing); return null;
+            context.graduate(context.student("20260001"), missing); return null;
         }));
-        assertEquals("在读", new AccessStudentRepository(database).findById("demo_student").getStatus());
+        assertEquals("在读", new AccessStudentRepository(database).findById("20260001").getStatus());
         assertFalse(((AcademicAssessment) ((List<?>) execute(Action.ASSESSMENTS, 0, null).getData()).get(0)).isGraduated());
     }
     private AcademicAssessment review() {
@@ -83,7 +83,7 @@ class AccessAcademicAdministrationTest {
         return (AcademicAssessment) result.getData();
     }
     private ServiceResult<?> execute(Action action, int credits, String id) {
-        return service.execute(new AcademicAdminCommandV1("internal-token", action, "demo_student",
+        return service.execute(new AcademicAdminCommandV1("internal-token", action, "20260001",
                 credits, id, "毕业条件已核查", true), "demo_academic_admin");
     }
     private Connection open() throws SQLException {

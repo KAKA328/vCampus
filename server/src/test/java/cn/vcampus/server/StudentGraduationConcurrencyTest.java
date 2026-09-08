@@ -22,6 +22,7 @@ class StudentGraduationConcurrencyTest {
     @Test void accessAdministrativeSaveCannotUndoConcurrentGraduation() throws Exception { race(true, Role.ACADEMIC_ADMIN); }
 
     private void race(boolean access, Role role) throws Exception {
+        String studentId = access ? "20260001" : "demo_student";
         StudentRepository repository;
         AcademicAdminService administration;
         Path database = temporaryDirectory.resolve("race.accdb");
@@ -51,12 +52,13 @@ class StudentGraduationConcurrencyTest {
                 });
         DefaultStudentManagementService students = new DefaultStudentManagementService(intercepted);
         InMemoryAcademicReviewService academics = new InMemoryAcademicReviewService();
-        academics.addHistory(new CourseHistoryRecord("demo_student", "C1", "课程",
+        academics.addHistory(new CourseHistoryRecord(studentId, "C1", "课程",
                 "2026-2027-1", 1, "首修", 80, true, 6));
         administration = new AcademicAdminService(access ? new AccessAcademicAdminStore(database)
                 : new InMemoryAcademicAdminStore(students, new DefaultTeacherProfileService(
                         new InMemoryTeacherRepository()), academics));
-        ServiceResult<?> reviewed = administration.execute(command(AcademicAdminCommandV1.Action.REVIEW, null), "academic");
+        ServiceResult<?> reviewed = administration.execute(command(studentId,
+                AcademicAdminCommandV1.Action.REVIEW, null), "academic");
         assertEquals(StatusCode.OK, reviewed.getStatus());
         AcademicAssessment assessment = (AcademicAssessment) reviewed.getData();
         InMemoryUserManagementService users = new InMemoryUserManagementService();
@@ -64,7 +66,7 @@ class StudentGraduationConcurrencyTest {
         UserCredentials credentials = new UserCredentials(user, "Demo123", "测试", role.name());
         users.register(credentials);
         String token = users.login(credentials).getData().getToken();
-        StudentRecord before = repository.findById("demo_student");
+        StudentRecord before = repository.findById(studentId);
         StudentMessageHandler handler = new StudentMessageHandler(students, users);
         ExecutorService worker = Executors.newSingleThreadExecutor(r -> new Thread(r, "stale-profile-save"));
         try {
@@ -73,29 +75,30 @@ class StudentGraduationConcurrencyTest {
                             StudentProfileSnapshot.withContacts(before, "new-phone", "new@example.test")))));
             assertTrue(snapshotRead.await(15, TimeUnit.SECONDS), "request must read old profile first");
             ServiceResult<?> graduated = administration.execute(
-                    command(AcademicAdminCommandV1.Action.GRADUATE, assessment.getId()), "academic");
+                    command(studentId, AcademicAdminCommandV1.Action.GRADUATE, assessment.getId()), "academic");
             assertEquals(StatusCode.OK, graduated.getStatus(), graduated.getMessage());
-            assertEquals("毕业", repository.findById("demo_student").getStatus());
+            assertEquals("毕业", repository.findById(studentId).getStatus());
             resumeSave.countDown();
             assertEquals(StatusCode.CONFLICT, save.get(15, TimeUnit.SECONDS).getStatusCode());
-            StudentRecord after = repository.findById("demo_student");
+            StudentRecord after = repository.findById(studentId);
             assertEquals("毕业", after.getStatus());
             assertEquals(before.getPhone(), after.getPhone());
             List<?> rows = (List<?>) administration.execute(
-                    command(AcademicAdminCommandV1.Action.ASSESSMENTS, null), "academic").getData();
+                    command(studentId, AcademicAdminCommandV1.Action.ASSESSMENTS, null), "academic").getData();
             assertTrue(((AcademicAssessment) rows.get(0)).isGraduated());
             // A newly loaded graduated profile can still update contacts without undoing graduation.
-            ServiceResult<StudentRecord> contacts = students.updateContacts("demo_student", after, "fresh", null);
+            ServiceResult<StudentRecord> contacts = students.updateContacts(studentId, after, "fresh", null);
             assertEquals(StatusCode.OK, contacts.getStatus());
-            assertEquals("毕业", repository.findById("demo_student").getStatus());
-            assertEquals("fresh", repository.findById("demo_student").getPhone());
+            assertEquals("毕业", repository.findById(studentId).getStatus());
+            assertEquals("fresh", repository.findById(studentId).getPhone());
         } finally {
             resumeSave.countDown();
             worker.shutdownNow();
             assertTrue(worker.awaitTermination(15, TimeUnit.SECONDS));
         }
     }
-    private static AcademicAdminCommandV1 command(AcademicAdminCommandV1.Action action, String id) {
-        return new AcademicAdminCommandV1("internal", action, "demo_student", 6, id, "测试依据", true);
+    private static AcademicAdminCommandV1 command(String studentId,
+            AcademicAdminCommandV1.Action action, String id) {
+        return new AcademicAdminCommandV1("internal", action, studentId, 6, id, "测试依据", true);
     }
 }

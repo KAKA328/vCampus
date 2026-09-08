@@ -43,9 +43,10 @@ class AccessDatabaseSchemaTest {
         executeScript(database, readScript("database/schema.sql"));
         executeScript(database, readScript("database/seed.sql"));
 
-        assertEquals(6, count(database, "tblUser"));
-        assertEquals(1, countWhere(database, "tblStudent", "student_id", "demo_student"));
-        assertEquals(1, countWhere(database, "tblTeacher", "teacher_id", "demo_teacher"));
+        assertEquals(12, count(database, "tblUser"));
+        assertEquals(1, countWhere(database, "tblStudent", "student_id", "20260001"));
+        assertEquals(1, countWhere(database, "tblStudent", "student_id", "20230003"));
+        assertEquals(1, countWhere(database, "tblTeacher", "teacher_id", "教师001"));
         assertEquals(105, count(database, "tblProduct"));
         assertEquals(10, count(database, "tblBook"));
         assertEquals(4, count(database, "tblBorrowRecord"));
@@ -58,7 +59,7 @@ class AccessDatabaseSchemaTest {
     private static void verifyAcademicDispatch(Path database) throws Exception {
         InMemoryUserManagementService users = new InMemoryUserManagementService();
         UserCredentials account = new UserCredentials(
-                "demo_student", "Demo123", "学生", Role.STUDENT.name());
+                "demo_student_retake", "Demo123", "重修演示学生", Role.STUDENT.name());
         users.register(account);
         String token = users.login(account).getData().getToken();
         CourseServiceFactory.CourseRuntime runtime = CourseServiceFactory.create(database);
@@ -74,25 +75,18 @@ class AccessDatabaseSchemaTest {
                     new StudentAcademicQueryV1Command(token,
                             StudentAcademicQueryV1Command.QueryType.HISTORY)));
             assertEquals(StatusCode.OK, history.getStatusCode());
-            assertEquals(3, ((List<?>) history.getPayload()).size());
+            assertEquals(1, ((List<?>) history.getPayload()).size());
             Message pending = server.dispatch(Message.request("retakes",
                     MessageType.STUDENT_ACADEMIC_QUERY_V1,
                     new StudentAcademicQueryV1Command(token,
                             StudentAcademicQueryV1Command.QueryType.PENDING_RETAKES)));
             assertEquals(StatusCode.OK, pending.getStatusCode());
-            assertTrue(((List<?>) pending.getPayload()).isEmpty());
-            // Stock seed has no selection round: academic reads must still work.
-            assertEquals(StatusCode.NOT_FOUND,
-                    runtime.getProfiles().findByUserId("demo_student").getStatus());
-            try (Connection connection = open(database); Statement statement = connection.createStatement()) {
-                statement.execute("INSERT INTO tblSelectionRound(round_id,term,round_type,starts_at,ends_at,status) "
-                        + "VALUES ('test-round','2026-2027-1','INITIAL',DATEADD('d',-1,NOW()),"
-                        + "DATEADD('d',1,NOW()),'OPEN')");
-            }
+            assertEquals(1, ((List<?>) pending.getPayload()).size());
+            // 最新种子已预置开放首修/重修轮次，因此学生档案可以直接解析。
             assertEquals(StatusCode.OK,
-                    runtime.getProfiles().findByUserId("demo_student").getStatus());
-            assertTrue(runtime.getProfiles().findByUserId("demo_student").getData()
-                    .getPendingRetakeCourseIds().isEmpty());
+                    runtime.getProfiles().findByUserId("demo_student_retake").getStatus());
+            assertEquals(1, runtime.getProfiles().findByUserId("demo_student_retake").getData()
+                    .getPendingRetakeCourseIds().size());
         }
     }
 
