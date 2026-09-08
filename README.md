@@ -77,6 +77,21 @@ mvn -DskipTests package
 
 ## 启动程序
 
+### 0. 启动前必做：重建数据库
+
+使用推荐的 `--db` 验收方式启动前，必须先重建本地 Access 数据库。服务器不会自动执行 `schema.sql` 或 `seed.sql`；切换分支、同步 `main` 或更新数据库结构/演示数据后，也必须重新执行下面的命令。执行前请先停止已运行的服务器和客户端。脚本会先备份现有数据库为带时间戳的 `.bak` 文件，再按 `schema.sql`、`seed.sql` 的顺序生成最新 `database/vCampus.accdb`：
+
+```powershell
+cd D:\codex\java协作
+powershell -ExecutionPolicy Bypass -File .\database\rebuild.ps1
+```
+
+如果只想重建其他路径下的数据库：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\database\rebuild.ps1 -DatabasePath .\database\acceptance.accdb
+```
+
 ### 1. 启动服务器
 
 第一个 PowerShell 窗口：
@@ -86,7 +101,7 @@ cd D:\codex\java协作
 java -jar .\server\target\vCampusServer.jar --db .\database\vCampus.accdb --port 19090
 ```
 
-看到 `vCampus server listening on port 19090` 表示服务器已启动，并保持该窗口运行。验收和日常联调推荐使用 `--db .\database\vCampus.accdb`，这样会加载 `seed.sql` 对应的演示账号、课程目录、开放选课轮次、教学班、选课记录、成绩审核样例、105 个商店商品、钱包余额、订单、购物车、学籍和图书馆等测试数据。若本地数据库尚未按最新版脚本重建，请先按 [`database/README.md`](database/README.md) 的说明创建全新 `.accdb`。
+看到 `vCampus server listening on port 19090` 表示服务器已启动，并保持该窗口运行。验收和日常联调推荐使用 `--db .\database\vCampus.accdb`；只有完成上面的重建步骤后，数据库中才会包含最新版 `seed.sql` 对应的演示账号、课程目录、开放选课轮次、教学班、选课记录、成绩审核样例、105 个商店商品、钱包余额、订单、购物车、学籍和图书馆等测试数据。
 
 ### 2. 启动客户端
 
@@ -107,7 +122,8 @@ java -jar .\client\target\vCampusClient.jar --host 127.0.0.1 --port 19090
 java -jar .\client\target\vCampusClient.jar --demo --host 127.0.0.1 --port 19090
 ```
 
-该演示使用管理员会话创建临时学生账号，再测试登录、课程授权和登出。
+该演示使用管理员会话创建并绑定 `20260006` 演示学生档案，再测试登录、课程授权和登出。首次运行会创建
+`demo_registration_student`；在同一个持久化数据库上再次运行时会复用该账号。
 
 ### 4. 内存演示模式
 
