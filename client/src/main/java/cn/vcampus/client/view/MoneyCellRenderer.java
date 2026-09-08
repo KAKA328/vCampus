@@ -41,6 +41,11 @@ final class MoneyCellRenderer extends DefaultTableCellRenderer {
     public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus,
             int row, int column) {
         super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+        if (!isSelected) {
+            // 斑马纹与主题 ReadableTableCellRenderer 一致（偶白/奇浅蓝灰），跨列对齐
+            setOpaque(true);
+            setBackground(row % 2 == 0 ? VCampusTheme.PANEL : VCampusTheme.TABLE_STRIPE);
+        }
         setText(format(value));
         return this;
     }

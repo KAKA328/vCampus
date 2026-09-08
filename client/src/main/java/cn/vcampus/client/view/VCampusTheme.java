@@ -9,6 +9,7 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.Shape;
 import javax.swing.AbstractButton;
 import javax.swing.ButtonModel;
 import javax.swing.BorderFactory;
@@ -27,7 +28,12 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.plaf.basic.BasicGraphicsUtils;
 import javax.swing.plaf.basic.BasicButtonUI;
 import javax.swing.plaf.basic.BasicScrollBarUI;
+import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import javax.swing.border.Border;
+import javax.swing.JPanel;
+import java.awt.LayoutManager;
+import java.awt.geom.Path2D;
+import java.awt.geom.RoundRectangle2D;
 
 /** Shared Swing styling for the vCampus desktop client. */
 final class VCampusTheme {
@@ -47,6 +53,10 @@ final class VCampusTheme {
     static final Color BORDER = new Color(226, 232, 240);
     static final Color SUCCESS = new Color(22, 163, 74);
     static final Color DANGER = new Color(220, 38, 38);
+
+    // 商店按钮专属：设置该 client property 后 ReadableButtonUI 才绘制悬停浅色与圆角焦点环；
+    // 未设置的按钮（其他模块）走原路径，视觉与行为零变化。
+    static final String HOVER_KEY = "vcampus.button.hover";
 
     private VCampusTheme() { }
 
@@ -76,6 +86,64 @@ final class VCampusTheme {
         return BorderFactory.createEmptyBorder(scaled.top, scaled.left, scaled.bottom, scaled.right);
     }
 
+    /** 抗锯齿圆角线边框；arcLogical 为逻辑圆角半径（经 UiMetrics 缩放）。供商店表面/卡片/滚动容器复用。 */
+    static Border roundedBorder(final Color color, final int arcLogical) {
+        return new AbstractBorder() {
+            @Override public java.awt.Insets getBorderInsets(Component component) {
+                int line = UiMetrics.px(1);
+                return new java.awt.Insets(line, line, line, line);
+            }
+
+            @Override public java.awt.Insets getBorderInsets(Component component, java.awt.Insets insets) {
+                int line = UiMetrics.px(1);
+                insets.top = line;
+                insets.left = line;
+                insets.bottom = line;
+                insets.right = line;
+                return insets;
+            }
+
+            @Override public void paintBorder(Component component, Graphics graphics,
+                    int x, int y, int width, int height) {
+                Graphics2D copy = (Graphics2D) graphics.create();
+                copy.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                copy.setColor(color);
+                int arc = UiMetrics.px(arcLogical);
+                copy.drawRoundRect(x, y, width - 1, height - 1, arc, arc);
+                copy.dispose();
+            }
+        };
+    }
+
+    /** 白色圆角表面：白底 + 圆角边(16) + 内边距(12,16)，把一组控件收成清晰分区。 */
+    static void surface(JComponent component) {
+        component.setOpaque(true);
+        component.setBackground(PANEL);
+        component.setBorder(BorderFactory.createCompoundBorder(
+                roundedBorder(BORDER, 16), padding(12, 16, 12, 16)));
+    }
+
+    /** 圆角输入控件外观（文本框/下拉/数字器）：圆角边(10) + 白底 + 竖直内边距撑到约 36 高。 */
+    static void roundedField(JComponent component) {
+        component.setBackground(PANEL);
+        component.setBorder(BorderFactory.createCompoundBorder(
+                roundedBorder(BORDER, 10), padding(8, 12, 8, 12)));
+    }
+
+    /** 把主色按 percent 掺白，供商店强调底/边用（复用私有 tint，不新增色板）。 */
+    static Color tintOf(Color color, int percent) {
+        return tint(color, percent);
+    }
+
+    /** 开启按钮悬停浅色 + 圆角焦点环（仅商店按钮调用；其他模块不设此属性故零影响）。 */
+    static void interactive(AbstractButton button) {
+        button.putClientProperty(HOVER_KEY, Boolean.TRUE);
+        button.setRolloverEnabled(true);
+        button.setFocusable(true);
+        button.setRequestFocusEnabled(true);
+        button.setFocusPainted(true);
+    }
+
     static void panel(JComponent component) {
         component.setBackground(PANEL);
         component.setBorder(BorderFactory.createCompoundBorder(
@@ -102,6 +170,15 @@ final class VCampusTheme {
 
     private static int mix(int base, int accent, int percent) {
         return (base * (100 - percent) + accent * percent) / 100;
+    }
+
+    /** 悬停浅色：深底按钮叠半透明白、浅底按钮叠半透明主色，得到克制的 hover 反馈。 */
+    private static Color hoverWash(Color background) {
+        double luminance = (0.299d * background.getRed() + 0.587d * background.getGreen()
+                + 0.114d * background.getBlue()) / 255.0d;
+        return luminance < 0.5d
+                ? new Color(255, 255, 255, 26)
+                : new Color(PRIMARY.getRed(), PRIMARY.getGreen(), PRIMARY.getBlue(), 20);
     }
 
     static void field(JComponent component) {
@@ -313,6 +390,12 @@ final class VCampusTheme {
             copy.setColor(background);
             int arc = UiMetrics.px(8);
             copy.fillRoundRect(0, 0, component.getWidth() - 1, component.getHeight() - 1, arc, arc);
+            // 仅商店按钮（设了 HOVER_KEY）在悬停时叠一层浅色；其他模块 isRollover 恒 false，路径不变
+            if (Boolean.TRUE.equals(button.getClientProperty(HOVER_KEY))
+                    && button.isEnabled() && button.getModel().isRollover()) {
+                copy.setColor(hoverWash(background));
+                copy.fillRoundRect(0, 0, component.getWidth() - 1, component.getHeight() - 1, arc, arc);
+            }
             copy.dispose();
             super.paint(graphics, component);
         }
@@ -327,6 +410,179 @@ final class VCampusTheme {
             BasicGraphicsUtils.drawStringUnderlineCharAt(graphics, text,
                     button.getDisplayedMnemonicIndex(),
                     textRect.x + shift, textRect.y + metrics.getAscent() + shift);
+        }
+
+        @Override
+        protected void paintFocus(Graphics graphics, AbstractButton button,
+                Rectangle viewRect, Rectangle textRect, Rectangle iconRect) {
+            // 非商店按钮：保持父类默认（且它们 focusPainted=false，本就不会调用到这里）
+            if (!Boolean.TRUE.equals(button.getClientProperty(HOVER_KEY))) {
+                super.paintFocus(graphics, button, viewRect, textRect, iconRect);
+                return;
+            }
+            // 商店按钮：绘制圆角焦点环（ACCENT 色、内缩 2px），替代 Swing 默认虚线方框
+            Graphics2D copy = (Graphics2D) graphics.create();
+            copy.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            copy.setColor(ACCENT);
+            int inset = UiMetrics.px(2);
+            int arc = UiMetrics.px(8);
+            copy.drawRoundRect(inset, inset,
+                    button.getWidth() - inset * 2 - 1, button.getHeight() - inset * 2 - 1, arc, arc);
+            copy.dispose();
+        }
+    }
+
+    /** 圆角裁剪容器：把子组件裁剪进圆角矩形，避免内部方角从圆角外框四角戳出毛刺。 */
+    static final class RoundedClipPanel extends JPanel {
+        private final int arcLogical;
+
+        RoundedClipPanel(LayoutManager layout, int arcLogical) {
+            super(layout);
+            this.arcLogical = arcLogical;
+            setOpaque(false);
+        }
+
+        @Override
+        protected void paintChildren(Graphics graphics) {
+            Graphics2D copy = (Graphics2D) graphics.create();
+            int arc = UiMetrics.px(arcLogical);
+            copy.clip(new RoundRectangle2D.Double(0, 0, getWidth(), getHeight(), arc, arc));
+            super.paintChildren(copy);
+            copy.dispose();
+        }
+    }
+
+    /** 圆角白底容器：自身绘制圆角白底并裁剪子组件，供无边框半透明对话框做真圆角卡片。 */
+    static final class RoundedSurfacePanel extends JPanel {
+        private final int arcLogical;
+
+        RoundedSurfacePanel(LayoutManager layout, int arcLogical) {
+            super(layout);
+            this.arcLogical = arcLogical;
+            setOpaque(false);
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D copy = (Graphics2D) graphics.create();
+            copy.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            copy.setColor(PANEL);
+            int arc = UiMetrics.px(arcLogical);
+            copy.fill(new RoundRectangle2D.Double(0, 0, getWidth(), getHeight(), arc, arc));
+            copy.dispose();
+        }
+
+        @Override
+        protected void paintChildren(Graphics graphics) {
+            Graphics2D copy = (Graphics2D) graphics.create();
+            int arc = UiMetrics.px(arcLogical);
+            copy.clip(new RoundRectangle2D.Double(0, 0, getWidth(), getHeight(), arc, arc));
+            super.paintChildren(copy);
+            copy.dispose();
+        }
+    }
+
+    /** 便签式页签：圆角顶“ sticky note ”造型，选中白底主色边、未选中浅主色底，仅商店页签使用。 */
+    static final class StickyTabbedPaneUI extends BasicTabbedPaneUI {
+        @Override
+        protected int calculateTabHeight(int tabPlacement, int tabIndex, int fontHeight) {
+            return super.calculateTabHeight(tabPlacement, tabIndex, fontHeight) + UiMetrics.px(10);
+        }
+
+        @Override
+        protected void paintTabBackground(Graphics g, int tabPlacement, int tabIndex,
+                int x, int y, int w, int h, boolean isSelected) {
+            Graphics2D copy = (Graphics2D) g.create();
+            copy.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            copy.setColor(isSelected ? PANEL : tintOf(PRIMARY, 6));
+            copy.fill(tabShape(tabPlacement, x, y, w, h));
+            copy.dispose();
+        }
+
+        @Override
+        protected void paintTabBorder(Graphics g, int tabPlacement, int tabIndex,
+                int x, int y, int w, int h, boolean isSelected) {
+            Graphics2D copy = (Graphics2D) g.create();
+            copy.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            copy.setColor(isSelected ? tintOf(PRIMARY, 45) : BORDER);
+            copy.draw(tabShape(tabPlacement, x, y, w, h));
+            copy.dispose();
+        }
+
+        @Override
+        protected void paintContentBorder(Graphics g, int tabPlacement, int selectedIndex) {
+            if (tabPlacement != JTabbedPane.TOP) {
+                super.paintContentBorder(g, tabPlacement, selectedIndex);
+                return;
+            }
+            // 只画一条基线替掉默认方框内容边，让页签像贴在基线上的便签
+            java.awt.Insets insets = tabPane.getInsets();
+            java.awt.Insets tabAreaInsets = getTabAreaInsets(tabPlacement);
+            int y = insets.top + tabAreaInsets.top + maxTabHeight;
+            g.setColor(BORDER);
+            g.drawLine(insets.left, y, tabPane.getWidth() - insets.right, y);
+        }
+
+        private static Shape tabShape(int tabPlacement, int x, int y, int w, int h) {
+            Path2D path = new Path2D.Double();
+            if (tabPlacement == JTabbedPane.TOP) {
+                int arc = UiMetrics.px(12);
+                path.moveTo(x, y + h);
+                path.lineTo(x, y + arc);
+                path.quadTo(x, y, x + arc, y);
+                path.lineTo(x + w - arc, y);
+                path.quadTo(x + w, y, x + w, y + arc);
+                path.lineTo(x + w, y + h);
+            } else {
+                path.append(new Rectangle(x, y, w, h), true);
+            }
+            path.closePath();
+            return path;
+        }
+    }
+
+    /** 带柔和投影的圆角白卡：外圈多层半透明环模拟阴影、内圈白底并裁剪子组件，让对话框从浅色背景中浮起。 */
+    static final class ShadowedCardPanel extends JPanel {
+        private final int arcLogical;
+        private final int shadowLogical;
+
+        ShadowedCardPanel(LayoutManager layout, int arcLogical, int shadowLogical) {
+            super(layout);
+            this.arcLogical = arcLogical;
+            this.shadowLogical = shadowLogical;
+            setOpaque(false);
+            int shadow = UiMetrics.px(shadowLogical);
+            setBorder(BorderFactory.createEmptyBorder(shadow, shadow, shadow, shadow));
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D copy = (Graphics2D) graphics.create();
+            copy.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int shadow = UiMetrics.px(shadowLogical);
+            int arc = UiMetrics.px(arcLogical);
+            // 由外向内逐层加深的半透明环，模拟柔和投影
+            for (int i = shadow; i >= 1; i--) {
+                int alpha = (int) Math.round(30.0d * (shadow - i + 1) / shadow);
+                copy.setColor(new Color(PRIMARY_DARK.getRed(), PRIMARY_DARK.getGreen(), PRIMARY_DARK.getBlue(), alpha));
+                copy.fill(new RoundRectangle2D.Double(i - 1, i - 1,
+                        getWidth() - 2 * (i - 1), getHeight() - 2 * (i - 1), arc + 2 * i, arc + 2 * i));
+            }
+            copy.setColor(PANEL);
+            copy.fill(new RoundRectangle2D.Double(shadow, shadow,
+                    getWidth() - 2 * shadow, getHeight() - 2 * shadow, arc, arc));
+            copy.dispose();
+        }
+
+        @Override
+        protected void paintChildren(Graphics graphics) {
+            Graphics2D copy = (Graphics2D) graphics.create();
+            int shadow = UiMetrics.px(shadowLogical);
+            int arc = UiMetrics.px(arcLogical);
+            copy.clip(new RoundRectangle2D.Double(shadow, shadow,
+                    getWidth() - 2 * shadow, getHeight() - 2 * shadow, arc, arc));
+            super.paintChildren(copy);
+            copy.dispose();
         }
     }
 }

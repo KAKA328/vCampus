@@ -10,11 +10,20 @@ import cn.vcampus.store.Product;
 import cn.vcampus.store.WalletTransaction;
 import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dialog;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GraphicsDevice;
+import java.awt.GraphicsEnvironment;
+import java.awt.GridLayout;
+import java.awt.RenderingHints;
+import java.awt.Window;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.util.ArrayList;
@@ -22,24 +31,40 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
+import javax.swing.AbstractButton;
+import javax.swing.BorderFactory;
+import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
+import javax.swing.JDialog;
+import javax.swing.JFileChooser;
+import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
+import javax.swing.JRootPane;
 import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
 import javax.swing.JSpinner;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.JToggleButton;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.ListSelectionModel;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.Timer;
+import javax.swing.border.Border;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.JTableHeader;
+import javax.swing.table.TableCellRenderer;
 
 /**
  * 商店页面：商品浏览与筛选、直接购买、购物车结算、校园钱包与管理员商品维护。
@@ -97,10 +122,24 @@ public final class StorePanel extends JPanel {
     // 上次“数量选择器对准的商品”：切换选中到另一个商品时数量复位为 1（数量属于对当前商品的操作意图）
     private String quantityTargetProductId;
 
+    // —— 商品目录视图形态：列表（表格）/ 方块（双列卡片）。默认：买家方块、管理员列表 ——
+    private boolean cardViewVisible;// 是否处于方块视图（build() 内按角色设初值）
+    private final CardLayout catalogCardLayout = new CardLayout();
+    private final JPanel catalogCards = new VCampusTheme.RoundedClipPanel(catalogCardLayout, 16);// CENTER 双视图容器（圆角裁剪）
+    private final JPanel catalogSouth = new JPanel(new BorderLayout());// SOUTH：仅列表操作行（方块视图整行隐藏，给商品区让出空间）
+    private JSplitPane catalogSplit;// 商品区/操作行可拖拽分隔条（列表大小可调），catalogPanel 内创建
+    private boolean catalogDividerInitialized;
+    private final JPanel cardHost = new JPanel(new GridLayout(0, 2, UiMetrics.px(16), UiMetrics.px(16)));// 方块宿主（默认双列，窄窗切单列）
+    private final JScrollPane cardScroller = VCampusTheme.scrollPane(cardHost);
+    private JScrollPane listScroller;// 列表宿主（catalogPanel 内创建）
+    private int cardColumns = 2;// 方块网格列数：可用宽 <720 逻辑像素时切单列
+    private final JToggleButton viewModeButton = new JToggleButton("方块视图");// 显示“要切到的”目标形态
+    private static final String LIST_VIEW = "list";
+    private static final String CARD_VIEW = "cards";
+
     private final JButton searchButton = new JButton("查询商品");
     private final JButton hotButton = new JButton("热销 Top" + HOT_PRODUCT_LIMIT);
-    // 管理端视图切换：打开后商品列表一并显示已下架商品（服务端 STORE_MANAGE 双门槛），
-    // 让「重新上架」能直接选中下架行操作，不再只能凭编号盲输
+    // 含下架视图：学生/教师也可开启（浏览已下架陈列，不可购买——服务端购买/加购仍拒绝下架品）
     private final JButton inactiveButton = new JButton("显示已下架");
     private final JButton purchaseButton = new JButton("购买选中");
     private final JButton addToCartButton = new JButton("加入购物车");
@@ -110,6 +149,9 @@ public final class StorePanel extends JPanel {
     private final JButton restockButton = new JButton("补货");
     private final JButton deactivateButton = new JButton("下架选中");
     private final JButton reactivateButton = new JButton("重新上架");
+    private final JButton manageButton = new JButton("管理商品…");// 维护类操作下拉入口，保证操作行单行不换行
+    private final JButton importProductsButton = new JButton("批量导入…");// 商品批量导入入口（管理端下拉内）
+    private final ProductImportFileReader productImportReader = new ProductImportFileReader();
     private final JButton refreshCartButton = new JButton("刷新购物车");
     private final JButton updateQuantityButton = new JButton("修改数量");
     private final JButton removeFromCartButton = new JButton("移除选中");
@@ -144,11 +186,15 @@ public final class StorePanel extends JPanel {
     private void build() {
         setLayout(new BorderLayout(0, 18));
         setOpaque(false);
+        // 默认形态：买家看“方块”更适合浏览，管理员维护选“列表”更高效；都可一键切换
+        cardViewVisible = !manager;
         add(header(), BorderLayout.NORTH);
         add(VCampusTheme.pageScroll(body()), BorderLayout.CENTER);
 
         searchButton.addActionListener(event -> loadProducts());
         hotButton.addActionListener(event -> toggleHotView());
+        inactiveButton.addActionListener(event -> toggleInactiveView());
+        viewModeButton.addActionListener(event -> setCardView(!cardViewVisible));
         purchaseButton.addActionListener(event -> purchaseSelected());
         addToCartButton.addActionListener(event -> addSelectedToCart());
         detailButton.addActionListener(event -> showSelectedDetail());
@@ -167,7 +213,6 @@ public final class StorePanel extends JPanel {
         allOrdersButton.addActionListener(event -> loadAllOrders());
         if (manager) {
             adjustBalanceButton.addActionListener(event -> promptAdjustBalance());
-            inactiveButton.addActionListener(event -> toggleInactiveView());
         }
         // 回车即查询，与图书馆页的搜索框行为一致
         keywordField.addActionListener(event -> applyKeywordFilter());
@@ -192,6 +237,8 @@ public final class StorePanel extends JPanel {
                 quantityTargetProductId = selected.getProductId();
             }
             syncQuantityLimit();
+            // 选中行变化时同步购买/加购按钮置灰（下架行不可买），与卡片视图行为一致
+            updateButtonState();
         });
 
         updateButtonState();
@@ -214,7 +261,10 @@ public final class StorePanel extends JPanel {
         panel.add(tabs, BorderLayout.CENTER);
 
         JPanel statusPanel = new JPanel(new BorderLayout());
-        VCampusTheme.panel(statusPanel);
+        statusPanel.setOpaque(true);
+        statusPanel.setBackground(VCampusTheme.PANEL);
+        statusPanel.setBorder(BorderFactory.createCompoundBorder(
+                VCampusTheme.roundedBorder(VCampusTheme.BORDER, 12), VCampusTheme.padding(10, 16, 10, 16)));
         status.setForeground(VCampusTheme.MUTED);
         statusPanel.add(status, BorderLayout.CENTER);
         panel.add(statusPanel, BorderLayout.SOUTH);
@@ -233,8 +283,14 @@ public final class StorePanel extends JPanel {
         JLabel subtitle = new JLabel("当前用户：" + session.getUser().getDisplayName() + "；" + capabilities);
         subtitle.setForeground(VCampusTheme.MUTED);
 
-        balanceLabel.setFont(VCampusTheme.font(Font.BOLD, 14));
+        // 余额做成右对齐圆角胶囊卡：主色浅底 + 主色边，落实组长“关键数值突出显示”
+        balanceLabel.setFont(VCampusTheme.font(Font.BOLD, 15));
         balanceLabel.setForeground(VCampusTheme.PRIMARY_DARK);
+        balanceLabel.setOpaque(true);
+        balanceLabel.setBackground(VCampusTheme.tintOf(VCampusTheme.PRIMARY, 10));
+        balanceLabel.setBorder(BorderFactory.createCompoundBorder(
+                VCampusTheme.roundedBorder(VCampusTheme.tintOf(VCampusTheme.PRIMARY, 35), 999),
+                VCampusTheme.padding(8, 14, 8, 14)));
         JPanel subtitleRow = new JPanel(new BorderLayout(12, 0));
         subtitleRow.setOpaque(false);
         subtitleRow.add(subtitle, BorderLayout.CENTER);
@@ -248,6 +304,10 @@ public final class StorePanel extends JPanel {
     private JTabbedPane tabs() {
         final JTabbedPane tabs = new JTabbedPane();
         tabs.setFont(VCampusTheme.font(Font.PLAIN, 14));
+        // 便签式页签（圆角顶），仅商店页使用，其他模块页签不变
+        tabs.setUI(new VCampusTheme.StickyTabbedPaneUI());
+        tabs.setOpaque(true);
+        tabs.setBackground(VCampusTheme.BACKGROUND);
         tabs.addTab("商品列表", catalogPanel());
         tabs.addTab("购物车", cartPanel());
         tabs.addTab("我的订单", orderPanel());
@@ -279,116 +339,184 @@ public final class StorePanel extends JPanel {
 
     private JPanel catalogPanel() {
         JPanel panel = new JPanel(new BorderLayout(0, 12));
-        VCampusTheme.panel(panel);
+        storeSection(panel);
 
-        JPanel search = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        search.setOpaque(false);
+        // 工具栏：整行包进白色圆角表面，控件间距走 8pt 栅格（12/8），把“查询/热销/含下架/视图切换”收成清晰分区
+        JPanel search = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(12), UiMetrics.px(8)));
+        storeToolbar(search);
         search.add(new JLabel("关键词"));
-        VCampusTheme.field(keywordField);
+        VCampusTheme.roundedField(keywordField);
+        keywordField.setPreferredSize(UiMetrics.dimension(160, 36));
         search.add(keywordField);
         search.add(new JLabel("类别"));
-        categoryBox.setPreferredSize(new Dimension(130, 26));
+        VCampusTheme.roundedField(categoryBox);
+        categoryBox.setPreferredSize(UiMetrics.dimension(150, 36));
         search.add(categoryBox);
-        VCampusTheme.secondaryButton(searchButton);
-        VCampusTheme.secondaryButton(hotButton);
+        themeSecondary(searchButton);
+        themeSecondary(hotButton);
         search.add(searchButton);
         search.add(hotButton);
-        if (manager) {
-            VCampusTheme.secondaryButton(inactiveButton);
-            search.add(inactiveButton);
-        }
+        // 含下架开关对学生也开放：看得到不等于买得到（服务端购买/加购仍拒下架品）
+        themeSecondary(inactiveButton);
+        search.add(inactiveButton);
+        themeSecondary(viewModeButton);
+        search.add(viewModeButton);
+        viewModeButton.setToolTipText("在“方块（双列卡片）/ 列表（表格）”两种展示间切换");
 
         configureTable(productTable);
         applyMoneyColumns(productTable, MoneyCellRenderer.MoneyFormat.YUAN, 3);
         styleProductCatalog(productTable);
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        actions.setOpaque(false);
-        VCampusTheme.primaryButton(purchaseButton);
-        VCampusTheme.secondaryButton(addToCartButton);
-        VCampusTheme.secondaryButton(detailButton);
+        // CENTER 双视图：列表宿主与方块宿主（外层 catalogCards 为圆角裁剪容器，内部方角不外戳）
+        listScroller = VCampusTheme.scrollPane(productTable);
+        listScroller.setBorder(VCampusTheme.roundedBorder(VCampusTheme.BORDER, 16));
+        cardHost.setBackground(VCampusTheme.BACKGROUND);
+        cardHost.setBorder(VCampusTheme.padding(8, 8, 8, 8));// 卡片不贴容器壁
+        cardScroller.setBorder(VCampusTheme.roundedBorder(VCampusTheme.BORDER, 16));
+        cardScroller.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        catalogCards.add(listScroller, LIST_VIEW);
+        catalogCards.add(cardScroller, CARD_VIEW);
+        catalogCards.setOpaque(false);
+        // 窄窗（<720 逻辑像素）自动切单列，仿学籍 740px 换行先例
+        cardScroller.addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentResized(java.awt.event.ComponentEvent event) {
+                updateCardColumns(cardScroller.getWidth());
+            }
+        });
+
+        // SOUTH-列表：选中行操作（数量/购买/加购/详情 + 管理员维护），包进白色圆角表面
+        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(12), UiMetrics.px(6)));
+        storeToolbar(actions);
+        themePrimary(purchaseButton);
+        themeSecondary(addToCartButton);
+        themeSecondary(detailButton);
         actions.add(new JLabel("数量"));
+        styleQuantitySpinner(quantity, 88);
         actions.add(quantity);
         actions.add(purchaseButton);
         actions.add(addToCartButton);
         actions.add(detailButton);
         if (manager) {
-            VCampusTheme.secondaryButton(addProductButton);
-            VCampusTheme.secondaryButton(editProductButton);
-            VCampusTheme.secondaryButton(restockButton);
-            VCampusTheme.secondaryButton(deactivateButton);
-            VCampusTheme.secondaryButton(reactivateButton);
-            actions.add(addProductButton);
-            actions.add(editProductButton);
-            actions.add(restockButton);
-            actions.add(deactivateButton);
-            actions.add(reactivateButton);
+            // 维护类操作收进“管理商品”下拉，避免操作行换行成两行（观感差）
+            themeSecondary(manageButton);
+            actions.add(manageButton);
+            final JPopupMenu manageMenu = new JPopupMenu();
+            manageMenu.setBackground(VCampusTheme.PANEL);
+            manageMenu.setBorder(VCampusTheme.roundedBorder(VCampusTheme.BORDER, 12));
+            manageMenu.setLayout(new GridLayout(0, 1, 0, UiMetrics.px(4)));
+            for (JButton operation : new JButton[] { addProductButton, editProductButton, restockButton,
+                    deactivateButton, reactivateButton, importProductsButton }) {
+                themeSecondary(operation);
+                operation.setHorizontalAlignment(SwingConstants.LEFT);
+                operation.setBorder(VCampusTheme.padding(8, 14, 8, 14));
+                manageMenu.add(operation);
+                operation.addActionListener(event -> manageMenu.setVisible(false));
+            }
+            importProductsButton.addActionListener(event -> importProducts());
+            manageButton.addActionListener(event -> {
+                // 向上弹出：按钮贴近窗口底部，向下弹会裁掉最后一项（重新上架）
+                int menuHeight = manageMenu.getPreferredSize().height;
+                manageMenu.show(manageButton, 0, -menuHeight);
+            });
         }
+        // SOUTH 仅承载列表操作行；方块视图时整行隐藏，把纵向空间让给商品区（卡片自带加购/购买/详情按钮）
+        catalogSouth.add(actions, BorderLayout.CENTER);
+        catalogSouth.setOpaque(false);
+
+        // 商品区与操作行之间用可拖拽分隔条：列表太小时用户可自行拉大（多余空间优先给商品区）
+        catalogSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, catalogCards, catalogSouth);
+        catalogSplit.setResizeWeight(1.0);
+        catalogSplit.setOneTouchExpandable(true);
+        catalogSplit.setContinuousLayout(false);
+        catalogSplit.setDividerSize(UiMetrics.px(6));
+        catalogSplit.setBorder(null);
+        catalogSplit.setOpaque(false);
+        catalogSplit.addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentResized(java.awt.event.ComponentEvent event) {
+                if (!catalogDividerInitialized && !cardViewVisible && catalogSplit.getHeight() > 0) {
+                    catalogDividerInitialized = true;
+                    catalogSplit.setDividerLocation((int) (catalogSplit.getHeight() * 0.8));
+                }
+            }
+        });
 
         panel.add(search, BorderLayout.NORTH);
-        panel.add(new JScrollPane(productTable), BorderLayout.CENTER);
-        panel.add(actions, BorderLayout.SOUTH);
+        panel.add(catalogSplit, BorderLayout.CENTER);
+
+        applyViewMode();// 按默认形态显示一次（买家方块/管理员列表）
         return panel;
     }
 
     private JPanel cartPanel() {
         JPanel panel = new JPanel(new BorderLayout(0, 12));
-        VCampusTheme.panel(panel);
+        storeSection(panel);
         configureTable(cartTable);
         applyMoneyColumns(cartTable, MoneyCellRenderer.MoneyFormat.YUAN, 2, 4);
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        actions.setOpaque(false);
-        VCampusTheme.secondaryButton(refreshCartButton);
-        VCampusTheme.secondaryButton(updateQuantityButton);
-        VCampusTheme.secondaryButton(removeFromCartButton);
-        VCampusTheme.primaryButton(checkoutButton);
+        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(12), UiMetrics.px(6)));
+        storeToolbar(actions);
+        themeSecondary(refreshCartButton);
+        themeSecondary(updateQuantityButton);
+        themeSecondary(removeFromCartButton);
+        themePrimary(checkoutButton);
         actions.add(refreshCartButton);
         actions.add(updateQuantityButton);
         actions.add(removeFromCartButton);
         actions.add(checkoutButton);
 
         // 合计只累加服务端给出的 subtotalCents，不在前端用单价×数量重算，否则会与实扣金额差一两分
+        // 合计也做成圆角胶囊，与头部余额一致，突出关键数值
         cartTotalLabel.setFont(VCampusTheme.font(Font.BOLD, 15));
         cartTotalLabel.setForeground(VCampusTheme.PRIMARY_DARK);
-        JPanel footer = new JPanel(new BorderLayout());
+        cartTotalLabel.setOpaque(true);
+        cartTotalLabel.setBackground(VCampusTheme.tintOf(VCampusTheme.PRIMARY, 10));
+        cartTotalLabel.setBorder(BorderFactory.createCompoundBorder(
+                VCampusTheme.roundedBorder(VCampusTheme.tintOf(VCampusTheme.PRIMARY, 35), 999),
+                VCampusTheme.padding(8, 14, 8, 14)));
+        JPanel footer = new JPanel(new BorderLayout(0, 10));
         footer.setOpaque(false);
         footer.add(actions, BorderLayout.WEST);
         footer.add(cartTotalLabel, BorderLayout.EAST);
 
-        panel.add(new JScrollPane(cartTable), BorderLayout.CENTER);
+        JScrollPane scroller = VCampusTheme.scrollPane(cartTable);
+        scroller.setBorder(VCampusTheme.roundedBorder(VCampusTheme.BORDER, 16));
+        panel.add(scroller, BorderLayout.CENTER);
         panel.add(footer, BorderLayout.SOUTH);
         return panel;
     }
 
     private JPanel orderPanel() {
         JPanel panel = new JPanel(new BorderLayout(0, 12));
-        VCampusTheme.panel(panel);
+        storeSection(panel);
         configureTable(orderTable);
         applyMoneyColumns(orderTable, MoneyCellRenderer.MoneyFormat.YUAN, 3, 4);
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        actions.setOpaque(false);
-        VCampusTheme.secondaryButton(refreshOrdersButton);
+        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(12), UiMetrics.px(6)));
+        storeToolbar(actions);
+        themeSecondary(refreshOrdersButton);
         actions.add(refreshOrdersButton);
 
-        panel.add(new JScrollPane(orderTable), BorderLayout.CENTER);
+        JScrollPane scroller = VCampusTheme.scrollPane(orderTable);
+        scroller.setBorder(VCampusTheme.roundedBorder(VCampusTheme.BORDER, 16));
+        panel.add(scroller, BorderLayout.CENTER);
         panel.add(actions, BorderLayout.SOUTH);
         return panel;
     }
 
     private JPanel walletPanel() {
         JPanel panel = new JPanel(new BorderLayout(0, 12));
-        VCampusTheme.panel(panel);
+        storeSection(panel);
 
-        JPanel balanceBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        balanceBar.setOpaque(false);
-        VCampusTheme.primaryButton(rechargeButton);
-        VCampusTheme.secondaryButton(refreshLedgerButton);
+        JPanel balanceBar = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(12), UiMetrics.px(6)));
+        storeToolbar(balanceBar);
+        themePrimary(rechargeButton);
+        themeSecondary(refreshLedgerButton);
         balanceBar.add(rechargeButton);
         balanceBar.add(refreshLedgerButton);
         if (manager) {
-            VCampusTheme.secondaryButton(adjustBalanceButton);
+            themeSecondary(adjustBalanceButton);
             balanceBar.add(adjustBalanceButton);
         }
 
@@ -399,25 +527,63 @@ public final class StorePanel extends JPanel {
         ledgerTable.getColumnModel().getColumn(3)
                 .setCellRenderer(new MoneyCellRenderer(MoneyCellRenderer.MoneyFormat.CENTS));
 
+        JScrollPane scroller = VCampusTheme.scrollPane(ledgerTable);
+        scroller.setBorder(VCampusTheme.roundedBorder(VCampusTheme.BORDER, 16));
         panel.add(balanceBar, BorderLayout.NORTH);
-        panel.add(new JScrollPane(ledgerTable), BorderLayout.CENTER);
+        panel.add(scroller, BorderLayout.CENTER);
         return panel;
     }
 
     private JPanel allOrderPanel() {
         JPanel panel = new JPanel(new BorderLayout(0, 12));
-        VCampusTheme.panel(panel);
+        storeSection(panel);
         configureTable(allOrderTable);
         applyMoneyColumns(allOrderTable, MoneyCellRenderer.MoneyFormat.YUAN, 4, 5);
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        actions.setOpaque(false);
-        VCampusTheme.secondaryButton(allOrdersButton);
+        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(12), UiMetrics.px(6)));
+        storeToolbar(actions);
+        themeSecondary(allOrdersButton);
         actions.add(allOrdersButton);
 
-        panel.add(new JScrollPane(allOrderTable), BorderLayout.CENTER);
+        JScrollPane scroller = VCampusTheme.scrollPane(allOrderTable);
+        scroller.setBorder(VCampusTheme.roundedBorder(VCampusTheme.BORDER, 16));
+        panel.add(scroller, BorderLayout.CENTER);
         panel.add(actions, BorderLayout.SOUTH);
         return panel;
+    }
+
+    /** 主题按钮样式 + 去“方角描边” + 开启悬停/焦点环（商店面板专属，圆角底由主题 ReadableButtonUI 自绘）。 */
+    private static void themePrimary(AbstractButton button) {
+        VCampusTheme.primaryButton(button);
+        softenBorder(button);
+        VCampusTheme.interactive(button);
+    }
+
+    private static void themeSecondary(AbstractButton button) {
+        VCampusTheme.secondaryButton(button);
+        softenBorder(button);
+        VCampusTheme.interactive(button);
+    }
+
+    /** 把主题设置的外框方线换为内边距留白，按钮观感由方角→圆角扁平（底色仍由主题色板控制）。 */
+    private static void softenBorder(AbstractButton button) {
+        button.setBorder(VCampusTheme.padding(9, 18, 9, 18));
+    }
+
+    /** 商店页分区容器：浅底(BACKGROUND) + 圆角边(16) + 内边距，替代全局白色直角 panel()，消除“棱角”。 */
+    private static void storeSection(JPanel panel) {
+        panel.setOpaque(true);
+        panel.setBackground(VCampusTheme.BACKGROUND);
+        panel.setBorder(BorderFactory.createCompoundBorder(
+                VCampusTheme.roundedBorder(VCampusTheme.BORDER, 16), VCampusTheme.padding(16, 18, 16, 18)));
+    }
+
+    /** 商店页工具/操作行表面：白底 + 圆角边(12) + 内边距(10,14)，把同类操作收成清晰分区。 */
+    private static void storeToolbar(JPanel panel) {
+        panel.setOpaque(true);
+        panel.setBackground(VCampusTheme.PANEL);
+        panel.setBorder(BorderFactory.createCompoundBorder(
+                VCampusTheme.roundedBorder(VCampusTheme.BORDER, 12), VCampusTheme.padding(10, 14, 10, 14)));
     }
 
     private static void configureTable(JTable table) {
@@ -427,8 +593,15 @@ public final class StorePanel extends JPanel {
         table.setAutoCreateRowSorter(true);
         table.setShowVerticalLines(false);
         table.setGridColor(VCampusTheme.BORDER);
-        table.getTableHeader().setReorderingAllowed(false);
-        table.getTableHeader().setFont(VCampusTheme.font(Font.BOLD, 13));
+        JTableHeader header = table.getTableHeader();
+        header.setReorderingAllowed(false);
+        header.setFont(VCampusTheme.font(Font.BOLD, 13));
+        header.setBackground(VCampusTheme.SURFACE_ALT);
+        header.setForeground(VCampusTheme.PRIMARY_DARK);
+        // 表头只留底部 1px 分隔线（去掉四边框），更轻盈；仅商店表格局部覆写，不动 theme.table()
+        header.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, VCampusTheme.BORDER));
+        // 交替深浅行（斑马纹）：未自定义渲染器的文本列也一致
+        table.setDefaultRenderer(Object.class, new VCampusTheme.ReadableTableCellRenderer());
     }
 
     private static void applyMoneyColumns(JTable table, MoneyCellRenderer.MoneyFormat format, int... columns) {
@@ -448,7 +621,7 @@ public final class StorePanel extends JPanel {
         table.getColumnModel().getColumn(2).setPreferredWidth(110);// 类别
         table.getColumnModel().getColumn(3).setPreferredWidth(110);// 价格（强调）
         table.getColumnModel().getColumn(4).setPreferredWidth(80);// 库存
-        table.getColumnModel().getColumn(5).setPreferredWidth(90);// 状态（胶囊）
+        table.getColumnModel().getColumn(5).setPreferredWidth(90);// 状态（圆角胶囊）
         table.getColumnModel().getColumn(6).setPreferredWidth(280);// 说明（悬停看全文）
         table.getColumnModel().getColumn(0).setCellRenderer(new CatalogTextRenderer(
                 VCampusTheme.font(Font.PLAIN, 12), VCampusTheme.MUTED, false));
@@ -459,7 +632,7 @@ public final class StorePanel extends JPanel {
         table.getColumnModel().getColumn(3).setCellRenderer(
                 new MoneyCellRenderer(MoneyCellRenderer.MoneyFormat.YUAN, true));
         table.getColumnModel().getColumn(4).setCellRenderer(new StockRenderer());
-        table.getColumnModel().getColumn(5).setCellRenderer(new StatusPillRenderer());
+        table.getColumnModel().getColumn(5).setCellRenderer(new RoundedChipCellRenderer());
         table.getColumnModel().getColumn(6).setCellRenderer(new TooltipTextRenderer(VCampusTheme.MUTED));
     }
 
@@ -474,8 +647,8 @@ public final class StorePanel extends JPanel {
      */
     private void loadProducts(boolean announce) {
         final String category = selectedCategory();
-        // 含下架视图仅管理员可开（按钮只在 manager 分支渲染；服务端另有 STORE_MANAGE 双门槛兜底）
-        final boolean includeInactive = manager && inactiveViewVisible;
+        // 含下架视图对所有角色开放（服务端已放宽为 STORE_READ）：买家可浏览下架陈列，购买仍被拒
+        final boolean includeInactive = inactiveViewVisible;
         hotViewVisible = false;
         hotButton.setText("热销 Top" + HOT_PRODUCT_LIMIT);
         String suffix = includeInactive ? "（含已下架）" : "";
@@ -521,6 +694,91 @@ public final class StorePanel extends JPanel {
         inactiveViewVisible = !inactiveViewVisible;
         inactiveButton.setText(inactiveViewVisible ? "隐藏已下架" : "显示已下架");
         loadProducts();
+    }
+
+    /** 列表/方块视图切换入口。 */
+    private void setCardView(boolean cards) {
+        if (cards == cardViewVisible) {
+            return;
+        }
+        cardViewVisible = cards;
+        applyViewMode();
+    }
+
+    /** 依当前形态切换 CENTER/SOUTH 卡片与按钮文案；进入方块视图时重建卡片。 */
+    private void applyViewMode() {
+        if (cardViewVisible) {
+            catalogCardLayout.show(catalogCards, CARD_VIEW);
+            viewModeButton.setText("列表视图");
+            rebuildCardView();
+        } else {
+            catalogCardLayout.show(catalogCards, LIST_VIEW);
+            viewModeButton.setText("方块视图");
+        }
+        // 方块视图不需要列表操作行：隐藏并把分隔条推到底让卡片占满；列表视图恢复可拖拽分隔
+        catalogSouth.setVisible(!cardViewVisible);
+        if (catalogSplit != null) {
+            catalogSplit.setEnabled(!cardViewVisible);
+            catalogSplit.setDividerLocation(cardViewVisible ? 1.0 : 0.8);
+        }
+        viewModeButton.setSelected(cardViewVisible);
+    }
+
+    /** 用当前 visibleProducts 重建方块网格（过滤/加载后数据变化时调用）；结果为空时显示居中空态文案。 */
+    private void rebuildCardView() {
+        cardHost.removeAll();
+        applyCardGridLayout();
+        if (visibleProducts.isEmpty()) {
+            JLabel empty = new JLabel("未找到匹配商品，可调整关键词或类别后重试", SwingConstants.CENTER);
+            empty.setForeground(VCampusTheme.MUTED);
+            empty.setFont(VCampusTheme.font(Font.PLAIN, 14));
+            empty.setBorder(VCampusTheme.padding(48, 0, 48, 0));
+            cardHost.add(empty);
+        } else {
+            for (Product product : visibleProducts) {
+                cardHost.add(new ProductCard(product));
+            }
+        }
+        cardHost.revalidate();
+        cardHost.repaint();
+    }
+
+    /** 按当前列数与数据量设置方块网格布局：空态用单元格居中，非空用 cardColumns 列（间距 16）。 */
+    private void applyCardGridLayout() {
+        if (visibleProducts.isEmpty()) {
+            cardHost.setLayout(new GridLayout(1, 1, 0, 0));
+        } else {
+            int gap = UiMetrics.px(16);
+            cardHost.setLayout(new GridLayout(0, cardColumns, gap, gap));
+        }
+    }
+
+    /** 依可用宽度切换方块列数：<720 逻辑像素单列，否则双列；列数变化时重排网格。 */
+    private void updateCardColumns(int availableWidth) {
+        int target = availableWidth > 0 && availableWidth < UiMetrics.px(720) ? 1 : 2;
+        if (target != cardColumns) {
+            cardColumns = target;
+            applyCardGridLayout();
+            cardHost.revalidate();
+            cardHost.repaint();
+        }
+    }
+
+    /** 点击卡片时把对应行选中（与表格选中联动，表格开列排序时经 rowSorter 换算回视图行）。 */
+    private void selectProductRow(Product product) {
+        int modelIndex = visibleProducts.indexOf(product);
+        if (modelIndex < 0) {
+            return;
+        }
+        int viewIndex = modelIndex;
+        if (productTable.getRowSorter() != null) {
+            try {
+                viewIndex = productTable.getRowSorter().convertRowIndexToView(modelIndex);
+            } catch (IndexOutOfBoundsException ignored) {
+                return;
+            }
+        }
+        productTable.setRowSelectionInterval(viewIndex, viewIndex);
     }
 
     /** 热销排行不占页签，做成商品表的视图切换，与图书馆「本人/全部借阅记录」的切换方式一致。 */
@@ -582,7 +840,7 @@ public final class StorePanel extends JPanel {
         String summary;
         if (hotViewVisible) {
             summary = "已显示热销商品，共 " + parsed.size() + " 个";
-        } else if (manager && inactiveViewVisible) {
+        } else if (inactiveViewVisible) {
             int inactiveCount = 0;
             for (Product product : parsed) {
                 if (!product.isActive()) {
@@ -610,6 +868,9 @@ public final class StorePanel extends JPanel {
         }
         productModel.replaceRows(rows);
         syncQuantityLimit();
+        if (cardViewVisible) {
+            rebuildCardView();
+        }
     }
 
     private static boolean matchesKeyword(Product product, String lowerKeyword) {
@@ -650,16 +911,20 @@ public final class StorePanel extends JPanel {
     }
 
     private void purchaseSelected() {
-        final Product product = selectedProduct();
+        Product product = selectedProduct();
         if (product == null) {
             showStatus("请先在商品表中选择一个商品", VCampusTheme.DANGER);
             return;
         }
+        purchaseProduct(product, ((Integer) quantity.getValue()).intValue());
+    }
+
+    /** 对“指定商品+数量”发起购买（列表选中行与方块卡片共用；含下架/库存守卫与扣款确认）。 */
+    private void purchaseProduct(final Product product, final int count) {
         if (!product.isActive()) {
             showStatus("「" + product.getName() + "」已下架，无法购买", VCampusTheme.DANGER);
             return;
         }
-        final int count = ((Integer) quantity.getValue()).intValue();
         if (product.getStock() < count) {
             showStatus("「" + product.getName() + "」库存仅剩 " + product.getStock() + " 件，请调整数量",
                     VCampusTheme.DANGER);
@@ -667,14 +932,13 @@ public final class StorePanel extends JPanel {
         }
         // 下单前确认：与服务端同式换算（元→分，同走 Money.toCents 唯一入口），把「将扣多少钱」显式摆给用户，避免误点
         final long totalCents = StoreRowMapper.toCents(product.getPrice() * count);
-        int confirmed = JOptionPane.showConfirmDialog(this,
+        if (!storeConfirm("确认购买",
                 "确认购买「" + product.getName() + "」× " + count + "，将扣款 "
-                        + StoreRowMapper.formatYuan(totalCents) + " 元？",
-                "确认购买", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
-        if (confirmed != JOptionPane.OK_OPTION) {
+                        + StoreRowMapper.formatYuan(totalCents) + " 元？")) {
             return;
         }
         final String productId = product.getProductId();
+        final String productName = product.getName();
         runRequest("正在提交购买请求…", service -> service.purchase(session.getToken(), productId, count),
                 response -> {
                     if (!isSuccessful(response)) {
@@ -684,7 +948,7 @@ public final class StorePanel extends JPanel {
                         SwingUtilities.invokeLater(this::loadBalance);
                         return;
                     }
-                    showStatus("购买成功，正在刷新商品与余额…", VCampusTheme.SUCCESS);
+                    showStatus("购买成功「" + productName + "」× " + count + "，正在刷新…", VCampusTheme.SUCCESS);
                     resetQuantityToDefault();
                     SwingUtilities.invokeLater(this::loadProducts);
                     SwingUtilities.invokeLater(this::loadBalance);
@@ -692,28 +956,33 @@ public final class StorePanel extends JPanel {
     }
 
     private void addSelectedToCart() {
-        final Product product = selectedProduct();
+        Product product = selectedProduct();
         if (product == null) {
             showStatus("请先在商品表中选择一个商品", VCampusTheme.DANGER);
             return;
         }
+        addProductToCart(product, ((Integer) quantity.getValue()).intValue());
+    }
+
+    /** 对“指定商品+数量”加入购物车（列表选中行与方块卡片共用；含下架/库存守卫）。 */
+    private void addProductToCart(final Product product, final int count) {
         if (!product.isActive()) {
             showStatus("「" + product.getName() + "」已下架，无法加入购物车", VCampusTheme.DANGER);
             return;
         }
-        final int count = ((Integer) quantity.getValue()).intValue();
         if (product.getStock() < count) {
             showStatus("「" + product.getName() + "」库存仅剩 " + product.getStock() + " 件，请调整数量",
                     VCampusTheme.DANGER);
             return;
         }
         final String productId = product.getProductId();
+        final String productName = product.getName();
         runRequest("正在加入购物车…", service -> service.addToCart(session.getToken(), productId, count),
                 response -> {
                     if (!isSuccessful(response)) {
                         return;
                     }
-                    showStatus("已将 " + count + " 件「" + product.getName() + "」加入购物车", VCampusTheme.SUCCESS);
+                    showStatus("已将 " + count + " 件「" + productName + "」加入购物车", VCampusTheme.SUCCESS);
                     resetQuantityToDefault();
                     SwingUtilities.invokeLater(this::loadCart);
                 });
@@ -725,19 +994,12 @@ public final class StorePanel extends JPanel {
             showStatus("请先在商品表中选择一个商品", VCampusTheme.DANGER);
             return;
         }
-        JOptionPane.showMessageDialog(this, detailText(product), "商品详情", JOptionPane.INFORMATION_MESSAGE);
+        showProductDetail(product);
     }
 
-    private static String detailText(Product product) {
-        return "名称：" + product.getName()
-                + "\n商品号：" + product.getProductId()
-                + "\n类别：" + product.getCategory()
-                + "\n单价：" + StoreRowMapper.formatYuan(StoreRowMapper.toCents(product.getPrice())) + " 元"
-                + "\n库存：" + product.getStock()
-                + "\n状态：" + (product.isActive() ? "在售" : "已下架")
-                + "\n说明：" + (product.getDescription() == null || product.getDescription().isEmpty()
-                        ? "（无）"
-                        : product.getDescription());
+    /** 展示商品详情对话框（列表“详情”按钮与方块卡片共用）。 */
+    private void showProductDetail(Product product) {
+        showStoreDialog("商品详情", dialogBody("商品详情", detailRows(product)), false);
     }
 
     private void showAddProductDialog() {
@@ -786,9 +1048,8 @@ public final class StorePanel extends JPanel {
             showStatus("请先在商品表中选择要补货的商品", VCampusTheme.DANGER);
             return;
         }
-        String input = JOptionPane.showInputDialog(this,
-                "「" + product.getName() + "」当前库存 " + product.getStock() + " 件，请输入补货数量：",
-                "补货", JOptionPane.PLAIN_MESSAGE);
+        String input = storeInput("补货",
+                "「" + product.getName() + "」当前库存 " + product.getStock() + " 件，请输入补货数量：", null);
         if (input == null || input.trim().isEmpty()) {
             return;
         }
@@ -825,9 +1086,8 @@ public final class StorePanel extends JPanel {
             return;
         }
         // 下架会中断售卖、商品从买家与管理员列表消失（可用「重新上架」凭编号恢复），属破坏性操作，必须二次确认
-        if (JOptionPane.showConfirmDialog(this,
-                "确定下架「" + product.getName() + "」？\n下架后买家将无法购买，已存在的购物车条目也会标记为失效。",
-                "下架确认", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION) {
+        if (!storeConfirm("下架确认",
+                "确定下架「" + product.getName() + "」？\n下架后买家将无法购买，已存在的购物车条目也会标记为失效。")) {
             return;
         }
         final String productId = product.getProductId();
@@ -844,9 +1104,8 @@ public final class StorePanel extends JPanel {
         // 行内优先：含下架视图中选中了已下架商品 → 名称与编号都可见，确认后直接恢复，无需盲输编号
         final Product selected = selectedProduct();
         if (selected != null && !selected.isActive()) {
-            if (JOptionPane.showConfirmDialog(this,
-                    "确认重新上架「" + selected.getName() + "」（编号 " + selected.getProductId() + "）？",
-                    "重新上架确认", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE) != JOptionPane.OK_OPTION) {
+            if (!storeConfirm("重新上架确认",
+                    "确认重新上架「" + selected.getName() + "」（编号 " + selected.getProductId() + "）？")) {
                 return;
             }
             final String productId = selected.getProductId();
@@ -865,8 +1124,7 @@ public final class StorePanel extends JPanel {
         String hint = selected == null
                 ? "请输入要重新上架的商品编号：\n（提示：可先点「显示已下架」在列表中选中商品直接恢复）"
                 : "当前选中商品在售中；请输入要重新上架的商品编号：";
-        String input = JOptionPane.showInputDialog(this, hint,
-                "重新上架", JOptionPane.PLAIN_MESSAGE);
+        String input = storeInput("重新上架", hint, null);
         if (input == null) {
             return;// 用户取消
         }
@@ -955,9 +1213,8 @@ public final class StorePanel extends JPanel {
             showStatus("「" + line.getProductName() + "」已下架，请移除该条目", VCampusTheme.DANGER);
             return;
         }
-        String input = JOptionPane.showInputDialog(this,
-                "「" + line.getProductName() + "」当前数量 " + line.getQuantity() + "，请输入新数量：",
-                "修改数量", JOptionPane.PLAIN_MESSAGE);
+        String input = storeInput("修改数量",
+                "「" + line.getProductName() + "」当前数量 " + line.getQuantity() + "，请输入新数量：", null);
         if (input == null || input.trim().isEmpty()) {
             return;
         }
@@ -1018,10 +1275,9 @@ public final class StorePanel extends JPanel {
             return;
         }
         // 结算会真实扣款，先把件数与合计摆出来让用户确认；真正裁决仍在服务端
-        if (JOptionPane.showConfirmDialog(this,
+        if (!storeConfirm("结算确认",
                 "本次结算共 " + cartLines.size() + " 条、合计 " + StoreRowMapper.formatYuan(cartTotalCents)
-                        + " 元，确认从校园钱包扣款？",
-                "结算确认", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE) != JOptionPane.OK_OPTION) {
+                        + " 元，确认从校园钱包扣款？")) {
             return;
         }
         submitCheckout();
@@ -1131,7 +1387,7 @@ public final class StorePanel extends JPanel {
     }
 
     private void promptRecharge() {
-        String input = JOptionPane.showInputDialog(this, "请输入充值金额（元）：", "充值", JOptionPane.PLAIN_MESSAGE);
+        String input = storeInput("充值", "请输入充值金额（元）：", null);
         if (input == null || input.trim().isEmpty()) {
             return;
         }
@@ -1159,13 +1415,11 @@ public final class StorePanel extends JPanel {
     }
 
     private void promptAdjustBalance() {
-        String targetInput = JOptionPane.showInputDialog(this, "请输入目标用户编号：", "校正余额",
-                JOptionPane.PLAIN_MESSAGE);
+        String targetInput = storeInput("校正余额", "请输入目标用户编号：", null);
         if (targetInput == null || targetInput.trim().isEmpty()) {
             return;
         }
-        String balanceInput = JOptionPane.showInputDialog(this, "请输入校正后的余额（元，绝对值）：", "校正余额",
-                JOptionPane.PLAIN_MESSAGE);
+        String balanceInput = storeInput("校正余额", "请输入校正后的余额（元，绝对值）：", null);
         if (balanceInput == null || balanceInput.trim().isEmpty()) {
             return;
         }
@@ -1262,8 +1516,13 @@ public final class StorePanel extends JPanel {
         boolean idle = !requestInProgress;
         searchButton.setEnabled(idle);
         hotButton.setEnabled(idle);
-        purchaseButton.setEnabled(idle);
-        addToCartButton.setEnabled(idle);
+        inactiveButton.setEnabled(idle);
+        viewModeButton.setEnabled(idle);
+        // 列表视图：选中下架商品（或未选中）时置灰购买/加购，与卡片视图“下架不可买”一致；服务层仍兜底拒绝
+        Product selectedForBuy = selectedProduct();
+        boolean purchasable = idle && selectedForBuy != null && selectedForBuy.isActive();
+        purchaseButton.setEnabled(purchasable);
+        addToCartButton.setEnabled(purchasable);
         detailButton.setEnabled(idle);
         refreshCartButton.setEnabled(idle);
         updateQuantityButton.setEnabled(idle);
@@ -1278,11 +1537,81 @@ public final class StorePanel extends JPanel {
         restockButton.setEnabled(manager && idle);
         deactivateButton.setEnabled(manager && idle);
         reactivateButton.setEnabled(manager && idle);
-        inactiveButton.setEnabled(manager && idle);
+        importProductsButton.setEnabled(manager && idle);
         adjustBalanceButton.setEnabled(manager && idle);
         keywordField.setEnabled(idle);
         categoryBox.setEnabled(idle);
         quantity.setEnabled(idle);
+    }
+
+    /** 商品批量导入：选择本地 csv/tsv → 主题化预览表 → 确认后逐行复用新增商品消息提交。 */
+    private void importProducts() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("选择商品导入文件");
+        chooser.setFileFilter(new FileNameExtensionFilter("CSV/TSV 文件 (*.csv, *.tsv)", "csv", "tsv"));
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        final List<ProductImportRow> rows;
+        try {
+            rows = productImportReader.read(chooser.getSelectedFile().toPath());
+        } catch (Exception failure) {
+            showStoreDialog("导入失败", dialogBody("导入失败", dialogMessage(failure.getMessage())), false);
+            return;
+        }
+        if (rows.isEmpty()) {
+            showStoreDialog("导入失败", dialogBody("导入失败", dialogMessage("文件中没有可导入商品")), false);
+            return;
+        }
+        DefaultTableModel previewModel = new DefaultTableModel(
+                new Object[] { "名称", "价格", "库存", "类别", "说明" }, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        for (ProductImportRow row : rows) {
+            previewModel.addRow(new Object[] { row.getName(), row.getPrice(), row.getStock(),
+                    row.getCategory(), row.getDescription() });
+        }
+        JTable previewTable = new JTable(previewModel);
+        JScrollPane previewScroller = VCampusTheme.scrollPane(previewTable);
+        previewScroller.setPreferredSize(UiMetrics.dimension(560, 280));
+        if (showStoreDialog("批量导入预览（共 " + rows.size() + " 件）", previewScroller, true) != JOptionPane.OK_OPTION) {
+            return;
+        }
+        submitImport(rows);
+    }
+
+    /** 逐行提交导入：复用现有新增商品消息，汇总成功/失败后刷新列表。 */
+    private void submitImport(final List<ProductImportRow> rows) {
+        final int[] okCount = { 0 };
+        final List<String> failedNames = new ArrayList<String>();
+        runRequest("正在批量导入商品…", service -> {
+            Message last = null;
+            for (ProductImportRow row : rows) {
+                last = service.addProduct(session.getToken(), row.getName(), row.getPrice(),
+                        row.getStock(), row.getDescription(), row.getCategory());
+                // 后台线程不能碰 Swing（isSuccessful 会写状态栏），这里只看状态码
+                if (last.getStatusCode() == StatusCode.OK) {
+                    okCount[0]++;
+                } else {
+                    failedNames.add(row.getName());
+                }
+            }
+            return last;
+        }, response -> {
+            if (failedNames.isEmpty()) {
+                showStoreDialog("导入完成", dialogBody("导入完成",
+                        dialogMessage("成功导入 " + okCount[0] + " 件商品")), false);
+            } else {
+                showStoreDialog("导入完成（部分失败）", dialogBody("导入完成（部分失败）",
+                        dialogMessage("成功 " + okCount[0] + " 件，失败 " + failedNames.size()
+                                + " 件：" + String.join("、", failedNames))),
+                        false);
+            }
+            loadProducts();
+        });
     }
 
     private void showStatus(String message, Color color) {
@@ -1332,6 +1661,402 @@ public final class StorePanel extends JPanel {
         void handle(Message response);
     }
 
+    /** 双列方块视图中的商品卡片：名称/价格/类别与状态胶囊/库存/说明 + 独立数量与操作按钮。 */
+    private final class ProductCard extends JPanel {
+        private final Product product;
+        private final JSpinner cardQuantity;
+        private final JButton cartButton = new JButton("加入购物车");
+        private final JButton buyButton = new JButton("立即购买");
+        private final JButton moreButton = new JButton("详情");
+
+        ProductCard(final Product product) {
+            this.product = product;
+            boolean active = product.isActive();
+            setLayout(new BorderLayout(0, 12));
+            setBackground(Color.WHITE);
+            // 圆角卡片：静息用 BORDER 线、悬停用主色浅线，强化“可点选”暗示（不改动置灰/购买拦截逻辑）
+            final Border idleBorder = BorderFactory.createCompoundBorder(
+                    VCampusTheme.roundedBorder(VCampusTheme.BORDER, 16), VCampusTheme.padding(14, 16, 14, 16));
+            final Border hoverBorder = BorderFactory.createCompoundBorder(
+                    VCampusTheme.roundedBorder(VCampusTheme.tintOf(VCampusTheme.PRIMARY, 45), 16),
+                    VCampusTheme.padding(14, 16, 14, 16));
+            setBorder(idleBorder);
+            // 点击卡片=选中对应表格行，与“列表”操作联动
+            addMouseListener(new java.awt.event.MouseAdapter() {
+                @Override
+                public void mouseClicked(java.awt.event.MouseEvent event) {
+                    selectProductRow(product);
+                }
+
+                @Override
+                public void mouseEntered(java.awt.event.MouseEvent event) {
+                    setBorder(hoverBorder);
+                }
+
+                @Override
+                public void mouseExited(java.awt.event.MouseEvent event) {
+                    setBorder(idleBorder);
+                }
+            });
+
+            JPanel head = new JPanel(new BorderLayout(6, 0));
+            head.setOpaque(false);
+            JLabel nameLabel = new JLabel(product.getName());
+            nameLabel.setFont(VCampusTheme.font(Font.BOLD, 15));
+            nameLabel.setForeground(VCampusTheme.PRIMARY_DARK);
+            nameLabel.setToolTipText(product.getName());
+            head.add(nameLabel, BorderLayout.CENTER);
+            JLabel priceLabel = new JLabel(
+                    StoreRowMapper.formatYuan(StoreRowMapper.toCents(product.getPrice())) + " 元");
+            priceLabel.setFont(VCampusTheme.font(Font.BOLD, 16));
+            priceLabel.setForeground(VCampusTheme.PRIMARY);
+            head.add(priceLabel, BorderLayout.EAST);
+
+            JPanel chips = new JPanel(new FlowLayout(FlowLayout.LEFT, UiMetrics.px(8), 0));
+            chips.setOpaque(false);
+            chips.add(new ChipLabel(product.getCategory(), new Color(30, 64, 175)));
+            chips.add(new ChipLabel(active ? "在售" : "已下架",
+                    active ? VCampusTheme.SUCCESS : VCampusTheme.DANGER));
+            JLabel stockLabel = new JLabel(active ? "库存 " + product.getStock() : "已下架，不可购买");
+            stockLabel.setFont(VCampusTheme.font(Font.PLAIN, 12));
+            stockLabel.setForeground(active && product.getStock() <= 0 ? VCampusTheme.DANGER
+                    : (active && product.getStock() <= 5 ? new Color(202, 138, 4) : VCampusTheme.MUTED));
+            chips.add(stockLabel);
+
+            JPanel middle = new JPanel(new BorderLayout(0, 4));
+            middle.setOpaque(false);
+            middle.add(chips, BorderLayout.NORTH);
+            String description = product.getDescription();
+            if (description != null && !description.isEmpty()) {
+                JLabel desc = new JLabel(truncate(description, 48));
+                desc.setFont(VCampusTheme.font(Font.PLAIN, 12));
+                desc.setForeground(VCampusTheme.MUTED);
+                desc.setToolTipText(description);
+                middle.add(desc, BorderLayout.CENTER);
+            }
+
+            int maxQty = Math.max(1, Math.min(active ? product.getStock() : 1, MAX_QUANTITY));
+            cardQuantity = new JSpinner(new SpinnerNumberModel(1, 1, maxQty, 1));
+            styleQuantitySpinner(cardQuantity, 76);
+
+            // 操作行与上方信息区留出呼吸（上边距 8），按钮间距 10
+            JPanel foot = new JPanel(new FlowLayout(FlowLayout.LEFT, UiMetrics.px(10), 0));
+            foot.setOpaque(false);
+            foot.setBorder(VCampusTheme.padding(8, 0, 0, 0));
+            if (active) {
+                foot.add(new JLabel("数量"));
+                foot.add(cardQuantity);
+            }
+            JButton[] operations = active
+                    ? new JButton[] { cartButton, buyButton, moreButton }
+                    : new JButton[] { moreButton };
+            for (JButton operation : operations) {
+                styleCardButton(operation);
+                foot.add(operation);
+            }
+            if (!active) {
+                cartButton.setEnabled(false);
+                buyButton.setEnabled(false);
+            }
+            cartButton.addActionListener(event -> addProductToCart(product, qty()));
+            buyButton.addActionListener(event -> purchaseProduct(product, qty()));
+            moreButton.addActionListener(event -> showProductDetail(product));
+
+            add(head, BorderLayout.NORTH);
+            add(middle, BorderLayout.CENTER);
+            add(foot, BorderLayout.SOUTH);
+            // 尺寸必须走 UiMetrics 缩放：此前用裸像素，高 DPI 下内部（字号/内边距已缩放）溢出固定高度，
+            // 导致类别/状态胶囊被压扁“埋住”；给到 196 逻辑高留出信息区余量
+            setPreferredSize(UiMetrics.dimension(430, 196));
+        }
+
+        private int qty() {
+            return ((Integer) cardQuantity.getValue()).intValue();
+        }
+    }
+
+    /** 卡片按钮：比行内按钮更小更紧凑（仍走主题圆角底）。 */
+    private static void styleCardButton(JButton button) {
+        themeSecondary(button);
+        button.setFont(VCampusTheme.font(Font.BOLD, 12));
+        button.setBorder(VCampusTheme.padding(6, 14, 6, 14));
+    }
+
+    private static String truncate(String value, int max) {
+        return value.length() <= max ? value : value.substring(0, max) + "…";
+    }
+
+    /** 数量选择器统一观感：圆角边 + 主题字号 + 数字居中且编辑器透明，避免“大框小字”不协调。 */
+    private static void styleQuantitySpinner(JSpinner spinner, int widthLogical) {
+        VCampusTheme.roundedField(spinner);
+        spinner.setFont(VCampusTheme.font(Font.PLAIN, 14));
+        spinner.setPreferredSize(UiMetrics.dimension(widthLogical, 36));
+        spinner.getEditor().setOpaque(false);
+        if (spinner.getEditor() instanceof JSpinner.DefaultEditor) {
+            JTextField field = ((JSpinner.DefaultEditor) spinner.getEditor()).getTextField();
+            field.setOpaque(false);
+            field.setBorder(BorderFactory.createEmptyBorder(0, 2, 0, 2));
+            field.setHorizontalAlignment(SwingConstants.CENTER);
+            field.setFont(VCampusTheme.font(Font.BOLD, 14));
+        }
+    }
+
+    // —— 商店统一对话框：去掉 JOptionPane 默认图标/灰按钮/小字号的“程序员”观感，仅商店页使用 ——
+
+    /** 对话框内容卡标题：主色加粗，建立内容区层级。 */
+    private static JLabel dialogTitle(String title) {
+        JLabel label = new JLabel(title);
+        label.setFont(VCampusTheme.font(Font.BOLD, 16));
+        label.setForeground(VCampusTheme.PRIMARY_DARK);
+        return label;
+    }
+
+    /** 多行正文：\n 渲染为换行并限定宽度自动折行，字号/颜色走主题。 */
+    static JLabel dialogMessage(String message) {
+        String escaped = message.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+        JLabel label = new JLabel("<html><div style='width:" + UiMetrics.px(320) + "px;'>"
+                + escaped.replace("\n", "<br>") + "</div></html>");
+        label.setFont(VCampusTheme.font(Font.PLAIN, 14));
+        label.setForeground(VCampusTheme.TEXT);
+        return label;
+    }
+
+    /** 对话框主体内容包装：标题/留白/底色已由 showThemedDialog 的头部与容器提供，这里仅透传内容。 */
+    static JComponent dialogBody(String title, JComponent inner) {
+        return inner;
+    }
+
+    /** 商店统一对话框：无边框真圆角卡片 + 主色头部/浅色底部 + 自绘按钮，返回 JOptionPane 选项常量。 */
+    static int showThemedDialog(Component parent, String title, JComponent content, boolean withCancel) {
+        final JButton ok = new JButton("确定");
+        themePrimary(ok);
+        final JButton cancel = new JButton("取消");
+        themeSecondary(cancel);
+        final JButton close = new JButton("×");
+        themeSecondary(close);
+        close.setBorder(VCampusTheme.padding(2, 10, 2, 10));
+
+        Window owner = SwingUtilities.getWindowAncestor(parent);
+        boolean rounded = isTranslucencySupported();
+        JDialog dialog = new JDialog(owner, title, Dialog.ModalityType.APPLICATION_MODAL);
+        if (rounded) {
+            dialog.setUndecorated(true);
+            dialog.setBackground(new Color(0, 0, 0, 0));
+        }
+        JPanel root = rounded
+                ? new VCampusTheme.ShadowedCardPanel(new BorderLayout(), 16, 10)
+                : new JPanel(new BorderLayout());
+        root.setBackground(VCampusTheme.PANEL);
+
+        // 头部：主色浅底 + 图标徽章 + 加粗标题 + 关闭按钮，建立有色彩的第一视觉层
+        JPanel header = new JPanel(new BorderLayout(12, 0));
+        header.setOpaque(true);
+        header.setBackground(VCampusTheme.tintOf(VCampusTheme.PRIMARY, 6));
+        header.setBorder(VCampusTheme.padding(14, 18, 14, 18));
+        JComponent badge = iconBadge(VCampusTheme.PRIMARY, "i");
+        header.add(badge, BorderLayout.WEST);
+        JLabel titleLabel = dialogTitle(title);
+        header.add(titleLabel, BorderLayout.CENTER);
+        header.add(close, BorderLayout.EAST);
+
+        JPanel center = new JPanel(new BorderLayout());
+        center.setOpaque(false);
+        center.setBorder(VCampusTheme.padding(16, 20, 16, 20));
+        center.add(content, BorderLayout.CENTER);
+
+        // 底部：浅色操作带 + 右对齐按钮，替掉居中孤零零一个按钮的观感
+        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiMetrics.px(10), 0));
+        footer.setOpaque(true);
+        footer.setBackground(VCampusTheme.SURFACE_ALT);
+        footer.setBorder(VCampusTheme.padding(12, 18, 12, 18));
+        if (withCancel) {
+            footer.add(cancel);
+        }
+        footer.add(ok);
+
+        root.add(header, BorderLayout.NORTH);
+        root.add(center, BorderLayout.CENTER);
+        root.add(footer, BorderLayout.SOUTH);
+        dialog.setContentPane(root);
+
+        final int[] result = { JOptionPane.CLOSED_OPTION };
+        ok.addActionListener(event -> {
+            result[0] = JOptionPane.OK_OPTION;
+            dialog.dispose();
+        });
+        cancel.addActionListener(event -> {
+            result[0] = JOptionPane.CANCEL_OPTION;
+            dialog.dispose();
+        });
+        close.addActionListener(event -> {
+            result[0] = JOptionPane.CANCEL_OPTION;
+            dialog.dispose();
+        });
+        makeDraggable(dialog, header, titleLabel, badge);
+
+        // 模态遮罩压暗宿主窗口，避免浅色对话框溶进浅色背景看不见
+        final Runnable detachScrim = attachScrim(owner);
+        dialog.pack();
+        dialog.setLocationRelativeTo(owner);
+        dialog.setVisible(true);
+        detachScrim.run();
+        return result[0];
+    }
+
+    /** 模态遮罩：把宿主窗口玻璃pane压暗，让浅色对话框从浅色背景中浮出；返回恢复动作。 */
+    private static Runnable attachScrim(final Window owner) {
+        JRootPane rootPane = null;
+        if (owner instanceof JFrame) {
+            rootPane = ((JFrame) owner).getRootPane();
+        } else if (owner instanceof JDialog) {
+            rootPane = ((JDialog) owner).getRootPane();
+        }
+        if (rootPane == null) {
+            return new Runnable() {
+                @Override
+                public void run() {
+                }
+            };
+        }
+        final JRootPane target = rootPane;
+        final Component oldGlass = target.getGlassPane();
+        JPanel scrim = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics graphics) {
+                graphics.setColor(new Color(15, 23, 42, 70));
+                graphics.fillRect(0, 0, getWidth(), getHeight());
+            }
+        };
+        scrim.setOpaque(false);
+        target.setGlassPane(scrim);
+        scrim.setVisible(true);
+        return new Runnable() {
+            @Override
+            public void run() {
+                scrim.setVisible(false);
+                target.setGlassPane(oldGlass);
+                oldGlass.setVisible(false);
+            }
+        };
+    }
+
+    /** 当前设备是否支持逐像素半透明（无边框真圆角对话框的前提），不支持则回退有边框方形。 */
+    private static boolean isTranslucencySupported() {
+        try {
+            GraphicsDevice device = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
+            return device.isWindowTranslucencySupported(GraphicsDevice.WindowTranslucency.PERPIXEL_TRANSLUCENT);
+        } catch (RuntimeException unavailable) {
+            return false;
+        }
+    }
+
+    /** 让头部（含标题/徽章）可拖拽移动无边框对话框。 */
+    private static void makeDraggable(final JDialog dialog, JComponent... handles) {
+        final java.awt.Point[] pressed = new java.awt.Point[1];
+        java.awt.event.MouseAdapter press = new java.awt.event.MouseAdapter() {
+            @Override
+            public void mousePressed(java.awt.event.MouseEvent event) {
+                pressed[0] = event.getPoint();
+            }
+        };
+        java.awt.event.MouseMotionAdapter drag = new java.awt.event.MouseMotionAdapter() {
+            @Override
+            public void mouseDragged(java.awt.event.MouseEvent event) {
+                if (pressed[0] == null) {
+                    return;
+                }
+                java.awt.Point location = dialog.getLocation();
+                dialog.setLocation(location.x + event.getX() - pressed[0].x,
+                        location.y + event.getY() - pressed[0].y);
+            }
+        };
+        for (JComponent handle : handles) {
+            handle.addMouseListener(press);
+            handle.addMouseMotionListener(drag);
+        }
+    }
+
+    /** 头部图标徽章：主色浅底圆角方块 + 居中字形，给对话框一个彩色视觉锚点。 */
+    private static JComponent iconBadge(Color color, String glyph) {
+        JLabel badge = new JLabel(glyph, SwingConstants.CENTER);
+        badge.setFont(VCampusTheme.font(Font.BOLD, 15));
+        badge.setForeground(color);
+        badge.setOpaque(true);
+        badge.setBackground(VCampusTheme.tintOf(color, 12));
+        badge.setBorder(BorderFactory.createCompoundBorder(
+                VCampusTheme.roundedBorder(VCampusTheme.tintOf(color, 35), 10),
+                VCampusTheme.padding(6, 10, 6, 10)));
+        return badge;
+    }
+
+    private int showStoreDialog(String title, JComponent content, boolean withCancel) {
+        return showThemedDialog(this, title, content, withCancel);
+    }
+
+    private boolean storeConfirm(String title, String message) {
+        return showStoreDialog(title, dialogBody(title, dialogMessage(message)), true) == JOptionPane.OK_OPTION;
+    }
+
+    private String storeInput(String title, String message, String initial) {
+        JTextField field = new JTextField(initial == null ? "" : initial, 16);
+        VCampusTheme.roundedField(field);
+        field.setFont(VCampusTheme.font(Font.PLAIN, 14));
+        JPanel inner = new JPanel(new BorderLayout(0, 10));
+        inner.setOpaque(false);
+        inner.add(dialogMessage(message), BorderLayout.NORTH);
+        inner.add(field, BorderLayout.CENTER);
+        if (showStoreDialog(title, dialogBody(title, inner), true) != JOptionPane.OK_OPTION) {
+            return null;
+        }
+        return field.getText();
+    }
+
+    /** 商品详情内容：标签/数值两列排版，替掉纯文本多行串，关键值加粗突出。 */
+    private static JPanel detailRows(Product product) {
+        boolean active = product.isActive();
+        JPanel grid = new JPanel(new GridLayout(0, 2, UiMetrics.px(16), UiMetrics.px(10)));
+        grid.setOpaque(false);
+        addDetailRow(grid, "名称", product.getName());
+        addDetailRow(grid, "商品号", product.getProductId());
+        addDetailRow(grid, "类别", product.getCategory());
+        // 单价/状态做强调：价格主色加大、状态用彩色胶囊，给详情卡色彩与层级
+        JLabel price = new JLabel(StoreRowMapper.formatYuan(StoreRowMapper.toCents(product.getPrice())) + " 元");
+        price.setFont(VCampusTheme.font(Font.BOLD, 16));
+        price.setForeground(VCampusTheme.PRIMARY);
+        addDetailComponent(grid, "单价", price);
+        JLabel stock = new JLabel(String.valueOf(product.getStock()));
+        stock.setFont(VCampusTheme.font(Font.BOLD, 13));
+        stock.setForeground(!active ? VCampusTheme.MUTED
+                : (product.getStock() <= 0 ? VCampusTheme.DANGER
+                        : (product.getStock() <= 5 ? new Color(202, 138, 4) : VCampusTheme.TEXT)));
+        addDetailComponent(grid, "库存", stock);
+        addDetailComponent(grid, "状态", new ChipLabel(active ? "在售" : "已下架",
+                active ? VCampusTheme.SUCCESS : VCampusTheme.DANGER));
+        addDetailRow(grid, "说明", product.getDescription() == null || product.getDescription().isEmpty()
+                ? "（无）"
+                : product.getDescription());
+        return grid;
+    }
+
+    private static void addDetailComponent(JPanel grid, String label, Component value) {
+        JLabel key = new JLabel(label);
+        key.setFont(VCampusTheme.font(Font.PLAIN, 13));
+        key.setForeground(VCampusTheme.MUTED);
+        grid.add(key);
+        grid.add(value);
+    }
+
+    private static void addDetailRow(JPanel grid, String label, String value) {
+        JLabel key = new JLabel(label);
+        key.setFont(VCampusTheme.font(Font.PLAIN, 13));
+        key.setForeground(VCampusTheme.MUTED);
+        grid.add(key);
+        JLabel val = new JLabel(value);
+        val.setFont(VCampusTheme.font(Font.BOLD, 13));
+        val.setForeground(VCampusTheme.TEXT);
+        grid.add(val);
+    }
+
     /** 目录通用文本渲染：字号/颜色按列定制；未选中行用定制前景色，选中行保留系统选中配色。 */
     private static final class CatalogTextRenderer extends DefaultTableCellRenderer {
         private final Font font;
@@ -1353,6 +2078,8 @@ public final class StorePanel extends JPanel {
             setText(value == null ? "" : String.valueOf(value));
             if (!isSelected) {
                 setForeground(color);
+                setOpaque(true);
+                setBackground(row % 2 == 0 ? VCampusTheme.PANEL : VCampusTheme.TABLE_STRIPE);
             }
             return this;
         }
@@ -1374,9 +2101,12 @@ public final class StorePanel extends JPanel {
             setText(value == null ? "" : String.valueOf(value));
             if (!isSelected) {
                 setForeground(color);
+                setOpaque(true);
+                setBackground(row % 2 == 0 ? VCampusTheme.PANEL : VCampusTheme.TABLE_STRIPE);
             }
             setToolTipText((value == null || String.valueOf(value).isEmpty())
-                    ? null : String.valueOf(value));
+                    ? null
+                    : String.valueOf(value));
             return this;
         }
     }
@@ -1395,6 +2125,8 @@ public final class StorePanel extends JPanel {
             super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
             int stock = value instanceof Number ? ((Number) value).intValue() : 0;
             if (!isSelected) {
+                setOpaque(true);
+                setBackground(row % 2 == 0 ? VCampusTheme.PANEL : VCampusTheme.TABLE_STRIPE);
                 if (stock <= 0) {
                     setText("缺货");
                     setForeground(VCampusTheme.DANGER);
@@ -1408,31 +2140,48 @@ public final class StorePanel extends JPanel {
         }
     }
 
-    /** 状态胶囊：在售=绿底胶囊、已下架=灰底胶囊；选中行退化为系统选中配色，保证可读。 */
-    private static final class StatusPillRenderer extends DefaultTableCellRenderer {
-        private static final Color OFF_SHELF_TEXT = new Color(100, 116, 139);
-
-        StatusPillRenderer() {
-            setHorizontalAlignment(SwingConstants.CENTER);
-            setBorder(new EmptyBorder(0, 10, 0, 10));
-        }
+    /** 状态胶囊单元格：真正的圆角小胶囊（在售=绿、已下架=红），不再是整格填色。 */
+    private static final class RoundedChipCellRenderer implements TableCellRenderer {
+        private static final Color OFF_SHELF = VCampusTheme.DANGER;
+        private final ChipLabel chip = new ChipLabel("", VCampusTheme.SUCCESS);
 
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
                 boolean hasFocus, int row, int column) {
-            super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            boolean active = "在售".equals(value);
+            chip.setText(value == null ? "" : String.valueOf(value));
+            chip.setColor(active ? VCampusTheme.SUCCESS : OFF_SHELF);
+            return chip;
+        }
+    }
+
+    /** 圆角胶囊小标签（自绘圆底圆边），供状态列渲染与方块卡片复用。 */
+    static final class ChipLabel extends JLabel {
+        private Color color;
+
+        ChipLabel(String text, Color color) {
+            super(text, SwingConstants.CENTER);
+            this.color = color;
+            setOpaque(false);
             setFont(VCampusTheme.font(Font.BOLD, 12));
-            if (isSelected) {
-                setBackground(table.getSelectionBackground());
-                setForeground(table.getSelectionForeground());
-            } else {
-                boolean active = "在售".equals(value);
-                Color strong = active ? VCampusTheme.SUCCESS : OFF_SHELF_TEXT;
-                setOpaque(true);
-                setBackground(paleColor(strong));
-                setForeground(strong);
-            }
-            return this;
+            setBorder(new EmptyBorder(3, 12, 3, 12));
+        }
+
+        void setColor(Color color) {
+            this.color = color;
+            setForeground(color);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D copy = (Graphics2D) g.create();
+            copy.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            copy.setColor(paleColor(color));
+            copy.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 12, 12);
+            copy.setColor(color);
+            copy.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 12, 12);
+            copy.dispose();
+            super.paintComponent(g);
         }
     }
 

@@ -110,7 +110,7 @@ long totalCents = Math.round(order.getTotalPrice() * 100);
 | 操作 | 权限 | 额外角色门槛 | 身份来源 |
 |---|---|---|---|
 | 查商品/订单/购物车/购物车明细/热销/余额/流水 | `STORE_READ` | — | `userId` 取自 token |
-| 查商品**含已下架**（`STORE_QUERY` 命令带 `includeInactive=true`，管理端重新上架闭环视图） | `STORE_READ` **且** `STORE_MANAGE`（条件双门槛） | — | `userId` 取自 token |
+| 查商品**含已下架**（`STORE_QUERY` 命令带 `includeInactive=true`，买家可浏览下架陈列） | `STORE_READ` | — | `userId` 取自 token |
 | 购买/加购/移除/改数量/结账/充值 | `STORE_PURCHASE` | — | `userId` 取自 token（仅本人） |
 | 商品/库存维护、全量订单 | `STORE_MANAGE` | — | `userId` 取自 token |
 | 校正余额 `STORE_ACCOUNT_ADJUST` | `STORE_MANAGE` | 角色 ∈ {`ADMIN`, `STORE_MANAGER`} | `targetUserId` 取自 payload，仅管理员可指定他人 |
@@ -119,7 +119,7 @@ long totalCents = Math.round(order.getTotalPrice() * 100);
 
 **本次无需新增 `Permission` 枚举值**：`ADMIN` 是 `EnumSet.allOf`，`STORE_MANAGER` 已有 `STORE_MANAGE`；改数量用 `STORE_PURCHASE`、查明细/查流水用 `STORE_READ` 即可。
 
-⚠️ `STORE_QUERY` 的「含已下架」位是**条件双门槛**（纵深防御同上）：常规查询只需 `STORE_READ`；命令带 `includeInactive=true` 时 handler 追加 `STORE_MANAGE` 校验，不过即 `FORBIDDEN`。默认不带该位时行为与旧版完全一致（只在售），普通买家即使手工构造该位也拿不到下架商品。
+⚠️ `STORE_QUERY` 的「含已下架」位只需 `STORE_READ`：学生/教师等买家也可开启浏览下架陈列；"看得到 ≠ 买得到"——购买/加购仍由服务层拒绝下架品（客户端对下架行/卡片置灰操作按钮）。默认不带该位时行为不变（只在售）。管理员的下架/重新上架等维护操作仍要求 `STORE_MANAGE`。
 
 ## 6. 数据库
 
