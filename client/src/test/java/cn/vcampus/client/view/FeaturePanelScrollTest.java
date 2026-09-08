@@ -53,6 +53,12 @@ class FeaturePanelScrollTest {
     }
 
     @Test
+    void teacherTeachingBodyCanScrollWhenWindowIsShort() {
+        assertPageBodyScrolls(new TeacherTeachingPanel("127.0.0.1", 1,
+                session(Role.TEACHER)));
+    }
+
+    @Test
     void courseManagementBodyCanScrollWhenWindowIsShort() {
         assertPageBodyScrolls(new CourseManagementPanel("127.0.0.1", 1,
                 session(Role.ACADEMIC_ADMIN)));

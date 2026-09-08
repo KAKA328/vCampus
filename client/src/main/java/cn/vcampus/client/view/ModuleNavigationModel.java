@@ -23,7 +23,7 @@ public final class ModuleNavigationModel {
 
     private static final List<ModuleDescriptor> TEACHER_MODULES = Collections.unmodifiableList(Arrays.asList(
             new ModuleDescriptor("学籍查询", "查看学生基础信息和班级专业信息。", "可用：学生档案只读查询已接入"),
-            new ModuleDescriptor("选课系统", "查看授课课程、选课名单并录入成绩。", "可用：课程查询已接入，授课名单和成绩录入待选课模块补齐"),
+            new ModuleDescriptor("选课系统", "查看本人教学班、学生名单并录入成绩。", "可用：本人教学班查询已接入；名单和成绩录入待后续补齐"),
             new ModuleDescriptor("图书馆", "查询图书、办理借阅归还并查看本人借阅记录。", "可用：馆藏查询、批量借阅、归还和本人记录已接入"),
             new ModuleDescriptor("商店", "浏览商品、提交购买并查看个人购买记录。", "可用：商品查询、购买、购物车结算和校园钱包已接入")));
 
