@@ -50,7 +50,16 @@ public final class ClientApplication {
             Message registerResponse = exchange(output, input,
                     Message.request("demo-admin-register", MessageType.REGISTER,
                             new UserRegistrationCommand(adminSession.getToken(), demo)));
-            printResult(registerResponse, "REGISTER", StatusCode.OK);
+            if (registerResponse.getStatusCode() == StatusCode.OK) {
+                printResult(registerResponse, "REGISTER", StatusCode.OK);
+            } else if (registerResponse.getStatusCode() == StatusCode.CONFLICT) {
+                // 允许在同一个持久化数据库上重复执行 --demo，直接复用已创建的演示账号。
+                printResult(registerResponse, "REGISTER (already exists)", StatusCode.CONFLICT);
+            } else {
+                printResult(registerResponse, "REGISTER", StatusCode.OK);
+                throw new IllegalStateException("demo registration failed: "
+                        + registerResponse.getStatusCode());
+            }
 
             Message adminLogoutResponse = exchange(output, input,
                     Message.request("demo-admin-logout", MessageType.LOGOUT, adminSession.getToken()));
@@ -78,7 +87,8 @@ public final class ClientApplication {
     }
 
     static UserCredentials demoCredentials(long suffix) {
-        return new UserCredentials("demo_student_" + suffix, "demo123", "Demo Student", "STUDENT");
+        return new UserCredentials("demo_registration_student", "demo123",
+                "Demo Registration Student", "STUDENT", "20260006");
     }
 
     static UserCredentials demoAdminCredentials() {

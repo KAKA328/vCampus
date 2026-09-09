@@ -10,7 +10,7 @@
 
 | 模块 | 当前进展 | 说明 |
 |---|---|---|
-| 用户管理 | 已接入主线 | 支持管理员开户注册、批量导入、启停账号、角色变更、密码重置、审计记录和会话权限校验 |
+| 用户管理 | 已接入主线 | 支持管理员开户注册、批量导入、启停账号、角色变更、密码重置、操作日志和会话权限校验；底层仍使用 `tblAuditLog` 保存审计数据 |
 | 学籍管理 | 已接入主线 | 支持学生档案、教师档案、课程历史、学业审查、学生本人查询和教师授课范围查询 |
 | 选课系统 | 已接入主线 | 支持选课轮次、教学班、容量桶、选课/退课记录、时间冲突和 Access 数据源 |
 | 图书馆 | 已接入主线 | 支持馆藏查询、详情、批量借阅、归还、借阅历史、管理员加书和 Access 原子借还 |
@@ -44,14 +44,20 @@
 - `mvn -pl client -am test`
 - `mvn clean test`
 
-若全量测试耗时较长，至少在 PR 描述中记录已执行的客户端模块测试和未覆盖的人工界面检查项。
+本轮本地验收已补充执行：
+
+- `mvn -B -pl server -am "-Dtest=AccessDatabaseSchemaTest,AccessCourseDatabaseInitializationTest,AccessStoreRepositoryTest,AccessLibraryRepositoryTest" "-Dsurefire.failIfNoSpecifiedTests=false" test`：54 项通过。
+- `mvn -B -pl client -am "-Dtest=ModuleNavigationModelTest,DashboardWorkbenchPanelTest,FeaturePanelScrollTest,UserManagementPanelTest,StudentManagementPanelTest,TeacherSelfPanelTest,TeacherTeachingPanelTest,CourseManagementPanelTest,LibraryPanelTest,StorePanelTest" "-Dsurefire.failIfNoSpecifiedTests=false" test`：55 项通过。
+- `powershell -ExecutionPolicy Bypass -File .\database\rebuild.ps1 -DatabasePath .\database\acceptance-smoke.accdb` 后，使用真实 Access 数据库启动 server，并执行 `java -jar .\client\target\vCampusClient.jar --demo --host 127.0.0.1 --port 19190`：注册、登录、授权、登出和失效 token 冒烟通过。
+
+全量 `mvn clean test` 已通过，共 701 项测试、失败 0；多人角色人工界面截图和选课并发场景仍需在最终合入前补充。
 
 ## 六、剩余风险与下一步
 
 1. 需要在真实服务器进程、真实 Access 文件和 Swing 客户端下做一次多人角色演示。
 2. 商店钱包流水与余额变更仍需继续收敛事务原子性，避免审计流水和余额状态不一致。
 3. 选课容量、退课、并发提交和客户端刷新竞态仍需补充端到端验收。
-4. 成绩录入、审核状态机和正式写入 `tblCourseResult` 仍由选课/教务模块后续补齐。
+4. 成绩录入、审核状态机和正式写入 `tblCourseResult` 已由选课/教务模块接入；当前剩余工作是用重建后的验收数据库完成真实 server/client 流程截图和并发场景记录。
 5. 本地 UI 刷新 PR 合入前，需要确认新增图片资源和报告文档是否都属于最终提交范围。
 
 ## 七、合并建议

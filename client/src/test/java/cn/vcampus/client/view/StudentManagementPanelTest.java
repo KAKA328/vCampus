@@ -99,12 +99,14 @@ class StudentManagementPanelTest {
     }
 
     @Test
-    void mainFrameRecognizesAllStudentModuleTitles() {
+    void mainFrameRoutesTeacherInfoToTeacherSelfPanel() {
         ModuleNavigationModel model = new ModuleNavigationModel();
         assertTrue(MainFrame.useStudentManagementPanel(Role.STUDENT,
                 model.findModule(Role.STUDENT, "学籍信息")));
-        assertTrue(MainFrame.useStudentManagementPanel(Role.TEACHER,
-                model.findModule(Role.TEACHER, "学籍查询")));
+        assertTrue(MainFrame.useTeacherSelfPanel(Role.TEACHER,
+                model.findModule(Role.TEACHER, "教师信息")));
+        assertFalse(MainFrame.useStudentManagementPanel(Role.TEACHER,
+                model.findModule(Role.TEACHER, "教师信息")));
         assertTrue(MainFrame.useStudentManagementPanel(Role.ADMIN,
                 model.findModule(Role.ADMIN, "学籍管理")));
         assertTrue(MainFrame.useStudentManagementPanel(Role.ACADEMIC_ADMIN,

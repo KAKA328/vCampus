@@ -227,13 +227,108 @@ public final class LoginFrame extends JFrame {
                 showStatus("登录失败：" + response.getStatusCode(), VCampusTheme.DANGER);
                 return;
             }
-            showStatus("登录成功，正在进入系统…", VCampusTheme.SUCCESS);
-            SwingUtilities.invokeLater(() -> openMain((Session) response.getPayload()));
+            Session authenticated = (Session) response.getPayload();
+            if (authenticated.isForcePasswordChange()) {
+                showStatus("登录成功，请先修改临时密码", VCampusTheme.ACCENT);
+                showForcedPasswordDialog(authenticated);
+            } else {
+                showStatus("登录成功，正在进入系统…", VCampusTheme.SUCCESS);
+                SwingUtilities.invokeLater(() -> openMain(authenticated));
+            }
         } catch (RuntimeException | IOException | ClassNotFoundException failure) {
             showStatus("无法连接服务器，或账号/密码格式不正确", VCampusTheme.DANGER);
         } finally {
             Arrays.fill(secret, '\0');
         }
+    }
+
+    private void showForcedPasswordDialog(final Session authenticated) {
+        final JDialog dialog = new JDialog(this, "首次登录需要修改密码", true);
+        dialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBorder(VCampusTheme.padding(18, 22, 18, 22));
+        panel.setBackground(VCampusTheme.PANEL);
+
+        JLabel hint = new JLabel("<html>当前使用的是一次性临时密码。<br/>请设置 6-16 位新密码，修改成功后重新登录。</html>");
+        hint.setForeground(VCampusTheme.MUTED);
+        GridBagConstraints c = base(0, 0);
+        c.gridwidth = 2;
+        panel.add(hint, c);
+
+        JPasswordField first = new PromptPasswordField(20, "请输入新密码");
+        JPasswordField second = new PromptPasswordField(20, "请再次输入新密码");
+        VCampusTheme.field(first);
+        VCampusTheme.field(second);
+        addField(panel, "新密码", first, 1);
+        addField(panel, "确认密码", second, 2);
+
+        JLabel dialogStatus = new JLabel("修改成功后当前临时会话会失效");
+        dialogStatus.setForeground(VCampusTheme.MUTED);
+        c = base(0, 3);
+        c.gridwidth = 2;
+        panel.add(dialogStatus, c);
+
+        JButton submit = new JButton("保存新密码");
+        VCampusTheme.primaryButton(submit);
+        submit.addActionListener(event -> submitForcedPassword(
+                authenticated, first, second, dialogStatus, submit, dialog));
+        c = base(0, 4);
+        c.gridwidth = 2;
+        panel.add(submit, c);
+
+        dialog.setContentPane(panel);
+        dialog.pack();
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
+    }
+
+    private void submitForcedPassword(Session authenticated, JPasswordField first,
+                                      JPasswordField second, JLabel dialogStatus,
+                                      JButton submit, JDialog dialog) {
+        char[] newPassword = first.getPassword();
+        char[] confirmation = second.getPassword();
+        String validation = validateForcedPassword(new String(newPassword), new String(confirmation));
+        if (!validation.isEmpty()) {
+            dialogStatus.setText(validation);
+            dialogStatus.setForeground(VCampusTheme.DANGER);
+            Arrays.fill(newPassword, '\0');
+            Arrays.fill(confirmation, '\0');
+            return;
+        }
+        submit.setEnabled(false);
+        try (RemoteUserService service = new RemoteUserService(host, port)) {
+            Message response = service.changeForcedPassword(authenticated.getToken(),
+                    new String(newPassword));
+            if (response.getStatusCode() == StatusCode.OK) {
+                dialog.dispose();
+                password.setText("");
+                showStatus("密码已更新，请使用新密码重新登录", VCampusTheme.SUCCESS);
+            } else {
+                dialogStatus.setText("修改失败：" + response.getStatusCode());
+                dialogStatus.setForeground(VCampusTheme.DANGER);
+                submit.setEnabled(true);
+            }
+        } catch (RuntimeException | IOException | ClassNotFoundException failure) {
+            dialogStatus.setText("无法修改密码，请确认服务器仍在运行");
+            dialogStatus.setForeground(VCampusTheme.DANGER);
+            submit.setEnabled(true);
+        } finally {
+            Arrays.fill(newPassword, '\0');
+            Arrays.fill(confirmation, '\0');
+        }
+    }
+
+    static String validateForcedPassword(String newPassword, String confirmation) {
+        if (newPassword == null || newPassword.length() == 0) {
+            return "新密码不能为空";
+        }
+        if (newPassword.length() < 6 || newPassword.length() > 16) {
+            return "新密码需为 6-16 位";
+        }
+        if (!newPassword.equals(confirmation)) {
+            return "两次输入的新密码不一致";
+        }
+        return "";
     }
 
     private void showStatus(String message, Color color) {

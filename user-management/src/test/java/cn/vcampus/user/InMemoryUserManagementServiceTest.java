@@ -144,7 +144,7 @@ class InMemoryUserManagementServiceTest {
         RolePermissionPolicy policy = new RolePermissionPolicy();
 
         assertExactPermissions(policy, Role.TEACHER,
-                "USER_SELF_READ", "STUDENT_READ", "COURSE_READ", "GRADE_WRITE",
+                "USER_SELF_READ", "COURSE_READ", "GRADE_WRITE",
                 "LIBRARY_READ", "LIBRARY_BORROW", "STORE_READ", "STORE_PURCHASE");
     }
 

@@ -35,7 +35,8 @@ class ModuleNavigationModelTest {
     void teacherSeesTeachingLibraryAndStoreButNotManagementEntries() {
         ModuleNavigationModel model = new ModuleNavigationModel();
 
-        assertTrue(model.visibleModules(Role.TEACHER).contains("学籍查询"));
+        assertTrue(model.visibleModules(Role.TEACHER).contains("教师信息"));
+        assertFalse(model.visibleModules(Role.TEACHER).contains("学籍查询"));
         assertTrue(model.visibleModules(Role.TEACHER).contains("选课系统"));
         assertTrue(model.visibleModules(Role.TEACHER).contains("图书馆"));
         assertTrue(model.visibleModules(Role.TEACHER).contains("商店"));
@@ -153,6 +154,26 @@ class ModuleNavigationModelTest {
             assertFalse(module.getTitle().trim().isEmpty());
             assertTrue(module.getSummary().length() >= 10);
             assertTrue(module.getStatus().contains("待接入") || module.getStatus().contains("可用"));
+        }
+    }
+
+    @Test
+    void everyVisibleModuleHasAnImplementedClientPanel() {
+        ModuleNavigationModel model = new ModuleNavigationModel();
+
+        for (Role role : Role.values()) {
+            for (ModuleDescriptor module : model.visibleModuleCards(role)) {
+                boolean implemented = MainFrame.useUserManagementPanel(role, module)
+                        || MainFrame.useTeacherSelfPanel(role, module)
+                        || MainFrame.useCourseSelectionPanel(role, module)
+                        || MainFrame.useTeacherTeachingPanel(role, module)
+                        || MainFrame.useStudentManagementPanel(role, module)
+                        || MainFrame.useCourseManagementPanel(role, module)
+                        || MainFrame.useStorePanel(role, module)
+                        || MainFrame.useLibraryPanel(role, module);
+                assertTrue(implemented,
+                        () -> role + " module has no client panel: " + module.getTitle());
+            }
         }
     }
 }

@@ -87,11 +87,22 @@ class UserManagementPanelTest {
         assertTrue(buttonTexts(panel).contains("刷新账号列表"));
         assertTrue(buttonTexts(panel).contains("启用账号"));
         assertTrue(buttonTexts(panel).contains("停用账号"));
+        assertTrue(buttonTexts(panel).contains("修改角色"));
         assertTrue(buttonTexts(panel).contains("注销账号"));
         assertTrue(buttonTexts(panel).contains("刷新操作日志"));
         assertTrue(labels(panel).contains("尚未选择导入文件"));
         assertTrue(components(panel, JTable.class).size() >= 4);
         assertTrue(components(panel, JScrollPane.class).size() >= 4);
+    }
+
+    @Test
+    void approvedResetMessageContainsOneTimeTemporaryPassword() {
+        assertTrue(UserManagementPanel.reviewResultMessage(true, "TmpAbc234")
+                .contains("TmpAbc234"));
+        assertTrue(UserManagementPanel.reviewResultMessage(true, "TmpAbc234")
+                .contains("一次性"));
+        assertTrue(UserManagementPanel.reviewResultMessage(false, "")
+                .contains("拒绝"));
     }
 
     @Test

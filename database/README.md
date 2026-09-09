@@ -11,7 +11,7 @@
 - `tblUser`：用户账号表，保存登录账号、密码哈希、显示名、角色、启停状态。批量导入账号时额外记录 `created_by`、`created_at`、`import_batch_id`，用于追踪导入人、导入时间和批次。
 - `tblAuditLog`：敏感用户操作审计表。批量导入每成功创建一个账号都会写入 `IMPORT_USER` 记录，`actor_user_id` 为导入管理员，`target_id` 为被创建账号。
 - `tblAuditLog` 还记录成功的 `LOGIN` / `LOGOUT`，不记录密码、token 或临时密码。
-- `tblPasswordResetApplication`：密码重置申请表。用户在登录前提交账号和新密码，系统只保存新密码哈希与待审批状态；管理员审批通过后将哈希写回 `tblUser.password_hash`，审批拒绝则只更新申请状态。
+- `tblPasswordResetApplication`：密码重置申请表。用户在登录前提交账号、申请原因和联系方式，系统不接收也不保存用户拟设置的新密码；管理员审批通过后生成一次性临时密码，将其哈希写回 `tblUser.password_hash` 并要求用户首次登录后修改，审批拒绝则只更新申请状态。
 
 用户批量导入表格的推荐列名为：`账号`、`姓名`、`初始密码`、`角色`。英文模板也可使用 `userId`、`displayName`、`password`、`roleCode`。角色值使用系统角色编码，例如 `STUDENT`、`TEACHER`、`ADMIN`、`ACADEMIC_ADMIN`、`LIBRARIAN`、`STORE_MANAGER`。
 
@@ -36,7 +36,7 @@
 
 使用 `--db` 启动时，选课服务会从 `tblStudent` 按登录 `user_id` 读取学生资料，从 `tblCourseResult` 计算待重修课程，并从 `tblSelectionRound` 确定当前学期。最新版 `seed.sql` 已预置当前学期的首修和重修开放轮次、课程目录、教学班、培养方案、选课记录和成绩审核演示数据；使用全新数据库执行脚本后即可直接演示。正式部署仍应由教务人员维护真实学生档案、培养方案、教学班和选课轮次。
 
-选课联调账号均使用初始密码 `Demo123`：`demo_student_new` 用于空列表和首修选课，`demo_student_retake` 用于待重修课程，`demo_student_elective` 用于选修容量，`demo_student_cross` 用于跨专业容量；`demo_teacher`、`demo_teacher_002`、`demo_teacher_003` 分别绑定到 Java、数据库、大学写作教学班。演示数据库中还包含一份待审核 Java 成绩单和一份已退回的数据库成绩单。
+选课联调账号均使用初始密码 `Demo123`：`demo_student_new` 用于空列表和首修选课，`demo_student_retake` 用于待重修课程，`demo_student_elective` 用于选修容量，`demo_student_cross` 用于跨专业容量；`demo_teacher`、`demo_teacher_002`、`demo_teacher_003` 分别绑定到 Java、数据库、大学写作教学班。`20260006` 是专门供 `ClientApplication --demo` 进行管理员开户注册演示的未绑定学生档案，成功运行后会绑定到 `demo_registration_student`。演示数据库中还包含一份待审核 Java 成绩单和一份已退回的数据库成绩单。
 
 ## 学籍审查规划表
 

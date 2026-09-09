@@ -44,9 +44,20 @@ class AccessDatabaseSchemaTest {
         executeScript(database, readScript("database/seed.sql"));
 
         assertEquals(12, count(database, "tblUser"));
+        assertEquals(1, countWhere(database, "tblUser", "role_code", "ADMIN"));
+        assertEquals(1, countWhere(database, "tblUser", "role_code", "ACADEMIC_ADMIN"));
+        assertEquals(1, countWhere(database, "tblUser", "role_code", "LIBRARIAN"));
+        assertEquals(1, countWhere(database, "tblUser", "role_code", "STORE_MANAGER"));
+        assertEquals(5, countWhere(database, "tblUser", "role_code", "STUDENT"));
+        assertEquals(3, countWhere(database, "tblUser", "role_code", "TEACHER"));
         assertEquals(1, countWhere(database, "tblStudent", "student_id", "20260001"));
         assertEquals(1, countWhere(database, "tblStudent", "student_id", "20230003"));
+        assertEquals(6, count(database, "tblStudent"));
         assertEquals(1, countWhere(database, "tblTeacher", "teacher_id", "教师001"));
+        assertEquals(2, count(database, "tblSelectionRound"));
+        assertEquals(7, count(database, "tblCourseOffering"));
+        assertEquals(4, count(database, "tblCourseSelection"));
+        assertEquals(2, count(database, "tblGradeSubmission"));
         assertEquals(105, count(database, "tblProduct"));
         assertEquals(10, count(database, "tblBook"));
         assertEquals(4, count(database, "tblBorrowRecord"));

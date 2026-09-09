@@ -23,7 +23,14 @@ class AccessAcademicAdministrationTest {
         service = new AcademicAdminService(new AccessAcademicAdminStore(database));
     }
     @Test void directoryAssessmentGraduationAndRestartUseOneDatabase() {
-        assertEquals(5, ((List<?>) execute(Action.STUDENTS, 0, null).getData()).size());
+        List<?> students = (List<?>) execute(Action.STUDENTS, 0, null).getData();
+        assertTrue(students.size() >= 5);
+        assertTrue(students.stream().anyMatch(item ->
+                item instanceof StudentRecord
+                        && "20260001".equals(((StudentRecord) item).getStudentId())));
+        assertTrue(students.stream().anyMatch(item ->
+                item instanceof StudentRecord
+                        && "20260006".equals(((StudentRecord) item).getStudentId())));
         assertEquals(3, ((List<?>) execute(Action.TEACHERS, 0, null).getData()).size());
         AcademicAssessment review = review();
         assertEquals(6, review.getCredits().getEarnedCredits());

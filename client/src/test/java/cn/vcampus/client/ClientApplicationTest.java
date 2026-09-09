@@ -14,6 +14,7 @@ class ClientApplicationTest {
 
         assertEquals(Role.STUDENT.name(), credentials.getRoleCode());
         assertTrue(credentials.getUserId().matches("[A-Za-z0-9_]+"));
+        assertEquals("20260006", credentials.getProfileId());
     }
 
     @Test

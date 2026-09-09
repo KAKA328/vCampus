@@ -91,5 +91,5 @@ Session.token
 | `demo_librarian` | `LIBRARIAN` | 图书管理员，测试图书管理 |
 | `demo_store_manager` | `STORE_MANAGER` | 商店管理员，测试商品和库存管理 |
 | `demo_student` | `STUDENT` | 学生，测试本人学籍、选课、图书和商店 |
-| `demo_teacher` | `TEACHER` | 教师，测试授课/成绩/学籍查询入口 |
+| `demo_teacher` | `TEACHER` | 教师，测试教师信息、授课和成绩入口 |
 

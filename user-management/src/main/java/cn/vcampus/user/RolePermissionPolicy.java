@@ -23,7 +23,6 @@ public final class RolePermissionPolicy {
                 Permission.STORE_PURCHASE));
         matrix.put(Role.TEACHER, EnumSet.of(
                 Permission.USER_SELF_READ,
-                Permission.STUDENT_READ,
                 Permission.COURSE_READ,
                 Permission.GRADE_WRITE,
                 Permission.LIBRARY_READ,
