@@ -40,7 +40,8 @@ final class DashboardWorkbenchPanel extends JPanel {
     }
 
     private JPanel statRow(String displayName, String role, List<ModuleDescriptor> modules) {
-        ResponsiveCardRowPanel stats = new ResponsiveCardRowPanel(UiMetrics.px(220), UiMetrics.px(14));
+        ResponsiveCardRowPanel stats = new ResponsiveCardRowPanel(
+                UiMetrics.px(220), UiMetrics.px(14), UiMetrics.px(360));
         stats.add(statCard("当前账号", displayName, "角色 " + role, VCampusTheme.PRIMARY));
         stats.add(statCard("可用模块", String.valueOf(modules.size()), "按当前权限显示", VCampusTheme.ACCENT));
         stats.add(statCard("数据状态", "Access", "服务端持久化接入", VCampusTheme.SUCCESS));

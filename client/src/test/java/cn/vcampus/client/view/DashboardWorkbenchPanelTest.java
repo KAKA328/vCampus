@@ -66,6 +66,20 @@ class DashboardWorkbenchPanelTest {
     }
 
     @Test
+    void dashboardStatsStayReadableOnUltrawideWindows() {
+        DashboardWorkbenchPanel panel = dashboard();
+        Component stats = statRow(panel);
+
+        stats.setBounds(0, 0, UiMetrics.px(2000), UiMetrics.px(140));
+        stats.doLayout();
+
+        for (Component card : ((Container) stats).getComponents()) {
+            assertTrue(card.getWidth() <= UiMetrics.px(360));
+        }
+        assertTrue(((Container) stats).getComponent(0).getX() > 0);
+    }
+
+    @Test
     void quickActionIsAnEnterableModuleButton() {
         AtomicReference<String> opened = new AtomicReference<String>();
         List<ModuleDescriptor> modules = Arrays.asList(
@@ -95,6 +109,13 @@ class DashboardWorkbenchPanelTest {
         JViewport viewport = scroller.getViewport();
         JPanel page = (JPanel) viewport.getView();
         return ((BorderLayout) page.getLayout()).getLayoutComponent(BorderLayout.CENTER);
+    }
+
+    private static Component statRow(DashboardWorkbenchPanel panel) {
+        JScrollPane scroller = (JScrollPane) ((BorderLayout) panel.getLayout())
+                .getLayoutComponent(BorderLayout.CENTER);
+        JPanel page = (JPanel) scroller.getViewport().getView();
+        return ((BorderLayout) page.getLayout()).getLayoutComponent(BorderLayout.NORTH);
     }
 
     private static java.util.List<String> labels(Component root) {
