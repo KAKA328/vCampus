@@ -184,3 +184,6 @@ StudentManagementService新增服务端内部`updateContacts(userId, expected, p
 教师本人协议先检查USER_SELF_READ统一授权，强制改密期间不能读取业务档案。
 
 教务REVIEW/GRADUATE的note现为可选审查说明，允许null、空串和纯空白，统一保存为空文本；非空仍限255字。无须变更表结构，毕业条件确认仍必需。
+
+## 学籍档案格式校验
+STUDENT_UPDATE普通管理员档案修改与学生联系方式修改新增输入校验，非法状态、手机号、邮箱、年份及超长字段返回BAD_REQUEST且不写入。手机号可空，填写时须11位ASCII数字；界面状态改为固定下拉选项，毕业仍须专用流程。StudentProfileValidation在客户端、Handler及条件写入Service复用，命令序列化字段不变。详见[学籍档案输入规范](STUDENT_PROFILE_VALIDATION.md)。

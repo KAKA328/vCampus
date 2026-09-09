@@ -1,0 +1,4 @@
+账号,姓名,初始密码,角色,档案编号
+student_enrolled_01,测试在读学生,Test123,STUDENT,test_student_enrolled
+student_leave_01,测试休学学生,Test123,STUDENT,test_student_leave
+teacher_active_01,测试在职教师,Test123,TEACHER,test_teacher_active

@@ -5,6 +5,8 @@ import cn.vcampus.common.Message;
 import cn.vcampus.common.Role;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.student.StudentRecord;
+import cn.vcampus.student.StudentProfileValidation;
+import cn.vcampus.student.StudentProfileSnapshot;
 import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -24,6 +26,12 @@ import javax.swing.JSplitPane;
 import javax.swing.JTable;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextField;
+import javax.swing.JComboBox;
+import javax.swing.JComponent;
+import javax.swing.text.AbstractDocument;
+import javax.swing.text.AttributeSet;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DocumentFilter;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingWorker;
 
@@ -53,18 +61,20 @@ public final class StudentManagementPanel extends JPanel {
     private final JTextField studentId = new JTextField();
     private final JTextField userId = new JTextField();
     private final JTextField name = new JTextField();
-    private final JTextField gender = new JTextField();
+    private final JComboBox<String> gender = new JComboBox<String>(new String[] {"男", "女", "未知"});
     private final JTextField department = new JTextField();
     private final JTextField major = new JTextField();
     private final JTextField classId = new JTextField();
     private final JTextField enrollmentYear = new JTextField();
-    private final JTextField academicStatus = new JTextField();
+    private final JComboBox<String> academicStatus = new JComboBox<String>(new String[] {"在读", "休学", "退学"});
     private final JTextField phone = new JTextField();
     private final JTextField email = new JTextField();
     private boolean requestInProgress;
     private boolean selectionUpdateInProgress;
     private boolean loadedRecord;
     private boolean initialSelfLoadStarted;
+    private boolean populatingProfile;
+    private StudentRecord loadedProfile;
 
     public StudentManagementPanel(String host, int port, Session session) {
         if (host == null || host.trim().isEmpty() || session == null) {
@@ -82,7 +92,7 @@ public final class StudentManagementPanel extends JPanel {
     }
 
     private void build() {
-        setLayout(new BorderLayout(0, 16));
+        setLayout(new BorderLayout(0, UiMetrics.px(16)));
         setOpaque(false);
         if (session.getUser().getRole() == Role.TEACHER) {
             add(new TeacherSelfPanel(host, port, session), BorderLayout.CENTER);
@@ -128,7 +138,7 @@ public final class StudentManagementPanel extends JPanel {
     }
 
     private JPanel header() {
-        JPanel panel = new JPanel(new BorderLayout(0, 5));
+        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(5)));
         panel.setOpaque(false);
         JLabel title = new JLabel(canManage ? "学籍管理工作台" : "我的学籍");
         title.setFont(VCampusTheme.font(Font.BOLD, 24));
@@ -148,7 +158,7 @@ public final class StudentManagementPanel extends JPanel {
     }
 
     private JPanel body() {
-        JPanel panel = new ScrollablePagePanel(new BorderLayout(0, 12));
+        JPanel panel = new ScrollablePagePanel(new BorderLayout(0, UiMetrics.px(12)));
         panel.setOpaque(false);
         if (session.getUser().getRole() == Role.STUDENT) {
             JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
@@ -166,18 +176,18 @@ public final class StudentManagementPanel extends JPanel {
     }
 
     private JSplitPane workspace() {
-        JPanel detail = new JPanel(new BorderLayout(0, 12));
+        JPanel detail = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
         detail.setOpaque(false);
         detail.add(editorPanel(), BorderLayout.CENTER);
         detail.add(footer(), BorderLayout.SOUTH);
 
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, tablePanel(), detail) {
             @Override public void doLayout() {
-                int orientation = getWidth() > 0 && getWidth() < 740 ? JSplitPane.VERTICAL_SPLIT : JSplitPane.HORIZONTAL_SPLIT;
+                int orientation = getWidth() > 0 && getWidth() < UiMetrics.px(740) ? JSplitPane.VERTICAL_SPLIT : JSplitPane.HORIZONTAL_SPLIT;
                 if (getOrientation() != orientation) {
                     setOrientation(orientation);
-                    setPreferredSize(new Dimension(0, orientation == JSplitPane.VERTICAL_SPLIT ? 920 : 620));
-                    setDividerLocation(orientation == JSplitPane.VERTICAL_SPLIT ? 250 : Math.max(250, getWidth() * 46 / 100));
+                    setPreferredSize(UiMetrics.dimension(0, orientation == JSplitPane.VERTICAL_SPLIT ? 920 : 620));
+                    setDividerLocation(orientation == JSplitPane.VERTICAL_SPLIT ? UiMetrics.px(250) : Math.max(UiMetrics.px(250), getWidth() * 46 / 100));
                     revalidate();
                 }
                 super.doLayout();
@@ -185,15 +195,15 @@ public final class StudentManagementPanel extends JPanel {
         };
         split.setOpaque(false);
         split.setBorder(null);
-        split.setDividerSize(10);
+        split.setDividerSize(UiMetrics.px(10));
         split.setResizeWeight(0.46);
-        split.setPreferredSize(new Dimension(0, 620));
-        split.setMinimumSize(new Dimension(0, 520));
+        split.setPreferredSize(UiMetrics.dimension(0, 620));
+        split.setMinimumSize(UiMetrics.dimension(0, 520));
         return split;
     }
 
     private JPanel queryBar() {
-        JPanel panel = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, 10, 6));
+        JPanel panel = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10), UiMetrics.px(6)));
         VCampusTheme.panel(panel);
         VCampusTheme.secondaryButton(selfButton);
         VCampusTheme.secondaryButton(idButton);
@@ -220,25 +230,25 @@ public final class StudentManagementPanel extends JPanel {
     private JPanel tablePanel() {
         JPanel panel = new JPanel(new BorderLayout());
         VCampusTheme.panel(panel);
-        panel.setPreferredSize(new Dimension(0, 260));
-        panel.setMinimumSize(new Dimension(0, 180));
+        panel.setPreferredSize(UiMetrics.dimension(0, 260));
+        panel.setMinimumSize(UiMetrics.dimension(0, 180));
         VCampusTheme.table(table);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        table.getColumnModel().getColumn(0).setPreferredWidth(100);
-        table.getColumnModel().getColumn(1).setPreferredWidth(100);
-        table.getColumnModel().getColumn(2).setPreferredWidth(160);
-        table.getColumnModel().getColumn(3).setPreferredWidth(120);
+        table.getColumnModel().getColumn(0).setPreferredWidth(UiMetrics.px(100));
+        table.getColumnModel().getColumn(1).setPreferredWidth(UiMetrics.px(100));
+        table.getColumnModel().getColumn(2).setPreferredWidth(UiMetrics.px(160));
+        table.getColumnModel().getColumn(3).setPreferredWidth(UiMetrics.px(120));
         panel.add(VCampusTheme.scrollPane(table), BorderLayout.CENTER);
         return panel;
     }
 
     private JPanel editorPanel() {
-        JPanel panel = new JPanel(new BorderLayout(0, 8));
+        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
         VCampusTheme.panel(panel);
         JLabel title = new JLabel("学生档案");
         title.setFont(VCampusTheme.font(Font.BOLD, 17));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        JPanel fields = new JPanel(new GridLayout(0, 4, 10, 10));
+        JPanel fields = new JPanel(new GridLayout(0, 4, UiMetrics.px(10), UiMetrics.px(10)));
         fields.setOpaque(false);
         addField(fields, "学号", studentId);
         addField(fields, "账号", userId);
@@ -253,12 +263,13 @@ public final class StudentManagementPanel extends JPanel {
         addField(fields, "邮箱", email);
         panel.add(title, BorderLayout.NORTH);
         panel.add(fields, BorderLayout.CENTER);
-        panel.setMinimumSize(new Dimension(0, 260));
+        panel.setMinimumSize(UiMetrics.dimension(0, 260));
         return panel;
     }
 
-    private static void addField(JPanel panel, String label, JTextField field) {
+    private static void addField(JPanel panel, String label, JComponent field) {
         JLabel caption = new JLabel(label);
+        caption.setLabelFor(field);
         caption.setForeground(VCampusTheme.MUTED);
         panel.add(caption);
         VCampusTheme.field(field);
@@ -266,7 +277,7 @@ public final class StudentManagementPanel extends JPanel {
     }
 
     private JPanel footer() {
-        JPanel panel = new JPanel(new BorderLayout(0, 8));
+        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
         panel.setOpaque(false);
         VCampusTheme.primaryButton(saveButton);
         panel.add(saveButton, BorderLayout.WEST);
@@ -277,22 +288,59 @@ public final class StudentManagementPanel extends JPanel {
 
     private void configureFields() {
         boolean student = session.getUser().getRole() == Role.STUDENT;
-        studentId.setEditable(canManage);
-        userId.setEditable(canManage);
+        // Editing a loaded archive must not accidentally create another student or rebind an account.
+        studentId.setEditable(false);
+        userId.setEditable(false);
+        studentId.setToolTipText("学号为档案标识，不在编辑档案时修改");
+        userId.setToolTipText("账号绑定由用户管理流程维护");
         name.setEditable(canManage);
-        gender.setEditable(canManage);
+        gender.setEditable(false);
+        gender.setEnabled(canManage);
         department.setEditable(canManage);
         major.setEditable(canManage);
         classId.setEditable(canManage);
         enrollmentYear.setEditable(canManage);
-        academicStatus.setEditable(canManage);
+        academicStatus.setEditable(false);
+        academicStatus.setEnabled(canManage);
+        academicStatus.setToolTipText("选择在读、休学或退学；毕业须通过毕业管理办理");
         phone.setEditable(canEdit);
         email.setEditable(canEdit);
+        phone.setToolTipText("选填；填写时须为11位数字");
+        email.setToolTipText("选填；例如 student@example.com，最多100字符");
+        enrollmentYear.setToolTipText("四位年份，1900至" + (java.time.Year.now().getValue() + 1));
+        limit(phone, 11, true);
+        limit(enrollmentYear, 4, true);
+        limit(name, 64, false);
+        limit(department, 64, false);
+        limit(major, 64, false);
+        limit(classId, 32, false);
+        limit(email, 100, false);
         if (student) {
             studentIdQuery.setEnabled(false);
             classQuery.setEnabled(false);
             majorQuery.setEnabled(false);
         }
+    }
+
+    private void limit(JTextField field, int maximum, boolean digitsOnly) {
+        ((AbstractDocument) field.getDocument()).setDocumentFilter(new DocumentFilter() {
+            @Override public void insertString(FilterBypass fb, int offset, String text, AttributeSet attrs)
+                    throws BadLocationException { replace(fb, offset, 0, text, attrs); }
+            @Override public void replace(FilterBypass fb, int offset, int length, String text, AttributeSet attrs)
+                    throws BadLocationException {
+                String replacement = text == null ? "" : text;
+                String old = fb.getDocument().getText(0, fb.getDocument().getLength());
+                String value = old.substring(0, offset) + replacement + old.substring(offset + length);
+                if (populatingProfile || (value.length() <= maximum
+                        && (!digitsOnly || value.matches("[0-9]*"))
+                        && value.chars().noneMatch(Character::isISOControl))) {
+                    fb.replace(offset, length, replacement, attrs);
+                } else {
+                    showStatus(digitsOnly ? (field == phone ? "手机号只能输入数字，最多11位" : "入学年份只能输入4位数字")
+                            : "该字段最多" + maximum + "个字符，不能包含换行", VCampusTheme.DANGER);
+                }
+            }
+        });
     }
 
     private void loadSelf() {
@@ -357,6 +405,10 @@ public final class StudentManagementPanel extends JPanel {
     }
 
     private StudentRecord readRecord() {
+        StudentProfileValidation.contacts(optional(phone.getText()), optional(email.getText()));
+        if (!canManage && loadedProfile != null) {
+            return StudentProfileSnapshot.withContacts(loadedProfile, optional(phone.getText()), optional(email.getText()));
+        }
         String id = required(studentId.getText(), "学号");
         String displayName = required(name.getText(), "姓名");
         int year;
@@ -365,9 +417,11 @@ public final class StudentManagementPanel extends JPanel {
         } catch (NumberFormatException failure) {
             throw new IllegalArgumentException("入学年份必须是数字");
         }
-        return new StudentRecord(id, optional(userId.getText()), displayName, optional(gender.getText()),
+        StudentRecord record = new StudentRecord(id, optional(userId.getText()), displayName, (String) gender.getSelectedItem(),
                 optional(department.getText()), optional(major.getText()), optional(classId.getText()), year,
-                required(academicStatus.getText(), "学籍状态"), optional(phone.getText()), optional(email.getText()));
+                required((String) academicStatus.getSelectedItem(), "学籍状态"), optional(phone.getText()), optional(email.getText()));
+        StudentProfileValidation.profile(record);
+        return record;
     }
 
     private static String required(String value, String field) {
@@ -459,31 +513,41 @@ public final class StudentManagementPanel extends JPanel {
 
     private void clearEditor() {
         loadedRecord = false;
+        loadedProfile = null;
         studentId.setText("");
         userId.setText("");
         name.setText("");
-        gender.setText("");
+        gender.setSelectedIndex(-1);
         department.setText("");
         major.setText("");
         classId.setText("");
         enrollmentYear.setText("");
-        academicStatus.setText("");
+        academicStatus.removeItem("毕业");
+        academicStatus.setSelectedIndex(-1);
         phone.setText("");
         email.setText("");
     }
 
     private void apply(StudentRecord record) {
-        studentId.setText(record.getStudentId());
-        userId.setText(value(record.getUserId()));
-        name.setText(value(record.getName()));
-        gender.setText(value(record.getGender()));
-        department.setText(value(record.getDepartmentName()));
-        major.setText(value(record.getMajorName()));
-        classId.setText(value(record.getClassId()));
-        enrollmentYear.setText(String.valueOf(record.getEnrollmentYear()));
-        academicStatus.setText(value(record.getStatus()));
-        phone.setText(value(record.getPhone()));
-        email.setText(value(record.getEmail()));
+        loadedProfile = record;
+        populatingProfile = true;
+        try {
+            studentId.setText(record.getStudentId());
+            userId.setText(value(record.getUserId()));
+            name.setText(value(record.getName()));
+            gender.setSelectedIndex(-1);
+            gender.setSelectedItem(record.getGender());
+            department.setText(value(record.getDepartmentName()));
+            major.setText(value(record.getMajorName()));
+            classId.setText(value(record.getClassId()));
+            enrollmentYear.setText(String.valueOf(record.getEnrollmentYear()));
+            academicStatus.removeItem("毕业");
+            if ("毕业".equals(record.getStatus())) academicStatus.addItem("毕业");
+            academicStatus.setSelectedIndex(-1);
+            academicStatus.setSelectedItem(record.getStatus());
+            phone.setText(value(record.getPhone()));
+            email.setText(value(record.getEmail()));
+        } finally { populatingProfile = false; }
     }
 
     private static String value(String value) { return value == null ? "" : value; }
@@ -516,6 +580,9 @@ public final class StudentManagementPanel extends JPanel {
     }
 
     private void updateButtons() {
+        academicStatus.setEnabled(canManage && !requestInProgress
+                && (loadedProfile == null || !"毕业".equals(loadedProfile.getStatus())));
+        gender.setEnabled(canManage && !requestInProgress);
         selfButton.setEnabled(!requestInProgress && session.getUser().getRole() == Role.STUDENT);
         idButton.setEnabled(!requestInProgress && canQueryById);
         classButton.setEnabled(!requestInProgress && canQueryClass);
