@@ -40,7 +40,7 @@ public final class CourseSelectionPanel extends JPanel {
     private final int port;
     private final Session session;
     private final CardLayout pageLayout = new CardLayout();
-    private final JPanel pages = new JPanel(pageLayout);
+    private final ScrollablePagePanel pages = new ScrollablePagePanel(pageLayout);
     private final JPanel roundCards = new JPanel(new BorderLayout());
     private final JPanel offeringCards = new JPanel(new BorderLayout());
     private final JLabel pageSubtitle = new JLabel();
@@ -114,7 +114,7 @@ public final class CourseSelectionPanel extends JPanel {
         pages.add(offeringPage(), OFFERING_PAGE);
         pages.add(selectedPage(), SELECTED_PAGE);
         add(header(), BorderLayout.NORTH);
-        add(pages, BorderLayout.CENTER);
+        add(VCampusTheme.pageScroll(pages), BorderLayout.CENTER);
         add(status, BorderLayout.SOUTH);
         pageLayout.show(pages, ROUND_PAGE);
         setSubtitle("请选择一个当前开放的选课轮次，再进入课程列表。 ");
@@ -147,7 +147,7 @@ public final class CourseSelectionPanel extends JPanel {
         card.add(header, BorderLayout.NORTH);
         card.add(roundCards, BorderLayout.CENTER);
         content.add(card, BorderLayout.NORTH);
-        return VCampusTheme.pageScroll(content);
+        return content;
     }
 
     private JComponent coursePage() {
@@ -174,7 +174,7 @@ public final class CourseSelectionPanel extends JPanel {
         card.add(footer, BorderLayout.SOUTH);
         content.add(actions, BorderLayout.NORTH);
         content.add(card, BorderLayout.CENTER);
-        return VCampusTheme.pageScroll(content);
+        return content;
     }
 
     private JComponent offeringPage() {
@@ -195,7 +195,7 @@ public final class CourseSelectionPanel extends JPanel {
         top.add(header, BorderLayout.SOUTH);
         content.add(top, BorderLayout.NORTH);
         content.add(offeringCards, BorderLayout.CENTER);
-        return VCampusTheme.pageScroll(content);
+        return content;
     }
 
     private JComponent selectedPage() {
@@ -215,7 +215,7 @@ public final class CourseSelectionPanel extends JPanel {
         card.add(VCampusTheme.scrollPane(selectedTable), BorderLayout.CENTER);
         card.add(actions, BorderLayout.SOUTH);
         content.add(card, BorderLayout.NORTH);
-        return VCampusTheme.pageScroll(content);
+        return content;
     }
 
     private static JPanel scrollPage() {

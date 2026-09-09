@@ -1,7 +1,6 @@
 package cn.vcampus.client.view;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -11,20 +10,20 @@ import cn.vcampus.user.Session;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import javax.swing.AbstractButton;
-import javax.swing.JComboBox;
 import javax.swing.JLabel;
+import javax.swing.JPanel;
 import javax.swing.JTable;
 import org.junit.jupiter.api.Test;
 
 class CourseSelectionPanelTest {
     @Test
-    void providesRoundSelectorForCurrentCourseSelectionFlow() throws Exception {
+    void presentsRoundCardsInsteadOfLegacyDropdown() throws Exception {
         CourseSelectionPanel panel = new CourseSelectionPanel("localhost", 19090,
                 new Session("token", new User("student-001", "测试学生", Role.STUDENT)));
-        Field field = CourseSelectionPanel.class.getDeclaredField("roundBox");
+        Field field = CourseSelectionPanel.class.getDeclaredField("roundCards");
         field.setAccessible(true);
         assertNotNull(field.get(panel));
-        assertNotNull((JComboBox<?>) field.get(panel));
+        assertTrue(field.get(panel) instanceof JPanel);
     }
 
     @Test
@@ -38,52 +37,49 @@ class CourseSelectionPanelTest {
         update.setAccessible(true);
         update.invoke(panel);
 
-        assertFalse(button(panel, "loadRoundsButton").isEnabled());
-        assertFalse(button(panel, "refreshViewButton").isEnabled());
-        assertFalse(button(panel, "offeringsViewButton").isEnabled());
-        assertFalse(button(panel, "selectedViewButton").isEnabled());
-        assertFalse(button(panel, "primaryActionButton").isEnabled());
+        assertFalse(button(panel, "courseDetailButton").isEnabled());
+        assertFalse(button(panel, "selectedCoursesButton").isEnabled());
+        assertFalse(button(panel, "backToRoundsButton").isEnabled());
+        assertFalse(button(panel, "backToCoursesButton").isEnabled());
+        assertFalse(button(panel, "dropButton").isEnabled());
 
         busy.setBoolean(panel, false);
         update.invoke(panel);
-        assertTrue(button(panel, "loadRoundsButton").isEnabled());
-        assertFalse(button(panel, "refreshViewButton").isEnabled());
-        assertFalse(button(panel, "primaryActionButton").isEnabled());
+        assertFalse(button(panel, "courseDetailButton").isEnabled());
+        assertFalse(button(panel, "selectedCoursesButton").isEnabled());
     }
 
     @Test
     void appliesSharedThemeToCourseActions() throws Exception {
         CourseSelectionPanel panel = new CourseSelectionPanel("localhost", 19090,
                 new Session("token", new User("student-001", "测试学生", Role.STUDENT)));
-        assertTrue(button(panel, "loadRoundsButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
-        assertTrue(button(panel, "refreshViewButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
-        assertTrue(button(panel, "offeringsViewButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
-        assertTrue(button(panel, "selectedViewButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
-        assertTrue(button(panel, "primaryActionButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+        assertTrue(button(panel, "courseDetailButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+        assertTrue(button(panel, "selectedCoursesButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+        assertTrue(button(panel, "backToRoundsButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+        assertTrue(button(panel, "backToCoursesButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+        assertTrue(button(panel, "dropButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
     }
 
     @Test
-    void presentsStudentFlowAsOfferingsFirstThenSelectedCourses() throws Exception {
+    void presentsStudentFlowAsRoundSelectionFirst() throws Exception {
         CourseSelectionPanel panel = new CourseSelectionPanel("localhost", 19090,
                 new Session("token", new User("student-001", "测试学生", Role.STUDENT)));
 
-        assertTrue(button(panel, "offeringsViewButton").isSelected());
-        assertFalse(button(panel, "selectedViewButton").isSelected());
-        assertEquals("本轮可选教学班", label(panel, "tableTitle").getText());
-        assertEquals("选择所选教学班", button(panel, "primaryActionButton").getText());
+        assertTrue(label(panel, "pageSubtitle").getText().contains("请选择一个当前开放的选课轮次"));
+        assertFalse(button(panel, "selectedCoursesButton").isEnabled());
     }
 
     @Test
     void keepsCourseTableColumnsReadableOnCompactWindows() throws Exception {
         CourseSelectionPanel panel = new CourseSelectionPanel("localhost", 19090,
                 new Session("token", new User("student-001", "测试学生", Role.STUDENT)));
-        Field field = CourseSelectionPanel.class.getDeclaredField("table");
+        Field field = CourseSelectionPanel.class.getDeclaredField("courseTable");
         field.setAccessible(true);
         JTable table = (JTable) field.get(panel);
 
         assertTrue(table.getAutoResizeMode() == JTable.AUTO_RESIZE_OFF);
-        assertTrue(table.getColumnModel().getColumn(2).getPreferredWidth() >= UiMetrics.px(170));
-        assertTrue(table.getColumnModel().getColumn(6).getPreferredWidth() >= UiMetrics.px(220));
+        assertTrue(table.getColumnModel().getColumn(0).getPreferredWidth() >= UiMetrics.px(150));
+        assertTrue(table.getColumnModel().getColumn(1).getPreferredWidth() >= UiMetrics.px(260));
     }
 
     private static AbstractButton button(CourseSelectionPanel panel, String fieldName) throws Exception {
