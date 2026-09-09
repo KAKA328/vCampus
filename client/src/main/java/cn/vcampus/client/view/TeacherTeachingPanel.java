@@ -113,8 +113,9 @@ final class TeacherTeachingPanel extends JPanel {
 
         add(header(), BorderLayout.NORTH);
         add(VCampusTheme.pageScroll(body()), BorderLayout.CENTER);
-        showStatus("输入学期后查询本人负责的教学班", VCampusTheme.MUTED);
+        showStatus("正在自动加载本人教学班", VCampusTheme.MUTED);
         updateInteractiveState();
+        CourseUiSupport.loadOnFirstShow(this, this::loadOfferings);
     }
 
     private JPanel header() {

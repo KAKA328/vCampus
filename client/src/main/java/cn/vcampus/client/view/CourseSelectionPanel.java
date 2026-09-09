@@ -90,6 +90,7 @@ public final class CourseSelectionPanel extends JPanel {
         configureViewSwitch();
         updateViewPresentation();
         updateInteractiveState();
+        CourseUiSupport.loadOnFirstShow(this, this::loadRounds);
     }
 
     private JPanel body() {

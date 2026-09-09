@@ -84,7 +84,8 @@ public final class CourseManagementPanel extends JPanel {
         add(VCampusTheme.pageScroll(body(tabs)), BorderLayout.CENTER);
         configureTable(courseTable, COURSE_COLUMN_WIDTHS);
         configureTable(offeringTable, OFFERING_COLUMN_WIDTHS);
-        showStatus("请先刷新课程目录或教学班列表", VCampusTheme.MUTED);
+        showStatus("正在自动加载课程目录", VCampusTheme.MUTED);
+        CourseUiSupport.loadOnFirstShow(this, this::loadCourses);
     }
 
     private JPanel body(JTabbedPane tabs) {
