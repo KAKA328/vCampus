@@ -50,7 +50,7 @@
 - `mvn -B -pl client -am "-Dtest=ModuleNavigationModelTest,DashboardWorkbenchPanelTest,FeaturePanelScrollTest,UserManagementPanelTest,StudentManagementPanelTest,TeacherSelfPanelTest,TeacherTeachingPanelTest,CourseManagementPanelTest,LibraryPanelTest,StorePanelTest" "-Dsurefire.failIfNoSpecifiedTests=false" test`：55 项通过。
 - `powershell -ExecutionPolicy Bypass -File .\database\rebuild.ps1 -DatabasePath .\database\acceptance-smoke.accdb` 后，使用真实 Access 数据库启动 server，并执行 `java -jar .\client\target\vCampusClient.jar --demo --host 127.0.0.1 --port 19190`：注册、登录、授权、登出和失效 token 冒烟通过。
 
-全量 `mvn clean test`、多人角色人工界面截图和选课并发场景仍需在最终合入前完成。
+全量 `mvn clean test` 已通过，共 701 项测试、失败 0；多人角色人工界面截图和选课并发场景仍需在最终合入前补充。
 
 ## 六、剩余风险与下一步
 
