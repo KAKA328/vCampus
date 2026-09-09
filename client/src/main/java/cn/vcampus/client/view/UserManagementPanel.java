@@ -18,6 +18,8 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Frame;
+import java.awt.LayoutManager;
+import java.awt.Rectangle;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -30,8 +32,11 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JViewport;
 import javax.swing.JTable;
 import javax.swing.ListSelectionModel;
+import javax.swing.Scrollable;
+import javax.swing.SwingConstants;
 import javax.swing.SwingWorker;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -129,14 +134,13 @@ final class UserManagementPanel extends JPanel {
     }
 
     private JPanel body() {
-        JPanel panel = new ScrollablePagePanel(new BorderLayout(0, 0));
+        JPanel panel = new ManagementBodyPanel(new BorderLayout(0, 0));
         panel.setOpaque(false);
 
         CardLayout layout = new CardLayout();
         JPanel views = new JPanel(layout);
         views.setOpaque(false);
-        views.setMinimumSize(new Dimension(680, 420));
-        views.setPreferredSize(new Dimension(900, 460));
+        views.setMinimumSize(new Dimension(0, 360));
         views.add(managementHome(), "home");
         views.add(singleAccountCard(), "create");
         views.add(importCard(), "import");
@@ -185,8 +189,7 @@ final class UserManagementPanel extends JPanel {
     private JPanel singleAccountCard() {
         JPanel card = new JPanel(new BorderLayout(0, 14));
         VCampusTheme.panel(card);
-        card.setPreferredSize(new Dimension(300, 260));
-        card.setMinimumSize(new Dimension(260, 220));
+        card.setMinimumSize(new Dimension(0, 220));
 
         JLabel title = new JLabel("单个账号注册");
         title.setFont(VCampusTheme.font(Font.BOLD, 18));
@@ -210,7 +213,6 @@ final class UserManagementPanel extends JPanel {
         JPanel card = new JPanel(new BorderLayout(0, 12));
         VCampusTheme.panel(card);
         card.setMinimumSize(new Dimension(0, 250));
-        card.setPreferredSize(new Dimension(0, 280));
 
         JLabel title = new JLabel("账号列表");
         title.setFont(VCampusTheme.font(Font.BOLD, 18));
@@ -246,7 +248,6 @@ final class UserManagementPanel extends JPanel {
     private JPanel passwordResetCard() {
         JPanel card = new JPanel(new BorderLayout(0, 12));
         VCampusTheme.panel(card);
-        card.setPreferredSize(new Dimension(0, 260));
         card.setMinimumSize(new Dimension(0, 220));
 
         JLabel title = new JLabel("密码重置审批");
@@ -279,7 +280,6 @@ final class UserManagementPanel extends JPanel {
     private JPanel importCard() {
         JPanel card = new JPanel(new BorderLayout(0, 12));
         VCampusTheme.panel(card);
-        card.setPreferredSize(new Dimension(620, 260));
         card.setMinimumSize(new Dimension(300, 260));
 
         JPanel titlePanel = new JPanel(new BorderLayout(0, 4));
@@ -304,7 +304,6 @@ final class UserManagementPanel extends JPanel {
     private JPanel auditCard() {
         JPanel card = new JPanel(new BorderLayout(0, 12));
         VCampusTheme.panel(card);
-        card.setPreferredSize(new Dimension(0, 260));
         card.setMinimumSize(new Dimension(0, 220));
 
         JLabel title = new JLabel("操作日志");
@@ -879,6 +878,36 @@ final class UserManagementPanel extends JPanel {
         }
         return "已通过重置申请。\n请将以下一次性临时密码发给用户，并提醒用户登录后立即修改：\n"
                 + temporaryPassword;
+    }
+
+    private static final class ManagementBodyPanel extends JPanel implements Scrollable {
+        ManagementBodyPanel(LayoutManager layout) {
+            super(layout);
+        }
+
+        @Override public Dimension getPreferredScrollableViewportSize() {
+            return getPreferredSize();
+        }
+
+        @Override public int getScrollableUnitIncrement(Rectangle visibleRect, int orientation, int direction) {
+            return 18;
+        }
+
+        @Override public int getScrollableBlockIncrement(Rectangle visibleRect, int orientation, int direction) {
+            return orientation == SwingConstants.VERTICAL ? Math.max(18, visibleRect.height - 24)
+                    : Math.max(18, visibleRect.width - 24);
+        }
+
+        @Override public boolean getScrollableTracksViewportWidth() {
+            return true;
+        }
+
+        @Override public boolean getScrollableTracksViewportHeight() {
+            if (!(getParent() instanceof JViewport)) {
+                return false;
+            }
+            return getPreferredSize().height <= ((JViewport) getParent()).getExtentSize().height;
+        }
     }
 
 }
