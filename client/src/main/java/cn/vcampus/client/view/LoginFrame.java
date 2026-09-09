@@ -72,7 +72,7 @@ public final class LoginFrame extends JFrame {
     private JPanel brandPanel() {
         JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(18)));
         panel.setPreferredSize(UiMetrics.dimension(300, 0));
-        panel.setBackground(VCampusTheme.NAV_ACTIVE_BACKGROUND);
+        panel.setBackground(VCampusTheme.PANEL);
         panel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(191, 219, 254)),
                 VCampusTheme.padding(40, 30, 34, 30)));
@@ -421,8 +421,8 @@ public final class LoginFrame extends JFrame {
         }
 
         private void apply(double contentScale) {
-            component.setFont(new Font("Microsoft YaHei UI", style,
-                    responsivePixels(logicalSize, contentScale)));
+            component.setFont(UiMetrics.font("Microsoft YaHei UI", style,
+                    logicalSize, contentScale));
         }
     }
 }

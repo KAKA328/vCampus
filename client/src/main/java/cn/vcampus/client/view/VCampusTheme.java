@@ -43,11 +43,12 @@ final class VCampusTheme {
     static final Color ACCENT = new Color(6, 182, 212);
     static final Color HEADER_BACKGROUND = new Color(37, 99, 235);
     static final Color BACKGROUND = new Color(248, 250, 252);
-    static final Color SIDEBAR = new Color(239, 246, 255);
+    static final Color SIDEBAR = new Color(30, 41, 59);
     static final Color PANEL = Color.WHITE;
     static final Color SURFACE_ALT = new Color(241, 245, 249);
     static final Color TABLE_STRIPE = new Color(248, 250, 252);
-    static final Color NAV_ACTIVE_BACKGROUND = Color.WHITE;
+    static final Color NAV_ACTIVE_BACKGROUND = new Color(37, 99, 235);
+    static final Color NAV_TEXT = new Color(226, 232, 240);
     static final Color TEXT = new Color(30, 41, 59);
     static final Color MUTED = new Color(100, 116, 139);
     static final Color BORDER = new Color(226, 232, 240);
@@ -147,7 +148,7 @@ final class VCampusTheme {
     static void panel(JComponent component) {
         component.setBackground(PANEL);
         component.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER),
+                roundedBorder(BORDER, 10),
                 padding(18, 20, 18, 20)));
     }
 
@@ -261,7 +262,7 @@ final class VCampusTheme {
         button.setBorder(active ? new ActiveNavBorder() : padding(11, 16, 11, 16));
         prepareButton(button);
         button.setBackground(active ? NAV_ACTIVE_BACKGROUND : SIDEBAR);
-        button.setForeground(active ? PRIMARY : TEXT);
+        button.setForeground(active ? Color.WHITE : NAV_TEXT);
         button.setFont(font(active ? Font.BOLD : Font.PLAIN, 14));
         button.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiMetrics.px(44)));
         button.setPreferredSize(UiMetrics.dimension(160, 44));
@@ -320,7 +321,7 @@ final class VCampusTheme {
                 int x, int y, int width, int height) {
             Graphics2D copy = (Graphics2D) graphics.create();
             copy.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            copy.setColor(PRIMARY);
+            copy.setColor(ACCENT);
             int left = UiMetrics.px(5);
             int top = UiMetrics.px(8);
             int indicatorWidth = UiMetrics.px(4);

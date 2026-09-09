@@ -50,8 +50,8 @@ final class DashboardWorkbenchPanel extends JPanel {
     private JPanel statCard(String titleText, String valueText, String noteText, java.awt.Color accent) {
         JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(4)));
         VCampusTheme.panel(card);
-        card.setPreferredSize(UiMetrics.dimension(220, 112));
-        card.setMinimumSize(UiMetrics.dimension(200, 106));
+        card.setPreferredSize(UiMetrics.dimension(220, 96));
+        card.setMinimumSize(UiMetrics.dimension(180, 86));
         card.setBorder(javax.swing.BorderFactory.createCompoundBorder(
                 javax.swing.BorderFactory.createMatteBorder(UiMetrics.px(3), 0, 0, 0, accent),
                 VCampusTheme.padding(16, 18, 16, 18)));
@@ -96,7 +96,7 @@ final class DashboardWorkbenchPanel extends JPanel {
     private JPanel quickActionCard(List<ModuleDescriptor> modules, ModuleAction moduleAction) {
         JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
         VCampusTheme.panel(card);
-        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiMetrics.px(220)));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiMetrics.px(196)));
 
         JLabel title = new JLabel("快捷操作");
         title.setFont(VCampusTheme.font(Font.BOLD, 16));
@@ -127,7 +127,7 @@ final class DashboardWorkbenchPanel extends JPanel {
     private JPanel infoCard(String titleText, String[] items) {
         JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
         VCampusTheme.panel(card);
-        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiMetrics.px(220)));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiMetrics.px(196)));
 
         JLabel title = new JLabel(titleText);
         title.setFont(VCampusTheme.font(Font.BOLD, 16));

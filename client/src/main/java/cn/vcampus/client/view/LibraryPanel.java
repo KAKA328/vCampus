@@ -111,8 +111,8 @@ public final class LibraryPanel extends JPanel {
         panel.add(overviewPanel(), BorderLayout.NORTH);
 
         JTabbedPane tabs = tabs();
-        tabs.setPreferredSize(new Dimension(0, 500));
-        tabs.setMinimumSize(new Dimension(0, 340));
+        tabs.setPreferredSize(UiMetrics.dimension(0, 500));
+        tabs.setMinimumSize(UiMetrics.dimension(0, 340));
         panel.add(tabs, BorderLayout.CENTER);
         return panel;
     }
@@ -174,7 +174,7 @@ public final class LibraryPanel extends JPanel {
     }
 
     private JPanel summaryCards() {
-        ResponsiveCardRowPanel row = new ResponsiveCardRowPanel(170, 12);
+        ResponsiveCardRowPanel row = new ResponsiveCardRowPanel(UiMetrics.px(170), UiMetrics.px(12));
         row.add(metricCard(manager ? "馆藏种类" : "检索结果", catalogCountValue,
                 "本次查询返回的图书种类", VCampusTheme.PRIMARY));
         row.add(metricCard("可借册数", availableCountValue,
@@ -187,12 +187,12 @@ public final class LibraryPanel extends JPanel {
     private static JPanel metricCard(String title, JLabel value, String hint, Color accent) {
         JPanel card = new JPanel(new BorderLayout(12, 0));
         VCampusTheme.panel(card);
-        card.setPreferredSize(new Dimension(210, 92));
-        card.setMinimumSize(new Dimension(160, 92));
+        card.setPreferredSize(UiMetrics.dimension(210, 92));
+        card.setMinimumSize(UiMetrics.dimension(160, 92));
 
         JPanel rail = new JPanel();
         rail.setBackground(accent);
-        rail.setPreferredSize(new Dimension(4, 0));
+        rail.setPreferredSize(UiMetrics.dimension(4, 0));
 
         JPanel copy = new JPanel();
         copy.setOpaque(false);
@@ -476,7 +476,7 @@ public final class LibraryPanel extends JPanel {
         final JTextField price = new JTextField();
         final JTextField copies = new JTextField("1");
         final JTextField location = new JTextField();
-        JPanel form = new JPanel(new GridLayout(0, 2, 10, 10));
+        JPanel form = new JPanel(new GridLayout(0, 2, UiMetrics.px(10), UiMetrics.px(10)));
         form.setOpaque(false);
         addField(form, "图书号*", id);
         addField(form, "书名*", title);
@@ -490,7 +490,7 @@ public final class LibraryPanel extends JPanel {
         JPanel dialog = new JPanel(new BorderLayout(0, 14));
         dialog.setBackground(VCampusTheme.PANEL);
         dialog.setBorder(VCampusTheme.padding(8, 8, 8, 8));
-        dialog.setPreferredSize(new Dimension(470, 390));
+        dialog.setPreferredSize(UiMetrics.dimension(470, 390));
         dialog.add(sectionHeading("录入馆藏", "带 * 的字段为必填项；新书初始可借册数与总册数一致。"),
                 BorderLayout.NORTH);
         dialog.add(form, BorderLayout.CENTER);
@@ -529,11 +529,11 @@ public final class LibraryPanel extends JPanel {
         JPanel panel = new JPanel(new BorderLayout(0, 14));
         panel.setBackground(VCampusTheme.PANEL);
         panel.setBorder(VCampusTheme.padding(8, 8, 8, 8));
-        panel.setPreferredSize(new Dimension(440, 285));
+        panel.setPreferredSize(UiMetrics.dimension(440, 285));
         panel.add(sectionHeading(book.getTitle(), book.getAuthor() + " · " + book.getCategory()),
                 BorderLayout.NORTH);
 
-        JPanel fields = new JPanel(new GridLayout(0, 2, 12, 10));
+        JPanel fields = new JPanel(new GridLayout(0, 2, UiMetrics.px(12), UiMetrics.px(10)));
         fields.setOpaque(false);
         addDetailRow(fields, "图书编号", book.getBookId());
         addDetailRow(fields, "ISBN", book.getIsbn());

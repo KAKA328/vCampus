@@ -173,11 +173,16 @@ public final class StudentManagementPanel extends JPanel {
 
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, tablePanel(), detail) {
             @Override public void doLayout() {
-                int orientation = getWidth() > 0 && getWidth() < 740 ? JSplitPane.VERTICAL_SPLIT : JSplitPane.HORIZONTAL_SPLIT;
+                // JSplitPane reports actual component pixels; this breakpoint is intentionally kept
+                // in the same coordinate space as the component width for deterministic re-layout.
+                int orientation = getWidth() > 0 && getWidth() < 740
+                        ? JSplitPane.VERTICAL_SPLIT : JSplitPane.HORIZONTAL_SPLIT;
                 if (getOrientation() != orientation) {
                     setOrientation(orientation);
-                    setPreferredSize(new Dimension(0, orientation == JSplitPane.VERTICAL_SPLIT ? 920 : 620));
-                    setDividerLocation(orientation == JSplitPane.VERTICAL_SPLIT ? 250 : Math.max(250, getWidth() * 46 / 100));
+                    setPreferredSize(UiMetrics.dimension(0,
+                            orientation == JSplitPane.VERTICAL_SPLIT ? 920 : 620));
+                    setDividerLocation(orientation == JSplitPane.VERTICAL_SPLIT
+                            ? UiMetrics.px(250) : Math.max(UiMetrics.px(250), getWidth() * 46 / 100));
                     revalidate();
                 }
                 super.doLayout();
@@ -185,15 +190,15 @@ public final class StudentManagementPanel extends JPanel {
         };
         split.setOpaque(false);
         split.setBorder(null);
-        split.setDividerSize(10);
+        split.setDividerSize(UiMetrics.px(10));
         split.setResizeWeight(0.46);
-        split.setPreferredSize(new Dimension(0, 620));
-        split.setMinimumSize(new Dimension(0, 520));
+        split.setPreferredSize(UiMetrics.dimension(0, 620));
+        split.setMinimumSize(UiMetrics.dimension(0, 520));
         return split;
     }
 
     private JPanel queryBar() {
-        JPanel panel = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, 10, 6));
+        JPanel panel = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10), UiMetrics.px(6)));
         VCampusTheme.panel(panel);
         VCampusTheme.secondaryButton(selfButton);
         VCampusTheme.secondaryButton(idButton);
@@ -220,8 +225,8 @@ public final class StudentManagementPanel extends JPanel {
     private JPanel tablePanel() {
         JPanel panel = new JPanel(new BorderLayout());
         VCampusTheme.panel(panel);
-        panel.setPreferredSize(new Dimension(0, 260));
-        panel.setMinimumSize(new Dimension(0, 180));
+        panel.setPreferredSize(UiMetrics.dimension(0, 260));
+        panel.setMinimumSize(UiMetrics.dimension(0, 180));
         VCampusTheme.table(table);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         table.getColumnModel().getColumn(0).setPreferredWidth(100);
@@ -238,7 +243,7 @@ public final class StudentManagementPanel extends JPanel {
         JLabel title = new JLabel("学生档案");
         title.setFont(VCampusTheme.font(Font.BOLD, 17));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        JPanel fields = new JPanel(new GridLayout(0, 4, 10, 10));
+        JPanel fields = new JPanel(new GridLayout(0, 4, UiMetrics.px(10), UiMetrics.px(10)));
         fields.setOpaque(false);
         addField(fields, "学号", studentId);
         addField(fields, "账号", userId);
@@ -253,7 +258,7 @@ public final class StudentManagementPanel extends JPanel {
         addField(fields, "邮箱", email);
         panel.add(title, BorderLayout.NORTH);
         panel.add(fields, BorderLayout.CENTER);
-        panel.setMinimumSize(new Dimension(0, 260));
+        panel.setMinimumSize(UiMetrics.dimension(0, 260));
         return panel;
     }
 
