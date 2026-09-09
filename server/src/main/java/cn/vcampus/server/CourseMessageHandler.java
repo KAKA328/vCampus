@@ -326,6 +326,16 @@ final class CourseMessageHandler {
         ServiceResult<TeachingRoster> roster = roster(profile.getData(), command.getOfferingId());
         if (roster.getStatus() != StatusCode.OK) return roster;
 
+        if (command.getOperation() == CourseGradeDraftV2Command.Operation.LIST_AUDIT) {
+            ServiceResult<GradeSubmission> found = gradeSubmissions.findByOffering(
+                    command.getOfferingId());
+            if (found.getStatus() == StatusCode.NOT_FOUND) {
+                return ServiceResult.ok(java.util.Collections.emptyList());
+            }
+            if (found.getStatus() != StatusCode.OK) return found;
+            return gradeSubmissions.listAudit(found.getData().getSubmissionId());
+        }
+
         TeachingRosterEntry selectedStudent = null;
         if (command.getOperation() == CourseGradeDraftV2Command.Operation.SAVE_ENTRY) {
             selectedStudent = findRosterStudent(roster.getData(), command.getStudentId());

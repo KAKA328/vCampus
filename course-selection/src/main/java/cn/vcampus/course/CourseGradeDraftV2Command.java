@@ -14,7 +14,8 @@ public final class CourseGradeDraftV2Command implements Serializable {
     public enum Operation {
         OPEN_DRAFT,
         SAVE_ENTRY,
-        SUBMIT_FOR_REVIEW
+        SUBMIT_FOR_REVIEW,
+        LIST_AUDIT
     }
 
     private final String token;
@@ -55,6 +56,11 @@ public final class CourseGradeDraftV2Command implements Serializable {
     public static CourseGradeDraftV2Command submitForReview(String token, String offeringId) {
         return new CourseGradeDraftV2Command(token, Operation.SUBMIT_FOR_REVIEW, offeringId,
                 null, null);
+    }
+
+    /** 查询本人教学班成绩单的提交、通过和退回记录。 */
+    public static CourseGradeDraftV2Command listAudit(String token, String offeringId) {
+        return new CourseGradeDraftV2Command(token, Operation.LIST_AUDIT, offeringId, null, null);
     }
 
     public String getToken() { return token; }

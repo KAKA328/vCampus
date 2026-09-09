@@ -69,6 +69,13 @@ public final class RemoteCourseService implements Closeable {
                 CourseGradeDraftV2Command.submitForReview(token, offeringId));
     }
 
+    /** 查询当前任课老师本人教学班的成绩提交流转记录。 */
+    public Message gradeDraftAudit(String token, String offeringId)
+            throws IOException, ClassNotFoundException {
+        return send(MessageType.COURSE_GRADE_DRAFT_V2,
+                CourseGradeDraftV2Command.listAudit(token, offeringId));
+    }
+
     /** 导入 CSV、XLS 或 XLSX 成绩文件的字节内容。 */
     public Message importGrades(String token, String offeringId, String fileName, byte[] content)
             throws IOException, ClassNotFoundException {

@@ -6,6 +6,7 @@ import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.CourseGradeImportV2Command;
 import cn.vcampus.course.GradeEntry;
 import cn.vcampus.course.GradeImportResult;
+import cn.vcampus.course.GradeSubmissionAuditRecord;
 import cn.vcampus.course.GradeSubmissionStatus;
 import cn.vcampus.course.TeachingOffering;
 import cn.vcampus.course.TeachingGradeDraft;
@@ -19,32 +20,40 @@ import java.awt.Font;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JSplitPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
+import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
 /** 任课老师按学期查看本人负责教学班的入口页面。 */
 final class TeacherTeachingPanel extends JPanel {
-    private static final int[] OFFERING_COLUMN_WIDTHS = { 120, 180, 70, 160, 220, 120, 100 };
-    private static final int[] ROSTER_COLUMN_WIDTHS = { 130, 120, 180, 130, 130, 90 };
+    private static final String[] TERMS = { "2026-2027-1", "2025-2026-2", "2025-2026-1" };
+    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private static final int[] OFFERING_COLUMN_WIDTHS = { 170, 280 };
+    private static final int[] ROSTER_COLUMN_WIDTHS = { 90, 130, 120, 180, 130, 130 };
 
     private final String host;
     private final int port;
     private final Session session;
-    private final JTextField term = new JTextField("2026-2027-1", 12);
-    private final JButton refreshButton = new JButton("查询我的教学班");
-    private final JButton viewRosterButton = new JButton("查看学生名单");
+    private final JComboBox<String> term = new JComboBox<String>(TERMS);
+    private final JButton refreshButton = new JButton("刷新教学班");
+    private final JButton viewRosterButton = new JButton("进入教学班");
+    private final JButton backButton = new JButton("返回教学班列表");
+    private final JLabel teachingDetail = new JLabel();
     private final JButton openDraftButton = new JButton("打开成绩草稿");
     private final JTextField score = new JTextField(5);
     private final JButton saveGradeButton = new JButton("保存所选学生成绩");
@@ -52,17 +61,20 @@ final class TeacherTeachingPanel extends JPanel {
     private final JButton chooseGradeFileButton = new JButton("选择成绩文件");
     private final JButton importGradesButton = new JButton("导入文件成绩");
     private final JLabel selectedGradeFile = new JLabel("未选择成绩文件（支持 CSV、XLS、XLSX）");
-    private final BatchTableModel tableModel = new BatchTableModel(new Object[] {
-            "课程编号", "课程名称", "学分", "教学班", "上课时间", "地点", "教学班状态" });
+    private final BatchTableModel tableModel = new BatchTableModel(new Object[] { "教学班编号", "课程名称" });
     private final JTable table = new JTable(tableModel);
     private final BatchTableModel rosterModel = new BatchTableModel(new Object[] {
-            "学号", "姓名", "专业", "班级", "选课类别", "成绩" });
+            "成绩", "学号", "姓名", "专业", "班级", "选课类别" });
     private final JTable rosterTable = new JTable(rosterModel);
+    private final BatchTableModel auditModel = new BatchTableModel(new Object[] { "记录", "时间", "意见" });
+    private final JTable auditTable = new JTable(auditModel);
     private final List<TeachingOffering> offerings = new ArrayList<TeachingOffering>();
     private final List<TeachingRosterEntry> rosterStudents = new ArrayList<TeachingRosterEntry>();
     private final JLabel rosterTitle = new JLabel("学生名单与成绩草稿");
     private final JLabel rosterHint = new JLabel("选择一个教学班后，可先查看名单或打开成绩草稿。 ");
     private final JLabel status = new JLabel();
+    private final java.awt.CardLayout pageLayout = new java.awt.CardLayout();
+    private final ScrollablePagePanel pages = new ScrollablePagePanel(pageLayout);
     private final RequestLifecycle requestLifecycle = new RequestLifecycle();
     private boolean requestInProgress;
     private TeachingGradeDraft currentDraft;
@@ -90,8 +102,11 @@ final class TeacherTeachingPanel extends JPanel {
         VCampusTheme.primaryButton(submitGradesButton);
         VCampusTheme.secondaryButton(chooseGradeFileButton);
         VCampusTheme.primaryButton(importGradesButton);
+        VCampusTheme.secondaryButton(backButton);
         refreshButton.addActionListener(e -> loadOfferings());
-        viewRosterButton.addActionListener(e -> loadRoster());
+        term.addActionListener(e -> { if (!requestInProgress) loadOfferings(); });
+        viewRosterButton.addActionListener(e -> enterTeachingOffering());
+        backButton.addActionListener(e -> { pageLayout.show(pages, "list"); loadOfferings(); });
         openDraftButton.addActionListener(e -> openDraft());
         saveGradeButton.addActionListener(e -> saveSelectedGrade());
         submitGradesButton.addActionListener(e -> submitGrades());
@@ -110,9 +125,13 @@ final class TeacherTeachingPanel extends JPanel {
         });
         configureTable(table, OFFERING_COLUMN_WIDTHS);
         configureTable(rosterTable, ROSTER_COLUMN_WIDTHS);
+        configureTable(auditTable, new int[] { 130, 170, 320 });
 
         add(header(), BorderLayout.NORTH);
-        add(VCampusTheme.pageScroll(body()), BorderLayout.CENTER);
+        pages.setOpaque(false);
+        pages.add(listPage(), "list");
+        pages.add(detailPage(), "detail");
+        add(VCampusTheme.pageScroll(pages), BorderLayout.CENTER);
         showStatus("正在自动加载本人教学班", VCampusTheme.MUTED);
         updateInteractiveState();
         CourseUiSupport.loadOnFirstShow(this, this::loadOfferings);
@@ -131,12 +150,27 @@ final class TeacherTeachingPanel extends JPanel {
         return panel;
     }
 
-    private JPanel body() {
+    private JPanel listPage() {
         JPanel panel = new ScrollablePagePanel(new BorderLayout(0, UiMetrics.px(16)));
         panel.setOpaque(false);
         panel.add(termCard(), BorderLayout.NORTH);
-        panel.add(workspace(), BorderLayout.CENTER);
-        panel.add(status, BorderLayout.SOUTH);
+        panel.add(offeringCard(), BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JPanel detailPage() {
+        JPanel panel = new ScrollablePagePanel(new BorderLayout(0, UiMetrics.px(16)));
+        panel.setOpaque(false);
+        JPanel heading = new JPanel(new BorderLayout(0, UiMetrics.px(5)));
+        heading.setOpaque(false);
+        teachingDetail.setFont(VCampusTheme.font(Font.BOLD, 18));
+        teachingDetail.setForeground(VCampusTheme.PRIMARY_DARK);
+        heading.add(teachingDetail, BorderLayout.NORTH);
+        heading.add(sectionHint("已自动加载学生名单；打开成绩草稿后可录入、导入和提交成绩。"),
+                BorderLayout.CENTER);
+        heading.add(backButton, BorderLayout.EAST);
+        panel.add(heading, BorderLayout.NORTH);
+        panel.add(rosterCard(), BorderLayout.CENTER);
         return panel;
     }
 
@@ -144,15 +178,15 @@ final class TeacherTeachingPanel extends JPanel {
     private JPanel termCard() {
         JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
         VCampusTheme.panel(card);
-        JLabel title = new JLabel("第 1 步：查询本人教学班");
+        JLabel title = new JLabel("选择学期");
         title.setFont(VCampusTheme.font(Font.BOLD, 15));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        JLabel hint = new JLabel("选择学期后加载系统分配给你的教学班。 ");
+        JLabel hint = new JLabel("切换学期后会自动刷新本人教学班。 ");
         hint.setForeground(VCampusTheme.MUTED);
         JPanel fields = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
                 UiMetrics.px(4)));
         fields.setOpaque(false);
-        fields.add(new JLabel("学期"));
+        fields.add(new JLabel("当前学期"));
         fields.add(term);
         fields.add(refreshButton);
         card.add(title, BorderLayout.NORTH);
@@ -161,26 +195,15 @@ final class TeacherTeachingPanel extends JPanel {
         return card;
     }
 
-    private JSplitPane workspace() {
-        JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, offeringCard(), rosterCard());
-        split.setBorder(null);
-        split.setOpaque(false);
-        split.setResizeWeight(0.46);
-        split.setDividerSize(UiMetrics.px(10));
-        split.setPreferredSize(UiMetrics.dimension(0, 620));
-        split.setMinimumSize(UiMetrics.dimension(0, 420));
-        return split;
-    }
-
     private JPanel offeringCard() {
         JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(10)));
         VCampusTheme.panel(panel);
         JPanel header = new JPanel(new BorderLayout(0, UiMetrics.px(6)));
         header.setOpaque(false);
-        JLabel title = new JLabel("第 2 步：选择教学班");
+        JLabel title = new JLabel("我的教学班");
         title.setFont(VCampusTheme.font(Font.BOLD, 16));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        JLabel hint = new JLabel("选择一行后，可查看学生名单，或打开该教学班的成绩草稿。 ");
+        JLabel hint = new JLabel("选择一个教学班后进入详情页，系统会自动加载该班学生名单。 ");
         hint.setForeground(VCampusTheme.MUTED);
         JPanel titleBlock = new JPanel(new BorderLayout(0, UiMetrics.px(2)));
         titleBlock.setOpaque(false);
@@ -190,7 +213,6 @@ final class TeacherTeachingPanel extends JPanel {
                 UiMetrics.px(2)));
         actions.setOpaque(false);
         actions.add(viewRosterButton);
-        actions.add(openDraftButton);
         header.add(titleBlock, BorderLayout.NORTH);
         header.add(actions, BorderLayout.SOUTH);
         panel.add(header, BorderLayout.NORTH);
@@ -210,7 +232,23 @@ final class TeacherTeachingPanel extends JPanel {
         header.add(rosterHint, BorderLayout.SOUTH);
         panel.add(header, BorderLayout.NORTH);
         panel.add(VCampusTheme.scrollPane(rosterTable), BorderLayout.CENTER);
-        panel.add(gradeWorkflow(), BorderLayout.SOUTH);
+        JPanel footer = new JPanel(new BorderLayout(0, UiMetrics.px(10)));
+        footer.setOpaque(false);
+        footer.add(gradeWorkflow(), BorderLayout.NORTH);
+        footer.add(auditCard(), BorderLayout.CENTER);
+        panel.add(footer, BorderLayout.SOUTH);
+        return panel;
+    }
+
+    private JPanel auditCard() {
+        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(5)));
+        panel.setOpaque(false);
+        JLabel title = new JLabel("成绩提交记录");
+        title.setFont(VCampusTheme.font(Font.BOLD, 15));
+        title.setForeground(VCampusTheme.PRIMARY_DARK);
+        panel.add(title, BorderLayout.NORTH);
+        panel.add(VCampusTheme.scrollPane(auditTable), BorderLayout.CENTER);
+        panel.setPreferredSize(UiMetrics.dimension(0, 150));
         return panel;
     }
 
@@ -248,11 +286,8 @@ final class TeacherTeachingPanel extends JPanel {
     }
 
     private void loadOfferings() {
-        String selectedTerm = term.getText() == null ? "" : term.getText().trim();
-        if (selectedTerm.isEmpty()) {
-            showStatus("学期不能为空", VCampusTheme.DANGER);
-            return;
-        }
+        String selectedTerm = (String) term.getSelectedItem();
+        if (selectedTerm == null) return;
         request(service -> service.myTeachingOfferings(session.getToken(), selectedTerm), response -> {
             if (response.getStatusCode() != StatusCode.OK || !(response.getPayload() instanceof List<?>)) {
                 showFailure(response);
@@ -264,10 +299,8 @@ final class TeacherTeachingPanel extends JPanel {
                 if (item instanceof TeachingOffering) {
                     TeachingOffering value = (TeachingOffering) item;
                     offerings.add(value);
-                    rows.add(new Object[] { value.getCourse().getCourseId(), value.getCourse().getName(),
-                            Integer.valueOf(value.getCourse().getCredits()),
-                            value.getOffering().getOfferingId(), value.getOffering().getSchedule(),
-                            value.getOffering().getLocation(), value.getOffering().getStatus() });
+                    rows.add(new Object[] { value.getOffering().getOfferingId(),
+                            value.getCourse().getName() });
                 }
             }
             tableModel.replaceRows(rows);
@@ -275,6 +308,20 @@ final class TeacherTeachingPanel extends JPanel {
             showStatus(rows.isEmpty() ? "该学期没有分配给你的教学班" : "已加载 " + rows.size()
                     + " 个本人教学班", rows.isEmpty() ? VCampusTheme.MUTED : VCampusTheme.SUCCESS);
         });
+    }
+
+    /** 进入一个教学班后立即加载名单，成绩草稿仍需教师主动打开。 */
+    private void enterTeachingOffering() {
+        TeachingOffering selected = selectedOffering();
+        if (selected == null) {
+            showStatus("请先选择一个教学班", VCampusTheme.DANGER);
+            return;
+        }
+        teachingDetail.setText("教学班 " + selected.getOffering().getOfferingId() + " · "
+                + selected.getCourse().getName() + " · "
+                + offeringStatusText(selected.getOffering().getStatus()));
+        pageLayout.show(pages, "detail");
+        loadRoster();
     }
 
     private void loadRoster() {
@@ -292,6 +339,7 @@ final class TeacherTeachingPanel extends JPanel {
                     }
                     currentDraft = null;
                     clearGradeImportFile();
+                    auditModel.replaceRows(new ArrayList<Object[]>());
                     renderRoster((TeachingRoster) response.getPayload(), null);
                     int count = rosterStudents.size();
                     showStatus(count == 0 ? "该教学班当前没有有效选课学生" : "已加载 "
@@ -319,7 +367,29 @@ final class TeacherTeachingPanel extends JPanel {
                     showStatus("已打开成绩草稿，当前状态：" + draftStatusText(draftStatus),
                             draftStatus == GradeSubmissionStatus.APPROVED ? VCampusTheme.MUTED
                                     : VCampusTheme.SUCCESS);
+                    SwingUtilities.invokeLater(this::loadDraftAudit);
                 });
+    }
+
+    /** 审计记录只允许当前教学班的任课教师查询，退回意见直接在此处显示。 */
+    private void loadDraftAudit() {
+        if (currentDraft == null) return;
+        final String offeringId = currentDraft.getSubmission().getOfferingId();
+        request(service -> service.gradeDraftAudit(session.getToken(), offeringId), response -> {
+            if (response.getStatusCode() != StatusCode.OK || !(response.getPayload() instanceof List<?>)) {
+                showFailure(response);
+                return;
+            }
+            List<Object[]> rows = new ArrayList<Object[]>();
+            for (Object item : (List<?>) response.getPayload()) {
+                if (item instanceof GradeSubmissionAuditRecord) {
+                    GradeSubmissionAuditRecord record = (GradeSubmissionAuditRecord) item;
+                    rows.add(new Object[] { auditActionText(record.getAction().name()),
+                            TIME_FORMAT.format(record.getOccurredAt()), safe(record.getRemark()) });
+                }
+            }
+            auditModel.replaceRows(rows);
+        });
     }
 
     private void saveSelectedGrade() {
@@ -356,6 +426,7 @@ final class TeacherTeachingPanel extends JPanel {
                     showStatus("已保存 " + studentId + " 的成绩；当前状态："
                             + draftStatusText(currentDraft.getSubmission().getStatus()),
                             VCampusTheme.SUCCESS);
+                    SwingUtilities.invokeLater(this::loadDraftAudit);
                 });
     }
 
@@ -386,6 +457,7 @@ final class TeacherTeachingPanel extends JPanel {
                     renderRoster(currentDraft.getRoster(), currentDraft);
                     showStatus("成绩已提交教务审核。后续修改后需再次提交，教务将审核最新版本。",
                             VCampusTheme.SUCCESS);
+                    SwingUtilities.invokeLater(this::loadDraftAudit);
                 });
     }
 
@@ -449,6 +521,7 @@ final class TeacherTeachingPanel extends JPanel {
                     renderRoster(currentDraft.getRoster(), currentDraft);
                     showStatus("已从 “" + fileName + "” 导入 " + result.getImportedCount()
                             + " 条成绩。确认全班完整后可提交教务审核。", VCampusTheme.SUCCESS);
+                    SwingUtilities.invokeLater(this::loadDraftAudit);
                 });
     }
 
@@ -520,9 +593,25 @@ final class TeacherTeachingPanel extends JPanel {
         return value == null || value.trim().isEmpty() ? "-" : value;
     }
 
+    private static JLabel sectionHint(String text) {
+        JLabel label = new JLabel(text);
+        label.setForeground(VCampusTheme.MUTED);
+        return label;
+    }
+
+    private static String offeringStatusText(cn.vcampus.course.CourseOfferingStatus status) {
+        return status == cn.vcampus.course.CourseOfferingStatus.OPEN ? "已开放"
+                : status == cn.vcampus.course.CourseOfferingStatus.CLOSED ? "已关闭" : "草稿";
+    }
+
+    private static String auditActionText(String action) {
+        if ("SUBMITTED".equals(action)) return "已提交教务审核";
+        if ("APPROVED".equals(action)) return "审核通过";
+        if ("RETURNED".equals(action)) return "退回修改";
+        return action;
+    }
+
     private void renderRoster(TeachingRoster roster, TeachingGradeDraft draft) {
-        rosterStudents.clear();
-        rosterStudents.addAll(roster.getStudents());
         Map<String, GradeEntry> entriesByStudent = new LinkedHashMap<String, GradeEntry>();
         if (draft != null) {
             for (GradeEntry entry : draft.getEntries()) {
@@ -530,12 +619,22 @@ final class TeacherTeachingPanel extends JPanel {
             }
         }
         List<Object[]> rows = new ArrayList<Object[]>();
+        List<TeachingRosterEntry> ordered = new ArrayList<TeachingRosterEntry>(roster.getStudents());
+        Collections.sort(ordered, new Comparator<TeachingRosterEntry>() {
+            @Override public int compare(TeachingRosterEntry left, TeachingRosterEntry right) {
+                boolean leftMissing = !entriesByStudent.containsKey(left.getStudentId());
+                boolean rightMissing = !entriesByStudent.containsKey(right.getStudentId());
+                if (leftMissing != rightMissing) return leftMissing ? -1 : 1;
+                return left.getStudentId().compareTo(right.getStudentId());
+            }
+        });
+        rosterStudents.clear();
+        rosterStudents.addAll(ordered);
         for (TeachingRosterEntry student : rosterStudents) {
             GradeEntry entry = entriesByStudent.get(student.getStudentId());
-            rows.add(new Object[] { student.getStudentId(), student.getStudentName(),
-                    safe(student.getMajorName()), safe(student.getClassId()),
-                    student.getSelectionType().getDisplayName(),
-                    entry == null ? "未录入" : Integer.valueOf(entry.getScore()) });
+            rows.add(new Object[] { entry == null ? "未录入" : Integer.valueOf(entry.getScore()),
+                    student.getStudentId(), student.getStudentName(), safe(student.getMajorName()),
+                    safe(student.getClassId()), student.getSelectionType().getDisplayName() });
         }
         rosterModel.replaceRows(rows);
         String draftStatus = draft == null ? "" : "，草稿状态："
@@ -552,6 +651,7 @@ final class TeacherTeachingPanel extends JPanel {
         currentDraft = null;
         rosterStudents.clear();
         rosterModel.replaceRows(new ArrayList<Object[]>());
+        auditModel.replaceRows(new ArrayList<Object[]>());
         rosterTitle.setText("学生名单与成绩草稿");
         rosterHint.setText("选择一个教学班后，可先查看名单或打开成绩草稿。 ");
         score.setText("");
