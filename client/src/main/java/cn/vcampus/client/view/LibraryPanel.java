@@ -12,7 +12,6 @@ import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridLayout;
@@ -22,7 +21,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import javax.swing.JButton;
-import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JLabel;
@@ -55,7 +53,7 @@ public final class LibraryPanel extends JPanel {
     private final JTable historyTable = new JTable(historyModel);
     private final JTextField keywordField = new JTextField(16);
     private final JTextField categoryField = new JTextField(10);
-    private final JLabel status = new JLabel("输入查询条件，或直接点击“查询图书”查看全部馆藏");
+    private final JLabel status = new LibraryWrappingLabel("输入查询条件，或直接点击“查询图书”查看全部馆藏");
     private final JButton searchButton = new JButton("查询图书");
     private final JButton detailButton = new JButton("查看详情");
     private final JButton borrowButton = new JButton("借阅选中图书");
@@ -67,7 +65,7 @@ public final class LibraryPanel extends JPanel {
     private final JLabel catalogCountValue = metricValue();
     private final JLabel availableCountValue = metricValue();
     private final JLabel activeLoanCountValue = metricValue();
-    private final JLabel dueReminder = new JLabel("正在检查借阅期限…");
+    private final JLabel dueReminder = new LibraryWrappingLabel("正在检查借阅期限…");
 
     private boolean requestInProgress;
     private boolean initialLoadStarted;
@@ -85,7 +83,7 @@ public final class LibraryPanel extends JPanel {
     }
 
     private void build() {
-        setLayout(new BorderLayout(0, 16));
+        setLayout(new BorderLayout(0, UiMetrics.px(16)));
         setOpaque(false);
         add(header(), BorderLayout.NORTH);
         add(VCampusTheme.pageScroll(body()), BorderLayout.CENTER);
@@ -106,13 +104,12 @@ public final class LibraryPanel extends JPanel {
     }
 
     private JPanel body() {
-        JPanel panel = new ScrollablePagePanel(new BorderLayout(0, 14));
+        JPanel panel = new ScrollablePagePanel(new BorderLayout(0, UiMetrics.px(14)));
         panel.setOpaque(false);
         panel.add(overviewPanel(), BorderLayout.NORTH);
 
         JTabbedPane tabs = tabs();
-        tabs.setPreferredSize(new Dimension(0, 500));
-        tabs.setMinimumSize(new Dimension(0, 340));
+        tabs.setMinimumSize(UiMetrics.dimension(0, 340));
         panel.add(tabs, BorderLayout.CENTER);
         return panel;
     }
@@ -127,7 +124,7 @@ public final class LibraryPanel extends JPanel {
     }
 
     private JPanel overviewPanel() {
-        JPanel panel = new JPanel(new BorderLayout(0, 10));
+        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(10)));
         panel.setOpaque(false);
         panel.add(summaryCards(), BorderLayout.NORTH);
         panel.add(reminderPanel(), BorderLayout.SOUTH);
@@ -135,46 +132,46 @@ public final class LibraryPanel extends JPanel {
     }
 
     private JPanel reminderPanel() {
-        JPanel panel = new JPanel(new BorderLayout(12, 0));
+        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
         VCampusTheme.panel(panel);
         JLabel heading = new JLabel(manager ? "全校流通提醒" : "我的到期提醒");
         heading.setFont(VCampusTheme.font(Font.BOLD, 13));
         heading.setForeground(VCampusTheme.PRIMARY_DARK);
         VCampusTheme.statusPill(dueReminder, VCampusTheme.MUTED);
-        panel.add(heading, BorderLayout.WEST);
+        panel.add(heading, BorderLayout.NORTH);
         panel.add(dueReminder, BorderLayout.CENTER);
         return panel;
     }
 
     private JPanel statusPanel() {
-        JPanel statusPanel = new JPanel(new BorderLayout(14, 0));
+        JPanel statusPanel = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
         VCampusTheme.panel(statusPanel);
         JLabel label = new JLabel("操作状态");
         label.setFont(VCampusTheme.font(Font.BOLD, 13));
         label.setForeground(VCampusTheme.PRIMARY_DARK);
         VCampusTheme.statusPill(status, VCampusTheme.MUTED);
-        statusPanel.add(label, BorderLayout.WEST);
+        statusPanel.add(label, BorderLayout.NORTH);
         statusPanel.add(status, BorderLayout.CENTER);
         return statusPanel;
     }
 
     private JPanel header() {
-        JPanel panel = new JPanel(new BorderLayout(18, 0));
+        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
         panel.setOpaque(false);
         JPanel text = sectionHeading(manager ? "图书管理工作台" : "图书馆",
                 manager ? "维护馆藏与全校借阅流转记录" : "查找馆藏、办理借阅并管理个人借阅记录");
         String capabilities = manager
                 ? "管理员 · " + session.getUser().getDisplayName()
                 : "读者 · " + session.getUser().getDisplayName();
-        JLabel role = new JLabel(capabilities);
+        JLabel role = new LibraryWrappingLabel(capabilities);
         VCampusTheme.statusPill(role, manager ? VCampusTheme.PRIMARY : VCampusTheme.SUCCESS);
         panel.add(text, BorderLayout.CENTER);
-        panel.add(role, BorderLayout.EAST);
+        panel.add(role, BorderLayout.SOUTH);
         return panel;
     }
 
     private JPanel summaryCards() {
-        ResponsiveCardRowPanel row = new ResponsiveCardRowPanel(170, 12);
+        ResponsiveCardRowPanel row = new ResponsiveCardRowPanel(UiMetrics.px(210), UiMetrics.px(12));
         row.add(metricCard(manager ? "馆藏种类" : "检索结果", catalogCountValue,
                 "本次查询返回的图书种类", VCampusTheme.PRIMARY));
         row.add(metricCard("可借册数", availableCountValue,
@@ -185,14 +182,13 @@ public final class LibraryPanel extends JPanel {
     }
 
     private static JPanel metricCard(String title, JLabel value, String hint, Color accent) {
-        JPanel card = new JPanel(new BorderLayout(12, 0));
+        JPanel card = new JPanel(new BorderLayout(UiMetrics.px(12), 0));
         VCampusTheme.panel(card);
-        card.setPreferredSize(new Dimension(210, 92));
-        card.setMinimumSize(new Dimension(160, 92));
+        card.setMinimumSize(UiMetrics.dimension(160, 112));
 
         JPanel rail = new JPanel();
         rail.setBackground(accent);
-        rail.setPreferredSize(new Dimension(4, 0));
+        rail.setPreferredSize(UiMetrics.dimension(4, 0));
 
         JPanel copy = new JPanel();
         copy.setOpaque(false);
@@ -204,9 +200,9 @@ public final class LibraryPanel extends JPanel {
         hintLabel.setFont(VCampusTheme.font(Font.PLAIN, 12));
         hintLabel.setForeground(VCampusTheme.MUTED);
         copy.add(titleLabel);
-        copy.add(Box.createVerticalStrut(4));
+        copy.add(Box.createVerticalStrut(UiMetrics.px(4)));
         copy.add(value);
-        copy.add(Box.createVerticalStrut(3));
+        copy.add(Box.createVerticalStrut(UiMetrics.px(3)));
         copy.add(hintLabel);
 
         card.add(rail, BorderLayout.WEST);
@@ -233,30 +229,31 @@ public final class LibraryPanel extends JPanel {
     }
 
     private JPanel catalogPanel() {
-        JPanel panel = new JPanel(new BorderLayout(0, 12));
+        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
         VCampusTheme.panel(panel);
 
-        JPanel top = new JPanel(new BorderLayout(0, 10));
+        JPanel top = new JPanel(new BorderLayout(0, UiMetrics.px(10)));
         top.setOpaque(false);
         top.add(sectionHeading(manager ? "馆藏维护" : "馆藏检索",
                 manager ? "按书名、作者、ISBN 或分类定位馆藏，也可录入新书。"
                         : "支持书名、作者、ISBN 等关键词搜索；可多选后一次借阅。"), BorderLayout.NORTH);
-        JPanel search = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, 10, 6));
+        JPanel search = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10), UiMetrics.px(6)));
+        search.setName("librarySearchActions");
         search.setOpaque(false);
         VCampusTheme.field(keywordField);
         VCampusTheme.field(categoryField);
-        search.add(fieldLabel("关键词", keywordField));
-        search.add(keywordField);
-        search.add(fieldLabel("分类", categoryField));
-        search.add(categoryField);
-        VCampusTheme.primaryButton(searchButton);
+        keywordField.setFont(VCampusTheme.font(Font.PLAIN, 14));
+        categoryField.setFont(VCampusTheme.font(Font.PLAIN, 14));
+        search.add(searchField("关键词", keywordField));
+        search.add(searchField("分类", categoryField));
+        VCampusTheme.secondaryButton(searchButton);
         VCampusTheme.secondaryButton(resetSearchButton);
         search.add(searchButton);
         search.add(resetSearchButton);
         top.add(search, BorderLayout.CENTER);
 
         configureBookTable();
-        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, 10, 6));
+        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10), UiMetrics.px(6)));
         actions.setOpaque(false);
         VCampusTheme.secondaryButton(detailButton);
         actions.add(detailButton);
@@ -274,15 +271,15 @@ public final class LibraryPanel extends JPanel {
     }
 
     private JPanel historyPanel() {
-        JPanel panel = new JPanel(new BorderLayout(0, 12));
+        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
         VCampusTheme.panel(panel);
-        JPanel top = new JPanel(new BorderLayout(0, 10));
+        JPanel top = new JPanel(new BorderLayout(0, UiMetrics.px(10)));
         top.setOpaque(false);
         top.add(sectionHeading(manager ? "借阅流通记录" : "我的借阅记录",
                 manager ? "查看全校借阅流水，选择未归还记录可代为办理归还。"
                         : "查看本人借阅历史，选择借阅中的记录即可归还。"), BorderLayout.NORTH);
         configureHistoryTable();
-        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, 10, 6));
+        JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10), UiMetrics.px(6)));
         actions.setOpaque(false);
         VCampusTheme.secondaryButton(historyButton);
         VCampusTheme.primaryButton(returnButton);
@@ -318,23 +315,26 @@ public final class LibraryPanel extends JPanel {
 
     private static void configureTable(JTable table, int selectionMode) {
         VCampusTheme.table(table);
+        table.setPreferredScrollableViewportSize(UiMetrics.dimension(0, 260));
         table.setSelectionMode(selectionMode);
         table.setAutoCreateRowSorter(true);
     }
 
     private static void applyColumnWidths(JTable table, int[] widths) {
         for (int column = 0; column < widths.length && column < table.getColumnCount(); column++) {
-            table.getColumnModel().getColumn(column).setPreferredWidth(widths[column]);
+            int width = UiMetrics.px(widths[column]);
+            table.getColumnModel().getColumn(column).setMinWidth(width);
+            table.getColumnModel().getColumn(column).setPreferredWidth(width);
         }
     }
 
     private static JPanel sectionHeading(String title, String subtitle) {
-        JPanel panel = new JPanel(new BorderLayout(0, 3));
+        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(3)));
         panel.setOpaque(false);
-        JLabel titleLabel = new JLabel(title);
+        JLabel titleLabel = new LibraryWrappingLabel(title);
         titleLabel.setFont(VCampusTheme.font(Font.BOLD, 18));
         titleLabel.setForeground(VCampusTheme.PRIMARY_DARK);
-        JLabel subtitleLabel = new JLabel(subtitle);
+        JLabel subtitleLabel = new LibraryWrappingLabel(subtitle);
         subtitleLabel.setFont(VCampusTheme.font(Font.PLAIN, 13));
         subtitleLabel.setForeground(VCampusTheme.MUTED);
         panel.add(titleLabel, BorderLayout.NORTH);
@@ -348,6 +348,14 @@ public final class LibraryPanel extends JPanel {
         label.setForeground(VCampusTheme.TEXT);
         label.setLabelFor(target);
         return label;
+    }
+
+    private static JPanel searchField(String label, JTextField field) {
+        JPanel group = new JPanel(new BorderLayout(UiMetrics.px(8), 0));
+        group.setOpaque(false);
+        group.add(fieldLabel(label, field), BorderLayout.WEST);
+        group.add(field, BorderLayout.CENTER);
+        return group;
     }
 
     private void configureAccessibility() {
@@ -476,7 +484,7 @@ public final class LibraryPanel extends JPanel {
         final JTextField price = new JTextField();
         final JTextField copies = new JTextField("1");
         final JTextField location = new JTextField();
-        JPanel form = new JPanel(new GridLayout(0, 2, 10, 10));
+        JPanel form = new JPanel(new GridLayout(0, 2, UiMetrics.px(10), UiMetrics.px(10)));
         form.setOpaque(false);
         addField(form, "图书号*", id);
         addField(form, "书名*", title);
@@ -487,10 +495,10 @@ public final class LibraryPanel extends JPanel {
         addField(form, "参考价格（元）*", price);
         addField(form, "初始册数*", copies);
         addField(form, "馆藏位置", location);
-        JPanel dialog = new JPanel(new BorderLayout(0, 14));
+        JPanel dialog = new JPanel(new BorderLayout(0, UiMetrics.px(14)));
         dialog.setBackground(VCampusTheme.PANEL);
         dialog.setBorder(VCampusTheme.padding(8, 8, 8, 8));
-        dialog.setPreferredSize(new Dimension(470, 390));
+        dialog.setPreferredSize(UiMetrics.dimension(470, 500));
         dialog.add(sectionHeading("录入馆藏", "带 * 的字段为必填项；新书初始可借册数与总册数一致。"),
                 BorderLayout.NORTH);
         dialog.add(form, BorderLayout.CENTER);
@@ -520,20 +528,21 @@ public final class LibraryPanel extends JPanel {
 
     private static void addField(JPanel form, String label, JTextField field) {
         VCampusTheme.field(field);
+        field.setFont(VCampusTheme.font(Font.PLAIN, 14));
         field.getAccessibleContext().setAccessibleName(label.replace("*", ""));
         form.add(fieldLabel(label, field));
         form.add(field);
     }
 
     private static JPanel bookDetailPanel(Book book) {
-        JPanel panel = new JPanel(new BorderLayout(0, 14));
+        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(14)));
         panel.setBackground(VCampusTheme.PANEL);
         panel.setBorder(VCampusTheme.padding(8, 8, 8, 8));
-        panel.setPreferredSize(new Dimension(440, 285));
+        panel.setPreferredSize(UiMetrics.dimension(440, 350));
         panel.add(sectionHeading(book.getTitle(), book.getAuthor() + " · " + book.getCategory()),
                 BorderLayout.NORTH);
 
-        JPanel fields = new JPanel(new GridLayout(0, 2, 12, 10));
+        JPanel fields = new JPanel(new GridLayout(0, 2, UiMetrics.px(12), UiMetrics.px(10)));
         fields.setOpaque(false);
         addDetailRow(fields, "图书编号", book.getBookId());
         addDetailRow(fields, "ISBN", book.getIsbn());
@@ -544,7 +553,7 @@ public final class LibraryPanel extends JPanel {
         addDetailRow(fields, "当前可借", String.valueOf(book.getAvailableCopies()));
         panel.add(fields, BorderLayout.CENTER);
 
-        JLabel availability = new JLabel(book.getAvailableCopies() > 0
+        JLabel availability = new LibraryWrappingLabel(book.getAvailableCopies() > 0
                 ? "当前可借，可在馆藏列表选择后办理借阅"
                 : "当前已无可借库存，请稍后再查询");
         VCampusTheme.statusPill(availability,
@@ -557,7 +566,7 @@ public final class LibraryPanel extends JPanel {
         JLabel key = new JLabel(label);
         key.setFont(VCampusTheme.font(Font.BOLD, 13));
         key.setForeground(VCampusTheme.MUTED);
-        JLabel content = new JLabel(value == null || value.trim().isEmpty() ? "—" : value);
+        JLabel content = new LibraryWrappingLabel(value == null || value.trim().isEmpty() ? "—" : value);
         content.setFont(VCampusTheme.font(Font.PLAIN, 13));
         content.setForeground(VCampusTheme.TEXT);
         panel.add(key);
@@ -746,15 +755,15 @@ public final class LibraryPanel extends JPanel {
             setText(label);
             setHorizontalAlignment(SwingConstants.CENTER);
             setFont(VCampusTheme.font(Font.BOLD, 12));
-            setBorder(BorderFactory.createEmptyBorder(5, 8, 5, 8));
+            setBorder(VCampusTheme.padding(5, 8, 5, 8));
             if (selected) {
                 setBackground(table.getSelectionBackground());
                 setForeground(table.getSelectionForeground());
             } else if ("借阅中".equals(label)) {
-                setBackground(new Color(239, 246, 255));
+                setBackground(VCampusTheme.tintOf(VCampusTheme.PRIMARY, 12));
                 setForeground(VCampusTheme.PRIMARY);
             } else if ("已归还".equals(label)) {
-                setBackground(new Color(240, 253, 244));
+                setBackground(VCampusTheme.tintOf(VCampusTheme.SUCCESS, 12));
                 setForeground(VCampusTheme.SUCCESS);
             } else {
                 setBackground(row % 2 == 0 ? VCampusTheme.PANEL : VCampusTheme.TABLE_STRIPE);
