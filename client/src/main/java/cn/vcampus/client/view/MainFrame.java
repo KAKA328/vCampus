@@ -52,7 +52,8 @@ public final class MainFrame extends JFrame {
         root.add(contentPanel(), BorderLayout.CENTER);
         final AssistantPanel[] assistantRef = new AssistantPanel[1];
         javax.swing.JLayeredPane layered = new javax.swing.JLayeredPane() {
-            @Override public void doLayout() {
+            @Override
+            public void doLayout() {
                 root.setBounds(0, 0, getWidth(), getHeight());
                 int margin = Math.max(UiMetrics.px(14), getWidth() / 70);
                 AssistantPanel current = assistantRef[0];
@@ -69,7 +70,8 @@ public final class MainFrame extends JFrame {
         layered.add(root, javax.swing.JLayeredPane.DEFAULT_LAYER);
         layered.add(assistant, javax.swing.JLayeredPane.PALETTE_LAYER);
         layered.addComponentListener(new java.awt.event.ComponentAdapter() {
-            @Override public void componentResized(java.awt.event.ComponentEvent event) {
+            @Override
+            public void componentResized(java.awt.event.ComponentEvent event) {
                 assistant.resizeForWindow(layered.getWidth(), layered.getHeight());
                 layered.revalidate();
             }
@@ -212,7 +214,11 @@ public final class MainFrame extends JFrame {
             return;
         }
         if (useStorePanel(session.getUser().getRole(), module)) {
-            content.add(new StorePanel(host, port, session), BorderLayout.CENTER);
+            // 按入口标题决定身份页：「商店管理」=管理者页，「商店」=消费者页
+            StorePanel.Mode storeMode = "商店管理".equals(module.getTitle())
+                    ? StorePanel.Mode.MANAGER
+                    : StorePanel.Mode.CONSUMER;
+            content.add(new StorePanel(host, port, session, storeMode), BorderLayout.CENTER);
             refreshContent();
             return;
         }
@@ -304,11 +310,11 @@ public final class MainFrame extends JFrame {
     static boolean useStorePanel(Role role, ModuleDescriptor module) {
         if (module == null)
             return false;
-        // ADMIN 导航里的商店入口标题是“商店管理”，与买家角色的“商店”不同，两边都要接住，
-        // 否则管理员会掉进占位面板，永远用不到商品维护能力（对齐 useLibraryPanel 的处理方式）。
-        if (role == Role.ADMIN)
-            return "商店管理".equals(module.getTitle());
-        return (role == Role.STUDENT || role == Role.TEACHER || role == Role.STORE_MANAGER)
+        // ADMIN 与 STORE_MANAGER 同时拥有「商店」(消费者) 与「商店管理」(管理者) 两个独立入口，两个标题都要接住；
+        // STUDENT/TEACHER 只有「商店」消费者入口（对齐 useLibraryPanel 的多入口处理方式）。
+        if (role == Role.ADMIN || role == Role.STORE_MANAGER)
+            return "商店".equals(module.getTitle()) || "商店管理".equals(module.getTitle());
+        return (role == Role.STUDENT || role == Role.TEACHER)
                 && "商店".equals(module.getTitle());
     }
 

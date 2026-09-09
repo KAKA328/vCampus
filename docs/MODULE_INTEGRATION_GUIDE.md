@@ -149,7 +149,7 @@ Message response = Message.response(request, StatusCode.OK, data);
 | 用户管理 | `REGISTER`、`USER_IMPORT`、`UNREGISTER`、`LOGIN`、`LOGOUT`、`AUTHORIZE` |
 | 学生学籍 | `STUDENT_QUERY`、`STUDENT_UPDATE` |
 | 选课系统 | 完整选课 V2：`COURSE_SELECTION_QUERY_V2`、`COURSE_SELECT_OFFERING_V2`、`COURSE_DROP_RECORD_V2`；课程维护：`COURSE_MANAGE` + `CourseManagementCommand`，含课程目录、教学班创建、教学信息维护和选课轮次管理；培养方案维护：`COURSE_TRAINING_PLAN_MANAGE_V2` + `TrainingPlanManagementCommand` |
-| 商店 | `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY`、`STORE_RESTOCK`、`STORE_PRODUCT_ADD`、`STORE_PRODUCT_UPDATE`、`STORE_PRODUCT_DEACTIVATE`、`STORE_PRODUCT_REACTIVATE`、`STORE_CART_ADD`、`STORE_CART_REMOVE`、`STORE_CART_UPDATE`、`STORE_CART_QUERY`、`STORE_CART_DETAIL`、`STORE_CART_CHECKOUT`、`STORE_ORDER_LIST_ALL`、`STORE_HOT_PRODUCTS`、`STORE_ACCOUNT_QUERY`、`STORE_ACCOUNT_RECHARGE`、`STORE_ACCOUNT_ADJUST`、`STORE_ACCOUNT_LEDGER` |
+| 商店 | `STORE_QUERY`、`STORE_PURCHASE`、`STORE_ORDER_QUERY`、`STORE_RESTOCK`、`STORE_PRODUCT_ADD`、`STORE_PRODUCT_UPDATE`、`STORE_PRODUCT_DEACTIVATE`、`STORE_PRODUCT_REACTIVATE`、`STORE_CART_ADD`、`STORE_CART_REMOVE`、`STORE_CART_REMOVE_BATCH`、`STORE_CART_UPDATE`、`STORE_CART_QUERY`、`STORE_CART_DETAIL`、`STORE_CART_CHECKOUT`、`STORE_CART_CHECKOUT_SELECTED`、`STORE_ORDER_LIST_ALL`、`STORE_HOT_PRODUCTS`、`STORE_ACCOUNT_QUERY`、`STORE_ACCOUNT_RECHARGE`、`STORE_ACCOUNT_ADJUST`、`STORE_ACCOUNT_LEDGER` |
 
 如果需要新增消息类型，必须同步修改：
 
@@ -162,6 +162,10 @@ docs/MODULE_INTEGRATION_GUIDE.md
 新增消息类型不能只改枚举。合并前必须同时确认：请求 payload、响应 payload、服务端 Handler、`ServerApplication` 分发、客户端远程调用、权限校验、接口文档和测试是否一起补齐。商店命令均携带 token；服务器端必须按 token 和角色判断数据范围，不能只靠客户端隐藏按钮。`STORE_ORDER_QUERY` 只返回本人订单，`STORE_ORDER_LIST_ALL` 才允许商店管理员查看全量订单。
 
 商品上下架闭环：`STORE_PRODUCT_DEACTIVATE` 只置 `active=false`，`STORE_PRODUCT_REACTIVATE` 只翻回 `active=true`（都要求 `STORE_MANAGE`，均不碰库存/价格/类别等字段，reactivate 对已在售商品幂等）。`STORE_QUERY` 常规查询只返回**在售**商品；`includeInactive=true`（含已下架视图）只需 `STORE_READ`——学生/教师等买家也可开启浏览下架陈列，但"看得到 ≠ 买得到"：购买/加购仍由服务层拒绝下架品，客户端对下架行/卡片也会置灰购买与加购按钮。
+
+商品多字段查询：`STORE_QUERY` 的 `StoreQueryCommand` 除 `category`/`includeInactive` 外，还支持 `keyword`（忽略大小写匹配名称或说明，可空=不限）与 `minPrice`/`maxPrice`（`Double`，闭区间、可单边，可空=该侧不限），服务端经 `StoreService.searchProducts(keyword, category, minPrice, maxPrice, includeInactive)` 取各条件交集；`listProducts(category, includeInactive)` 委托 `searchProducts(null, category, null, null, includeInactive)`，旧行为不变。
+
+购物车批量操作：`STORE_CART_REMOVE_BATCH` + `CartRemoveBatchCommand(token, cartItemIds)` 一次删多条本人条目，`STORE_CART_CHECKOUT_SELECTED` + `CartCheckoutSelectedCommand(token, cartItemIds)` 仅结算勾选子集（服务端子集 checkout，语义与整单一致，成功后只删选中条目）；两者都要求 `STORE_PURCHASE`、`userId` 取自 token，服务层再按归属校验（批量删除一条都不属于本人返回 `NOT_FOUND`；结算选中任一 id 不属于本人或不存在整体返回 `NOT_FOUND`，空列表返回 `BAD_REQUEST`）。
 
 商店钱包（`STORE_ACCOUNT_*`）与购买/结账对接：`DefaultStoreService` 注入 4 个依赖（第 4 个 `WalletRepository`，把余额与流水当作同一一致性单元），`purchase`/`checkout` 走「预检(仅提示) → 原子 `deductStock` → 原子 `debit`（余额与流水同事务）→ 建单(UUID) → 清空购物车」的补偿顺序，任一步失败按序回滚此前已扣项，每个补偿都检查返回值，补偿失败仍返回 `CONFLICT`；库存/订单/购物车的跨资源一致性是单 JVM 下的补偿一致性。余额以「分」为单位存 `long`（`balance_cents BIGINT`），支付边界 `Math.round(totalPrice * 100)` 换算一次。`--db` 分支下钱包走 `AccessWalletRepository`（余额与流水在**同一 JDBC 事务**内原子写入），内存分支走 `InMemoryWalletRepository`（同一把锁内改余额并追加流水），两种模式接口一致。`STORE_ACCOUNT_ADJUST` 在服务端做双重门槛校验（`STORE_MANAGE` 权限 + 角色 ∈ {`ADMIN`, `STORE_MANAGER`}），客户端隐藏校正按钮只是 UX。
 
@@ -318,6 +322,8 @@ private Message dispatch(Message request) {
         case STORE_CART_QUERY:
         case STORE_CART_DETAIL:
         case STORE_CART_CHECKOUT:
+        case STORE_CART_REMOVE_BATCH:
+        case STORE_CART_CHECKOUT_SELECTED:
         case STORE_ORDER_LIST_ALL:
         case STORE_HOT_PRODUCTS:
         case STORE_ACCOUNT_QUERY:

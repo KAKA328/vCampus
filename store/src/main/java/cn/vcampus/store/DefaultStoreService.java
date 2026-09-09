@@ -8,7 +8,9 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 // 默认商店业务，通过提供商品仓库和订单仓库以实现业务逻辑
@@ -368,12 +370,59 @@ public final class DefaultStoreService implements StoreService {
         return index;
     }
 
-    // 购物车结账：加锁，与 purchase 共用同一把锁；逐项 原子扣库存 → 原子扣款 → 建单 → 清空
+    // 购物车结账（整单）：加锁，与 purchase 共用同一把锁；委托 checkoutInternal 清空本人全部条目
     @Override
     public synchronized final ServiceResult<Void> checkout(String userId) {
         List<CartItem> items = new ArrayList<CartItem>(cart.findByUserId(userId));
         if (items.isEmpty())
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "Cart is empty");
+        return checkoutInternal(userId, items, true);
+    }
+
+    // 购物车批量删除：一次删多条本人条目。列表为空 BAD_REQUEST；先按归属筛出本人条目，
+    // 选中 id 中属于本人的逐条删除，若一条都不属于本人（removed==0）返回 NOT_FOUND
+    @Override
+    public final ServiceResult<Void> removeFromCart(String userId, List<String> cartItemIds) {
+        if (userId == null || userId.trim().isEmpty())
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId must not be blank");
+        if (cartItemIds == null || cartItemIds.isEmpty())
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "cartItemIds must not be empty");
+        Set<String> owned = new HashSet<String>();
+        for (CartItem item : cart.findByUserId(userId))
+            owned.add(item.getCartItemId());
+        int removed = 0;
+        for (String id : cartItemIds) {
+            if (id != null && owned.contains(id) && cart.removeItem(id))
+                removed++;
+        }
+        if (removed == 0)
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "Cart item not found");
+        return ServiceResult.ok(null);
+    }
+
+    // 购物车结算选中：仅结算选中子集。列表为空 BAD_REQUEST；任一 id 不属于本人或不存在则整体 NOT_FOUND，
+    // 避免半结算造成用户困惑；校验通过后委托 checkoutInternal（clearAll=false）只删选中条目
+    @Override
+    public synchronized final ServiceResult<Void> checkoutItems(String userId, List<String> cartItemIds) {
+        if (cartItemIds == null || cartItemIds.isEmpty())
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "cartItemIds must not be empty");
+        Map<String, CartItem> ownedById = new HashMap<String, CartItem>();
+        for (CartItem item : cart.findByUserId(userId))
+            ownedById.put(item.getCartItemId(), item);
+        List<CartItem> selected = new ArrayList<CartItem>();
+        for (String id : cartItemIds) {
+            CartItem item = id == null ? null : ownedById.get(id);
+            if (item == null)
+                return ServiceResult.failure(StatusCode.NOT_FOUND, "Cart item not found or not owned");
+            selected.add(item);
+        }
+        return checkoutInternal(userId, selected, false);
+    }
+
+    // 结账核心：预检 → 逐项 原子扣库存 → 原子扣款 → 建单，任一步失败按序补偿回滚。
+    // clearAll=true 清空本人全部购物车条目（整单结算）；=false 只删除传入的选中条目（子集结算）。
+    // 仅由已加锁的 checkout/checkoutItems 调用，故自身不再声明 synchronized
+    private ServiceResult<Void> checkoutInternal(String userId, List<CartItem> items, boolean clearAll) {
         // 预检（仅提示）：库存 + 余额，真正裁决由逐项原子操作决定
         long estimatedCents = 0L;
         for (CartItem item : items) {
@@ -436,9 +485,14 @@ public final class DefaultStoreService implements StoreService {
                         "Could not create order; checkout rolled back");
             }
         }
-        // 清空购物车失败也要回滚，否则用户重试会重复下单
+        // 清理购物车失败也要回滚，否则用户重试会重复下单：整单清空全部，子集只删选中条目
         try {
-            cart.clearByUserId(userId);
+            if (clearAll) {
+                cart.clearByUserId(userId);
+            } else {
+                for (CartItem item : items)
+                    cart.removeItem(item.getCartItemId());
+            }
         } catch (RuntimeException failure) {
             return rollbackCheckoutResult(userId, created, deducted, debitedCents, StatusCode.CONFLICT,
                     "Could not clear cart; checkout rolled back");
@@ -546,21 +600,36 @@ public final class DefaultStoreService implements StoreService {
         return listProducts(category, false);
     }
 
-    // 列出商品（含下架视图）：includeInactive=false 与旧行为完全一致（只返回在售）；
-    // =true 时把已下架商品一并返回（管理端专用，通信层 STORE_MANAGE 双门槛已拦截普通买家）。
-    // category 可空/空白 = 全部类别；结果不可变。
-    // 排序固定为「在售在前、已下架在后，组内按商品编号升序」：默认视图不含下架商品，顺序与
-    // Access 的 ORDER BY product_id 一致；含下架视图下已下架商品全部沉底，便于管理员定位恢复
+    // 列出商品（含下架视图）：委托 searchProducts（keyword=null、价格不限），行为与旧版完全一致
     @Override
     public final ServiceResult<List<Product>> listProducts(String category, boolean includeInactive) {
-        String wanted = category == null ? null : category.trim();
-        if (wanted != null && wanted.isEmpty())
-            wanted = null;
+        return searchProducts(null, category, null, null, includeInactive);
+    }
+
+    // 多字段拼接查询：includeInactive=false 只返回在售；=true 一并返回已下架（管理端专用，通信层已拦截普通买家）。
+    // keyword 可空/空白=不限，忽略大小写匹配名称或说明；category 可空/空白=全部类别，精确匹配；
+    // minPrice/maxPrice 可空=该侧不限，闭区间比较。结果不可变。
+    // 排序固定为「在售在前、已下架在后，组内按商品编号升序」，与 listProducts 一致，便于管理员定位恢复
+    @Override
+    public final ServiceResult<List<Product>> searchProducts(String keyword, String category, Double minPrice,
+            Double maxPrice, boolean includeInactive) {
+        String wantedCategory = category == null ? null : category.trim();
+        if (wantedCategory != null && wantedCategory.isEmpty())
+            wantedCategory = null;
+        String wantedKeyword = keyword == null ? null : keyword.trim().toLowerCase();
+        if (wantedKeyword != null && wantedKeyword.isEmpty())
+            wantedKeyword = null;
         List<Product> result = new ArrayList<Product>();
         for (Product product : products.findAll()) {
             if (!includeInactive && !product.isActive())
                 continue;
-            if (wanted != null && !wanted.equals(product.getCategory()))
+            if (wantedCategory != null && !wantedCategory.equals(product.getCategory()))
+                continue;
+            if (minPrice != null && product.getPrice() < minPrice.doubleValue())
+                continue;
+            if (maxPrice != null && product.getPrice() > maxPrice.doubleValue())
+                continue;
+            if (wantedKeyword != null && !matchesKeyword(product, wantedKeyword))
                 continue;
             result.add(product);
         }
@@ -572,6 +641,13 @@ public final class DefaultStoreService implements StoreService {
             return left.getProductId().compareTo(right.getProductId());
         });
         return ServiceResult.ok(Collections.unmodifiableList(result));
+    }
+
+    // keyword 忽略大小写匹配商品名称或说明（null 字段按空串处理）
+    private static boolean matchesKeyword(Product product, String lowerKeyword) {
+        String name = product.getName() == null ? "" : product.getName().toLowerCase();
+        String description = product.getDescription() == null ? "" : product.getDescription().toLowerCase();
+        return name.contains(lowerKeyword) || description.contains(lowerKeyword);
     }
 
     // 查询余额：无账户返回 0

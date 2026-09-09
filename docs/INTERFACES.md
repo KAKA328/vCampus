@@ -119,10 +119,12 @@ StudentManagementService.findByIds(List<String> studentIds)
 
 商店当前使用以下 token-only 命令，服务端必须从 token 对应会话取得 `userId`，不得相信客户端传入的学生/用户编号：
 
-- `STORE_QUERY` + `StoreQueryCommand(token, category?, includeInactive?)`：查询在售商品，可按类别过滤；要求 `STORE_READ`。`includeInactive=true`（含已下架视图）学生/教师等买家**也可开启**浏览下架陈列，但"看得到 ≠ 买得到"——购买/加购仍由服务层对下架品拒绝；服务端经 `StoreService.listProducts(category, includeInactive)` 过滤。
+- `STORE_QUERY` + `StoreQueryCommand(token, keyword?, category?, minPrice?, maxPrice?, includeInactive?)`：多字段拼接查询商品，默认只返回在售商品；要求 `STORE_READ`。`keyword` 忽略大小写匹配名称或说明（可空=不限），`category` 精确匹配（可空=全部），`minPrice`/`maxPrice` 为 `Double` 闭区间、可单边（可空=该侧不限），各条件取交集；服务端经 `StoreService.searchProducts(keyword, category, minPrice, maxPrice, includeInactive)` 过滤（`listProducts(category, includeInactive)` 委托它，旧行为不变）。`includeInactive=true`（含已下架视图）学生/教师等买家**也可开启**浏览下架陈列，但"看得到 ≠ 买得到"——购买/加购仍由服务层对下架品拒绝。
 - `STORE_PURCHASE` + `StorePurchaseCommand(token, productId, quantity)`：直接购买；要求 `STORE_PURCHASE`。
 - `STORE_ORDER_QUERY` + `StoreOrderQueryCommand(token)`：查询本人订单；要求 `STORE_READ`。
 - `STORE_CART_ADD` / `STORE_CART_REMOVE` / `STORE_CART_QUERY` / `STORE_CART_CHECKOUT`：购物车增删查和结账，分别使用对应 `Cart*Command`；增删/结账要求 `STORE_PURCHASE`，查询要求 `STORE_READ`。
+- `STORE_CART_REMOVE_BATCH` + `CartRemoveBatchCommand(token, cartItemIds)`：一次删除多条本人购物车条目；要求 `STORE_PURCHASE`，`userId` 取自 token，服务层按归属筛除他人条目，若选中 id 一条都不属于本人返回 `NOT_FOUND`，空列表返回 `BAD_REQUEST`。
+- `STORE_CART_CHECKOUT_SELECTED` + `CartCheckoutSelectedCommand(token, cartItemIds)`：仅结算勾选子集（服务端子集 checkout，逐项原子扣库存→扣款→建单，成功后只删选中条目）；要求 `STORE_PURCHASE`，`userId` 取自 token，任一 id 不属于本人或不存在整体返回 `NOT_FOUND`，空列表返回 `BAD_REQUEST`。
 - `STORE_CART_UPDATE` + `CartUpdateCommand(token, cartItemId, newQuantity)`：修改购物车条目数量，`newQuantity` 必须为正；要求 `STORE_PURCHASE`，`userId` 取自 token，服务层再校验条目**归属本人**，不属于本人一律返回 `NOT_FOUND`（不区分「不存在」与「不是你的」，避免枚举他人条目）。
 - `STORE_CART_DETAIL` + `CartQueryCommand(token)`：购物车明细，响应 payload 为 `List<CartLine>`（`cartItemId`/`productId`/`productName`/`unitPriceCents`/`quantity`/`subtotalCents`/`active`/`addedAt`）；要求 `STORE_READ`，`userId` 取自 token。明细是**读取时与商品实时联表**的结果（不落库、`tblCartItem` 未加列），商品改名/调价后立即显示新值；`subtotalCents` 与结账实扣同式，**前端合计必须累加 `subtotalCents`**，不得用 `unitPriceCents × quantity`。
 - `STORE_RESTOCK`、`STORE_PRODUCT_ADD`、`STORE_PRODUCT_UPDATE`、`STORE_PRODUCT_DEACTIVATE`、`STORE_PRODUCT_REACTIVATE`：商品和库存维护，使用对应 `Store*Command`；均要求 `STORE_MANAGE`。其中 `STORE_PRODUCT_DEACTIVATE`（下架，置 `active=false`）与 `STORE_PRODUCT_REACTIVATE`（重新上架，置 `active=true`）互为逆操作，都只翻 `active` 位、不碰库存/价格等其他字段（重新上架对已在售商品幂等返回 OK）。

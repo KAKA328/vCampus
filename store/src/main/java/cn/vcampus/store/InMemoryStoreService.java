@@ -81,6 +81,11 @@ public final class InMemoryStoreService implements StoreService {
     }
 
     @Override
+    public final ServiceResult<Void> removeFromCart(String userId, List<String> cartItemIds) {
+        return delegate.removeFromCart(userId, cartItemIds);
+    }
+
+    @Override
     public final ServiceResult<List<CartItem>> getCart(String userId) {
         return delegate.getCart(userId);
     }
@@ -101,6 +106,11 @@ public final class InMemoryStoreService implements StoreService {
     }
 
     @Override
+    public final ServiceResult<Void> checkoutItems(String userId, List<String> cartItemIds) {
+        return delegate.checkoutItems(userId, cartItemIds);
+    }
+
+    @Override
     public final ServiceResult<List<Order>> findAllOrders() {
         return delegate.findAllOrders();
     }
@@ -118,6 +128,12 @@ public final class InMemoryStoreService implements StoreService {
     @Override
     public final ServiceResult<List<Product>> listProducts(String category, boolean includeInactive) {
         return delegate.listProducts(category, includeInactive);
+    }
+
+    @Override
+    public final ServiceResult<List<Product>> searchProducts(String keyword, String category, Double minPrice,
+            Double maxPrice, boolean includeInactive) {
+        return delegate.searchProducts(keyword, category, minPrice, maxPrice, includeInactive);
     }
 
     @Override

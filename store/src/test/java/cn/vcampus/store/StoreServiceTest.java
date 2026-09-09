@@ -1428,7 +1428,8 @@ class StoreServiceTest {
         assertEquals("b-late", all.get(2).getOrderId());// late 排最后
     }
 
-    // DSH A5：findByUserId 原按插入序返回，现同样以时间+订单号双键稳定排序（对齐 Access 版 ORDER BY order_date, order_id）
+    // DSH A5：findByUserId 原按插入序返回，现同样以时间+订单号双键稳定排序（对齐 Access 版 ORDER BY order_date,
+    // order_id）
     @Test
     void testFindOrdersByUserIdSortsByDateThenId() {
         LocalDateTime morning = LocalDateTime.of(2024, 3, 1, 8, 0);
@@ -1517,6 +1518,135 @@ class StoreServiceTest {
         assertEquals("Carrot", byId.get("00003").getProductName());
         assertEquals(50L, byId.get("00003").getUnitPriceCents());
         assertEquals(50L, byId.get("00003").getSubtotalCents());
+    }
+
+    // 多字段查询：keyword 忽略大小写匹配名称或说明
+    @Test
+    void testSearchProductsByKeywordMatchesNameOrDescription() {
+        ServiceResult<List<Product>> byName = service.searchProducts("APPLE", null, null, null, false);
+        assertEquals(StatusCode.OK, byName.getStatus());
+        assertEquals(1, byName.getData().size());
+        assertEquals("00001", byName.getData().get(0).getProductId());
+
+        ServiceResult<List<Product>> byDesc = service.searchProducts("crunchy", null, null, null, false);
+        assertEquals(1, byDesc.getData().size());
+        assertEquals("00003", byDesc.getData().get(0).getProductId());
+    }
+
+    // 多字段查询：价格闭区间（单边/双边）
+    @Test
+    void testSearchProductsByPriceRangeIsClosedInterval() {
+        ServiceResult<List<Product>> both = service.searchProducts(null, null, 1.5, 2.5, false);
+        assertEquals(StatusCode.OK, both.getStatus());
+        assertEquals(2, both.getData().size());// Banana(1.5) 与 Apple(2.5) 均在闭区间内
+
+        ServiceResult<List<Product>> lowerOnly = service.searchProducts(null, null, 2.0, null, false);
+        assertEquals(2, lowerOnly.getData().size());// Apple(2.5) 与 Toy Car(15)
+
+        ServiceResult<List<Product>> upperOnly = service.searchProducts(null, null, null, 0.5, false);
+        assertEquals(1, upperOnly.getData().size());// 仅 Carrot(0.5)
+    }
+
+    // 多字段查询：keyword + category + 价格区间可叠加
+    @Test
+    void testSearchProductsCombinesKeywordCategoryAndPrice() {
+        ServiceResult<List<Product>> result = service.searchProducts("car", "Toy", 10.0, 20.0, false);
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals(1, result.getData().size());
+        assertEquals("00004", result.getData().get(0).getProductId());
+
+        ServiceResult<List<Product>> fruitMid = service.searchProducts(null, "Fruit", 2.0, null, false);
+        assertEquals(1, fruitMid.getData().size());// 仅 Apple(2.5)，Banana(1.5) 被下界排除
+        assertEquals("00001", fruitMid.getData().get(0).getProductId());
+    }
+
+    // 多字段查询：includeInactive 与 keyword/category/价格叠加时放行下架商品
+    @Test
+    void testSearchProductsIncludeInactiveCombinesWithFilters() {
+        service.deactivateProduct("00001");// Apple(Fruit) 下架
+        ServiceResult<List<Product>> activeOnly = service.searchProducts(null, "Fruit", null, null, false);
+        assertEquals(1, activeOnly.getData().size());// 仅 Banana
+
+        ServiceResult<List<Product>> withInactive = service.searchProducts(null, "Fruit", null, null, true);
+        assertEquals(2, withInactive.getData().size());// Banana + 下架的 Apple
+    }
+
+    // 子集结算成功：仅结算选中条目，未选条目留在购物车，库存/订单只作用于子集
+    @Test
+    void testCheckoutItemsSubsetSuccess() {
+        int appleStock = products.findById("00001").getStock();
+        int bananaStock = products.findById("00002").getStock();
+        service.addToCart("0120", "00001", 2);
+        service.addToCart("0120", "00002", 3);
+        String appleCartId = cartItemIdOf("0120", "00001");
+
+        ServiceResult<Void> result = service.checkoutItems("0120", java.util.Arrays.asList(appleCartId));
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals(appleStock - 2, products.findById("00001").getStock());
+        assertEquals(bananaStock, products.findById("00002").getStock());// 未选条目库存不变
+        assertEquals(1, orders.findByUserId("0120").size());
+        assertEquals("00001", orders.findByUserId("0120").get(0).getProductId());
+        // 购物车仅剩未选中的 Banana
+        assertEquals(1, cartRepo.findByUserId("0120").size());
+        assertEquals("00002", cartRepo.findByUserId("0120").get(0).getProductId());
+    }
+
+    // 子集结算越权：选中条目不属于本人或不存在 → NOT_FOUND
+    @Test
+    void testCheckoutItemsNotOwnedOrMissing() {
+        service.addToCart("0121", "00001", 1);
+        String otherCartId = cartItemIdOf("0121", "00001");
+        assertEquals(StatusCode.NOT_FOUND,
+                service.checkoutItems("0120", java.util.Arrays.asList(otherCartId)).getStatus());
+        assertEquals(StatusCode.NOT_FOUND,
+                service.checkoutItems("0120", java.util.Arrays.asList("no-such-cart-item")).getStatus());
+        assertEquals(1, cartRepo.findByUserId("0121").size());// 他人购物车不受影响
+    }
+
+    // 子集结算空列表 → BAD_REQUEST
+    @Test
+    void testCheckoutItemsEmptyList() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.checkoutItems("0120", java.util.Collections.<String>emptyList()).getStatus());
+    }
+
+    // 批量移除购物车：多条本人条目一次删除
+    @Test
+    void testRemoveFromCartBatchSuccess() {
+        service.addToCart("0120", "00001", 1);
+        service.addToCart("0120", "00002", 1);
+        String id1 = cartItemIdOf("0120", "00001");
+        String id2 = cartItemIdOf("0120", "00002");
+        ServiceResult<Void> result = service.removeFromCart("0120", java.util.Arrays.asList(id1, id2));
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals(0, cartRepo.findByUserId("0120").size());
+    }
+
+    // 批量移除购物车：所有条目都不属于本人 → NOT_FOUND，且不误删他人条目
+    @Test
+    void testRemoveFromCartBatchNoneOwned() {
+        service.addToCart("0121", "00001", 1);
+        String otherCartId = cartItemIdOf("0121", "00001");
+        ServiceResult<Void> result = service.removeFromCart("0120", java.util.Arrays.asList(otherCartId));
+        assertEquals(StatusCode.NOT_FOUND, result.getStatus());
+        assertEquals(1, cartRepo.findByUserId("0121").size());
+    }
+
+    // 批量移除购物车：空列表 → BAD_REQUEST
+    @Test
+    void testRemoveFromCartBatchEmptyList() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.removeFromCart("0120", java.util.Collections.<String>emptyList()).getStatus());
+    }
+
+    // 测试辅助：按商品编号取出用户购物车条目 id
+    private String cartItemIdOf(String userId, String productId) {
+        for (CartItem item : service.getCart(userId).getData()) {
+            if (productId.equals(item.getProductId())) {
+                return item.getCartItemId();
+            }
+        }
+        throw new AssertionError("cart item not found for product " + productId);
     }
 
     private static final class FailingOrderRepository implements OrderRepository {
