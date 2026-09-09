@@ -20,6 +20,14 @@ class CourseMeetingTest {
     }
 
     @Test
+    void doesNotConflictWhenWeekRangesDoNotIntersect() {
+        CourseMeeting firstHalf = new CourseMeeting(DayOfWeek.MONDAY, 1, 2, 1, 8, "A201");
+        CourseMeeting secondHalf = new CourseMeeting(DayOfWeek.MONDAY, 1, 2, 9, 16, "B101");
+
+        assertFalse(firstHalf.overlaps(secondHalf));
+    }
+
+    @Test
     void rejectsInvalidMeetingInformation() {
         assertThrows(IllegalArgumentException.class,
                 () -> new CourseMeeting(null, 1, 2, "A201"));

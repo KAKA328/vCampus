@@ -100,3 +100,7 @@ mvn -q -pl server -am "-Dtest=AccessDatabaseSchemaTest" "-Dsurefire.failIfNoSpec
 
 ## 教务完整审查与毕业办理表
 新增 tblAcademicAssessment：保存完整学分统计、要求学分、依据、档案/成绩指纹、审查人和时间，以及毕业确认人、时间、说明。新教务页面使用此表；旧 tblAcademicReview 仅保留兼容。毕业状态与该记录在同一 JDBC 事务写入，失败回滚。旧库没有新表，本轮验收仍使用最新 schema.sql + seed.sql 重建临时/验收库；先保留原数据，不直接覆盖现有库。详见 ../docs/ACADEMIC_ADMIN_GRADUATION_INTEGRATION.md。
+
+学籍专项测试数据见 `database/student-test-data.sql`。在仓库根目录执行 `.\database\rebuild.ps1 -DatabasePath database\student-test.accdb -AdditionalScript database\student-test-data.sql`，即可创建独立测试库，并按顺序执行 `schema.sql`、`seed.sql` 和专项脚本。它补充在读、休学、退学学生、在职/非在职教师及首修/重修成绩场景；不创建登录账号，也不覆盖默认演示数据。服务端测试时使用 `--db database/student-test.accdb`。
+
+需要给其中部分档案创建登录账号时，使用系统管理员进入“用户管理 → 批量导入”，选择 `test-data/学籍账号批量导入示例.csv`。文件通过“档案编号”列绑定两名学生和一名在职教师，初始密码统一为 `Test123`；同一数据库中只能导入一次。

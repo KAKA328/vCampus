@@ -14,7 +14,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
 import javax.swing.JButton;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
+import javax.swing.JTable;
+import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -121,6 +126,84 @@ class LibraryPanelTest {
     void visibleLibraryActionsRemainKeyboardFocusable() {
         assertAllButtonsFocusable(panel(Role.STUDENT));
         assertAllButtonsFocusable(panel(Role.LIBRARIAN));
+    }
+
+    @Test
+    void narrowSearchBarKeepsEveryControlAccessibleAndTablesReadable() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            for (Role role : Arrays.asList(Role.STUDENT, Role.TEACHER, Role.LIBRARIAN)) {
+                LibraryPanel panel = panel(role);
+                JTabbedPane tabs = findTabs(panel);
+                for (int width : new int[] {420, 1000}) {
+                    for (int selected = 0; selected < tabs.getTabCount(); selected++) {
+                        tabs.setSelectedIndex(selected);
+                        panel.setSize(UiMetrics.dimension(width, 720));
+                        // Width-dependent page heights settle after nested wrapping layouts run.
+                        for (int pass = 0; pass < 8; pass++) layoutTree(panel);
+                        JPanel search = findSearchBar(panel);
+                        for (Component action : search.getComponents()) {
+                            assertTrue(action.getX() >= 0);
+                            assertTrue(action.getX() + action.getWidth() <= search.getWidth(),
+                                    "search control must fit at logical width " + width);
+                            assertTrue(action.getY() + action.getHeight() <= search.getHeight(),
+                                    "wrapped controls must remain in the toolbar");
+                        }
+                        assertReadableTables(tabs);
+                    }
+                }
+            }
+        });
+    }
+
+    @Test
+    void reminderWrapsAtNarrowWidthsAndTreatsUserTextAsPlainText() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            String message = "归还提醒：全校有 2 本图书已逾期，另有 3 本将在 3 天内到期，请尽快处理。";
+            JLabel label = new LibraryWrappingLabel(message);
+            VCampusTheme.statusPill(label, VCampusTheme.DANGER);
+            label.setSize(UiMetrics.dimension(1000, 100));
+            int wideHeight = label.getPreferredSize().height;
+            label.setSize(UiMetrics.dimension(240, 100));
+            assertTrue(label.getPreferredSize().height > wideHeight,
+                    "the whole reminder must wrap instead of being clipped");
+            assertEquals(message, label.getAccessibleContext().getAccessibleDescription());
+            label.setText("<script>书名 & 作者</script>");
+            assertTrue(label.getText().contains("&lt;script&gt;书名 &amp; 作者&lt;/script&gt;"));
+        });
+    }
+
+    private static void layoutTree(Container parent) {
+        parent.doLayout();
+        for (Component child : parent.getComponents()) {
+            if (child instanceof Container) layoutTree((Container) child);
+        }
+    }
+
+    private static JPanel findSearchBar(Container parent) {
+        if ("librarySearchActions".equals(parent.getName())) return (JPanel) parent;
+        for (Component child : parent.getComponents()) {
+            if (child instanceof Container) {
+                JPanel found = findSearchBar((Container) child);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private static void assertReadableTables(Container parent) {
+        if (parent instanceof JTable) {
+            JTable table = (JTable) parent;
+            assertEquals(JTable.AUTO_RESIZE_OFF, table.getAutoResizeMode());
+            int logicalMinimum = table.getColumnCount() == 10 ? 64 : 82;
+            for (int column = 0; column < table.getColumnCount(); column++) {
+                assertTrue(table.getColumnModel().getColumn(column).getWidth()
+                        >= UiMetrics.px(logicalMinimum));
+            }
+            assertTrue(table.getParent().getParent() instanceof JScrollPane);
+        }
+        for (Component child : parent.getComponents()) {
+            if (child instanceof Container) assertReadableTables((Container) child);
+        }
     }
 
     private static LibraryPanel panel(Role role) {

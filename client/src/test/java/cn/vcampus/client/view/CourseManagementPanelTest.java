@@ -7,33 +7,23 @@ import cn.vcampus.common.Role;
 import cn.vcampus.common.User;
 import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
-import java.awt.Component;
+import java.awt.CardLayout;
 import java.lang.reflect.Field;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import org.junit.jupiter.api.Test;
 
-/** 验证教务选课管理页已接入轮次、培养方案和成绩审核三个工作区。 */
+/** 验证教务选课管理页以入口卡片组织五个独立工作区。 */
 class CourseManagementPanelTest {
     @Test
-    void includesAllCourseManagementTabs() {
+    void presentsFiveManagementWorkspacesBehindLandingPage() throws Exception {
         CourseManagementPanel panel = new CourseManagementPanel("localhost", 19090,
                 new Session("token", new User("academic-001", "教务老师", Role.ACADEMIC_ADMIN)));
-        JScrollPane scroll = (JScrollPane) ((BorderLayout) panel.getLayout())
-                .getLayoutComponent(BorderLayout.CENTER);
-        JPanel body = (JPanel) scroll.getViewport().getView();
-        Component center = ((BorderLayout) body.getLayout()).getLayoutComponent(BorderLayout.CENTER);
-        JTabbedPane tabs = (JTabbedPane) center;
+        Field field = CourseManagementPanel.class.getDeclaredField("managementPages");
+        field.setAccessible(true);
+        ScrollablePagePanel pages = (ScrollablePagePanel) field.get(panel);
 
-        assertEquals(5, tabs.getTabCount());
-        assertEquals("选课轮次", tabs.getTitleAt(2));
-        assertTrue(tabs.getComponentAt(2) instanceof SelectionRoundManagementPanel);
-        assertEquals("培养方案", tabs.getTitleAt(3));
-        assertTrue(tabs.getComponentAt(3) instanceof TrainingPlanManagementPanel);
-        assertEquals("成绩审核", tabs.getTitleAt(4));
-        assertTrue(tabs.getPreferredSize().height >= UiMetrics.px(720));
+        assertTrue(pages.getLayout() instanceof CardLayout);
+        assertEquals(6, pages.getComponentCount());
     }
 
     @Test

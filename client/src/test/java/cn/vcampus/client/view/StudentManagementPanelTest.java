@@ -42,7 +42,8 @@ class StudentManagementPanelTest {
         assertTrue(field(panel, "phone", JTextField.class).isEditable());
         assertTrue(field(panel, "email", JTextField.class).isEditable());
         assertFalse(field(panel, "name", JTextField.class).isEditable());
-        assertFalse(field(panel, "academicStatus", JTextField.class).isEditable());
+        assertFalse(field(panel, "academicStatus", javax.swing.JComboBox.class).isEditable());
+        assertFalse(field(panel, "academicStatus", javax.swing.JComboBox.class).isEnabled());
     }
 
     @Test
@@ -55,8 +56,9 @@ class StudentManagementPanelTest {
         assertFalse(field(panel, "selfButton", JButton.class).isEnabled());
         assertTrue(field(panel, "classButton", JButton.class).isEnabled());
         assertFalse(field(panel, "saveButton", JButton.class).isEnabled());
-        assertTrue(field(panel, "academicStatus", JTextField.class).isEditable());
-        assertTrue(field(panel, "studentId", JTextField.class).isEditable());
+        assertFalse(field(panel, "academicStatus", javax.swing.JComboBox.class).isEditable());
+        assertTrue(field(panel, "academicStatus", javax.swing.JComboBox.class).isEnabled());
+        assertFalse(field(panel, "studentId", JTextField.class).isEditable());
     }
 
     @Test

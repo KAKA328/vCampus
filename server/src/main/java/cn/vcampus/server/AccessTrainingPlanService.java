@@ -140,6 +140,31 @@ public final class AccessTrainingPlanService implements TrainingPlanService {
     }
 
     @Override
+    public synchronized ServiceResult<TrainingPlan> updateBasicInfo(String planId, String majorName,
+            int enrollmentYear) {
+        if (normalize(planId) == null || normalize(majorName) == null || !validYear(enrollmentYear)) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "plan basic information is invalid");
+        }
+        ServiceResult<TrainingPlan> existing = findById(planId);
+        if (existing.getStatus() != StatusCode.OK) return existing;
+        if (existing.getData().getStatus() != TrainingPlanStatus.DRAFT) return ServiceResult.failure(
+                StatusCode.CONFLICT, "only DRAFT training plan can be maintained");
+        ServiceResult<TrainingPlan> scoped = findByMajorAndEnrollmentYear(majorName, enrollmentYear);
+        if (scoped.getStatus() == StatusCode.OK && !planId.equals(scoped.getData().getPlanId())) {
+            return ServiceResult.failure(StatusCode.CONFLICT, "training plan already exists for major and enrollment year");
+        }
+        if (scoped.getStatus() != StatusCode.OK && scoped.getStatus() != StatusCode.NOT_FOUND) return scoped;
+        TrainingPlan changed = existing.getData().withBasicInfo(majorName, enrollmentYear);
+        try (Connection connection = open(); PreparedStatement statement = connection.prepareStatement(
+                "UPDATE tblTrainingPlan SET major_name=?,enrollment_year=? WHERE plan_id=?")) {
+            statement.setString(1, changed.getMajorName()); statement.setInt(2, changed.getEnrollmentYear());
+            statement.setString(3, changed.getPlanId());
+            return statement.executeUpdate() == 1 ? ServiceResult.ok(changed)
+                    : ServiceResult.<TrainingPlan>failure(StatusCode.NOT_FOUND, "training plan not found");
+        } catch (SQLException failure) { return databaseFailure(failure); }
+    }
+
+    @Override
     public synchronized ServiceResult<TrainingPlan> saveCourse(String planId, TrainingPlanCourse course) {
         if (normalize(planId) == null || course == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "planId and course must not be null");

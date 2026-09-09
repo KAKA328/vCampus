@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import javax.swing.JButton;
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
@@ -91,8 +90,9 @@ final class GradeReviewPanel extends JPanel {
 
         add(workspace(), BorderLayout.CENTER);
         add(status, BorderLayout.SOUTH);
-        showStatus("请先刷新待审核成绩单", VCampusTheme.MUTED);
+        showStatus("正在自动加载待审核成绩单", VCampusTheme.MUTED);
         updateInteractiveState();
+        CourseUiSupport.loadOnFirstShow(this, this::loadPending);
     }
 
     private JSplitPane workspace() {
@@ -297,13 +297,8 @@ final class GradeReviewPanel extends JPanel {
             showStatus("请先选择一份待审核成绩单", VCampusTheme.DANGER);
             return;
         }
-        String remark = JOptionPane.showInputDialog(this, "请填写退回原因：", "退回修改",
-                JOptionPane.WARNING_MESSAGE);
+        String remark = CourseUiSupport.promptRequiredText(this, "退回修改", "请填写退回原因：");
         if (remark == null) {
-            return;
-        }
-        if (remark.trim().isEmpty()) {
-            showStatus("退回原因不能为空", VCampusTheme.DANGER);
             return;
         }
         if (!CourseUiSupport.confirmHighImpact(this, "确认退回成绩单",

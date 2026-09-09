@@ -75,6 +75,16 @@ public final class InMemoryGradeSubmissionService implements GradeSubmissionServ
     }
 
     @Override
+    public synchronized ServiceResult<List<GradeSubmission>> listReviewHistory() {
+        List<GradeSubmission> result = new ArrayList<GradeSubmission>();
+        for (GradeSubmission submission : submissions.values()) {
+            if (submission.getStatus() == GradeSubmissionStatus.APPROVED
+                    || submission.getStatus() == GradeSubmissionStatus.RETURNED) result.add(submission);
+        }
+        return ServiceResult.ok(Collections.unmodifiableList(result));
+    }
+
+    @Override
     public synchronized ServiceResult<List<GradeEntry>> listEntries(String submissionId) {
         ServiceResult<GradeSubmission> submission = findById(submissionId);
         if (submission.getStatus() != StatusCode.OK) {

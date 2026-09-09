@@ -55,7 +55,7 @@ class DefaultCourseSelectionServiceTest {
         ServiceResult<List<SelectableCourseOffering>> offerings = service.listAvailableOfferings(student,
                 "ROUND-INITIAL", NOW);
 
-        assertEquals(1, rounds.getData().size());
+        assertEquals(2, rounds.getData().size());
         assertEquals(4, offerings.getData().size());
         assertEquals(SelectionType.REQUIRED, offerings.getData().get(0).getSelectionType());
         assertEquals(SelectionType.ELECTIVE, offerings.getData().get(2).getSelectionType());
@@ -79,8 +79,10 @@ class DefaultCourseSelectionServiceTest {
 
     @Test
     void retakeRoundUsesRequiredCapacityAndRequiresPendingRetakeCourse() {
-        assertEquals(StatusCode.FORBIDDEN, service.listAvailableOfferings(student, "ROUND-RETAKE",
-                NOW).getStatus());
+        ServiceResult<List<SelectableCourseOffering>> noRetakeOfferings =
+                service.listAvailableOfferings(student, "ROUND-RETAKE", NOW);
+        assertEquals(StatusCode.OK, noRetakeOfferings.getStatus());
+        assertEquals(0, noRetakeOfferings.getData().size());
 
         ServiceResult<CourseSelectionRecord> result = service.select(retakeStudent, "ROUND-RETAKE",
                 "OFFER-CS101-A", NOW);

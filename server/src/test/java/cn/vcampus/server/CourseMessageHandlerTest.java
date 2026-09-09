@@ -59,6 +59,19 @@ class CourseMessageHandlerTest {
                 CourseSelectionQueryV2Command.availableRounds(session.getToken())));
         assertEquals(StatusCode.OK, response.getStatusCode());
         assertTrue(response.getPayload() instanceof List<?>);
+        assertEquals(2, ((List<?>) response.getPayload()).size());
+    }
+
+    @Test
+    void retakeRoundIsVisibleButReturnsNoOfferingsWithoutRetakeEligibility() {
+        Message response = handler.handle(Message.request("retake-offerings",
+                MessageType.COURSE_SELECTION_QUERY_V2,
+                CourseSelectionQueryV2Command.availableOfferings(session.getToken(),
+                        "ROUND-RETAKE")));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertTrue(response.getPayload() instanceof List<?>);
+        assertTrue(((List<?>) response.getPayload()).isEmpty());
     }
 
     @Test

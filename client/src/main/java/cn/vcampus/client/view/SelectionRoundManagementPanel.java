@@ -92,8 +92,9 @@ final class SelectionRoundManagementPanel extends JPanel {
         add(controls(), BorderLayout.NORTH);
         add(tableCard(), BorderLayout.CENTER);
         add(statusHint, BorderLayout.SOUTH);
-        showStatus("填写学期后查询，或新建首修/重修轮次", VCampusTheme.MUTED);
+        showStatus("正在自动加载选课轮次", VCampusTheme.MUTED);
         updateInteractiveState();
+        CourseUiSupport.loadOnFirstShow(this, this::loadRounds);
     }
 
     private JPanel controls() {

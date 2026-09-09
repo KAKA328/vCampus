@@ -27,22 +27,22 @@ class StudentConditionalWriteTest {
         assertEquals(StatusCode.OK, service.saveIfUnchanged(original, null).getStatus());
         assertEquals(StatusCode.CONFLICT, service.saveIfUnchanged(row("S1", "u1", "毕业", null), null).getStatus());
         StudentRecord expected = repository.findById("S1");
-        assertEquals(StatusCode.OK, service.saveIfUnchanged(StudentProfileSnapshot.withContacts(expected, "one", null), expected).getStatus());
-        assertEquals(StatusCode.CONFLICT, service.saveIfUnchanged(StudentProfileSnapshot.withContacts(expected, "two", null), expected).getStatus());
-        assertEquals("one", repository.findById("S1").getPhone());
+        assertEquals(StatusCode.OK, service.saveIfUnchanged(StudentProfileSnapshot.withContacts(expected, "13800000001", null), expected).getStatus());
+        assertEquals(StatusCode.CONFLICT, service.saveIfUnchanged(StudentProfileSnapshot.withContacts(expected, "13800000002", null), expected).getStatus());
+        assertEquals("13800000001", repository.findById("S1").getPhone());
         expected = repository.findById("S1");
-        assertEquals(StatusCode.FORBIDDEN, service.updateContacts("intruder", expected, "bad", null).getStatus());
-        repository.save(row("S1", "new_owner", "在读", "one"));
-        assertEquals(StatusCode.CONFLICT, service.updateContacts("u1", expected, "bad", null).getStatus());
+        assertEquals(StatusCode.FORBIDDEN, service.updateContacts("intruder", expected, "13800000003", null).getStatus());
+        repository.save(row("S1", "new_owner", "在读", "13800000001"));
+        assertEquals(StatusCode.CONFLICT, service.updateContacts("u1", expected, "13800000003", null).getStatus());
         assertEquals("new_owner", repository.findById("S1").getUserId());
-        assertEquals("one", repository.findById("S1").getPhone());
+        assertEquals("13800000001", repository.findById("S1").getPhone());
         // Null expected profile creates only; duplicate account binding remains a conflict.
         assertEquals(StatusCode.CONFLICT, service.saveIfUnchanged(row("S2", "new_owner", "在读", null), null).getStatus());
         assertNull(repository.findById("S2"));
         // SQL nullable fields and empty optional fields round-trip without spuriously failing CAS.
         repository.save(row("S3", null, "在读", ""));
         expected = repository.findById("S3");
-        assertEquals(StatusCode.OK, service.saveIfUnchanged(row("S3", "u3", "在读", "set"), expected).getStatus());
+        assertEquals(StatusCode.OK, service.saveIfUnchanged(row("S3", "u3", "在读", "13800000004"), expected).getStatus());
         if (access) {
             try (Connection c = DriverManager.getConnection("jdbc:ucanaccess://" + database
                     + ";immediatelyReleaseResources=true"); Statement statement = c.createStatement()) {

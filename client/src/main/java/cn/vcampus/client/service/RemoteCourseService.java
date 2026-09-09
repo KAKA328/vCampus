@@ -11,6 +11,7 @@ import cn.vcampus.course.CourseManagementCommand;
 import cn.vcampus.course.CourseSelectionQueryV2Command;
 import cn.vcampus.course.CourseSelectOfferingV2Command;
 import cn.vcampus.course.CourseTeachingQueryV2Command;
+import cn.vcampus.course.CourseTeacherDirectoryV1Command;
 import cn.vcampus.course.SelectionRound;
 import cn.vcampus.course.SelectionRoundStatus;
 import cn.vcampus.course.TrainingPlan;
@@ -68,6 +69,13 @@ public final class RemoteCourseService implements Closeable {
                 CourseGradeDraftV2Command.submitForReview(token, offeringId));
     }
 
+    /** 查询当前任课老师本人教学班的成绩提交流转记录。 */
+    public Message gradeDraftAudit(String token, String offeringId)
+            throws IOException, ClassNotFoundException {
+        return send(MessageType.COURSE_GRADE_DRAFT_V2,
+                CourseGradeDraftV2Command.listAudit(token, offeringId));
+    }
+
     /** 导入 CSV、XLS 或 XLSX 成绩文件的字节内容。 */
     public Message importGrades(String token, String offeringId, String fileName, byte[] content)
             throws IOException, ClassNotFoundException {
@@ -79,6 +87,10 @@ public final class RemoteCourseService implements Closeable {
     public Message pendingGradeSubmissions(String token) throws IOException, ClassNotFoundException {
         return send(MessageType.COURSE_GRADE_REVIEW_V2,
                 CourseGradeReviewV2Command.listPending(token));
+    }
+
+    public Message gradeReviewHistory(String token) throws IOException, ClassNotFoundException {
+        return send(MessageType.COURSE_GRADE_REVIEW_V2, CourseGradeReviewV2Command.listHistory(token));
     }
 
     public Message gradeReviewDetail(String token, String submissionId)
@@ -111,6 +123,12 @@ public final class RemoteCourseService implements Closeable {
         return send(MessageType.COURSE_MANAGE, command);
     }
 
+    /** 查询可被分配教学班的在职教师。 */
+    public Message activeTeachers(String token) throws IOException, ClassNotFoundException {
+        return send(MessageType.COURSE_TEACHER_DIRECTORY_V1,
+                new CourseTeacherDirectoryV1Command(token));
+    }
+
     public Message selectionRoundsByTerm(String token, String term)
             throws IOException, ClassNotFoundException {
         return manage(CourseManagementCommand.listSelectionRoundsByTerm(token, term));
@@ -140,6 +158,11 @@ public final class RemoteCourseService implements Closeable {
     public Message createTrainingPlan(String token, TrainingPlan plan)
             throws IOException, ClassNotFoundException {
         return manageTrainingPlans(TrainingPlanManagementCommand.create(token, plan));
+    }
+
+    public Message updateTrainingPlanBasicInfo(String token, TrainingPlan plan)
+            throws IOException, ClassNotFoundException {
+        return manageTrainingPlans(TrainingPlanManagementCommand.updateBasicInfo(token, plan));
     }
 
     public Message saveTrainingPlanCourse(String token, String planId, TrainingPlanCourse course)
