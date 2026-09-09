@@ -21,9 +21,9 @@ class FeaturePanelScrollTest {
                 .getLayoutComponent(BorderLayout.CENTER);
         JPanel body = (JPanel) ((JScrollPane) tabs.getComponentAt(0)).getViewport().getView();
         JSplitPane split = (JSplitPane) ((BorderLayout) body.getLayout()).getLayoutComponent(BorderLayout.CENTER);
-        split.setSize(600, 920); split.doLayout();
+        split.setSize(UiMetrics.dimension(600, 920)); split.doLayout();
         org.junit.jupiter.api.Assertions.assertEquals(JSplitPane.VERTICAL_SPLIT, split.getOrientation());
-        split.setSize(1000, 620); split.doLayout();
+        split.setSize(UiMetrics.dimension(1000, 620)); split.doLayout();
         org.junit.jupiter.api.Assertions.assertEquals(JSplitPane.HORIZONTAL_SPLIT, split.getOrientation());
     }
     @Test

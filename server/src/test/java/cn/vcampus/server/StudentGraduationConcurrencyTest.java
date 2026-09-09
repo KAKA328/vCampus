@@ -34,7 +34,7 @@ class StudentGraduationConcurrencyTest {
         } else {
             repository = new InMemoryStudentRepository();
             repository.save(new StudentRecord("demo_student", "demo_student", "学生", "未知",
-                    "院系", "专业", "班级", 2026, "在读", "old", null));
+                    "院系", "专业", "班级", 2026, "在读", "13800000000", null));
         }
         CountDownLatch snapshotRead = new CountDownLatch(1);
         CountDownLatch resumeSave = new CountDownLatch(1);
@@ -72,7 +72,7 @@ class StudentGraduationConcurrencyTest {
         try {
             Future<Message> save = worker.submit(() -> handler.handle(Message.request("save",
                     MessageType.STUDENT_UPDATE, new StudentUpdateCommand(token,
-                            StudentProfileSnapshot.withContacts(before, "new-phone", "new@example.test")))));
+                            StudentProfileSnapshot.withContacts(before, "13800000001", "new@example.test")))));
             assertTrue(snapshotRead.await(15, TimeUnit.SECONDS), "request must read old profile first");
             ServiceResult<?> graduated = administration.execute(
                     command(studentId, AcademicAdminCommandV1.Action.GRADUATE, assessment.getId()), "academic");
@@ -89,10 +89,10 @@ class StudentGraduationConcurrencyTest {
             // A newly loaded graduated profile can still update contacts without undoing graduation.
             // Access 分支的学生主键是 20260001，但联系方式权限仍按绑定登录账号 demo_student 校验。
             ServiceResult<StudentRecord> contacts = students.updateContacts(after.getUserId(), after,
-                    "fresh", null);
+                    "13800000002", null);
             assertEquals(StatusCode.OK, contacts.getStatus());
             assertEquals("毕业", repository.findById(studentId).getStatus());
-            assertEquals("fresh", repository.findById(studentId).getPhone());
+            assertEquals("13800000002", repository.findById(studentId).getPhone());
         } finally {
             resumeSave.countDown();
             worker.shutdownNow();

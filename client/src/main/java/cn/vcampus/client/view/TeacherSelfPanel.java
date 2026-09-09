@@ -14,11 +14,12 @@ final class TeacherSelfPanel extends JPanel {
     interface Loader { Message load() throws Exception; }
     private final Loader loader;
     private final JTextField[] values = new JTextField[6];
-    private final JLabel status = new JLabel("点击查询，查看本人教师档案。");
-    private final JButton refresh = new JButton("查询 / 刷新本人信息");
+    private final JLabel status = new JLabel("进入页面后自动加载本人教师档案。");
+    private final JButton refresh = new JButton("刷新个人信息");
     private long version;
+    private boolean initialLoadStarted;
     private final JLabel identity = new JLabel("教师个人档案");
-    private final JLabel employment = new JLabel("待查询");
+    private final JLabel employment = new JLabel("待加载");
 
     TeacherSelfPanel(String host, int port, Session session) {
         this(() -> {
@@ -76,13 +77,26 @@ final class TeacherSelfPanel extends JPanel {
         body.add(footer, BorderLayout.CENTER);
         add(VCampusTheme.pageScroll(body), BorderLayout.CENTER);
         refresh.addActionListener(event -> reload());
+        addHierarchyListener(event -> {
+            if ((event.getChangeFlags() & java.awt.event.HierarchyEvent.SHOWING_CHANGED) != 0
+                    && isShowing()) {
+                loadIfNeeded(true);
+            }
+        });
+    }
+
+    void loadIfNeeded(boolean showing) {
+        if (showing && !initialLoadStarted) {
+            initialLoadStarted = true;
+            reload();
+        }
     }
 
     void reload() {
         final long current = ++version;
         clear();
         refresh.setEnabled(false);
-        status.setText("正在查询本人信息…");
+        status.setText("正在加载本人信息…");
         new SwingWorker<Message, Void>() {
             @Override protected Message doInBackground() throws Exception { return loader.load(); }
             @Override protected void done() {
@@ -118,7 +132,7 @@ final class TeacherSelfPanel extends JPanel {
 
     private void clear() {
         for (JTextField value : values) value.setText("");
-        identity.setText("教师个人档案"); employment.setText("待查询");
+        identity.setText("教师个人档案"); employment.setText("待加载");
         VCampusTheme.statusPill(employment, VCampusTheme.MUTED);
     }
 
