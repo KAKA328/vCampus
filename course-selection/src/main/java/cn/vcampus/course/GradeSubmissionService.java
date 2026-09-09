@@ -9,6 +9,8 @@ public interface GradeSubmissionService {
     ServiceResult<GradeSubmission> findById(String submissionId);
     ServiceResult<GradeSubmission> findByOffering(String offeringId);
     ServiceResult<List<GradeSubmission>> listByStatus(GradeSubmissionStatus status);
+    /** 返回已处理的审核记录（通过或退回），供教务端历史页使用。 */
+    ServiceResult<List<GradeSubmission>> listReviewHistory();
     ServiceResult<List<GradeEntry>> listEntries(String submissionId);
     /** 返回当前供教务审核的最新不可变提交版本。 */
     ServiceResult<GradeReviewSnapshot> findLatestReviewSnapshot(String submissionId);

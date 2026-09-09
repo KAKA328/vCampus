@@ -11,6 +11,7 @@ import cn.vcampus.course.CourseManagementCommand;
 import cn.vcampus.course.CourseSelectionQueryV2Command;
 import cn.vcampus.course.CourseSelectOfferingV2Command;
 import cn.vcampus.course.CourseTeachingQueryV2Command;
+import cn.vcampus.course.CourseTeacherDirectoryV1Command;
 import cn.vcampus.course.SelectionRound;
 import cn.vcampus.course.SelectionRoundStatus;
 import cn.vcampus.course.TrainingPlan;
@@ -81,6 +82,10 @@ public final class RemoteCourseService implements Closeable {
                 CourseGradeReviewV2Command.listPending(token));
     }
 
+    public Message gradeReviewHistory(String token) throws IOException, ClassNotFoundException {
+        return send(MessageType.COURSE_GRADE_REVIEW_V2, CourseGradeReviewV2Command.listHistory(token));
+    }
+
     public Message gradeReviewDetail(String token, String submissionId)
             throws IOException, ClassNotFoundException {
         return send(MessageType.COURSE_GRADE_REVIEW_V2,
@@ -109,6 +114,12 @@ public final class RemoteCourseService implements Closeable {
     public Message manage(CourseManagementCommand command) throws IOException, ClassNotFoundException {
         if (command == null) throw new IllegalArgumentException("command must not be null");
         return send(MessageType.COURSE_MANAGE, command);
+    }
+
+    /** 查询可被分配教学班的在职教师。 */
+    public Message activeTeachers(String token) throws IOException, ClassNotFoundException {
+        return send(MessageType.COURSE_TEACHER_DIRECTORY_V1,
+                new CourseTeacherDirectoryV1Command(token));
     }
 
     public Message selectionRoundsByTerm(String token, String term)
@@ -140,6 +151,11 @@ public final class RemoteCourseService implements Closeable {
     public Message createTrainingPlan(String token, TrainingPlan plan)
             throws IOException, ClassNotFoundException {
         return manageTrainingPlans(TrainingPlanManagementCommand.create(token, plan));
+    }
+
+    public Message updateTrainingPlanBasicInfo(String token, TrainingPlan plan)
+            throws IOException, ClassNotFoundException {
+        return manageTrainingPlans(TrainingPlanManagementCommand.updateBasicInfo(token, plan));
     }
 
     public Message saveTrainingPlanCourse(String token, String planId, TrainingPlanCourse course)
