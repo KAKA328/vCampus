@@ -54,18 +54,10 @@ public final class DefaultCourseSelectionService implements CourseSelectionServi
         if (roundResult.getStatus() != StatusCode.OK) {
             return roundResult;
         }
-        List<SelectionRound> eligibleRounds = new ArrayList<SelectionRound>();
-        for (SelectionRound round : roundResult.getData()) {
-            if (round.getType() == SelectionRoundType.INITIAL) {
-                if (eligibleCourseTypes(student, round).getStatus() == StatusCode.OK) {
-                    eligibleRounds.add(round);
-                }
-            } else if (round.getType() == SelectionRoundType.RETAKE
-                    && !student.getPendingRetakeCourseIds().isEmpty()) {
-                eligibleRounds.add(round);
-            }
-        }
-        return ServiceResult.ok(Collections.unmodifiableList(eligibleRounds));
+        // 轮次入口按当前学期的开放状态展示。学生是否具备某轮次的实际选课资格，
+        // 在进入轮次后查询课程列表及提交选课时再由服务端校验。
+        return ServiceResult.ok(Collections.unmodifiableList(
+                new ArrayList<SelectionRound>(roundResult.getData())));
     }
 
     @Override
@@ -74,6 +66,12 @@ public final class DefaultCourseSelectionService implements CourseSelectionServi
         ServiceResult<SelectionRound> roundResult = availableRound(student, roundId, time);
         if (roundResult.getStatus() != StatusCode.OK) {
             return ServiceResult.failure(roundResult.getStatus(), roundResult.getMessage());
+        }
+        // 重修轮次对没有待重修课程的学生仍可进入，用空列表表达“本轮暂无可选课程”。
+        // 其他资格或数据异常继续返回原始错误，避免客户端误将服务端故障显示为空状态。
+        if (roundResult.getData().getType() == SelectionRoundType.RETAKE
+                && student.getPendingRetakeCourseIds().isEmpty()) {
+            return ServiceResult.ok(Collections.<SelectableCourseOffering>emptyList());
         }
         ServiceResult<Map<String, SelectionType>> eligibleResult = eligibleCourseTypes(student,
                 roundResult.getData());

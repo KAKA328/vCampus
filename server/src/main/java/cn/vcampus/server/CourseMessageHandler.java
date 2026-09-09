@@ -18,6 +18,7 @@ import cn.vcampus.course.CourseSelectionQueryV2Command;
 import cn.vcampus.course.CourseSelectOfferingV2Command;
 import cn.vcampus.course.CourseSelectionService;
 import cn.vcampus.course.CourseTeachingQueryV2Command;
+import cn.vcampus.course.CourseTeacherDirectoryV1Command;
 import cn.vcampus.course.GradeEntry;
 import cn.vcampus.course.GradeImportFileParser;
 import cn.vcampus.course.GradeImportResult;
@@ -176,6 +177,9 @@ final class CourseMessageHandler {
                 case COURSE_DROP_RECORD_V2:
                     result = drop(payload(request, CourseDropRecordV2Command.class));
                     break;
+                case COURSE_TEACHER_DIRECTORY_V1:
+                    result = activeTeachers(payload(request, CourseTeacherDirectoryV1Command.class));
+                    break;
                 case COURSE_TEACHING_QUERY_V2:
                     result = teachingQuery(payload(request, CourseTeachingQueryV2Command.class));
                     break;
@@ -229,6 +233,19 @@ final class CourseMessageHandler {
         ServiceResult<StudentSelectionProfile> profile = profile(command.getToken(), Permission.COURSE_SELECT);
         return profile.getStatus() == StatusCode.OK
                 ? courses.drop(profile.getData(), command.getRecordId(), LocalDateTime.now()) : profile;
+    }
+
+    /** 教务端仅获取已建档且在职的教师，教学班保存时仍会再次校验。 */
+    private ServiceResult<?> activeTeachers(CourseTeacherDirectoryV1Command command) {
+        ServiceResult<Void> authorization = authorizeCourseManager(command.getToken());
+        if (authorization.getStatus() != StatusCode.OK) return authorization;
+        if (teachers == null) return ServiceResult.failure(StatusCode.NOT_FOUND,
+                "teacher directory is not configured");
+        ServiceResult<List<TeacherProfile>> result = teachers.findAll();
+        if (result.getStatus() != StatusCode.OK) return result;
+        List<TeacherProfile> active = new ArrayList<TeacherProfile>();
+        for (TeacherProfile teacher : result.getData()) if (teacher.isActive()) active.add(teacher);
+        return ServiceResult.ok(active);
     }
 
     /** 教师仅能查看自己任教的教学班和其中仍有效的选课记录。 */
@@ -308,6 +325,16 @@ final class CourseMessageHandler {
         if (gradeSubmissions == null) return gradeDraftServiceUnavailable();
         ServiceResult<TeachingRoster> roster = roster(profile.getData(), command.getOfferingId());
         if (roster.getStatus() != StatusCode.OK) return roster;
+
+        if (command.getOperation() == CourseGradeDraftV2Command.Operation.LIST_AUDIT) {
+            ServiceResult<GradeSubmission> found = gradeSubmissions.findByOffering(
+                    command.getOfferingId());
+            if (found.getStatus() == StatusCode.NOT_FOUND) {
+                return ServiceResult.ok(java.util.Collections.emptyList());
+            }
+            if (found.getStatus() != StatusCode.OK) return found;
+            return gradeSubmissions.listAudit(found.getData().getSubmissionId());
+        }
 
         TeachingRosterEntry selectedStudent = null;
         if (command.getOperation() == CourseGradeDraftV2Command.Operation.SAVE_ENTRY) {
@@ -440,6 +467,9 @@ final class CourseMessageHandler {
         if (gradeSubmissions == null) return gradeReviewServiceUnavailable();
         if (command.getOperation() == CourseGradeReviewV2Command.Operation.LIST_PENDING) {
             return gradeSubmissions.listByStatus(GradeSubmissionStatus.PENDING_REVIEW);
+        }
+        if (command.getOperation() == CourseGradeReviewV2Command.Operation.LIST_HISTORY) {
+            return gradeSubmissions.listReviewHistory();
         }
         if (command.getOperation() == CourseGradeReviewV2Command.Operation.VIEW_AUDIT) {
             return gradeSubmissions.listAudit(command.getSubmissionId());
@@ -636,6 +666,9 @@ final class CourseMessageHandler {
                 return trainingPlans.listAll();
             case CREATE:
                 return trainingPlans.create(command.getPlan());
+            case UPDATE_BASIC_INFO:
+                return trainingPlans.updateBasicInfo(command.getPlan().getPlanId(),
+                        command.getPlan().getMajorName(), command.getPlan().getEnrollmentYear());
             case SAVE_COURSE:
                 return trainingPlans.saveCourse(command.getPlanId(), command.getCourse());
             case REMOVE_COURSE:

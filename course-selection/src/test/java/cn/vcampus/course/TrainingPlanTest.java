@@ -53,9 +53,9 @@ class TrainingPlanTest {
         assertEquals(2, updated.getCourses().get(0).getRecommendedTerm());
         assertEquals(3, added.getCourses().size());
         assertEquals(2, removed.getCourses().size());
-        assertThrows(IllegalArgumentException.class, () -> new TrainingPlan("ONLY-ONE", "软件工程",
-                2026, Arrays.asList(new TrainingPlanCourse("SE101", 1,
-                        SelectionType.REQUIRED, false))).withoutCourse("SE101"));
+        assertEquals(0, new TrainingPlan("ONLY-ONE", "软件工程", 2026,
+                Arrays.asList(new TrainingPlanCourse("SE101", 1, SelectionType.REQUIRED, false)))
+                .withoutCourse("SE101").getCourses().size());
     }
 
     @Test

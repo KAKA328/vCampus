@@ -131,8 +131,10 @@ CREATE TABLE tblCourseMeeting (
     day_of_week INTEGER NOT NULL,
     start_period INTEGER NOT NULL,
     end_period INTEGER NOT NULL,
+    start_week INTEGER NOT NULL,
+    end_week INTEGER NOT NULL,
     location VARCHAR(64) NOT NULL,
-    PRIMARY KEY (offering_id, day_of_week, start_period)
+    PRIMARY KEY (offering_id, day_of_week, start_period, start_week)
 );
 
 CREATE TABLE tblTrainingPlan (

@@ -105,8 +105,9 @@ final class TrainingPlanManagementPanel extends JPanel {
         add(controls(), BorderLayout.NORTH);
         add(workspace(), BorderLayout.CENTER);
         add(statusHint, BorderLayout.SOUTH);
-        showStatus("请先刷新培养方案；新建方案必须为草稿，且至少填写一门课程要求", VCampusTheme.MUTED);
+        showStatus("正在自动加载培养方案", VCampusTheme.MUTED);
         updateInteractiveState();
+        CourseUiSupport.loadOnFirstShow(this, this::loadPlans);
     }
 
     private JPanel controls() {

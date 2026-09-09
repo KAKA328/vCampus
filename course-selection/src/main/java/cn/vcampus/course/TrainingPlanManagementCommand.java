@@ -14,6 +14,7 @@ public final class TrainingPlanManagementCommand implements Serializable {
     public enum Operation {
         LIST,
         CREATE,
+        UPDATE_BASIC_INFO,
         SAVE_COURSE,
         REMOVE_COURSE,
         CHANGE_STATUS
@@ -52,6 +53,14 @@ public final class TrainingPlanManagementCommand implements Serializable {
         }
         return new TrainingPlanManagementCommand(token, Operation.CREATE, plan, null, null, null,
                 null);
+    }
+
+    public static TrainingPlanManagementCommand updateBasicInfo(String token, TrainingPlan plan) {
+        if (plan == null) {
+            throw new IllegalArgumentException("plan must not be null");
+        }
+        return new TrainingPlanManagementCommand(token, Operation.UPDATE_BASIC_INFO, plan, null,
+                null, null, null);
     }
 
     public static TrainingPlanManagementCommand saveCourse(String token, String planId,

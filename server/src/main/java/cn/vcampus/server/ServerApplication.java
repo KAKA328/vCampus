@@ -241,6 +241,7 @@ public final class ServerApplication implements Closeable {
 
     private static boolean isCourseMessage(MessageType type) {
         return type == MessageType.COURSE_MANAGE
+                || type == MessageType.COURSE_TEACHER_DIRECTORY_V1
                 || type == MessageType.COURSE_SELECTION_QUERY_V2
                 || type == MessageType.COURSE_SELECT_OFFERING_V2
                 || type == MessageType.COURSE_DROP_RECORD_V2

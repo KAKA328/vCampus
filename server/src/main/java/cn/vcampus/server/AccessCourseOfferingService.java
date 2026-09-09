@@ -430,14 +430,16 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
             return;
         }
         String sql = "INSERT INTO tblCourseMeeting(offering_id,day_of_week,start_period,end_period,"
-                + "location) VALUES(?,?,?,?,?)";
+                + "start_week,end_week,location) VALUES(?,?,?,?,?,?,?)";
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             for (CourseMeeting meeting : meetings) {
                 statement.setString(1, offering.getOfferingId());
                 statement.setInt(2, meeting.getDayOfWeek().getValue());
                 statement.setInt(3, meeting.getStartPeriod());
                 statement.setInt(4, meeting.getEndPeriod());
-                statement.setString(5, meeting.getLocation());
+                statement.setInt(5, meeting.getStartWeek());
+                statement.setInt(6, meeting.getEndWeek());
+                statement.setString(7, meeting.getLocation());
                 statement.addBatch();
             }
             statement.executeBatch();
@@ -463,7 +465,7 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
     /** 按星期和节次恢复教学班的结构化上课时间。 */
     private static CourseSchedule readMeetingSchedule(Connection connection, String offeringId)
             throws SQLException {
-        String sql = "SELECT day_of_week,start_period,end_period,location FROM tblCourseMeeting "
+        String sql = "SELECT day_of_week,start_period,end_period,start_week,end_week,location FROM tblCourseMeeting "
                 + "WHERE offering_id=? ORDER BY day_of_week,start_period";
         List<CourseMeeting> meetings = new ArrayList<CourseMeeting>();
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -472,6 +474,7 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
                 while (results.next()) {
                     meetings.add(new CourseMeeting(DayOfWeek.of(results.getInt("day_of_week")),
                             results.getInt("start_period"), results.getInt("end_period"),
+                            results.getInt("start_week"), results.getInt("end_week"),
                             results.getString("location")));
                 }
             }

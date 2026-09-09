@@ -15,14 +15,25 @@ public final class CourseMeeting implements Serializable {
     private final DayOfWeek dayOfWeek;
     private final int startPeriod;
     private final int endPeriod;
+    private final int startWeek;
+    private final int endWeek;
     private final String location;
 
     public CourseMeeting(DayOfWeek dayOfWeek, int startPeriod, int endPeriod, String location) {
+        this(dayOfWeek, startPeriod, endPeriod, 1, 20, location);
+    }
+
+    /** 创建一个在指定教学周范围内生效的上课安排。 */
+    public CourseMeeting(DayOfWeek dayOfWeek, int startPeriod, int endPeriod, int startWeek,
+            int endWeek, String location) {
         if (dayOfWeek == null) {
             throw new IllegalArgumentException("dayOfWeek must not be null");
         }
         if (startPeriod < 1 || endPeriod < startPeriod) {
             throw new IllegalArgumentException("period range is invalid");
+        }
+        if (startWeek < 1 || endWeek < startWeek) {
+            throw new IllegalArgumentException("week range is invalid");
         }
         if (location == null || location.trim().isEmpty()) {
             throw new IllegalArgumentException("location must not be blank");
@@ -30,6 +41,8 @@ public final class CourseMeeting implements Serializable {
         this.dayOfWeek = dayOfWeek;
         this.startPeriod = startPeriod;
         this.endPeriod = endPeriod;
+        this.startWeek = startWeek;
+        this.endWeek = endWeek;
         this.location = location.trim();
     }
 
@@ -45,6 +58,10 @@ public final class CourseMeeting implements Serializable {
         return endPeriod;
     }
 
+    public int getStartWeek() { return startWeek; }
+
+    public int getEndWeek() { return endWeek; }
+
     public String getLocation() {
         return location;
     }
@@ -57,6 +74,8 @@ public final class CourseMeeting implements Serializable {
             throw new IllegalArgumentException("other meeting must not be null");
         }
         return dayOfWeek == other.dayOfWeek
+                && startWeek <= other.endWeek
+                && other.startWeek <= endWeek
                 && startPeriod <= other.endPeriod
                 && other.startPeriod <= endPeriod;
     }
