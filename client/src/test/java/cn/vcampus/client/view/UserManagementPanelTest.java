@@ -7,12 +7,14 @@ import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.CardLayout;
 import java.awt.Container;
+import java.awt.Dimension;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JViewport;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.Scrollable;
@@ -71,6 +73,22 @@ class UserManagementPanelTest {
                 "user management content should follow the available width");
         assertTrue(!body.getScrollableTracksViewportHeight(),
                 "user management content should scroll vertically instead of being squeezed shorter");
+    }
+
+    @Test
+    void tallWindowLetsManagementCardFillAvailableHeight() {
+        UserManagementPanel panel = new UserManagementPanel(null,
+                "127.0.0.1", 19090, new Session("token", new User("admin", "管理员", Role.ADMIN)));
+
+        BorderLayout pageLayout = (BorderLayout) panel.getLayout();
+        JScrollPane scroller = (JScrollPane) pageLayout.getLayoutComponent(BorderLayout.CENTER);
+        JPanel body = (JPanel) scroller.getViewport().getView();
+        JViewport viewport = new JViewport();
+        viewport.setView(body);
+        viewport.setExtentSize(new Dimension(900, 900));
+
+        assertTrue(((Scrollable) body).getScrollableTracksViewportHeight(),
+                "user management card area should grow instead of leaving a large blank area below");
     }
 
     @Test
