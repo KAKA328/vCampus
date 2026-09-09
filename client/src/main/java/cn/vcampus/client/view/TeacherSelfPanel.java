@@ -37,7 +37,7 @@ final class TeacherSelfPanel extends JPanel {
         title.setFont(VCampusTheme.font(java.awt.Font.BOLD, 24));
         add(title, BorderLayout.NORTH);
         JPanel body = new ScrollablePagePanel(new BorderLayout(0, 12));
-        JPanel form = new JPanel(new GridLayout(6, 2, 12, 12));
+        JPanel form = new JPanel(new GridLayout(6, 2, UiMetrics.px(12), UiMetrics.px(12)));
         VCampusTheme.panel(form);
         String[] labels = {"教师工号", "绑定账号", "姓名", "院系", "职称", "在职情况"};
         for (int i = 0; i < values.length; i++) {

@@ -256,8 +256,8 @@ public final class StorePanel extends JPanel {
         panel.setOpaque(false);
         JTabbedPane tabs = tabs();
         // 让目录区占主窗口更大比例：页面高度不足时仍由外层页级滚动兜底（FeaturePanelScrollTest 结构不变）
-        tabs.setPreferredSize(new Dimension(0, 600));
-        tabs.setMinimumSize(new Dimension(0, 300));
+        tabs.setPreferredSize(UiMetrics.dimension(0, 600));
+        tabs.setMinimumSize(UiMetrics.dimension(0, 300));
         panel.add(tabs, BorderLayout.CENTER);
 
         JPanel statusPanel = new JPanel(new BorderLayout());

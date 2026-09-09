@@ -101,7 +101,7 @@ final class AcademicAdministrationPanel extends JPanel {
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         JScrollPane scroll = VCampusTheme.scrollPane(table);
         scroll.setColumnHeaderView(table.getTableHeader());
-        scroll.setPreferredSize(new Dimension(0, 300));
+        scroll.setPreferredSize(UiMetrics.dimension(0, 300));
         JPanel results = new JPanel(new BorderLayout(0, 8)); results.setOpaque(false);
         resultTitle.setFont(VCampusTheme.font(Font.BOLD, 15));
         results.add(resultTitle, BorderLayout.NORTH);

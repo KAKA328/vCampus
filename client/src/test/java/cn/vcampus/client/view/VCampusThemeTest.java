@@ -66,12 +66,12 @@ class VCampusThemeTest {
         assertEquals(UiMetrics.px(44), button.getMaximumSize().height);
         assertEquals(UiMetrics.px(160), button.getPreferredSize().width);
         assertEquals(VCampusTheme.SIDEBAR, button.getBackground());
-        assertEquals(VCampusTheme.TEXT, button.getForeground());
+        assertEquals(VCampusTheme.NAV_TEXT, button.getForeground());
 
         VCampusTheme.navButton(button, true);
 
         assertEquals(VCampusTheme.NAV_ACTIVE_BACKGROUND, button.getBackground());
-        assertEquals(VCampusTheme.PRIMARY, button.getForeground());
+        assertEquals(Color.WHITE, button.getForeground());
     }
 
     @Test
