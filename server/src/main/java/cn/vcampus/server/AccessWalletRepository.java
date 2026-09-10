@@ -108,16 +108,14 @@ public final class AccessWalletRepository implements WalletRepository {
         try {
             connection = open();
             connection.setAutoCommit(false);
-            // 守卫：balance_cents>=cents 才扣，0 行说明账户不存在或余额不足
-            if (guardedDebit(connection, userId, cents) == 0) {
-                long current = readBalance(connection, userId);
+            WalletMutation mutation = debitInTransaction(connection, userId, cents, type, operatorId, note,
+                    UUID.randomUUID().toString());
+            if (!mutation.isApplied()) {
                 rollback(connection);
-                return WalletMutation.rejected(current);
+                return mutation;
             }
-            long after = readBalance(connection, userId);
-            insertTransaction(connection, userId, type, -cents, after, operatorId, note);
             connection.commit();
-            return WalletMutation.applied(after + cents, after);
+            return mutation;
         } catch (SQLException failure) {
             rollback(connection);
             throw new IllegalStateException("failed to debit wallet", failure);
@@ -172,6 +170,19 @@ public final class AccessWalletRepository implements WalletRepository {
         } finally {
             close(connection);
         }
+    }
+
+    /** Join a caller-owned transaction: never commit/rollback/close here. Caller locks library then wallet. */
+    synchronized WalletMutation debitInTransaction(Connection connection, String userId, long cents,
+            WalletTransactionType type, String operatorId, String note, String transactionId) throws SQLException {
+        if (connection.getAutoCommit()) throw new SQLException("wallet debit requires an explicit transaction");
+        if (cents <= 0) throw new IllegalArgumentException("debit cents must be positive");
+        if (guardedDebit(connection, userId, cents) == 0) {
+            return WalletMutation.rejected(readBalance(connection, userId));
+        }
+        long after = readBalance(connection, userId);
+        insertTransaction(connection, userId, type, -cents, after, operatorId, note, transactionId);
+        return WalletMutation.applied(after + cents, after);
     }
 
     // 事务内读余额：账户不存在按 0 计（懒创建/校正的起点）
@@ -229,11 +240,17 @@ public final class AccessWalletRepository implements WalletRepository {
     // 事务内追加一条流水：流水编号用 UUID、记账时间取当前时刻；备注可空时显式写 SQL NULL
     private void insertTransaction(Connection connection, String userId, WalletTransactionType type, long amountCents,
             long balanceAfterCents, String operatorId, String note) throws SQLException {
+        insertTransaction(connection, userId, type, amountCents, balanceAfterCents, operatorId, note,
+                UUID.randomUUID().toString());
+    }
+
+    private void insertTransaction(Connection connection, String userId, WalletTransactionType type, long amountCents,
+            long balanceAfterCents, String operatorId, String note, String transactionId) throws SQLException {
         String sql = "INSERT INTO tblWalletTransaction"
                 + "(transaction_id,user_id,transaction_type,amount_cents,balance_after_cents,"
                 + "operator_id,note,created_at) VALUES(?,?,?,?,?,?,?,?)";
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, UUID.randomUUID().toString());
+            statement.setString(1, transactionId);
             statement.setString(2, userId);
             statement.setString(3, type.name());
             statement.setLong(4, amountCents);

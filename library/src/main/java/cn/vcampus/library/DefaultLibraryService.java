@@ -62,6 +62,13 @@ public final class DefaultLibraryService implements LibraryService {
     }
 
     @Override
+    public ServiceResult<Book> restock(String bookId, int copies) {
+        if (blank(bookId)) return ServiceResult.failure(StatusCode.BAD_REQUEST, "bookId must not be blank");
+        if (copies <= 0) return ServiceResult.failure(StatusCode.BAD_REQUEST, "copies must be positive");
+        return repository.restock(bookId.trim(), copies);
+    }
+
+    @Override
     public ServiceResult<List<BorrowRecord>> borrow(String userId, String bookId) {
         return borrowBatch(userId, Collections.singletonList(bookId));
     }

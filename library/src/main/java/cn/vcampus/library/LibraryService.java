@@ -10,6 +10,8 @@ public interface LibraryService {
     ServiceResult<Book> getBook(String bookId);
     ServiceResult<List<Book>> listByCategory(String category);
     ServiceResult<Book> addBook(Book book);
+    /** 为已有图书补充正整数册数；管理权限由服务端会话边界校验。 */
+    ServiceResult<Book> restock(String bookId, int copies);
     ServiceResult<List<BorrowRecord>> borrow(String userId, String bookId);
     ServiceResult<List<BorrowRecord>> borrowBatch(String userId, List<String> bookIds);
     ServiceResult<BorrowRecord> returnBook(String userId, String recordId);

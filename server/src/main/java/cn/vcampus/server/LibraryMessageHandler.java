@@ -5,12 +5,20 @@ import cn.vcampus.common.MessageType;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.library.BorrowRecord;
+import cn.vcampus.library.BorrowStatus;
+import cn.vcampus.library.LibraryCompensationService;
+import cn.vcampus.library.LibraryHistoryV3Command;
+import cn.vcampus.library.LibraryLossDeclareV3Command;
+import cn.vcampus.library.LibraryCompensationListV3Command;
+import cn.vcampus.library.LibraryCompensationPayV3Command;
+import cn.vcampus.library.LibraryWalletQueryV3Command;
 import cn.vcampus.library.LibraryAddBookV2Command;
 import cn.vcampus.library.LibraryBorrowV2Command;
 import cn.vcampus.library.LibraryDetailV2Command;
 import cn.vcampus.library.LibraryHistoryV2Command;
 import cn.vcampus.library.LibraryQueryV2Command;
 import cn.vcampus.library.LibraryReturnV2Command;
+import cn.vcampus.library.LibraryRestockV2Command;
 import cn.vcampus.library.LibraryService;
 import cn.vcampus.user.Permission;
 import cn.vcampus.user.Session;
@@ -21,11 +29,18 @@ import java.util.List;
 final class LibraryMessageHandler {
     private final LibraryService library;
     private final UserManagementService users;
+    private final LibraryCompensationService compensations;
 
     LibraryMessageHandler(LibraryService library, UserManagementService users) {
+        this(library, users, null);
+    }
+
+    LibraryMessageHandler(LibraryService library, UserManagementService users,
+            LibraryCompensationService compensations) {
         if (library == null || users == null) throw new IllegalArgumentException("services must not be null");
         this.library = library;
         this.users = users;
+        this.compensations = compensations;
     }
 
     Message handle(Message request) {
@@ -56,12 +71,48 @@ final class LibraryMessageHandler {
                     result = returnBook(returned);
                     break;
                 case LIBRARY_HISTORY_V2:
-                    result = history(payload(request, LibraryHistoryV2Command.class));
+                    LibraryHistoryV2Command oldHistory = payload(request, LibraryHistoryV2Command.class);
+                    result = legacyHistory(history(oldHistory.getToken(), oldHistory.getTargetUserId(),
+                            oldHistory.isAllUsers()));
+                    break;
+                case LIBRARY_HISTORY_V3:
+                    LibraryHistoryV3Command newHistory = payload(request, LibraryHistoryV3Command.class);
+                    result = history(newHistory.getToken(), newHistory.getTargetUserId(),
+                            newHistory.isAllUsers());
+                    break;
+                case LIBRARY_LOSS_DECLARE_V3:
+                    LibraryLossDeclareV3Command loss = payload(request, LibraryLossDeclareV3Command.class);
+                    result = withCurrentUser(loss.getToken(), Permission.LIBRARY_MANAGE,
+                            userId -> compensations == null ? unavailable()
+                                    : compensations.declareLoss(userId, loss.getRecordId()));
+                    break;
+                case LIBRARY_COMPENSATION_LIST_V3:
+                    LibraryCompensationListV3Command list = payload(request, LibraryCompensationListV3Command.class);
+                    result = withCurrentUser(list.getToken(),
+                            list.isAllUsers() ? Permission.LIBRARY_MANAGE : Permission.LIBRARY_READ,
+                            userId -> compensations == null ? unavailable()
+                                    : compensations.history(list.isAllUsers() ? null : userId));
+                    break;
+                case LIBRARY_COMPENSATION_PAY_V3:
+                    LibraryCompensationPayV3Command pay = payload(request, LibraryCompensationPayV3Command.class);
+                    result = withCurrentUser(pay.getToken(), Permission.LIBRARY_BORROW,
+                            userId -> compensations == null ? unavailable()
+                                    : compensations.pay(userId, pay.getCompensationId()));
+                    break;
+                case LIBRARY_WALLET_QUERY_V3:
+                    LibraryWalletQueryV3Command wallet = payload(request, LibraryWalletQueryV3Command.class);
+                    result = withCurrentUser(wallet.getToken(), Permission.LIBRARY_READ,
+                            userId -> compensations == null ? unavailable() : compensations.balance(userId));
                     break;
                 case LIBRARY_ADD_BOOK_V2:
                     LibraryAddBookV2Command add = payload(request, LibraryAddBookV2Command.class);
                     result = withPermission(add.getToken(), Permission.LIBRARY_MANAGE,
                             () -> library.addBook(add.getBook()));
+                    break;
+                case LIBRARY_RESTOCK_V2:
+                    LibraryRestockV2Command restock = payload(request, LibraryRestockV2Command.class);
+                    result = withPermission(restock.getToken(), Permission.LIBRARY_MANAGE,
+                            () -> library.restock(restock.getBookId(), restock.getCopies()));
                     break;
                 default:
                     result = ServiceResult.failure(StatusCode.NOT_FOUND,
@@ -75,18 +126,35 @@ final class LibraryMessageHandler {
         }
     }
 
-    private ServiceResult<?> history(LibraryHistoryV2Command command) {
-        ServiceResult<Session> session = users.currentSession(command.getToken());
+    private ServiceResult<?> history(String token, String targetUserId, boolean allUsers) {
+        ServiceResult<Session> session = users.currentSession(token);
         if (session.getStatus() != StatusCode.OK) return session;
         String currentUserId = session.getData().getUser().getUserId();
-        String targetUserId = command.getTargetUserId();
         boolean own = targetUserId == null || targetUserId.isEmpty() || targetUserId.equals(currentUserId);
-        if (!command.isAllUsers() && own) {
-            return withPermission(command.getToken(), Permission.LIBRARY_READ,
+        if (!allUsers && own) {
+            return withPermission(token, Permission.LIBRARY_READ,
                     () -> library.borrowHistory(currentUserId));
         }
-        return withPermission(command.getToken(), Permission.LIBRARY_MANAGE,
-                () -> command.isAllUsers() ? library.allBorrowHistory() : library.borrowHistory(targetUserId));
+        return withPermission(token, Permission.LIBRARY_MANAGE,
+                () -> allUsers ? library.allBorrowHistory() : library.borrowHistory(targetUserId));
+    }
+
+    /** Do not serialize new lifecycle enum constants to a V2-only client. */
+    private ServiceResult<?> legacyHistory(ServiceResult<?> result) {
+        if (result.getStatus() == StatusCode.OK && result.getData() instanceof List<?>) {
+            for (Object value : (List<?>) result.getData()) {
+                BorrowStatus status = ((BorrowRecord) value).getStatus();
+                if (status != BorrowStatus.BORROWED && status != BorrowStatus.RETURNED) {
+                    return ServiceResult.failure(StatusCode.CONFLICT,
+                            "借阅记录包含遗失赔偿状态，请升级客户端后查看");
+                }
+            }
+        }
+        return result;
+    }
+
+    private static ServiceResult<?> unavailable() {
+        return ServiceResult.failure(StatusCode.NOT_FOUND, "图书赔偿服务未配置，请联系管理员");
     }
 
     private ServiceResult<?> returnBook(LibraryReturnV2Command command) {

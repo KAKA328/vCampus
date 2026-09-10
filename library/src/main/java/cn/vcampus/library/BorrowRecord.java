@@ -31,7 +31,7 @@ public final class BorrowRecord implements Serializable {
         if (status == BorrowStatus.RETURNED && returnDate == null) {
             throw new IllegalArgumentException("returned record must have returnDate");
         }
-        if (status == BorrowStatus.BORROWED && returnDate != null) {
+        if (status != BorrowStatus.RETURNED && returnDate != null) {
             throw new IllegalArgumentException("active record must not have returnDate");
         }
     }
@@ -49,6 +49,16 @@ public final class BorrowRecord implements Serializable {
     public BorrowRecord returned(LocalDate date) {
         return new BorrowRecord(orderId, recordId, userId, bookId, borrowDate, dueDate,
                 Objects.requireNonNull(date, "returnDate"), BorrowStatus.RETURNED);
+    }
+
+    public BorrowRecord lost() {
+        if (status != BorrowStatus.BORROWED) throw new IllegalStateException("only borrowed records can be lost");
+        return new BorrowRecord(orderId, recordId, userId, bookId, borrowDate, dueDate, null, BorrowStatus.LOST);
+    }
+
+    public BorrowRecord compensated() {
+        if (status != BorrowStatus.LOST) throw new IllegalStateException("only lost records can be compensated");
+        return new BorrowRecord(orderId, recordId, userId, bookId, borrowDate, dueDate, null, BorrowStatus.COMPENSATED);
     }
 
     @Override

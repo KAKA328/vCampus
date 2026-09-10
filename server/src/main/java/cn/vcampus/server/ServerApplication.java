@@ -14,6 +14,7 @@ import cn.vcampus.course.StudentSelectionProfileProvider;
 import cn.vcampus.course.TrainingPlanService;
 import cn.vcampus.library.InMemoryLibraryService;
 import cn.vcampus.library.LibraryService;
+import cn.vcampus.library.LibraryCompensationService;
 import cn.vcampus.store.InMemoryStoreService;
 import cn.vcampus.store.StoreService;
 import cn.vcampus.student.AcademicAdminService;
@@ -71,10 +72,10 @@ public final class ServerApplication implements Closeable {
                 bootstrap.module.getOfferingService(), bootstrap.module.getSelectionRoundService(),
                 bootstrap.module.getSelectionRecordService(), bootstrap.module.getGradeSubmissionService(),
                 bootstrap.students.results, bootstrap.gradeApprovals, bootstrap.students.profiles,
-                bootstrap.store, bootstrap.students.students, new InMemoryLibraryService(),
+                bootstrap.libraryWallet.store, bootstrap.students.students, bootstrap.libraryWallet.library,
                 new DenyTeacherStudentAccessPolicy(), null, bootstrap.students.academics,
                 bootstrap.teachers, bootstrap.administration,
-                bootstrap.module.getTrainingPlanService());
+                bootstrap.module.getTrainingPlanService(), bootstrap.libraryWallet.compensations);
     }
 
     /** 保留给只需验证学生选课查询的轻量级测试。 */
@@ -134,6 +135,21 @@ public final class ServerApplication implements Closeable {
             TeacherStudentAccessPolicy teacherAccess, AuditLogRepository storeAudit,
             AcademicReviewService academics, TeacherProfileService teachers,
             AcademicAdminService administration, TrainingPlanService trainingPlans) {
+        this(port, users, courses, catalog, offerings, selectionRounds, records, gradeSubmissions,
+                formalResults, gradeApprovals, profiles, store, students, library, teacherAccess,
+                storeAudit, academics, teachers, administration, trainingPlans, null);
+    }
+
+    ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
+            CourseCatalogService catalog, CourseOfferingService offerings,
+            SelectionRoundService selectionRounds, CourseSelectionRecordService records,
+            GradeSubmissionService gradeSubmissions, CourseResultRecordingService formalResults,
+            GradeApprovalWorkflow gradeApprovals, StudentSelectionProfileProvider profiles,
+            StoreService store, StudentManagementService students, LibraryService library,
+            TeacherStudentAccessPolicy teacherAccess, AuditLogRepository storeAudit,
+            AcademicReviewService academics, TeacherProfileService teachers,
+            AcademicAdminService administration, TrainingPlanService trainingPlans,
+            LibraryCompensationService compensations) {
         InMemoryAcademicReviewService fallbackAcademics = null;
         if (academics == null) {
             fallbackAcademics = new InMemoryAcademicReviewService();
@@ -160,7 +176,7 @@ public final class ServerApplication implements Closeable {
         this.academicMessages = new StudentAcademicMessageHandler(students, academics, users);
         this.teacherMessages = new TeacherSelfMessageHandler(teachers, users);
         this.adminMessages = new AcademicAdminMessageHandler(administration, users);
-        this.libraryMessages = new LibraryMessageHandler(library, users);
+        this.libraryMessages = new LibraryMessageHandler(library, users, compensations);
     }
 
     public void start() throws IOException {
@@ -264,7 +280,8 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.STORE_ACCOUNT_QUERY || type == MessageType.STORE_ACCOUNT_RECHARGE
                 || type == MessageType.STORE_ACCOUNT_ADJUST
                 || type == MessageType.STORE_CART_UPDATE || type == MessageType.STORE_CART_DETAIL
-                || type == MessageType.STORE_ACCOUNT_LEDGER || type == MessageType.STORE_PRODUCT_REACTIVATE;
+                || type == MessageType.STORE_ACCOUNT_LEDGER || type == MessageType.STORE_PRODUCT_REACTIVATE
+                || type == MessageType.STORE_ACCOUNT_LEDGER_V2;
     }
 
     private static boolean isStudentMessage(MessageType type) {
@@ -274,12 +291,18 @@ public final class ServerApplication implements Closeable {
     private static boolean isLibraryMessage(MessageType type) {
         return type == MessageType.LIBRARY_QUERY_V2 || type == MessageType.LIBRARY_DETAIL_V2
                 || type == MessageType.LIBRARY_BORROW_V2 || type == MessageType.LIBRARY_RETURN_V2
-                || type == MessageType.LIBRARY_HISTORY_V2 || type == MessageType.LIBRARY_ADD_BOOK_V2;
+                || type == MessageType.LIBRARY_HISTORY_V2 || type == MessageType.LIBRARY_ADD_BOOK_V2
+                || type == MessageType.LIBRARY_RESTOCK_V2
+                || type == MessageType.LIBRARY_HISTORY_V3 || type == MessageType.LIBRARY_LOSS_DECLARE_V3
+                || type == MessageType.LIBRARY_COMPENSATION_LIST_V3
+                || type == MessageType.LIBRARY_COMPENSATION_PAY_V3
+                || type == MessageType.LIBRARY_WALLET_QUERY_V3;
     }
 
     public static void main(String[] args) throws IOException {
         int port = parsePort(args);
         Path databasePath = UserServiceFactory.databasePath(args);
+        LibraryWalletRuntime libraryWallet = LibraryWalletRuntime.create(databasePath, true);
         CourseServiceFactory.CourseRuntime courses = CourseServiceFactory.create(databasePath);
         StudentServices studentServices = databasePath == null
                 ? memoryStudentServices(true) : accessStudentServices(databasePath);
@@ -297,10 +320,10 @@ public final class ServerApplication implements Closeable {
                 module.getCatalogService(), module.getOfferingService(), module.getSelectionRoundService(),
                 module.getSelectionRecordService(), module.getGradeSubmissionService(),
                 studentServices.results, gradeApprovals, courses.getProfiles(),
-                StoreServiceFactory.create(databasePath), studentServices.students,
-                LibraryServiceFactory.create(databasePath), teacherAccess(databasePath),
+                libraryWallet.store, studentServices.students,
+                libraryWallet.library, teacherAccess(databasePath),
                 UserServiceFactory.createStoreAuditLog(args), studentServices.academics,
-                teachers, administration, module.getTrainingPlanService()).start();
+                teachers, administration, module.getTrainingPlanService(), libraryWallet.compensations).start();
     }
 
     /** 教师档案与教学班教师编号使用同一资料源，避免教师登录后找不到自己的教学班。 */
@@ -371,7 +394,7 @@ public final class ServerApplication implements Closeable {
         TeacherProfileService teachers = teacherProfiles(null);
         AcademicAdminService administration = new AcademicAdminService(new InMemoryAcademicAdminStore(
                 students.students, teachers, students.academics));
-        return new DemoBootstrap(module, students, new InMemoryStoreService(), teachers, administration,
+        return new DemoBootstrap(module, students, LibraryWalletRuntime.create(null, false), teachers, administration,
                 new InMemoryGradeApprovalWorkflow(module.getGradeSubmissionService(), students.results));
     }
 
@@ -394,17 +417,17 @@ public final class ServerApplication implements Closeable {
     private static final class DemoBootstrap {
         private final CourseSelectionModule module;
         private final StudentServices students;
-        private final StoreService store;
+        private final LibraryWalletRuntime libraryWallet;
         private final TeacherProfileService teachers;
         private final AcademicAdminService administration;
         private final GradeApprovalWorkflow gradeApprovals;
 
-        private DemoBootstrap(CourseSelectionModule module, StudentServices students, StoreService store,
+        private DemoBootstrap(CourseSelectionModule module, StudentServices students, LibraryWalletRuntime libraryWallet,
                 TeacherProfileService teachers, AcademicAdminService administration,
                 GradeApprovalWorkflow gradeApprovals) {
             this.module = module;
             this.students = students;
-            this.store = store;
+            this.libraryWallet = libraryWallet;
             this.teachers = teachers;
             this.administration = administration;
             this.gradeApprovals = gradeApprovals;

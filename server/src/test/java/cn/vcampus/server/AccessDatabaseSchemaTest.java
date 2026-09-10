@@ -59,7 +59,7 @@ class AccessDatabaseSchemaTest {
         assertEquals(4, count(database, "tblCourseSelection"));
         assertEquals(2, count(database, "tblGradeSubmission"));
         assertEquals(105, count(database, "tblProduct"));
-        assertEquals(10, count(database, "tblBook"));
+        assertEquals(50, count(database, "tblBook"));
         assertEquals(4, count(database, "tblBorrowRecord"));
         assertEquals(3, countWhere(database, "tblBorrowRecord", "status", "BORROWED"));
         assertTrue(scalarDouble(database, "SELECT price FROM tblBook WHERE book_id='B001'") > 0.0d);
