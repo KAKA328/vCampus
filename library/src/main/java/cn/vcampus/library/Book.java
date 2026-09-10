@@ -54,6 +54,17 @@ public final class Book implements Serializable {
                 totalCopies, updated, location);
     }
 
+    /** 校验并生成补货后的快照，同时增加总量、可借量，保持借出量不变。 */
+    public Book withAdditionalCopies(int copies) {
+        if (copies <= 0) throw new IllegalArgumentException("copies must be positive");
+        if (totalCopies > Integer.MAX_VALUE - copies
+                || availableCopies > Integer.MAX_VALUE - copies) {
+            throw new IllegalArgumentException("book inventory exceeds the supported limit");
+        }
+        return new Book(bookId, title, author, isbn, category, publisher, price,
+                totalCopies + copies, availableCopies + copies, location);
+    }
+
     public String getBookId() { return bookId; }
     public String getTitle() { return title; }
     public String getAuthor() { return author; }

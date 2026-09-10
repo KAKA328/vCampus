@@ -22,10 +22,17 @@ import java.util.UUID;
 /** Access-backed library repository with atomic inventory and borrowing updates. */
 public final class AccessLibraryRepository implements LibraryRepository {
     private final Path databasePath;
+    private final ConnectionFactory connectionFactory;
 
     public AccessLibraryRepository(Path databasePath) {
+        this(databasePath, null);
+    }
+
+    /** 包内可替换连接来源，便于验证事务提交失败时的回滚边界。 */
+    AccessLibraryRepository(Path databasePath, ConnectionFactory connectionFactory) {
         if (databasePath == null) throw new IllegalArgumentException("databasePath must not be null");
         this.databasePath = databasePath.toAbsolutePath().normalize();
+        this.connectionFactory = connectionFactory;
     }
 
     @Override
@@ -71,6 +78,51 @@ public final class AccessLibraryRepository implements LibraryRepository {
             return statement.executeUpdate() == 1;
         } catch (SQLException failure) {
             throw new IllegalStateException("failed to add book", failure);
+        }
+    }
+
+    @Override
+    public synchronized ServiceResult<Book> restock(String bookId, int copies) {
+        if (bookId == null || bookId.trim().isEmpty() || copies <= 0) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "bookId and positive copies are required");
+        }
+        Connection connection = null;
+        try {
+            connection = open();
+            connection.setAutoCommit(false);
+            Book current = findBook(connection, bookId.trim());
+            if (current == null) {
+                rollback(connection);
+                return ServiceResult.failure(StatusCode.NOT_FOUND, "book not found");
+            }
+            final Book updated;
+            try {
+                updated = current.withAdditionalCopies(copies);
+            } catch (IllegalArgumentException invalidStock) {
+                rollback(connection);
+                return ServiceResult.failure(StatusCode.BAD_REQUEST, invalidStock.getMessage());
+            }
+            // 两个库存字段在同一条语句中更新；旧值条件避免覆盖并发借还或补货。
+            String sql = "UPDATE tblBook SET total_copies=?,available_copies=? "
+                    + "WHERE book_id=? AND total_copies=? AND available_copies=?";
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setInt(1, updated.getTotalCopies());
+                statement.setInt(2, updated.getAvailableCopies());
+                statement.setString(3, current.getBookId());
+                statement.setInt(4, current.getTotalCopies());
+                statement.setInt(5, current.getAvailableCopies());
+                if (statement.executeUpdate() != 1) {
+                    rollback(connection);
+                    return ServiceResult.failure(StatusCode.CONFLICT, "book inventory changed; refresh and retry");
+                }
+            }
+            connection.commit();
+            return ServiceResult.ok(updated);
+        } catch (SQLException failure) {
+            rollback(connection);
+            return ServiceResult.failure(StatusCode.SERVER_ERROR, "library restock transaction failed");
+        } finally {
+            close(connection);
         }
     }
 
@@ -280,12 +332,17 @@ public final class AccessLibraryRepository implements LibraryRepository {
     }
 
     private Connection open() throws SQLException {
+        if (connectionFactory != null) return connectionFactory.open();
         try { Class.forName("net.ucanaccess.jdbc.UcanaccessDriver"); }
         catch (ClassNotFoundException missingDriver) {
             throw new IllegalStateException("UCanAccess driver is missing", missingDriver);
         }
         return DriverManager.getConnection("jdbc:ucanaccess://" + databasePath
                 + ";immediatelyReleaseResources=true");
+    }
+
+    interface ConnectionFactory {
+        Connection open() throws SQLException;
     }
 
     private static void rollback(Connection connection) {

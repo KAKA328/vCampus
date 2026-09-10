@@ -13,8 +13,10 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -22,10 +24,11 @@ import org.junit.jupiter.api.io.TempDir;
 class AccessLibraryRepositoryTest {
     @TempDir Path temporaryDirectory;
     private DefaultLibraryService library;
+    private Path database;
 
     @BeforeEach
     void setUp() throws Exception {
-        Path database = temporaryDirectory.resolve("library-test.accdb");
+        database = temporaryDirectory.resolve("library-test.accdb");
         Class.forName("net.ucanaccess.jdbc.UcanaccessDriver");
         try (Connection connection = DriverManager.getConnection(
                 "jdbc:ucanaccess://" + database
@@ -91,6 +94,65 @@ class AccessLibraryRepositoryTest {
         BorrowRecord record = library.borrow("student001", "B001").getData().get(0);
         assertEquals(StatusCode.NOT_FOUND, library.returnBook("student002", record.getRecordId()).getStatus());
         assertEquals(1, library.getBook("B001").getData().getAvailableCopies());
+    }
+
+    @Test
+    void restockPersistsBothCountsAndPreservesExistingLoanAcrossRepositoryInstances() {
+        BorrowRecord loan = library.borrow("student001", "B001").getData().get(0);
+        Book before = library.getBook("B001").getData();
+        assertEquals(StatusCode.OK, library.restock(" B001 ", 5).getStatus());
+        DefaultLibraryService reopened = new DefaultLibraryService(new AccessLibraryRepository(database));
+        Book updated = reopened.getBook("B001").getData();
+        assertEquals(before.withAdditionalCopies(5), updated);
+        assertEquals(7, updated.getTotalCopies());
+        assertEquals(6, updated.getAvailableCopies());
+        assertEquals(loan, reopened.borrowHistory("student001").getData().get(0));
+        assertEquals(StatusCode.OK, reopened.returnBook("student001", loan.getRecordId()).getStatus());
+        assertEquals(7, reopened.getBook("B001").getData().getAvailableCopies());
+    }
+
+    @Test
+    void invalidRestockAndOverflowLeavePersistentInventoryUntouched() {
+        AccessLibraryRepository repository = new AccessLibraryRepository(database);
+        Book before = repository.findBook("B001");
+        for (int copies : new int[] {0, -1, Integer.MIN_VALUE, Integer.MAX_VALUE}) {
+            assertEquals(StatusCode.BAD_REQUEST, library.restock("B001", copies).getStatus());
+            assertEquals(StatusCode.BAD_REQUEST, repository.restock("B001", copies).getStatus());
+        }
+        for (String id : new String[] {null, "", " "}) {
+            assertEquals(StatusCode.BAD_REQUEST, repository.restock(id, 1).getStatus());
+        }
+        assertEquals(StatusCode.NOT_FOUND, repository.restock("MISSING", 1).getStatus());
+        assertEquals(before, new AccessLibraryRepository(database).findBook("B001"));
+    }
+
+    @Test
+    void failedRestockCommitRollsBackBothCountsWithoutChangingBorrowHistory() {
+        BorrowRecord loan = library.borrow("student001", "B001").getData().get(0);
+        Book before = library.getBook("B001").getData();
+        AtomicBoolean reachedCommit = new AtomicBoolean();
+        AtomicBoolean rolledBack = new AtomicBoolean();
+        AccessLibraryRepository failing = new AccessLibraryRepository(database, () -> {
+            Connection delegate = DriverManager.getConnection("jdbc:ucanaccess://" + database
+                    + ";immediatelyReleaseResources=true");
+            return (Connection) java.lang.reflect.Proxy.newProxyInstance(
+                    Connection.class.getClassLoader(), new Class<?>[] {Connection.class},
+                    (proxy, method, args) -> {
+                        if ("commit".equals(method.getName())) {
+                            reachedCommit.set(true);
+                            throw new SQLException("simulated commit failure after inventory update");
+                        }
+                        if ("rollback".equals(method.getName())) rolledBack.set(true);
+                        try { return method.invoke(delegate, args); }
+                        catch (java.lang.reflect.InvocationTargetException failure) { throw failure.getCause(); }
+                    });
+        });
+        assertEquals(StatusCode.SERVER_ERROR, failing.restock("B001", 5).getStatus());
+        assertTrue(reachedCommit.get(), "验证异常发生在库存更新之后");
+        assertTrue(rolledBack.get(), "提交失败必须显式回滚");
+        DefaultLibraryService reopened = new DefaultLibraryService(new AccessLibraryRepository(database));
+        assertEquals(before, reopened.getBook("B001").getData());
+        assertEquals(loan, reopened.borrowHistory("student001").getData().get(0));
     }
 
     private static void insertBook(Connection connection, String id, String title, int copies) throws Exception {

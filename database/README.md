@@ -4,6 +4,8 @@
 
 当前服务器使用 UCanAccess 4.0.4。该驱动不支持执行独立 `CREATE INDEX` 语句，因此 `schema.sql` 只保留主键和表内唯一约束来保证数据正确性；查询索引不是本项目演示环境的必要条件。
 
+图书原价赔偿新增 `tblLibraryCompensation`，并复用 `tblBankAccount`、`tblWalletTransaction`。本次为已具备图书价格和钱包流水结构的本地图书演示库提供专项迁移 `migrations/016_library_compensation.up.sql`：停止服务器、备份原库后执行一次，仅新增赔偿表，保留旧书目、借阅和余额，不等同于保证所有历史版本均可升级。已执行旧编号 `015_library_compensation.up.sql` 图书馆专项迁移的本地库不必重复执行 016；此次仅为避开主线迁移编号而重编号，表结构不变。完整业务与兼容说明见 [图书赔偿说明](../docs/LIBRARY_COMPENSATION.md)。
+
 运行数据库统一使用 Access：服务器通过 `--db database/vCampus.accdb` 连接该文件，客户端不直接连接数据库。用户批量导入的外部源文件可以使用 `.xlsx`、`.csv` 或 `.tsv` 表格模板；这些文件只负责把账号清单读入系统，最终账号、导入人、导入时间和导入批次仍写入 `vCampus.accdb`。不建议把另一个 `.accdb/.mdb` 文件作为用户导入源，避免导入源表结构与系统运行数据库结构混淆。
 
 ## 用户模块表
@@ -82,7 +84,7 @@
 - `tblBorrowRecord`：每本书一条借阅流水；批量借阅共享 `order_id`，每条流水拥有独立 `record_id`。
 - `tblBorrowRenew`：为后续续借功能预留，当前业务代码尚未启用。
 
-借阅和归还由服务器在事务中同时更新 `tblBook.available_copies` 与 `tblBorrowRecord`，客户端只提交会话 token 和书号/借阅记录号。`seed.sql` 预置 10 种馆藏和 4 条相对当前日期生成的流通记录，覆盖临期、普通借阅、已归还和逾期检查。已有图书馆表若仅缺少价格字段，可执行 `database/migrations/014_library_book_price.up.sql`；完整验收仍推荐按最新脚本重建数据库。
+借阅和归还由服务器在事务中同时更新 `tblBook.available_copies` 与 `tblBorrowRecord`，客户端只提交会话 token 和书号/借阅记录号。`seed.sql` 预置 50 种馆藏（150 册、147 册初始可借）和 4 条相对当前日期生成的流通记录，覆盖临期、普通借阅、已归还和逾期检查。B011–B050 使用演示编码与模拟出版信息、价格，不代表真实版本元数据。已有图书馆表若仅缺少价格字段，可执行 `database/migrations/014_library_book_price.up.sql`；完整验收请按 `test-data/LIBRARY_DEMO.md` 生成独立测试库，不覆盖现有业务库。
 
 身份字段分工如下：`tblUser.user_id` 是登录身份；`tblStudent.student_id` 是学生学号；`tblTeacher.teacher_id` 是教师工号；`tblStudent.user_id` 和 `tblTeacher.user_id` 是档案与登录账号之间的一对一绑定字段，可为空但绑定后应保持唯一。新建或导入 `STUDENT` / `TEACHER` 账号时，服务端强制要求对应档案已存在、未被占用，并在绑定失败时删除已创建的账号，避免半成功数据。如果账号尚未关联档案，相关页面应提示“暂无对应档案，请联系管理员维护”；学业审查、课程历史和授课关系不能根据账号信息凭空生成。
 

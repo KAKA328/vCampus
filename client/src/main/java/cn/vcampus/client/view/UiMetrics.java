@@ -18,6 +18,9 @@ final class UiMetrics {
     static final int BASE_DPI = 96;
     private static final double MIN_SCALE = 0.75d;
     private static final double MAX_SCALE = 3.00d;
+    private static final double MIN_DENSITY_SCALE = 0.90d;
+    private static final double MAX_DENSITY_SCALE = 1.15d;
+    private static final double DPI_ADJUSTMENT_WEIGHT = 0.20d;
 
     private UiMetrics() {
     }
@@ -34,8 +37,9 @@ final class UiMetrics {
             double transformScale = Math.max(configuration.getDefaultTransform().getScaleX(),
                     configuration.getDefaultTransform().getScaleY());
             int dpi = Toolkit.getDefaultToolkit().getScreenResolution();
-            // 不同 JDK 对 Windows 高 DPI 的暴露方式不同，取两种信息中较大的有效比例。
-            return normalizeScale(Math.max(transformScale, scaleForDpi(dpi)));
+            // Swing 已按设备缩放绘制；这里只保留轻量密度调整，避免把 150% DPI 再完整放大一次。
+            double platformScale = Math.max(transformScale, dpi / (double) BASE_DPI);
+            return compactDensityScale(platformScale);
         } catch (RuntimeException unavailable) {
             // 远程桌面或部分图形驱动无法提供 DPI 信息时，保持基准尺寸而不是阻断客户端启动。
             return 1.0d;
@@ -88,7 +92,13 @@ final class UiMetrics {
         if (dpi <= 0) {
             return 1.0d;
         }
-        return normalizeScale(dpi / (double) BASE_DPI);
+        return compactDensityScale(dpi / (double) BASE_DPI);
+    }
+
+    private static double compactDensityScale(double platformScale) {
+        double adjusted = 1.0d + (normalizeScale(platformScale) - 1.0d)
+                * DPI_ADJUSTMENT_WEIGHT;
+        return Math.max(MIN_DENSITY_SCALE, Math.min(MAX_DENSITY_SCALE, adjusted));
     }
 
     private static double normalizeScale(double scale) {
