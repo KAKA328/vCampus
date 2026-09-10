@@ -3,6 +3,7 @@ package cn.vcampus.client.view;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.Insets;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -47,7 +48,7 @@ class ModuleCardPanelTest {
         ModuleDescriptor descriptor = new ModuleDescriptor(
                 "商店",
                 "浏览商品、提交购买并查看个人购买记录。",
-                "待接入：等待商店模块负责人完成权限补强后接入页面");
+                "可用：商店模块已接入");
 
         ModuleCardPanel panel = new ModuleCardPanel(descriptor, event -> { });
         JPanel bottom = (JPanel) ((BorderLayout) panel.getLayout()).getLayoutComponent(BorderLayout.SOUTH);
@@ -56,6 +57,15 @@ class ModuleCardPanelTest {
         JButton enter = (JButton) ((BorderLayout) bottom.getLayout()).getLayoutComponent(BorderLayout.EAST);
         assertTrue(enter.getPreferredSize().width >= UiMetrics.px(96),
                 "enter button should be easy to read and click");
+        Insets insets = enter.getInsets();
+        int requiredWidth = enter.getFontMetrics(enter.getFont()).stringWidth(enter.getText())
+                + insets.left + insets.right;
+        assertTrue(enter.getPreferredSize().width >= requiredWidth,
+                "enter button must show its complete label");
+        JButton naturallySized = new JButton(enter.getText());
+        VCampusTheme.primaryButton(naturallySized);
+        assertTrue(enter.getPreferredSize().width >= naturallySized.getPreferredSize().width,
+                "fixed dashboard button width must not be narrower than its natural themed size");
     }
 
     @Test

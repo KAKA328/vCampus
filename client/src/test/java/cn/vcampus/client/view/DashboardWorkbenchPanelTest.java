@@ -3,6 +3,7 @@ package cn.vcampus.client.view;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.Insets;
 import java.util.Arrays;
 import java.util.List;
 import javax.swing.JButton;
@@ -80,6 +81,39 @@ class DashboardWorkbenchPanelTest {
     }
 
     @Test
+    void dashboardStatsReserveEnoughHeightForEveryTextLine() {
+        DashboardWorkbenchPanel panel = new DashboardWorkbenchPanel(
+                "演示系统管理员", "ADMIN", Arrays.asList(
+                        new ModuleDescriptor("用户管理", "维护账号和角色。", "可用：已接入")),
+                module -> new JButton(module.getTitle()));
+        Container stats = (Container) statRow(panel);
+
+        for (Component component : stats.getComponents()) {
+            Container card = (Container) component;
+            BorderLayout layout = (BorderLayout) card.getLayout();
+            Insets insets = card.getInsets();
+            int contentHeight = layout.getLayoutComponent(BorderLayout.NORTH).getPreferredSize().height
+                    + layout.getLayoutComponent(BorderLayout.CENTER).getPreferredSize().height
+                    + layout.getLayoutComponent(BorderLayout.SOUTH).getPreferredSize().height
+                    + layout.getVgap() * 2;
+            assertTrue(card.getPreferredSize().height >= contentHeight + insets.top + insets.bottom,
+                    "stat card must not clip or overlap its three text lines");
+        }
+    }
+
+    @Test
+    void dashboardStatusPillsFitInsideInsightRail() {
+        DashboardWorkbenchPanel panel = dashboard();
+
+        for (JLabel label : labelComponents(panel)) {
+            if (label.isOpaque()) {
+                assertTrue(label.getPreferredSize().width <= UiMetrics.px(220),
+                        "status pill must fit inside the insight rail: " + label.getText());
+            }
+        }
+    }
+
+    @Test
     void quickActionIsAnEnterableModuleButton() {
         AtomicReference<String> opened = new AtomicReference<String>();
         List<ModuleDescriptor> modules = Arrays.asList(
@@ -122,6 +156,23 @@ class DashboardWorkbenchPanelTest {
         java.util.List<String> values = new java.util.ArrayList<String>();
         collect(root, values);
         return values;
+    }
+
+    private static java.util.List<JLabel> labelComponents(Component root) {
+        java.util.List<JLabel> values = new java.util.ArrayList<JLabel>();
+        collectLabels(root, values);
+        return values;
+    }
+
+    private static void collectLabels(Component component, java.util.List<JLabel> values) {
+        if (component instanceof JLabel) {
+            values.add((JLabel) component);
+        }
+        if (component instanceof Container) {
+            for (Component child : ((Container) component).getComponents()) {
+                collectLabels(child, values);
+            }
+        }
     }
 
     private static void collect(Component component, java.util.List<String> values) {
