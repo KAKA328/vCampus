@@ -8,25 +8,29 @@ public final class SelectableCourseOffering implements Serializable {
     private final Course course;
     private final CourseOffering offering;
     private final SelectionType selectionType;
+    private final CourseOfferingCapacitySnapshot capacitySnapshot;
     private final CapacityBucketUsage capacityUsage;
 
     public SelectableCourseOffering(Course course, CourseOffering offering,
-            SelectionType selectionType, CapacityBucketUsage capacityUsage) {
-        if (course == null || offering == null || selectionType == null || capacityUsage == null) {
+            SelectionType selectionType, CourseOfferingCapacitySnapshot capacitySnapshot) {
+        if (course == null || offering == null || selectionType == null || capacitySnapshot == null) {
             throw new IllegalArgumentException("selectable offering fields must not be null");
         }
         if (!course.getCourseId().equals(offering.getCourseId())
-                || selectionType.getCapacityBucket() != capacityUsage.getCapacityBucket()) {
+                || !offering.getOfferingId().equals(capacitySnapshot.getOfferingId())) {
             throw new IllegalArgumentException("selectable offering fields do not match");
         }
         this.course = course;
         this.offering = offering;
         this.selectionType = selectionType;
-        this.capacityUsage = capacityUsage;
+        this.capacitySnapshot = capacitySnapshot;
+        this.capacityUsage = capacitySnapshot.getUsage(selectionType.getCapacityBucket());
     }
 
     public Course getCourse() { return course; }
     public CourseOffering getOffering() { return offering; }
     public SelectionType getSelectionType() { return selectionType; }
+    /** 用于学生端展示教学班总容量和总已选人数。 */
+    public CourseOfferingCapacitySnapshot getCapacitySnapshot() { return capacitySnapshot; }
     public CapacityBucketUsage getCapacityUsage() { return capacityUsage; }
 }

@@ -53,7 +53,6 @@ public final class CourseSelectionPanel extends JPanel {
             new Object[] { "课程编号", "课程名称", "学分", "教学班", "上课时间", "地点" });
     private final JTable courseTable = new JTable(courseModel);
     private final JTable selectedTable = new JTable(selectedModel);
-    private final JButton courseDetailButton = new JButton("查看所选课程的教学班");
     private final JButton selectedCoursesButton = new JButton("我的已选课程");
     private final JButton backToRoundsButton = new JButton("返回选课轮次");
     private final JButton backToCoursesButton = new JButton("返回课程列表");
@@ -90,18 +89,16 @@ public final class CourseSelectionPanel extends JPanel {
         configureTable(courseTable, COURSE_COLUMN_WIDTHS);
         configureTable(selectedTable, SELECTED_COLUMN_WIDTHS);
         courseTable.getSelectionModel().addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting()) updateInteractiveState();
+            if (!e.getValueIsAdjusting()) openCourseDetail();
         });
         selectedTable.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) updateInteractiveState();
         });
-        courseDetailButton.addActionListener(e -> openCourseDetail());
         selectedCoursesButton.addActionListener(e -> showSelectedPage());
         backToRoundsButton.addActionListener(e -> showRoundPage());
         backToCoursesButton.addActionListener(e -> showCoursePage());
         backToCoursesFromSelectedButton.addActionListener(e -> showCoursePage());
         dropButton.addActionListener(e -> dropSelectedCourse());
-        VCampusTheme.primaryButton(courseDetailButton);
         VCampusTheme.secondaryButton(selectedCoursesButton);
         VCampusTheme.secondaryButton(backToRoundsButton);
         VCampusTheme.secondaryButton(backToCoursesButton);
@@ -126,7 +123,7 @@ public final class CourseSelectionPanel extends JPanel {
     private JPanel header() {
         JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(5)));
         panel.setOpaque(false);
-        JLabel title = new JLabel("选课系统");
+        JLabel title = new JLabel("学生选课");
         title.setFont(VCampusTheme.font(Font.BOLD, 24));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
         pageSubtitle.setForeground(VCampusTheme.MUTED);
@@ -159,7 +156,7 @@ public final class CourseSelectionPanel extends JPanel {
         selectedRoundLabel.setFont(VCampusTheme.font(Font.BOLD, 17));
         selectedRoundLabel.setForeground(VCampusTheme.PRIMARY_DARK);
         header.add(selectedRoundLabel, BorderLayout.NORTH);
-        header.add(sectionHint("选择一门课程后查看该课程全部教学班与剩余容量。 "),
+        header.add(sectionHint("选择课程即可查看全部教学班。 "),
                 BorderLayout.SOUTH);
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiMetrics.px(8), 0));
         actions.setOpaque(false);
@@ -167,11 +164,6 @@ public final class CourseSelectionPanel extends JPanel {
         actions.add(selectedCoursesButton);
         card.add(header, BorderLayout.NORTH);
         card.add(VCampusTheme.scrollPane(courseTable), BorderLayout.CENTER);
-        JPanel footer = new JPanel(new BorderLayout(UiMetrics.px(12), 0));
-        footer.setOpaque(false);
-        footer.add(sectionHint("课程列表会在返回此页时自动刷新。 "), BorderLayout.CENTER);
-        footer.add(courseDetailButton, BorderLayout.EAST);
-        card.add(footer, BorderLayout.SOUTH);
         content.add(actions, BorderLayout.NORTH);
         content.add(card, BorderLayout.CENTER);
         return content;
@@ -184,7 +176,7 @@ public final class CourseSelectionPanel extends JPanel {
         selectedCourseLabel.setFont(VCampusTheme.font(Font.BOLD, 18));
         selectedCourseLabel.setForeground(VCampusTheme.PRIMARY_DARK);
         header.add(selectedCourseLabel, BorderLayout.NORTH);
-        header.add(sectionHint("每个教学班均显示当前选课类别对应的剩余容量；选课成功后会自动刷新。 "),
+        header.add(sectionHint("选择教学班后即可直接选课。 "),
                 BorderLayout.SOUTH);
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         actions.setOpaque(false);
@@ -277,7 +269,7 @@ public final class CourseSelectionPanel extends JPanel {
         selectedRound = round;
         selectedCourse = null;
         setSubtitle("当前轮次：" + round.getType().getDisplayName() + "（" + round.getTerm()
-                + "），请选择一门课程查看教学班。 ");
+                + "），请选择一门课程。 ");
         pageLayout.show(pages, COURSE_PAGE);
         loadCourseList();
     }
@@ -296,7 +288,7 @@ public final class CourseSelectionPanel extends JPanel {
             return;
         }
         setSubtitle("当前轮次：" + selectedRound.getType().getDisplayName() + "（"
-                + selectedRound.getTerm() + "），请选择一门课程查看教学班。 ");
+                + selectedRound.getTerm() + "），请选择一门课程。 ");
         pageLayout.show(pages, COURSE_PAGE);
         loadCourseList();
     }
@@ -362,6 +354,7 @@ public final class CourseSelectionPanel extends JPanel {
     }
 
     private void openCourseDetail() {
+        if (requestInProgress || selectedRound == null) return;
         int row = courseTable.getSelectedRow();
         if (row < 0 || row >= courseChoices.size()) {
             showStatus("请先选择一门课程", VCampusTheme.DANGER);
@@ -441,9 +434,8 @@ public final class CourseSelectionPanel extends JPanel {
         JLabel detail = new JLabel("<html>任课教师：" + escape(value.getOffering().getTeacherId())
                 + "<br/>上课时间：" + escape(value.getOffering().getSchedule())
                 + "<br/>上课地点：" + escape(value.getOffering().getLocation())
-                + "<br/>" + escape(value.getSelectionType().getDisplayName()) + "容量："
-                + value.getCapacityUsage().getRemainingCapacity() + " / "
-                + value.getCapacityUsage().getTotalCapacity() + "</html>");
+                + "<br/>容量：" + totalCapacity(value)
+                + "<br/>已选人数：" + selectedCount(value) + "</html>");
         detail.setForeground(VCampusTheme.TEXT);
         JPanel text = new JPanel(new BorderLayout(0, UiMetrics.px(5)));
         text.setOpaque(false);
@@ -487,8 +479,7 @@ public final class CourseSelectionPanel extends JPanel {
             showRoundPage();
             return;
         }
-        setSubtitle("当前轮次：" + selectedRound.getType().getDisplayName() + "（"
-                + selectedRound.getTerm() + "），查看当前有效选课记录。 ");
+        setSubtitle("查看该账号全部有效已选课程。 ");
         pageLayout.show(pages, SELECTED_PAGE);
         fetchSelectedOfferings(this::renderSelectedCourses);
     }
@@ -589,8 +580,6 @@ public final class CourseSelectionPanel extends JPanel {
         backToRoundsButton.setEnabled(interactive);
         selectedCoursesButton.setEnabled(interactive && selectedRound != null);
         courseTable.setEnabled(interactive);
-        courseDetailButton.setEnabled(interactive && courseTable.getSelectedRow() >= 0
-                && courseTable.getSelectedRow() < courseChoices.size());
         backToCoursesButton.setEnabled(interactive);
         backToCoursesFromSelectedButton.setEnabled(interactive);
         selectedTable.setEnabled(interactive);
@@ -633,6 +622,18 @@ public final class CourseSelectionPanel extends JPanel {
         return value == null ? "" : value.replace("&", "&amp;")
                 .replace("<", "&lt;").replace(">", "&gt;")
                 .replace("\"", "&quot;").replace("'", "&#39;");
+    }
+
+    private static int totalCapacity(SelectableCourseOffering value) {
+        return value.getCapacitySnapshot().getRequiredUsage().getTotalCapacity()
+                + value.getCapacitySnapshot().getElectiveUsage().getTotalCapacity()
+                + value.getCapacitySnapshot().getCrossMajorUsage().getTotalCapacity();
+    }
+
+    private static int selectedCount(SelectableCourseOffering value) {
+        return value.getCapacitySnapshot().getRequiredUsage().getUsedCapacity()
+                + value.getCapacitySnapshot().getElectiveUsage().getUsedCapacity()
+                + value.getCapacitySnapshot().getCrossMajorUsage().getUsedCapacity();
     }
 
     private static final class CourseChoice {

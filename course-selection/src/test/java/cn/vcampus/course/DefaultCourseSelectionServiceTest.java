@@ -61,6 +61,11 @@ class DefaultCourseSelectionServiceTest {
         assertEquals(SelectionType.ELECTIVE, offerings.getData().get(2).getSelectionType());
         assertEquals("GE101", offerings.getData().get(3).getCourse().getCourseId());
         assertEquals(SelectionType.CROSS_MAJOR, offerings.getData().get(3).getSelectionType());
+        CourseOfferingCapacitySnapshot capacity = offerings.getData().get(0).getCapacitySnapshot();
+        assertEquals(2, capacity.getRequiredUsage().getTotalCapacity());
+        assertEquals(2, capacity.getElectiveUsage().getTotalCapacity());
+        assertEquals(1, capacity.getCrossMajorUsage().getTotalCapacity());
+        assertEquals(0, capacity.getRequiredUsage().getUsedCapacity());
     }
 
     @Test

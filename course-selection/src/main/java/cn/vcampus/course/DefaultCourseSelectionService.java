@@ -99,7 +99,7 @@ public final class DefaultCourseSelectionService implements CourseSelectionServi
                         eligibleCourse.getValue().getCapacityBucket());
                 if (!usage.isFull()) {
                     result.add(new SelectableCourseOffering(courseResult.getData(), offering,
-                            eligibleCourse.getValue(), usage));
+                            eligibleCourse.getValue(), capacityResult.getData()));
                 }
             }
         }
