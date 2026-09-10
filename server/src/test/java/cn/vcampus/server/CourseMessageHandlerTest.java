@@ -9,8 +9,10 @@ import cn.vcampus.common.Role;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.Course;
 import cn.vcampus.course.CourseManagementCommand;
+import cn.vcampus.course.CourseMeeting;
 import cn.vcampus.course.CourseOffering;
 import cn.vcampus.course.CourseOfferingStatus;
+import cn.vcampus.course.CourseSchedule;
 import cn.vcampus.course.CourseSelectionModule;
 import cn.vcampus.course.CourseSelectOfferingV2Command;
 import cn.vcampus.course.CourseSelectionQueryV2Command;
@@ -33,6 +35,7 @@ import cn.vcampus.user.SessionManager;
 import cn.vcampus.user.UserCredentials;
 import java.util.Collections;
 import java.time.LocalDateTime;
+import java.time.DayOfWeek;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -114,7 +117,9 @@ class CourseMessageHandlerTest {
                 MessageType.COURSE_MANAGE, CourseManagementCommand.createOffering(
                         academicSession.getToken(), new CourseOffering("OFFER-CS201-01", "CS201",
                                 CourseSelectionDemoFactory.DEMO_TERM, "教师004", "周四 1-2 节", "A204",
-                                30, 10, 5, CourseOfferingStatus.DRAFT))));
+                                30, 10, 5, CourseOfferingStatus.DRAFT).withMeetingSchedule(
+                                        new CourseSchedule(Collections.singletonList(new CourseMeeting(
+                                                DayOfWeek.THURSDAY, 1, 2, "A204")))))));
         assertEquals(StatusCode.OK, createOffering.getStatusCode());
 
         Message updateTeachingInfo = managementHandler.handle(Message.request("update-teaching-info",
@@ -125,6 +130,16 @@ class CourseMessageHandlerTest {
         assertEquals("教师005", updatedOffering.getTeacherId());
         assertEquals("B301", updatedOffering.getLocation());
         assertEquals("周四 1-2 节", updatedOffering.getSchedule());
+
+        CourseOffering rescheduled = updatedOffering.withSchedule("1-8周 星期二第3-4节",
+                new CourseSchedule(Collections.singletonList(new CourseMeeting(DayOfWeek.TUESDAY,
+                        3, 4, 1, 8, "B301"))));
+        Message updateSchedule = managementHandler.handle(Message.request("update-schedule",
+                MessageType.COURSE_MANAGE, CourseManagementCommand.updateOfferingSchedule(
+                        academicSession.getToken(), rescheduled)));
+        assertEquals(StatusCode.OK, updateSchedule.getStatusCode());
+        CourseOffering scheduleUpdatedOffering = (CourseOffering) updateSchedule.getPayload();
+        assertEquals(8, scheduleUpdatedOffering.getMeetingSchedule().getMeetings().get(0).getEndWeek());
 
         LocalDateTime startsAt = LocalDateTime.of(2026, 10, 1, 8, 0);
         LocalDateTime endsAt = LocalDateTime.of(2026, 10, 7, 18, 0);

@@ -72,6 +72,10 @@ public final class InMemoryCourseOfferingService implements CourseOfferingServic
         if (offering == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "offering must not be null");
         }
+        ServiceResult<Void> scheduleResult = requireStructuredSchedule(offering.getMeetingSchedule());
+        if (scheduleResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(scheduleResult.getStatus(), scheduleResult.getMessage());
+        }
         ServiceResult<Void> courseResult = requireActiveCourse(offering.getCourseId());
         if (courseResult.getStatus() != StatusCode.OK) {
             return ServiceResult.failure(courseResult.getStatus(), courseResult.getMessage());
@@ -204,6 +208,28 @@ public final class InMemoryCourseOfferingService implements CourseOfferingServic
         return ServiceResult.ok(changed);
     }
 
+    @Override
+    public synchronized ServiceResult<CourseOffering> updateSchedule(String offeringId,
+            String schedule, CourseSchedule meetingSchedule) {
+        String normalizedOfferingId = normalize(offeringId);
+        String normalizedSchedule = normalize(schedule);
+        if (normalizedOfferingId == null || normalizedSchedule == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "offeringId and schedule must not be blank");
+        }
+        ServiceResult<Void> scheduleResult = requireStructuredSchedule(meetingSchedule);
+        if (scheduleResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(scheduleResult.getStatus(), scheduleResult.getMessage());
+        }
+        CourseOffering existing = offeringsById.get(normalizedOfferingId);
+        if (existing == null) {
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "course offering not found");
+        }
+        CourseOffering changed = existing.withSchedule(normalizedSchedule, meetingSchedule);
+        offeringsById.put(normalizedOfferingId, changed);
+        return ServiceResult.ok(changed);
+    }
+
     private ServiceResult<List<CourseOffering>> listByCourseAndStatus(String courseId,
             String term, CourseOfferingStatus requiredStatus) {
         String normalizedCourseId = normalize(courseId);
@@ -239,6 +265,14 @@ public final class InMemoryCourseOfferingService implements CourseOfferingServic
         return courseResult.getStatus() == StatusCode.OK
                 ? ServiceResult.ok(null)
                 : ServiceResult.<Void>failure(courseResult.getStatus(), courseResult.getMessage());
+    }
+
+    private static ServiceResult<Void> requireStructuredSchedule(CourseSchedule meetingSchedule) {
+        if (meetingSchedule == null || meetingSchedule.isEmpty()) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "meeting schedule must contain at least one meeting");
+        }
+        return ServiceResult.ok(null);
     }
 
     private ServiceResult<Void> verifyCapacityNotBelowActiveSelections(CourseOffering offering,

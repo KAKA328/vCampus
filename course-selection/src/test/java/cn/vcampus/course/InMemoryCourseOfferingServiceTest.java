@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
+import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
@@ -92,6 +93,25 @@ class InMemoryCourseOfferingServiceTest {
     }
 
     @Test
+    void replacesStructuredScheduleAndRejectsEmptySchedule() {
+        InMemoryCourseOfferingService service = new InMemoryCourseOfferingService(Arrays.asList(
+                offering("OFFER-001", "CS101", CourseOfferingStatus.DRAFT, 50, 20, 10)));
+        CourseSchedule schedule = new CourseSchedule(Arrays.asList(
+                new CourseMeeting(DayOfWeek.TUESDAY, 3, 4, 1, 8, "教学楼 B301"),
+                new CourseMeeting(DayOfWeek.THURSDAY, 5, 6, 9, 16, "教学楼 B301")));
+
+        ServiceResult<CourseOffering> result = service.updateSchedule("OFFER-001",
+                "1-8周 星期二 第3-4节；9-16周 星期四 第5-6节", schedule);
+
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals(2, result.getData().getMeetingSchedule().getMeetings().size());
+        assertEquals(DayOfWeek.TUESDAY,
+                result.getData().getMeetingSchedule().getMeetings().get(0).getDayOfWeek());
+        assertEquals(StatusCode.BAD_REQUEST, service.updateSchedule("OFFER-001", "未排课",
+                CourseSchedule.empty()).getStatus());
+    }
+
+    @Test
     void rejectsInvalidOrUnknownManagementRequests() {
         InMemoryCourseOfferingService service = new InMemoryCourseOfferingService(Arrays.asList(
                 offering("OFFER-001", "CS101", CourseOfferingStatus.DRAFT, 50, 20, 10)));
@@ -159,6 +179,8 @@ class InMemoryCourseOfferingServiceTest {
             int crossMajorCapacity) {
         return new CourseOffering(offeringId, courseId, "2026-2027-1", "TEACHER-001",
                 "周一 1-2 节", "教学楼 A201", requiredCapacity, electiveCapacity,
-                crossMajorCapacity, status);
+                crossMajorCapacity, status).withMeetingSchedule(new CourseSchedule(
+                        Arrays.asList(new CourseMeeting(DayOfWeek.MONDAY, 1, 2,
+                                "教学楼 A201"))));
     }
 }

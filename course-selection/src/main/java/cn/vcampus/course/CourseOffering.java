@@ -167,6 +167,17 @@ public final class CourseOffering implements Serializable {
                 requiredCapacity, electiveCapacity, crossMajorCapacity, status, newMeetingSchedule);
     }
 
+    /**
+     * 返回替换了展示文本和结构化上课时间的新教学班对象。
+     *
+     * <p>教学班管理端应始终由同一份结构化排课数据生成展示文本，避免页面显示的时间与
+     * 冲突检测实际使用的时间不一致。</p>
+     */
+    public CourseOffering withSchedule(String newSchedule, CourseSchedule newMeetingSchedule) {
+        return new CourseOffering(offeringId, courseId, term, teacherId, newSchedule, location,
+                requiredCapacity, electiveCapacity, crossMajorCapacity, status, newMeetingSchedule);
+    }
+
     private static String requireText(String value, String fieldName) {
         if (value == null || value.trim().isEmpty()) {
             throw new IllegalArgumentException(fieldName + " must not be blank");

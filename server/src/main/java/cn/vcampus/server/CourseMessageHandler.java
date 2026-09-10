@@ -633,6 +633,11 @@ final class CourseMessageHandler {
                 return offerings == null ? managementServiceUnavailable()
                         : offerings.updateTeachingInfo(command.getTargetId(), command.getTeacherId(),
                                 command.getLocation());
+            case UPDATE_OFFERING_SCHEDULE:
+                return offerings == null ? managementServiceUnavailable()
+                        : offerings.updateSchedule(command.getTargetId(),
+                                command.getOffering().getSchedule(),
+                                command.getOffering().getMeetingSchedule());
             case LIST_SELECTION_ROUNDS_BY_TERM:
                 return selectionRounds == null ? managementServiceUnavailable()
                         : selectionRounds.listByTerm(command.getTerm());

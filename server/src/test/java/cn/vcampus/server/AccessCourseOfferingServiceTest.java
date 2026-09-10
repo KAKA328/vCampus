@@ -107,6 +107,26 @@ class AccessCourseOfferingServiceTest {
     }
 
     @Test
+    void replacesStructuredScheduleAndPersistsItAfterRestart() {
+        service.create(offering("OFFER-001", CourseOfferingStatus.DRAFT));
+        CourseSchedule schedule = new CourseSchedule(Arrays.asList(
+                new CourseMeeting(DayOfWeek.TUESDAY, 3, 4, 1, 8, "教学楼B302"),
+                new CourseMeeting(DayOfWeek.THURSDAY, 5, 6, 9, 16, "教学楼B302")));
+
+        assertEquals(StatusCode.OK, service.updateSchedule("OFFER-001",
+                "1-8周 星期二第3-4节；9-16周 星期四第5-6节", schedule).getStatus());
+        AccessCourseOfferingService restarted = new AccessCourseOfferingService(
+                temporaryDirectory.resolve("course-offering-test.accdb"), catalog);
+        CourseOffering saved = restarted.findById("OFFER-001").getData();
+
+        assertEquals("1-8周 星期二第3-4节；9-16周 星期四第5-6节", saved.getSchedule());
+        assertEquals(2, saved.getMeetingSchedule().getMeetings().size());
+        assertEquals(8, saved.getMeetingSchedule().getMeetings().get(0).getEndWeek());
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.updateSchedule("OFFER-001", "未排课", CourseSchedule.empty()).getStatus());
+    }
+
+    @Test
     void rejectsDisabledOrUnknownCourseAndDuplicateOffering() {
         assertEquals(StatusCode.OK,
                 catalog.changeStatus("CS101", cn.vcampus.course.CourseStatus.DISABLED).getStatus());
