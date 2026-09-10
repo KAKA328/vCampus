@@ -4,7 +4,7 @@
 
 当前服务器使用 UCanAccess 4.0.4。该驱动不支持执行独立 `CREATE INDEX` 语句，因此 `schema.sql` 只保留主键和表内唯一约束来保证数据正确性；查询索引不是本项目演示环境的必要条件。
 
-图书原价赔偿新增 `tblLibraryCompensation`，并复用 `tblBankAccount`、`tblWalletTransaction`。本次为已具备图书价格和钱包流水结构的本地图书演示库提供专项迁移 `migrations/015_library_compensation.up.sql`：停止服务器、备份原库后执行一次，仅新增赔偿表，保留旧书目、借阅和余额，不等同于保证所有历史版本均可升级。完整业务与兼容说明见 [图书赔偿说明](../docs/LIBRARY_COMPENSATION.md)。
+图书原价赔偿新增 `tblLibraryCompensation`，并复用 `tblBankAccount`、`tblWalletTransaction`。本次为已具备图书价格和钱包流水结构的本地图书演示库提供专项迁移 `migrations/016_library_compensation.up.sql`：停止服务器、备份原库后执行一次，仅新增赔偿表，保留旧书目、借阅和余额，不等同于保证所有历史版本均可升级。已执行旧编号 `015_library_compensation.up.sql` 图书馆专项迁移的本地库不必重复执行 016；此次仅为避开主线迁移编号而重编号，表结构不变。完整业务与兼容说明见 [图书赔偿说明](../docs/LIBRARY_COMPENSATION.md)。
 
 运行数据库统一使用 Access：服务器通过 `--db database/vCampus.accdb` 连接该文件，客户端不直接连接数据库。用户批量导入的外部源文件可以使用 `.xlsx`、`.csv` 或 `.tsv` 表格模板；这些文件只负责把账号清单读入系统，最终账号、导入人、导入时间和导入批次仍写入 `vCampus.accdb`。不建议把另一个 `.accdb/.mdb` 文件作为用户导入源，避免导入源表结构与系统运行数据库结构混淆。
 

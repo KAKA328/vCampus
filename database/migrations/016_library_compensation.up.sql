@@ -1,4 +1,5 @@
--- Apply once after migration 014. Back up the database before upgrading.
+-- Apply once to a database with the library price and wallet tables. Back up before upgrading.
+-- Renumbered from the local-only 015_library_compensation migration; do not reapply if already run.
 -- Existing books, loans, balances and wallet transactions are preserved.
 -- Original-price snapshots: one bill per lost borrowing record; no wallet balance is stored here.
 CREATE TABLE tblLibraryCompensation (

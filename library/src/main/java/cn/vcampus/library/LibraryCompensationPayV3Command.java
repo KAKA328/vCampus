@@ -16,4 +16,3 @@ public final class LibraryCompensationPayV3Command implements Serializable {
     public String getToken() { return token; }
     public String getCompensationId() { return compensationId; }
 }
-

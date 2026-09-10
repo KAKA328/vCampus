@@ -47,7 +47,7 @@ Access 模式确认遗失使用一个 JDBC 事务写入赔偿单、借阅状态�
 ## 数据库升级与验收
 
 - 新建库使用完整 `database/schema.sql` 和 `database/seed.sql`，仍保留 50 种馆藏及原有演示借阅。
-- 已有图书价格、钱包及流水表的旧库，停止服务器并备份后，执行一次 `database/migrations/015_library_compensation.up.sql`。不要用重建种子覆盖已有借阅、余额或流水。
+- 已有图书价格、钱包及流水表的旧库，停止服务器并备份后，执行一次 `database/migrations/016_library_compensation.up.sql`。不要用重建种子覆盖已有借阅、余额或流水。已执行旧编号 `015_library_compensation.up.sql` 图书馆专项迁移的本地库无需重复执行 016；此次只调整迁移编号，赔偿表结构不变。
 - 上线前依次验证：管理员确认遗失；学生/教师本人支付；余额不足；相同账单重复请求；他人及管理员代付被拒；支付后商店余额和流水可见；重启后状态持久化；事务故障不留下半笔账。
 - 自动测试使用临时数据库及测试账户，不向实际使用中的钱包扣款。实际执行结果以本轮测试报告为准。
-- 本地演示库升级、备份位置、人工操作步骤及 795 项回归报告说明见 [赔偿与并发验收记录](../test-data/LIBRARY_COMPENSATION_ACCEPTANCE.md)。
+- 本地演示库升级、备份位置、人工操作步骤及最新主线 814 项完整回归报告说明见 [赔偿与并发验收记录](../test-data/LIBRARY_COMPENSATION_ACCEPTANCE.md)。

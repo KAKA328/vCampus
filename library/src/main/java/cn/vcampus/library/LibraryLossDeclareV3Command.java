@@ -16,4 +16,3 @@ public final class LibraryLossDeclareV3Command implements Serializable {
     public String getToken() { return token; }
     public String getRecordId() { return recordId; }
 }
-

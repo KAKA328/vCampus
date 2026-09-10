@@ -16,4 +16,3 @@ public final class LibraryCompensationListV3Command implements Serializable {
     public String getToken() { return token; }
     public boolean isAllUsers() { return allUsers; }
 }
-

@@ -185,7 +185,7 @@ class AccessLibraryCompensationServiceTest {
         BorrowRecord oldLoan = new DefaultLibraryService(oldLibrary).borrow("existing", "OLD").getData().get(0);
         AccessWalletRepository oldWallet = new AccessWalletRepository(oldDatabase);
         oldWallet.credit("existing", 10000, WalletTransactionType.RECHARGE, "existing", "old ledger");
-        String migration = AccessDatabaseSchemaTest.readScript("database/migrations/015_library_compensation.up.sql");
+        String migration = AccessDatabaseSchemaTest.readScript("database/migrations/016_library_compensation.up.sql");
         String schema = AccessDatabaseSchemaTest.readScript("database/schema.sql");
         assertEquals(table(schema, "tblLibraryCompensation"), table(migration, "tblLibraryCompensation"));
         AccessDatabaseSchemaTest.executeScript(oldDatabase, migration);

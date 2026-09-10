@@ -43,3 +43,11 @@
 - 服务端另执行 `mvn -o -q -pl server -am -DskipTests package` 成功。最终产物：`client/target/vCampusClient.jar`、`server/target/vCampusServer.jar`。
 - 使用实际 Swing 组件离屏检查读者宽屏、480 像素窄屏及管理员页；为绕开本机 JDK 8 无窗口渲染的 Windows 原生主题问题，预览使用 `-Dswing.noxp=true`。这不代替不同 Windows DPI 下的实机人工验收，未修改正式客户端主题设置。
 - `git diff --check` 通过。本轮代码、测试、文档均保留在本地，未提交或推送 GitHub。
+
+## 2026-09-10 主线同步与提交前验证
+
+- 保留原本地工作分支和独立演示库，在最新 `origin/main`（`2b44ca7`）上创建 `feature/library-wallet-compensation`，接入本轮图书馆改动；没有重写公共分支历史，也没有覆盖本地演示数据。
+- 主线课程模块已使用迁移编号 015，因此将图书馆专项迁移改为 `016_library_compensation.up.sql`，同步引用与迁移测试。已执行旧编号图书馆专项迁移的本地库无需重跑，表结构没有变化。
+- 使用 JDK 8 执行完整命令 `mvn -o -q "-Dmaven.repo.local=C:\Users\ASUS\.m2\repository" package "-DforkCount=0"`，退出码 0。新工作树从无构建产物开始，全部 **814 项测试一次执行通过，失败 0、错误 0、跳过 0**，不同于上节的历史分组复测汇总。
+- 客户端 `client/target/vCampusClient.jar` 和服务端 `server/target/vCampusServer.jar` 均打包成功；相对 `origin/main` 的 `git diff --check` 通过。
+- PR 仅包含源代码、SQL 样例、测试和文档，不包含生成的 JAR、本地数据库或备份。仍需小组评审、不同 Windows DPI 下的人工验收，以及共享钱包跨模块实机联调；自动化通过不表示已合并或已完成最终验收。

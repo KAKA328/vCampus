@@ -130,4 +130,3 @@ class DemoCatalogTest {
         throw new IOException("找不到项目 database/seed.sql，无法验证演示数据一致性");
     }
 }
-

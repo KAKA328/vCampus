@@ -6,14 +6,10 @@ import java.io.Serializable;
 public final class LibraryWalletQueryV3Command implements Serializable {
     private static final long serialVersionUID = 1L;
     private final String token;
-    
 
     public LibraryWalletQueryV3Command(String token) {
         this.token = LibraryCommandSupport.required(token, "token");
-        
     }
 
     public String getToken() { return token; }
-    
 }
-
