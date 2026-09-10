@@ -130,8 +130,8 @@ StudentManagementService.findByIds(List<String> studentIds)
 - `STORE_PURCHASE` + `StorePurchaseCommand(token, productId, quantity)`：直接购买；要求 `STORE_PURCHASE`。
 - `STORE_ORDER_QUERY` + `StoreOrderQueryCommand(token)`：查询本人订单；要求 `STORE_READ`。
 - `STORE_CART_ADD` / `STORE_CART_REMOVE` / `STORE_CART_QUERY` / `STORE_CART_CHECKOUT`：购物车增删查和结账，分别使用对应 `Cart*Command`；增删/结账要求 `STORE_PURCHASE`，查询要求 `STORE_READ`。
-- `STORE_CART_REMOVE_BATCH` + `CartRemoveBatchCommand(token, cartItemIds)`：一次删除多条本人购物车条目；要求 `STORE_PURCHASE`，`userId` 取自 token，服务层按归属筛除他人条目，若选中 id 一条都不属于本人返回 `NOT_FOUND`，空列表返回 `BAD_REQUEST`。
-- `STORE_CART_CHECKOUT_SELECTED` + `CartCheckoutSelectedCommand(token, cartItemIds)`：仅结算勾选子集（服务端子集 checkout，逐项原子扣库存→扣款→建单，成功后只删选中条目）；要求 `STORE_PURCHASE`，`userId` 取自 token，任一 id 不属于本人或不存在整体返回 `NOT_FOUND`，空列表返回 `BAD_REQUEST`。
+- `STORE_CART_REMOVE_BATCH` + `CartRemoveBatchCommand(token, cartItemIds)`：一次删除多条本人购物车条目，仓储层保证整批全删或全不删；要求 `STORE_PURCHASE`，`userId` 取自 token，服务层按归属筛除他人条目，若选中 id 一条都不属于本人返回 `NOT_FOUND`，空列表返回 `BAD_REQUEST`。
+- `STORE_CART_CHECKOUT_SELECTED` + `CartCheckoutSelectedCommand(token, cartItemIds)`：仅结算勾选子集（服务端子集 checkout，逐项原子扣库存→扣款→建单，成功后原子删除全部选中条目）；要求 `STORE_PURCHASE`，`userId` 取自 token，任一 id 不属于本人或不存在整体返回 `NOT_FOUND`，空列表返回 `BAD_REQUEST`。
 - `STORE_CART_UPDATE` + `CartUpdateCommand(token, cartItemId, newQuantity)`：修改购物车条目数量，`newQuantity` 必须为正；要求 `STORE_PURCHASE`，`userId` 取自 token，服务层再校验条目**归属本人**，不属于本人一律返回 `NOT_FOUND`（不区分「不存在」与「不是你的」，避免枚举他人条目）。
 - `STORE_CART_DETAIL` + `CartQueryCommand(token)`：购物车明细，响应 payload 为 `List<CartLine>`（`cartItemId`/`productId`/`productName`/`unitPriceCents`/`quantity`/`subtotalCents`/`active`/`addedAt`）；要求 `STORE_READ`，`userId` 取自 token。明细是**读取时与商品实时联表**的结果（不落库、`tblCartItem` 未加列），商品改名/调价后立即显示新值；`subtotalCents` 与结账实扣同式，**前端合计必须累加 `subtotalCents`**，不得用 `unitPriceCents × quantity`。
 - `STORE_RESTOCK`、`STORE_PRODUCT_ADD`、`STORE_PRODUCT_UPDATE`、`STORE_PRODUCT_DEACTIVATE`、`STORE_PRODUCT_REACTIVATE`：商品和库存维护，使用对应 `Store*Command`；均要求 `STORE_MANAGE`。其中 `STORE_PRODUCT_DEACTIVATE`（下架，置 `active=false`）与 `STORE_PRODUCT_REACTIVATE`（重新上架，置 `active=true`）互为逆操作，都只翻 `active` 位、不碰库存/价格等其他字段（重新上架对已在售商品幂等返回 OK）。

@@ -720,6 +720,33 @@ class StoreServiceTest {
         assertTrue(flakyCart.findByUserId("u").isEmpty());
     }
 
+    @Test
+    void checkoutItemsRestoresAlreadyRemovedItemsWhenLaterRemovalFails() {
+        InMemoryProductRepository retryProducts = new InMemoryProductRepository();
+        retryProducts.save(new Product("A", "A", 5, 2.0, "", "test"));
+        retryProducts.save(new Product("B", "B", 5, 3.0, "", "test"));
+        InMemoryOrderRepository retryOrders = new InMemoryOrderRepository();
+        InMemoryWalletRepository retryWallet = new InMemoryWalletRepository();
+        retryWallet.save(new BankAccount("u", 100_000L));
+        FailingCartRepository flakyCart = new FailingCartRepository(false, false);
+        flakyCart.failOnRemoveAttempt = 2;
+        flakyCart.addItem(new CartItem("cart-a", "u", "A", 1, java.time.LocalDateTime.now()));
+        flakyCart.addItem(new CartItem("cart-b", "u", "B", 1, java.time.LocalDateTime.now()));
+        DefaultStoreService checkout = new DefaultStoreService(
+                retryProducts, retryOrders, flakyCart, retryWallet);
+
+        ServiceResult<Void> failed = checkout.checkoutItems(
+                "u", java.util.Arrays.asList("cart-a", "cart-b"));
+
+        assertEquals(StatusCode.CONFLICT, failed.getStatus());
+        assertEquals(2, flakyCart.findByUserId("u").size(),
+                "failed checkout must restore every selected cart item");
+        assertTrue(retryOrders.findByUserId("u").isEmpty());
+        assertEquals(5, retryProducts.findById("A").getStock());
+        assertEquals(5, retryProducts.findById("B").getStock());
+        assertEquals(100_000L, retryWallet.findByUserId("u").getBalanceCents());
+    }
+
     // 测试并发加购同一商品
     @Test
     void concurrentAddToCartSameProductKeepsSingleLine() throws Exception {
@@ -1755,6 +1782,8 @@ class StoreServiceTest {
         private final InMemoryCartRepository delegate = new InMemoryCartRepository();
         private boolean failOnClear;
         private boolean failOnRemove;// removeItem 返回 false（模拟子集删除未生效）
+        private int failOnRemoveAttempt = -1;
+        private int removeAttempts;
 
         private FailingCartRepository(boolean failOnClear) {
             this(failOnClear, false);
@@ -1777,9 +1806,19 @@ class StoreServiceTest {
 
         @Override
         public boolean removeItem(String cartItemId) {
-            if (failOnRemove)
+            removeAttempts++;
+            if (failOnRemove || removeAttempts == failOnRemoveAttempt)
                 return false;
             return delegate.removeItem(cartItemId);
+        }
+
+        @Override
+        public boolean removeItems(List<String> cartItemIds) {
+            if (failOnRemove
+                    || (failOnRemoveAttempt > 0 && failOnRemoveAttempt <= cartItemIds.size())) {
+                return false;
+            }
+            return delegate.removeItems(cartItemIds);
         }
 
         @Override

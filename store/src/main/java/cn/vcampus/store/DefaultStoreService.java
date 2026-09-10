@@ -380,7 +380,7 @@ public final class DefaultStoreService implements StoreService {
     }
 
     // 购物车批量删除：一次删多条本人条目。列表为空 BAD_REQUEST；先按归属筛出本人条目，
-    // 选中 id 中属于本人的逐条删除，若一条都不属于本人（removed==0）返回 NOT_FOUND
+    // 再由仓储层原子删除；若一条都不属于本人返回 NOT_FOUND。
     @Override
     public final ServiceResult<Void> removeFromCart(String userId, List<String> cartItemIds) {
         if (userId == null || userId.trim().isEmpty())
@@ -390,14 +390,19 @@ public final class DefaultStoreService implements StoreService {
         Set<String> owned = new HashSet<String>();
         for (CartItem item : cart.findByUserId(userId))
             owned.add(item.getCartItemId());
-        int removed = 0;
+        Set<String> selected = new HashSet<String>();
         for (String id : cartItemIds) {
-            if (id != null && owned.contains(id) && cart.removeItem(id))
-                removed++;
+            if (id != null && owned.contains(id)) selected.add(id);
         }
-        if (removed == 0)
+        if (selected.isEmpty())
             return ServiceResult.failure(StatusCode.NOT_FOUND, "Cart item not found");
-        return ServiceResult.ok(null);
+        try {
+            return cart.removeItems(new ArrayList<String>(selected))
+                    ? ServiceResult.ok(null)
+                    : ServiceResult.failure(StatusCode.CONFLICT, "Could not remove all selected cart items");
+        } catch (RuntimeException storageFailure) {
+            return ServiceResult.failure(StatusCode.SERVER_ERROR, "Cart storage failed");
+        }
     }
 
     // 购物车结算选中：仅结算选中子集。列表为空 BAD_REQUEST；任一 id 不属于本人或不存在则整体 NOT_FOUND，
@@ -489,17 +494,17 @@ public final class DefaultStoreService implements StoreService {
             }
         }
         // 清理购物车失败也要回滚，否则用户重试会重复下单：整单清空全部，子集只删选中条目
-        // 子集逐条删除必须校验返回值——removeItem 返回 false 表示条目仍在，若此时返回成功，
-        // 订单/扣款/库存已生效而购物车条目未清除，用户再次结算会重复扣款、重复下单，故任一失败即整体回滚
+        // 子集清理必须由仓储层原子完成；任一条目删除失败时，购物车不得出现部分清理。
+        // 否则订单/扣款/库存回滚后仍会丢失一部分购物车数据。
         try {
             if (clearAll) {
                 cart.clearByUserId(userId);
             } else {
-                for (CartItem item : items) {
-                    if (!cart.removeItem(item.getCartItemId())) {
-                        return rollbackCheckoutResult(userId, created, deducted, debitedCents, StatusCode.CONFLICT,
-                                "Could not remove selected cart item; checkout rolled back");
-                    }
+                List<String> selectedIds = new ArrayList<String>();
+                for (CartItem item : items) selectedIds.add(item.getCartItemId());
+                if (!cart.removeItems(selectedIds)) {
+                    return rollbackCheckoutResult(userId, created, deducted, debitedCents, StatusCode.CONFLICT,
+                            "Could not remove selected cart items; checkout rolled back");
                 }
             }
         } catch (RuntimeException failure) {

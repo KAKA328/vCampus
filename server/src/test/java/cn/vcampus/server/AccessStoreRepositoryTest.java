@@ -277,6 +277,24 @@ class AccessStoreRepositoryTest {
     }
 
     @Test
+    void cartRemoveItemsDeletesAllEntriesInOneTransaction() {
+        carts.addItem(new CartItem("CART021", "student001", "P001", 1, LocalDateTime.now()));
+        carts.addItem(new CartItem("CART022", "student001", "P002", 1, LocalDateTime.now()));
+
+        assertTrue(carts.removeItems(java.util.Arrays.asList("CART021", "CART022")));
+        assertTrue(carts.findByUserId("student001").isEmpty());
+    }
+
+    @Test
+    void cartRemoveItemsRollsBackWhenAnyEntryIsMissing() {
+        carts.addItem(new CartItem("CART023", "student001", "P001", 1, LocalDateTime.now()));
+
+        assertFalse(carts.removeItems(java.util.Arrays.asList("CART023", "missing")));
+        assertEquals(1, carts.findByUserId("student001").size());
+        assertEquals("CART023", carts.findByUserId("student001").get(0).getCartItemId());
+    }
+
+    @Test
     void cartClearByUserIdRemovesOnlyThatUser() {
         carts.addItem(new CartItem("CART030", "student001", "P001", 1, LocalDateTime.now()));
         carts.addItem(new CartItem("CART031", "student001", "P002", 2, LocalDateTime.now()));
