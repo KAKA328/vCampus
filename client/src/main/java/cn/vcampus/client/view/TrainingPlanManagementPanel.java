@@ -3,30 +3,24 @@ package cn.vcampus.client.view;
 import cn.vcampus.client.service.RemoteCourseService;
 import cn.vcampus.common.Message;
 import cn.vcampus.common.StatusCode;
-import cn.vcampus.course.SelectionType;
 import cn.vcampus.course.TrainingPlan;
 import cn.vcampus.course.TrainingPlanCourse;
 import cn.vcampus.course.TrainingPlanStatus;
 import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Component;
 import java.awt.FlowLayout;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
-import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
-import javax.swing.JComponent;
 import javax.swing.JLabel;
-import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JSplitPane;
 import javax.swing.JTable;
-import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
+import javax.swing.JOptionPane;
 import javax.swing.SwingWorker;
 
 /** 教务端维护专业、入学年份对应培养方案及其课程要求的页面。 */
@@ -34,17 +28,6 @@ final class TrainingPlanManagementPanel extends JPanel {
     private final String host;
     private final int port;
     private final Session session;
-    private final JTextField planId = new JTextField(14);
-    private final JTextField majorName = new JTextField(14);
-    private final JTextField enrollmentYear = new JTextField(6);
-    private final JTextField courseId = new JTextField(10);
-    private final JTextField recommendedTerm = new JTextField(4);
-    private final JComboBox<SelectionType> selectionType = new JComboBox<SelectionType>(
-            new SelectionType[] { SelectionType.REQUIRED, SelectionType.ELECTIVE,
-                    SelectionType.CROSS_MAJOR });
-    private final JCheckBox crossMajorAllowed = new JCheckBox("允许跨专业选择");
-    private final JComboBox<TrainingPlanStatus> planStatus =
-            new JComboBox<TrainingPlanStatus>(TrainingPlanStatus.values());
     private final BatchTableModel planModel = new BatchTableModel(new Object[] {
             "培养方案编号", "专业", "入学年份", "课程数", "状态" });
     private final BatchTableModel courseModel = new BatchTableModel(new Object[] {
@@ -54,11 +37,11 @@ final class TrainingPlanManagementPanel extends JPanel {
     private final List<TrainingPlan> plans = new ArrayList<TrainingPlan>();
     private final JButton refreshButton = new JButton("刷新培养方案");
     private final JButton createButton = new JButton("新建方案");
-    private final JButton saveCourseButton = new JButton("保存课程要求");
+    private final JButton editPlanButton = new JButton("编辑所选方案");
+    private final JButton saveCourseButton = new JButton("新增/编辑课程要求");
     private final JButton removeCourseButton = new JButton("移除课程要求");
     private final JButton changeStatusButton = new JButton("变更方案状态");
     private final JLabel statusHint = new JLabel();
-    private final List<JComponent> inputs = new ArrayList<JComponent>();
     private final RequestLifecycle requestLifecycle = new RequestLifecycle();
     private boolean requestInProgress;
 
@@ -75,30 +58,15 @@ final class TrainingPlanManagementPanel extends JPanel {
     private void build() {
         setLayout(new BorderLayout(0, UiMetrics.px(12)));
         setOpaque(false);
-        styleAndTrackFields(planId, majorName, enrollmentYear, courseId, recommendedTerm);
-        VCampusTheme.field(selectionType);
-        VCampusTheme.field(planStatus);
-        inputs.add(selectionType);
-        inputs.add(planStatus);
-        selectionType.setRenderer(selectionTypeRenderer());
-        planStatus.setRenderer(planStatusRenderer());
-        crossMajorAllowed.setOpaque(false);
-        crossMajorAllowed.setFont(VCampusTheme.font(java.awt.Font.PLAIN, 14));
-        inputs.add(crossMajorAllowed);
-
         refreshButton.addActionListener(e -> loadPlans());
         createButton.addActionListener(e -> createPlan());
+        editPlanButton.addActionListener(e -> editPlan());
         saveCourseButton.addActionListener(e -> saveCourse());
         removeCourseButton.addActionListener(e -> removeCourse());
         changeStatusButton.addActionListener(e -> changeStatus());
         planTable.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 fillPlanFields();
-            }
-        });
-        courseTable.getSelectionModel().addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting()) {
-                fillCourseFields();
             }
         });
 
@@ -122,31 +90,21 @@ final class TrainingPlanManagementPanel extends JPanel {
     private JPanel planFormCard() {
         JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
         VCampusTheme.panel(card);
-        JLabel title = sectionTitle("第 1 步：查询或新建培养方案");
-        JLabel hint = sectionHint("新建方案必须是草稿状态，并在创建时至少包含一门课程要求。 ");
-        JPanel fields = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
-                UiMetrics.px(4)));
-        fields.setOpaque(false);
-        fields.add(new JLabel("方案编号")); fields.add(planId);
-        fields.add(new JLabel("专业")); fields.add(majorName);
-        fields.add(new JLabel("入学年份")); fields.add(enrollmentYear);
-        fields.add(new JLabel("方案状态")); fields.add(planStatus);
+        JLabel title = sectionTitle("第 1 步：培养方案操作");
+        JLabel hint = sectionHint("新建和编辑均在弹窗中完成；新建时同时填写首条课程要求。 ");
         JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(8),
                 UiMetrics.px(4)));
         actions.setOpaque(false);
         addSecondary(actions, refreshButton);
         addPrimary(actions, createButton);
+        addSecondary(actions, editPlanButton);
         addSecondary(actions, changeStatusButton);
-        JPanel content = new JPanel(new BorderLayout(0, UiMetrics.px(4)));
-        content.setOpaque(false);
-        content.add(fields, BorderLayout.NORTH);
-        content.add(actions, BorderLayout.SOUTH);
         JPanel header = new JPanel(new BorderLayout(0, UiMetrics.px(2)));
         header.setOpaque(false);
         header.add(title, BorderLayout.NORTH);
         header.add(hint, BorderLayout.SOUTH);
         card.add(header, BorderLayout.NORTH);
-        card.add(content, BorderLayout.CENTER);
+        card.add(actions, BorderLayout.CENTER);
         return card;
     }
 
@@ -154,29 +112,18 @@ final class TrainingPlanManagementPanel extends JPanel {
         JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
         VCampusTheme.panel(card);
         JLabel title = sectionTitle("第 2 步：维护方案课程要求");
-        JLabel hint = sectionHint("先从下方选择培养方案；选择课程要求后可修改并保存。 ");
-        JPanel fields = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
-                UiMetrics.px(4)));
-        fields.setOpaque(false);
-        fields.add(new JLabel("课程编号")); fields.add(courseId);
-        fields.add(new JLabel("建议学期")); fields.add(recommendedTerm);
-        fields.add(new JLabel("课程类别")); fields.add(selectionType);
-        fields.add(crossMajorAllowed);
+        JLabel hint = sectionHint("选择培养方案和课程要求后，以弹窗新增或编辑课程要求。 ");
         JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(8),
                 UiMetrics.px(4)));
         actions.setOpaque(false);
         addPrimary(actions, saveCourseButton);
         addSecondary(actions, removeCourseButton);
-        JPanel content = new JPanel(new BorderLayout(0, UiMetrics.px(4)));
-        content.setOpaque(false);
-        content.add(fields, BorderLayout.NORTH);
-        content.add(actions, BorderLayout.SOUTH);
         JPanel header = new JPanel(new BorderLayout(0, UiMetrics.px(2)));
         header.setOpaque(false);
         header.add(title, BorderLayout.NORTH);
         header.add(hint, BorderLayout.SOUTH);
         card.add(header, BorderLayout.NORTH);
-        card.add(content, BorderLayout.CENTER);
+        card.add(actions, BorderLayout.CENTER);
         return card;
     }
 
@@ -240,70 +187,78 @@ final class TrainingPlanManagementPanel extends JPanel {
     }
 
     private void createPlan() {
-        try {
-            if (planStatus.getSelectedItem() != TrainingPlanStatus.DRAFT) {
-                throw new IllegalArgumentException("新建培养方案必须先使用草稿状态，保存后再发布或归档");
-            }
-            TrainingPlan plan = new TrainingPlan(text(planId, "方案编号"),
-                    text(majorName, "专业"), positive(enrollmentYear, "入学年份"),
-                    java.util.Collections.singletonList(courseRequirement()));
-            request(service -> service.createTrainingPlan(session.getToken(), plan),
-                    response -> showSuccess(response, "培养方案已新建，请刷新列表确认"));
-        } catch (IllegalArgumentException invalid) {
-            showStatus("培养方案信息填写不正确：" + invalid.getMessage(), VCampusTheme.DANGER);
+        TrainingPlan plan = TrainingPlanEditorDialog.create(this);
+        if (plan == null) return;
+        request(service -> service.createTrainingPlan(session.getToken(), plan),
+                response -> showSuccess(response, "培养方案已新建，请刷新列表确认"));
+    }
+
+    private void editPlan() {
+        TrainingPlan selected = selectedPlan();
+        if (selected == null) {
+            showStatus("请先选择一份培养方案", VCampusTheme.DANGER);
+            return;
         }
+        TrainingPlan changed = TrainingPlanEditorDialog.edit(this, selected);
+        if (changed == null) return;
+        request(service -> service.updateTrainingPlanBasicInfo(session.getToken(), changed),
+                response -> showSuccess(response, "培养方案基本信息已更新，请刷新列表确认"));
     }
 
     private void saveCourse() {
-        try {
-            String selectedPlanId = text(planId, "方案编号");
-            TrainingPlanCourse course = courseRequirement();
-            request(service -> service.saveTrainingPlanCourse(session.getToken(), selectedPlanId, course),
-                    response -> showSuccess(response, "课程要求已保存，请刷新列表确认"));
-        } catch (IllegalArgumentException invalid) {
-            showStatus("课程要求填写不正确：" + invalid.getMessage(), VCampusTheme.DANGER);
+        TrainingPlan selectedPlan = selectedPlan();
+        if (selectedPlan == null) {
+            showStatus("请先选择一份培养方案", VCampusTheme.DANGER);
+            return;
         }
+        TrainingPlanCourse selectedCourse = selectedCourse();
+        TrainingPlanCourse course = TrainingPlanEditorDialog.editCourse(this, selectedCourse);
+        if (course == null) return;
+        request(service -> service.saveTrainingPlanCourse(session.getToken(), selectedPlan.getPlanId(), course),
+                response -> showSuccess(response, "课程要求已保存，请刷新列表确认"));
     }
 
     private void removeCourse() {
-        try {
-            String selectedPlanId = text(planId, "方案编号");
-            String selectedCourseId = text(courseId, "课程编号");
-            if (!CourseUiSupport.confirmHighImpact(this, "确认移除课程要求",
-                    "确定从培养方案“" + selectedPlanId + "”中移除课程“" + selectedCourseId + "”吗？",
-                    "移除后，该课程将不再作为此方案学生的课程要求。")) {
-                return;
-            }
-            request(service -> service.removeTrainingPlanCourse(session.getToken(), selectedPlanId,
-                    selectedCourseId), response -> showSuccess(response,
-                    "课程要求已移除，请刷新列表确认"));
-        } catch (IllegalArgumentException invalid) {
-            showStatus(invalid.getMessage(), VCampusTheme.DANGER);
+        TrainingPlan selectedPlan = selectedPlan();
+        TrainingPlanCourse selectedCourse = selectedCourse();
+        if (selectedPlan == null || selectedCourse == null) {
+            showStatus("请先选择培养方案及要移除的课程要求", VCampusTheme.DANGER);
+            return;
         }
+        if (!CourseUiSupport.confirmHighImpact(this, "确认移除课程要求",
+                "确定从培养方案“" + selectedPlan.getPlanId() + "”中移除课程“"
+                        + selectedCourse.getCourseId() + "”吗？",
+                "移除后，该课程将不再作为此方案学生的课程要求。")) return;
+        request(service -> service.removeTrainingPlanCourse(session.getToken(), selectedPlan.getPlanId(),
+                selectedCourse.getCourseId()), response -> showSuccess(response,
+                "课程要求已移除，请刷新列表确认"));
     }
 
     private void changeStatus() {
-        try {
-            String selectedPlanId = text(planId, "方案编号");
-            TrainingPlanStatus selectedStatus = (TrainingPlanStatus) planStatus.getSelectedItem();
-            if (!CourseUiSupport.confirmHighImpact(this, "确认修改方案状态",
-                    "确定将培养方案“" + selectedPlanId + "”设为“"
-                            + planStatusText(selectedStatus) + "”吗？",
-                    "发布后会影响对应专业和入学年份学生可见的课程要求。")) {
-                return;
-            }
-            request(service -> service.changeTrainingPlanStatus(session.getToken(), selectedPlanId,
-                    selectedStatus), response -> showSuccess(response,
-                    "培养方案状态已更新，请刷新列表确认"));
-        } catch (IllegalArgumentException invalid) {
-            showStatus(invalid.getMessage(), VCampusTheme.DANGER);
-        }
+        TrainingPlan selected = selectedPlan();
+        if (selected == null) { showStatus("请先选择一份培养方案", VCampusTheme.DANGER); return; }
+        JComboBox<TrainingPlanStatus> statuses = new JComboBox<TrainingPlanStatus>(TrainingPlanStatus.values());
+        statuses.setSelectedItem(selected.getStatus()); VCampusTheme.roundedField(statuses);
+        if (JOptionPane.showConfirmDialog(this, statuses, "变更方案状态", JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
+        TrainingPlanStatus target = (TrainingPlanStatus) statuses.getSelectedItem();
+        if (!CourseUiSupport.confirmHighImpact(this, "确认修改方案状态",
+                "确定将培养方案“" + selected.getPlanId() + "”设为“" + planStatusText(target) + "”吗？",
+                "发布后会影响对应专业和入学年份学生可见的课程要求。")) return;
+        request(service -> service.changeTrainingPlanStatus(session.getToken(), selected.getPlanId(), target),
+                response -> showSuccess(response, "培养方案状态已更新，请刷新列表确认"));
     }
 
-    private TrainingPlanCourse courseRequirement() {
-        return new TrainingPlanCourse(text(courseId, "课程编号"),
-                positive(recommendedTerm, "建议学期"),
-                (SelectionType) selectionType.getSelectedItem(), crossMajorAllowed.isSelected());
+    private TrainingPlan selectedPlan() {
+        int row = planTable.getSelectedRow();
+        return row >= 0 && row < plans.size() ? plans.get(row) : null;
+    }
+
+    private TrainingPlanCourse selectedCourse() {
+        TrainingPlan plan = selectedPlan();
+        int row = courseTable.getSelectedRow();
+        return plan == null || row < 0 || row >= plan.getCourses().size()
+                ? null : plan.getCourses().get(row);
     }
 
     private void fillPlanFields() {
@@ -312,10 +267,6 @@ final class TrainingPlanManagementPanel extends JPanel {
             return;
         }
         TrainingPlan plan = plans.get(row);
-        planId.setText(plan.getPlanId());
-        majorName.setText(plan.getMajorName());
-        enrollmentYear.setText(String.valueOf(plan.getEnrollmentYear()));
-        planStatus.setSelectedItem(plan.getStatus());
         List<Object[]> courseRows = new ArrayList<Object[]>();
         for (TrainingPlanCourse course : plan.getCourses()) {
             courseRows.add(new Object[] { course.getCourseId(),
@@ -324,24 +275,6 @@ final class TrainingPlanManagementPanel extends JPanel {
                     course.isCrossMajorAllowed() ? "是" : "否" });
         }
         courseModel.replaceRows(courseRows);
-    }
-
-    private void fillCourseFields() {
-        int row = courseTable.getSelectedRow();
-        if (row < 0) {
-            return;
-        }
-        courseId.setText(String.valueOf(courseModel.getValueAt(row, 0)));
-        recommendedTerm.setText(String.valueOf(courseModel.getValueAt(row, 1)));
-        String typeText = String.valueOf(courseModel.getValueAt(row, 2));
-        for (SelectionType item : new SelectionType[] { SelectionType.REQUIRED,
-                SelectionType.ELECTIVE, SelectionType.CROSS_MAJOR }) {
-            if (item.getDisplayName().equals(typeText)) {
-                selectionType.setSelectedItem(item);
-                break;
-            }
-        }
-        crossMajorAllowed.setSelected("是".equals(courseModel.getValueAt(row, 3)));
     }
 
     private void request(Request request, Response response) {
@@ -407,14 +340,12 @@ final class TrainingPlanManagementPanel extends JPanel {
         boolean interactive = !requestInProgress;
         refreshButton.setEnabled(interactive);
         createButton.setEnabled(interactive);
+        editPlanButton.setEnabled(interactive);
         saveCourseButton.setEnabled(interactive);
         removeCourseButton.setEnabled(interactive);
         changeStatusButton.setEnabled(interactive);
         planTable.setEnabled(interactive);
         courseTable.setEnabled(interactive);
-        for (JComponent input : inputs) {
-            input.setEnabled(interactive);
-        }
     }
 
     private static void configureTable(JTable table, int... widths) {
@@ -439,13 +370,6 @@ final class TrainingPlanManagementPanel extends JPanel {
         return label;
     }
 
-    private void styleAndTrackFields(JTextField... fields) {
-        for (JTextField field : fields) {
-            VCampusTheme.field(field);
-            inputs.add(field);
-        }
-    }
-
     private static void addPrimary(JPanel parent, JButton button) {
         VCampusTheme.primaryButton(button);
         parent.add(button);
@@ -456,32 +380,6 @@ final class TrainingPlanManagementPanel extends JPanel {
         parent.add(button);
     }
 
-    private static DefaultListCellRenderer selectionTypeRenderer() {
-        return new DefaultListCellRenderer() {
-            @Override
-            public Component getListCellRendererComponent(JList<?> list, Object value, int index,
-                    boolean isSelected, boolean cellHasFocus) {
-                Object display = value instanceof SelectionType
-                        ? ((SelectionType) value).getDisplayName() : value;
-                return super.getListCellRendererComponent(list, display, index, isSelected,
-                        cellHasFocus);
-            }
-        };
-    }
-
-    private static DefaultListCellRenderer planStatusRenderer() {
-        return new DefaultListCellRenderer() {
-            @Override
-            public Component getListCellRendererComponent(JList<?> list, Object value, int index,
-                    boolean isSelected, boolean cellHasFocus) {
-                Object display = value instanceof TrainingPlanStatus
-                        ? planStatusText((TrainingPlanStatus) value) : value;
-                return super.getListCellRendererComponent(list, display, index, isSelected,
-                        cellHasFocus);
-            }
-        };
-    }
-
     private static String planStatusText(TrainingPlanStatus value) {
         if (value == TrainingPlanStatus.DRAFT) {
             return "草稿";
@@ -490,26 +388,6 @@ final class TrainingPlanManagementPanel extends JPanel {
             return "已发布";
         }
         return "已归档";
-    }
-
-    private static String text(JTextField field, String name) {
-        String value = field.getText() == null ? "" : field.getText().trim();
-        if (value.isEmpty()) {
-            throw new IllegalArgumentException(name + "不能为空");
-        }
-        return value;
-    }
-
-    private static int positive(JTextField field, String name) {
-        try {
-            int value = Integer.parseInt(text(field, name));
-            if (value <= 0) {
-                throw new IllegalArgumentException(name + "必须大于 0");
-            }
-            return value;
-        } catch (NumberFormatException invalid) {
-            throw new IllegalArgumentException(name + "必须是整数");
-        }
     }
 
     private interface Request {

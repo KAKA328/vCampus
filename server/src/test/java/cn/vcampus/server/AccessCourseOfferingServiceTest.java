@@ -127,6 +127,22 @@ class AccessCourseOfferingServiceTest {
     }
 
     @Test
+    void updatesOfferingDetailsInOneTransaction() {
+        service.create(offering("OFFER-001", CourseOfferingStatus.DRAFT));
+        CourseOffering changed = new CourseOffering("OFFER-001", "CS101", TERM, "T002",
+                "1-16周 星期二第3-4节", "教学楼B302", 35, 15, 5,
+                CourseOfferingStatus.DRAFT).withMeetingSchedule(new CourseSchedule(Arrays.asList(
+                        new CourseMeeting(DayOfWeek.TUESDAY, 3, 4, "教学楼B302"))));
+
+        assertEquals(StatusCode.OK, service.updateDetails(changed).getStatus());
+        CourseOffering saved = service.findById("OFFER-001").getData();
+        assertEquals("T002", saved.getTeacherId());
+        assertEquals(55, saved.getTotalCapacity());
+        assertEquals(DayOfWeek.TUESDAY,
+                saved.getMeetingSchedule().getMeetings().get(0).getDayOfWeek());
+    }
+
+    @Test
     void rejectsDisabledOrUnknownCourseAndDuplicateOffering() {
         assertEquals(StatusCode.OK,
                 catalog.changeStatus("CS101", cn.vcampus.course.CourseStatus.DISABLED).getStatus());

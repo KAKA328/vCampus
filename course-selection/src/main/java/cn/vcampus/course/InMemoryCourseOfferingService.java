@@ -230,6 +230,38 @@ public final class InMemoryCourseOfferingService implements CourseOfferingServic
         return ServiceResult.ok(changed);
     }
 
+    @Override
+    public synchronized ServiceResult<CourseOffering> updateDetails(CourseOffering offering) {
+        if (offering == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "offering must not be null");
+        }
+        ServiceResult<Void> scheduleResult = requireStructuredSchedule(offering.getMeetingSchedule());
+        if (scheduleResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(scheduleResult.getStatus(), scheduleResult.getMessage());
+        }
+        CourseOffering existing = offeringsById.get(offering.getOfferingId());
+        if (existing == null) {
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "course offering not found");
+        }
+        if (!existing.getCourseId().equals(offering.getCourseId())
+                || !existing.getTerm().equals(offering.getTerm())) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "courseId and term cannot be changed for an existing offering");
+        }
+        ServiceResult<Void> capacityResult = verifyCapacityNotBelowActiveSelections(existing,
+                offering.getRequiredCapacity(), offering.getElectiveCapacity(),
+                offering.getCrossMajorCapacity());
+        if (capacityResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(capacityResult.getStatus(), capacityResult.getMessage());
+        }
+        CourseOffering changed = existing.withTeachingInfo(offering.getTeacherId(), offering.getLocation())
+                .withCapacities(offering.getRequiredCapacity(), offering.getElectiveCapacity(),
+                        offering.getCrossMajorCapacity())
+                .withSchedule(offering.getSchedule(), offering.getMeetingSchedule());
+        offeringsById.put(changed.getOfferingId(), changed);
+        return ServiceResult.ok(changed);
+    }
+
     private ServiceResult<List<CourseOffering>> listByCourseAndStatus(String courseId,
             String term, CourseOfferingStatus requiredStatus) {
         String normalizedCourseId = normalize(courseId);

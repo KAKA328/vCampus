@@ -141,6 +141,14 @@ class CourseMessageHandlerTest {
         CourseOffering scheduleUpdatedOffering = (CourseOffering) updateSchedule.getPayload();
         assertEquals(8, scheduleUpdatedOffering.getMeetingSchedule().getMeetings().get(0).getEndWeek());
 
+        CourseOffering details = scheduleUpdatedOffering.withTeachingInfo("教师004", "C401")
+                .withCapacities(28, 12, 6);
+        Message updateDetails = managementHandler.handle(Message.request("update-details",
+                MessageType.COURSE_MANAGE, CourseManagementCommand.updateOfferingDetails(
+                        academicSession.getToken(), details)));
+        assertEquals(StatusCode.OK, updateDetails.getStatusCode());
+        assertEquals("C401", ((CourseOffering) updateDetails.getPayload()).getLocation());
+
         LocalDateTime startsAt = LocalDateTime.of(2026, 10, 1, 8, 0);
         LocalDateTime endsAt = LocalDateTime.of(2026, 10, 7, 18, 0);
         Message createRound = managementHandler.handle(Message.request("create-round",

@@ -112,6 +112,24 @@ class InMemoryCourseOfferingServiceTest {
     }
 
     @Test
+    void updatesOfferingDetailsAsOneOperation() {
+        InMemoryCourseOfferingService service = new InMemoryCourseOfferingService(Arrays.asList(
+                offering("OFFER-001", "CS101", CourseOfferingStatus.DRAFT, 50, 20, 10)));
+        CourseOffering changed = new CourseOffering("OFFER-001", "CS101", "2026-2027-1",
+                "TEACHER-002", "1-16周 星期二第3-4节", "教学楼 B301", 40, 30, 5,
+                CourseOfferingStatus.DRAFT).withMeetingSchedule(new CourseSchedule(Arrays.asList(
+                        new CourseMeeting(DayOfWeek.TUESDAY, 3, 4, "教学楼 B301"))));
+
+        ServiceResult<CourseOffering> result = service.updateDetails(changed);
+
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals("TEACHER-002", result.getData().getTeacherId());
+        assertEquals(75, result.getData().getTotalCapacity());
+        assertEquals(DayOfWeek.TUESDAY,
+                result.getData().getMeetingSchedule().getMeetings().get(0).getDayOfWeek());
+    }
+
+    @Test
     void rejectsInvalidOrUnknownManagementRequests() {
         InMemoryCourseOfferingService service = new InMemoryCourseOfferingService(Arrays.asList(
                 offering("OFFER-001", "CS101", CourseOfferingStatus.DRAFT, 50, 20, 10)));

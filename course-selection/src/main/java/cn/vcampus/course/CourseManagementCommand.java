@@ -18,6 +18,7 @@ public final class CourseManagementCommand implements Serializable {
         CHANGE_OFFERING_CAPACITIES,
         UPDATE_OFFERING_TEACHING_INFO,
         UPDATE_OFFERING_SCHEDULE,
+        UPDATE_OFFERING_DETAILS,
         LIST_SELECTION_ROUNDS_BY_TERM,
         CREATE_SELECTION_ROUND,
         UPDATE_SELECTION_ROUND_TIME_WINDOW,
@@ -163,6 +164,16 @@ public final class CourseManagementCommand implements Serializable {
         return new CourseManagementCommand(token, Operation.UPDATE_OFFERING_SCHEDULE, null,
                 offering, offering.getOfferingId(), null, null, 0, 0, 0, 0,
                 null, null);
+    }
+
+    /** 一次提交教学班的教师、地点、容量和结构化排课。 */
+    public static CourseManagementCommand updateOfferingDetails(String token,
+            CourseOffering offering) {
+        if (offering == null || offering.getMeetingSchedule().isEmpty()) {
+            throw new IllegalArgumentException("offering must contain at least one meeting");
+        }
+        return new CourseManagementCommand(token, Operation.UPDATE_OFFERING_DETAILS, null,
+                offering, offering.getOfferingId(), null, null, 0, 0, 0, 0, null, null);
     }
 
     public static CourseManagementCommand listSelectionRoundsByTerm(String token, String term) {

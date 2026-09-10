@@ -315,6 +315,70 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
         }
     }
 
+    @Override
+    public synchronized ServiceResult<CourseOffering> updateDetails(CourseOffering offering) {
+        if (offering == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "offering must not be null");
+        }
+        ServiceResult<Void> scheduleResult = requireStructuredSchedule(offering.getMeetingSchedule());
+        if (scheduleResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(scheduleResult.getStatus(), scheduleResult.getMessage());
+        }
+        ServiceResult<CourseOffering> existing = findById(offering.getOfferingId());
+        if (existing.getStatus() != StatusCode.OK) {
+            return existing;
+        }
+        CourseOffering current = existing.getData();
+        if (!current.getCourseId().equals(offering.getCourseId())
+                || !current.getTerm().equals(offering.getTerm())) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "courseId and term cannot be changed for an existing offering");
+        }
+        ServiceResult<Void> teacherResult = requireActiveTeacher(offering.getTeacherId());
+        if (teacherResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(teacherResult.getStatus(), teacherResult.getMessage());
+        }
+        final CourseOffering changed;
+        try {
+            changed = current.withTeachingInfo(offering.getTeacherId(), offering.getLocation())
+                    .withCapacities(offering.getRequiredCapacity(), offering.getElectiveCapacity(),
+                            offering.getCrossMajorCapacity())
+                    .withSchedule(offering.getSchedule(), offering.getMeetingSchedule());
+        } catch (IllegalArgumentException invalid) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, invalid.getMessage());
+        }
+        ServiceResult<Void> capacityResult = verifyCapacityNotBelowActiveSelections(current, changed);
+        if (capacityResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(capacityResult.getStatus(), capacityResult.getMessage());
+        }
+        String sql = "UPDATE tblCourseOffering SET teacher_id=?,schedule=?,location=?,"
+                + "required_capacity=?,elective_capacity=?,cross_major_capacity=? WHERE offering_id=?";
+        try (Connection connection = open()) {
+            connection.setAutoCommit(false);
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setString(1, changed.getTeacherId());
+                statement.setString(2, changed.getSchedule());
+                statement.setString(3, changed.getLocation());
+                statement.setInt(4, changed.getRequiredCapacity());
+                statement.setInt(5, changed.getElectiveCapacity());
+                statement.setInt(6, changed.getCrossMajorCapacity());
+                statement.setString(7, changed.getOfferingId());
+                if (statement.executeUpdate() != 1) {
+                    rollback(connection);
+                    return ServiceResult.failure(StatusCode.NOT_FOUND, "course offering not found");
+                }
+                replaceMeetingSchedule(connection, changed);
+                connection.commit();
+                return ServiceResult.ok(changed);
+            } catch (SQLException failure) {
+                rollback(connection);
+                return databaseFailure(failure);
+            }
+        } catch (SQLException failure) {
+            return databaseFailure(failure);
+        }
+    }
+
     private ServiceResult<List<CourseOffering>> listByCourseAndStatus(String courseId, String term,
             CourseOfferingStatus requiredStatus) {
         String normalizedCourseId = normalize(courseId);

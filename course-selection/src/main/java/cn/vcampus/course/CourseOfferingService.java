@@ -29,4 +29,7 @@ public interface CourseOfferingService {
      */
     ServiceResult<CourseOffering> updateSchedule(String offeringId, String schedule,
             CourseSchedule meetingSchedule);
+
+    /** 以同一次保存更新教学班可维护的信息，避免分步更新出现部分成功。 */
+    ServiceResult<CourseOffering> updateDetails(CourseOffering offering);
 }
