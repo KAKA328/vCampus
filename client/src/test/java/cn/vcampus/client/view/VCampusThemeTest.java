@@ -1,9 +1,12 @@
 package cn.vcampus.client.view;
 
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.Graphics2D;
+import java.awt.event.MouseWheelEvent;
 import java.awt.image.BufferedImage;
 import javax.swing.JButton;
+import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
@@ -129,6 +132,31 @@ class VCampusThemeTest {
 
         assertTrue(vertical.getUI() instanceof VCampusTheme.SlimScrollBarUI);
         assertEquals(UiMetrics.px(8), vertical.getPreferredSize().width);
+    }
+
+    @Test
+    void wheelAtInnerListBoundaryContinuesToOuterPage() {
+        JPanel page = new JPanel(null);
+        page.setPreferredSize(new Dimension(360, 900));
+        JScrollPane outer = VCampusTheme.pageScroll(page);
+        outer.setSize(300, 180);
+
+        JTable table = new JTable(new DefaultTableModel(30, 2));
+        JScrollPane inner = VCampusTheme.scrollPane(table);
+        inner.setBounds(0, 0, 260, 120);
+        page.add(inner);
+        outer.doLayout();
+        inner.doLayout();
+        outer.getVerticalScrollBar().setValue(0);
+        JScrollBar innerBar = inner.getVerticalScrollBar();
+        innerBar.setValue(innerBar.getMaximum() - innerBar.getVisibleAmount());
+        MouseWheelEvent event = new MouseWheelEvent(table, MouseWheelEvent.MOUSE_WHEEL,
+                System.currentTimeMillis(), 0, 20, 20, 0, false,
+                MouseWheelEvent.WHEEL_UNIT_SCROLL, 3, 1);
+
+        assertTrue(VCampusTheme.forwardVerticalWheelAtBoundary(inner, event));
+        assertTrue(event.isConsumed());
+        assertTrue(outer.getVerticalScrollBar().getValue() > 0);
     }
 
     @Test

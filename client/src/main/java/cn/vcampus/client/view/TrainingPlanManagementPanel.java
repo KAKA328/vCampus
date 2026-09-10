@@ -90,7 +90,7 @@ final class TrainingPlanManagementPanel extends JPanel {
     private JPanel planFormCard() {
         JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
         VCampusTheme.panel(card);
-        JLabel title = sectionTitle("第 1 步：培养方案操作");
+        JLabel title = sectionTitle("培养方案操作");
         JLabel hint = sectionHint("新建和编辑均在弹窗中完成；新建时同时填写首条课程要求。 ");
         JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(8),
                 UiMetrics.px(4)));
@@ -111,7 +111,7 @@ final class TrainingPlanManagementPanel extends JPanel {
     private JPanel courseFormCard() {
         JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
         VCampusTheme.panel(card);
-        JLabel title = sectionTitle("第 2 步：维护方案课程要求");
+        JLabel title = sectionTitle("维护方案课程要求");
         JLabel hint = sectionHint("选择培养方案和课程要求后，以弹窗新增或编辑课程要求。 ");
         JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(8),
                 UiMetrics.px(4)));

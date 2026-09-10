@@ -10,6 +10,8 @@ import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Shape;
+import java.awt.event.MouseWheelEvent;
+import java.awt.event.MouseWheelListener;
 import javax.swing.AbstractButton;
 import javax.swing.ButtonModel;
 import javax.swing.BorderFactory;
@@ -231,7 +233,52 @@ final class VCampusTheme {
         scroller.getVerticalScrollBar().setUnitIncrement(18);
         styleScrollBar(scroller.getVerticalScrollBar());
         styleScrollBar(scroller.getHorizontalScrollBar());
+        installNestedScrollForwarding(scroller, view);
         return scroller;
+    }
+
+    /**
+     * 内层列表没有滚动空间，或已抵达上下边界时，将滚轮交给外层页面。
+     * 这样课程、教学班等较短列表不会截获整页滚动。
+     */
+    private static void installNestedScrollForwarding(final JScrollPane scroller,
+            JComponent view) {
+        MouseWheelListener listener = event -> forwardVerticalWheelAtBoundary(scroller, event);
+        scroller.addMouseWheelListener(listener);
+        view.addMouseWheelListener(listener);
+    }
+
+    static boolean forwardVerticalWheelAtBoundary(JScrollPane scroller, MouseWheelEvent event) {
+        if (scroller == null || event == null || event.getWheelRotation() == 0) return false;
+        JScrollBar innerBar = scroller.getVerticalScrollBar();
+        int maximum = innerBar.getMaximum() - innerBar.getVisibleAmount();
+        boolean scrollUp = event.getWheelRotation() < 0;
+        if ((scrollUp && innerBar.getValue() > innerBar.getMinimum())
+                || (!scrollUp && innerBar.getValue() < maximum)) {
+            return false;
+        }
+        JScrollPane outer = parentScrollPane(scroller);
+        if (outer == null) return false;
+        JScrollBar outerBar = outer.getVerticalScrollBar();
+        int outerMaximum = outerBar.getMaximum() - outerBar.getVisibleAmount();
+        int units = event.getUnitsToScroll();
+        if (units == 0) units = event.getWheelRotation();
+        int unitIncrement = Math.max(1, outerBar.getUnitIncrement(units < 0 ? -1 : 1));
+        int target = outerBar.getValue() + units * unitIncrement;
+        target = Math.max(outerBar.getMinimum(), Math.min(outerMaximum, target));
+        if (target == outerBar.getValue()) return false;
+        outerBar.setValue(target);
+        event.consume();
+        return true;
+    }
+
+    private static JScrollPane parentScrollPane(JScrollPane inner) {
+        java.awt.Container parent = inner.getParent();
+        while (parent != null) {
+            if (parent instanceof JScrollPane) return (JScrollPane) parent;
+            parent = parent.getParent();
+        }
+        return null;
     }
 
     private static void styleScrollBar(JScrollBar scrollBar) {

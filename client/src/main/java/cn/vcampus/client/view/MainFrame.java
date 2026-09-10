@@ -282,19 +282,19 @@ public final class MainFrame extends JFrame {
     static boolean useCourseSelectionPanel(Role role, ModuleDescriptor module) {
         return role == Role.STUDENT
                 && module != null
-                && "选课系统".equals(module.getTitle());
+                && "学生选课".equals(module.getTitle());
     }
 
     static boolean useTeacherTeachingPanel(Role role, ModuleDescriptor module) {
         return role == Role.TEACHER
                 && module != null
-                && "选课系统".equals(module.getTitle());
+                && "教学管理".equals(module.getTitle());
     }
 
     static boolean useCourseManagementPanel(Role role, ModuleDescriptor module) {
         return (role == Role.ACADEMIC_ADMIN || role == Role.ADMIN)
                 && module != null
-                && "选课管理".equals(module.getTitle());
+                && "教务教学管理".equals(module.getTitle());
     }
 
     static boolean useUserManagementPanel(Role role, ModuleDescriptor module) {

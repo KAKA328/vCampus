@@ -9,6 +9,8 @@ import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import javax.swing.JLabel;
 import javax.swing.JTable;
 import org.junit.jupiter.api.Test;
 
@@ -39,9 +41,38 @@ class CourseManagementPanelTest {
                 >= UiMetrics.px(220));
     }
 
+    @Test
+    void keepsCatalogAndOfferingFeedbackInsideTheirOwnWorkspaces() throws Exception {
+        CourseManagementPanel panel = new CourseManagementPanel("localhost", 19090,
+                new Session("token", new User("academic-001", "教务老师", Role.ACADEMIC_ADMIN)));
+        JLabel landing = label(panel, "status");
+        JLabel catalog = label(panel, "catalogStatus");
+        JLabel offering = label(panel, "offeringStatus");
+        Field active = CourseManagementPanel.class.getDeclaredField("activeStatus");
+        active.setAccessible(true);
+        Method show = CourseManagementPanel.class.getDeclaredMethod("showStatus", String.class,
+                java.awt.Color.class);
+        show.setAccessible(true);
+
+        active.set(panel, catalog);
+        show.invoke(panel, "已加载 3 门课程", VCampusTheme.SUCCESS);
+        active.set(panel, offering);
+        show.invoke(panel, "已加载 2 个教学班", VCampusTheme.SUCCESS);
+
+        assertTrue(catalog.getText().contains("3 门课程"));
+        assertTrue(offering.getText().contains("2 个教学班"));
+        assertTrue(!landing.getText().contains("已加载"));
+    }
+
     private static JTable table(CourseManagementPanel panel, String name) throws Exception {
         Field field = CourseManagementPanel.class.getDeclaredField(name);
         field.setAccessible(true);
         return (JTable) field.get(panel);
+    }
+
+    private static JLabel label(CourseManagementPanel panel, String name) throws Exception {
+        Field field = CourseManagementPanel.class.getDeclaredField(name);
+        field.setAccessible(true);
+        return (JLabel) field.get(panel);
     }
 }

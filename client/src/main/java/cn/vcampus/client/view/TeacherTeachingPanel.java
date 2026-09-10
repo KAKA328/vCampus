@@ -166,7 +166,7 @@ final class TeacherTeachingPanel extends JPanel {
         teachingDetail.setFont(VCampusTheme.font(Font.BOLD, 18));
         teachingDetail.setForeground(VCampusTheme.PRIMARY_DARK);
         heading.add(teachingDetail, BorderLayout.NORTH);
-        heading.add(sectionHint("已自动加载学生名单；打开成绩草稿后可录入、导入和提交成绩。"),
+        heading.add(sectionHint("打开成绩草稿后可录入、导入和提交成绩。"),
                 BorderLayout.CENTER);
         heading.add(backButton, BorderLayout.EAST);
         panel.add(heading, BorderLayout.NORTH);
@@ -174,14 +174,13 @@ final class TeacherTeachingPanel extends JPanel {
         return panel;
     }
 
-    /** 第一步只处理学期与教学班列表，成绩操作在选中教学班后才出现。 */
     private JPanel termCard() {
         JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
         VCampusTheme.panel(card);
         JLabel title = new JLabel("选择学期");
         title.setFont(VCampusTheme.font(Font.BOLD, 15));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        JLabel hint = new JLabel("切换学期后会自动刷新本人教学班。 ");
+        JLabel hint = new JLabel("选择学期后查看本人教学班。 ");
         hint.setForeground(VCampusTheme.MUTED);
         JPanel fields = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
                 UiMetrics.px(4)));
@@ -203,7 +202,7 @@ final class TeacherTeachingPanel extends JPanel {
         JLabel title = new JLabel("我的教学班");
         title.setFont(VCampusTheme.font(Font.BOLD, 16));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        JLabel hint = new JLabel("选择一个教学班后进入详情页，系统会自动加载该班学生名单。 ");
+        JLabel hint = new JLabel("选择教学班后进入详情页查看学生名单和成绩。 ");
         hint.setForeground(VCampusTheme.MUTED);
         JPanel titleBlock = new JPanel(new BorderLayout(0, UiMetrics.px(2)));
         titleBlock.setOpaque(false);
@@ -256,7 +255,7 @@ final class TeacherTeachingPanel extends JPanel {
     private JPanel gradeWorkflow() {
         JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(6)));
         panel.setOpaque(false);
-        JLabel title = new JLabel("第 3 步：维护并提交成绩");
+        JLabel title = new JLabel("维护并提交成绩");
         title.setFont(VCampusTheme.font(Font.BOLD, 15));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
         JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),

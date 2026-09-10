@@ -6,6 +6,7 @@ import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.GradeEntry;
 import cn.vcampus.course.GradeSubmission;
 import cn.vcampus.course.GradeSubmissionAuditRecord;
+import cn.vcampus.course.GradeSubmissionStatus;
 import cn.vcampus.course.TeachingGradeDraft;
 import cn.vcampus.course.TeachingRosterEntry;
 import cn.vcampus.user.Session;
@@ -118,7 +119,7 @@ final class GradeReviewPanel extends JPanel {
         VCampusTheme.panel(panel);
         JPanel header = new JPanel(new BorderLayout(0, UiMetrics.px(3)));
         header.setOpaque(false);
-        JLabel title = sectionTitle("第 1 步：选择待审核成绩单");
+        JLabel title = sectionTitle("待审核成绩单");
         JLabel hint = sectionHint("选择一行后，先查看成绩快照和审核记录，再决定通过或退回。 ");
         header.add(title, BorderLayout.NORTH);
         header.add(hint, BorderLayout.SOUTH);
@@ -153,7 +154,7 @@ final class GradeReviewPanel extends JPanel {
         VCampusTheme.panel(panel);
         JPanel header = new JPanel(new BorderLayout(0, UiMetrics.px(3)));
         header.setOpaque(false);
-        JLabel title = sectionTitle("第 2 步：核验成绩快照");
+        JLabel title = sectionTitle("成绩明细与审核记录");
         detailHint.setFont(VCampusTheme.font(Font.PLAIN, 13));
         detailHint.setForeground(VCampusTheme.MUTED);
         header.add(title, BorderLayout.NORTH);
@@ -196,7 +197,7 @@ final class GradeReviewPanel extends JPanel {
                     GradeSubmission submission = (GradeSubmission) item;
                     submissions.add(submission);
                     rows.add(new Object[] { submission.getSubmissionId(), submission.getOfferingId(),
-                            submission.getTeacherId(), submission.getStatus(),
+                            submission.getTeacherId(), submissionStatusText(submission.getStatus()),
                             format(submission.getCreatedAt()), format(submission.getUpdatedAt()) });
                 }
             }
@@ -260,7 +261,7 @@ final class GradeReviewPanel extends JPanel {
                     for (Object item : (List<?>) response.getPayload()) {
                         if (item instanceof GradeSubmissionAuditRecord) {
                             GradeSubmissionAuditRecord record = (GradeSubmissionAuditRecord) item;
-                            rows.add(new Object[] { record.getAction(), record.getActorId(),
+                            rows.add(new Object[] { auditActionText(record.getAction().name()), record.getActorId(),
                                     format(record.getOccurredAt()), safe(record.getRemark()) });
                         }
                     }
@@ -394,6 +395,20 @@ final class GradeReviewPanel extends JPanel {
         JLabel label = new JLabel(text);
         label.setForeground(VCampusTheme.MUTED);
         return label;
+    }
+
+    private static String submissionStatusText(GradeSubmissionStatus status) {
+        if (status == GradeSubmissionStatus.DRAFT) return "草稿";
+        if (status == GradeSubmissionStatus.PENDING_REVIEW) return "待审核";
+        if (status == GradeSubmissionStatus.APPROVED) return "已通过";
+        return "已退回";
+    }
+
+    private static String auditActionText(String action) {
+        if ("SUBMITTED".equals(action)) return "提交审核";
+        if ("APPROVED".equals(action)) return "审核通过";
+        if ("RETURNED".equals(action)) return "退回修改";
+        return action;
     }
 
     private void updateInteractiveState() {

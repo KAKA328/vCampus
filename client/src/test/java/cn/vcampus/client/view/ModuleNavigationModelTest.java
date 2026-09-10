@@ -14,7 +14,7 @@ class ModuleNavigationModelTest {
         ModuleNavigationModel model = new ModuleNavigationModel();
 
         assertTrue(model.visibleModules(Role.STUDENT).contains("学籍信息"));
-        assertTrue(model.visibleModules(Role.STUDENT).contains("选课系统"));
+        assertTrue(model.visibleModules(Role.STUDENT).contains("学生选课"));
         assertTrue(model.visibleModules(Role.STUDENT).contains("图书馆"));
         assertTrue(model.visibleModules(Role.STUDENT).contains("商店"));
         assertFalse(model.visibleModules(Role.STUDENT).contains("用户管理"));
@@ -26,7 +26,7 @@ class ModuleNavigationModelTest {
 
         assertTrue(model.visibleModules(Role.ADMIN).contains("用户管理"));
         assertTrue(model.visibleModules(Role.ADMIN).contains("学籍管理"));
-        assertTrue(model.visibleModules(Role.ADMIN).contains("选课管理"));
+        assertTrue(model.visibleModules(Role.ADMIN).contains("教务教学管理"));
         assertTrue(model.visibleModules(Role.ADMIN).contains("图书管理"));
         assertTrue(model.visibleModules(Role.ADMIN).contains("商店管理"));
     }
@@ -37,7 +37,7 @@ class ModuleNavigationModelTest {
 
         assertTrue(model.visibleModules(Role.TEACHER).contains("教师信息"));
         assertFalse(model.visibleModules(Role.TEACHER).contains("学籍查询"));
-        assertTrue(model.visibleModules(Role.TEACHER).contains("选课系统"));
+        assertTrue(model.visibleModules(Role.TEACHER).contains("教学管理"));
         assertTrue(model.visibleModules(Role.TEACHER).contains("图书馆"));
         assertTrue(model.visibleModules(Role.TEACHER).contains("商店"));
         assertFalse(model.visibleModules(Role.TEACHER).contains("用户管理"));
@@ -50,7 +50,7 @@ class ModuleNavigationModelTest {
 
         assertEquals(2, model.visibleModules(academicAdmin).size());
         assertTrue(model.visibleModules(academicAdmin).contains("学籍管理"));
-        assertTrue(model.visibleModules(academicAdmin).contains("选课管理"));
+        assertTrue(model.visibleModules(academicAdmin).contains("教务教学管理"));
         assertFalse(model.visibleModules(academicAdmin).contains("图书馆"));
         assertFalse(model.visibleModules(academicAdmin).contains("商店"));
         assertFalse(model.visibleModules(academicAdmin).contains("用户管理"));
@@ -62,8 +62,8 @@ class ModuleNavigationModelTest {
 
         assertEquals(1, model.visibleModules(Role.STORE_MANAGER).size());
         assertTrue(model.visibleModules(Role.STORE_MANAGER).contains("商店"));
-        assertFalse(model.visibleModules(Role.STORE_MANAGER).contains("选课系统"));
-        assertFalse(model.visibleModules(Role.STORE_MANAGER).contains("选课管理"));
+        assertFalse(model.visibleModules(Role.STORE_MANAGER).contains("学生选课"));
+        assertFalse(model.visibleModules(Role.STORE_MANAGER).contains("教务教学管理"));
     }
 
     @Test
@@ -71,17 +71,17 @@ class ModuleNavigationModelTest {
         ModuleNavigationModel model = new ModuleNavigationModel();
 
         assertTrue(MainFrame.useCourseSelectionPanel(
-                Role.STUDENT, model.findModule(Role.STUDENT, "选课系统")));
+                Role.STUDENT, model.findModule(Role.STUDENT, "学生选课")));
         assertTrue(MainFrame.useTeacherTeachingPanel(
-                Role.TEACHER, model.findModule(Role.TEACHER, "选课系统")));
+                Role.TEACHER, model.findModule(Role.TEACHER, "教学管理")));
         assertFalse(MainFrame.useCourseSelectionPanel(
-                Role.TEACHER, model.findModule(Role.TEACHER, "选课系统")));
+                Role.TEACHER, model.findModule(Role.TEACHER, "教学管理")));
         assertFalse(MainFrame.useTeacherTeachingPanel(
-                Role.STUDENT, model.findModule(Role.STUDENT, "选课系统")));
+                Role.STUDENT, model.findModule(Role.STUDENT, "学生选课")));
         assertFalse(MainFrame.useCourseSelectionPanel(
-                Role.ACADEMIC_ADMIN, model.findModule(Role.ACADEMIC_ADMIN, "选课管理")));
+                Role.ACADEMIC_ADMIN, model.findModule(Role.ACADEMIC_ADMIN, "教务教学管理")));
         assertFalse(MainFrame.useCourseSelectionPanel(
-                Role.ADMIN, model.findModule(Role.ADMIN, "选课管理")));
+                Role.ADMIN, model.findModule(Role.ADMIN, "教务教学管理")));
     }
 
     @Test
@@ -89,13 +89,13 @@ class ModuleNavigationModelTest {
         ModuleNavigationModel model = new ModuleNavigationModel();
 
         assertTrue(MainFrame.useCourseManagementPanel(Role.ACADEMIC_ADMIN,
-                model.findModule(Role.ACADEMIC_ADMIN, "选课管理")));
+                model.findModule(Role.ACADEMIC_ADMIN, "教务教学管理")));
         assertTrue(MainFrame.useCourseManagementPanel(Role.ADMIN,
-                model.findModule(Role.ADMIN, "选课管理")));
+                model.findModule(Role.ADMIN, "教务教学管理")));
         assertFalse(MainFrame.useCourseManagementPanel(Role.STUDENT,
-                model.findModule(Role.STUDENT, "选课系统")));
+                model.findModule(Role.STUDENT, "学生选课")));
         assertFalse(MainFrame.useCourseManagementPanel(Role.TEACHER,
-                model.findModule(Role.TEACHER, "选课系统")));
+                model.findModule(Role.TEACHER, "教学管理")));
     }
 
     @Test

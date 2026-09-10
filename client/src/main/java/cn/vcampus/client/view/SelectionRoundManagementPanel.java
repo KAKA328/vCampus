@@ -109,7 +109,7 @@ final class SelectionRoundManagementPanel extends JPanel {
     private JPanel queryCard() {
         JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
         VCampusTheme.panel(card);
-        JLabel title = sectionTitle("第 1 步：查询选课轮次");
+        JLabel title = sectionTitle("查询选课轮次");
         JLabel hint = sectionHint("同一学期的首修轮次和重修轮次各只能创建一个。 ");
         JPanel fields = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
                 UiMetrics.px(4)));
@@ -126,7 +126,7 @@ final class SelectionRoundManagementPanel extends JPanel {
     private JPanel roundFormCard() {
         JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
         VCampusTheme.panel(card);
-        JLabel title = sectionTitle("第 2 步：新建或维护选课轮次");
+        JLabel title = sectionTitle("新建或维护选课轮次");
         JLabel hint = sectionHint("从下方选择一行后，信息会自动带入；开放轮次会向符合条件的学生显示。 ");
         JPanel fields = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
                 UiMetrics.px(4)));
