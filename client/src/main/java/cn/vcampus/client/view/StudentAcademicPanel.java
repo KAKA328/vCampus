@@ -72,7 +72,7 @@ final class StudentAcademicPanel extends JPanel {
         }
         JScrollPane scroll = VCampusTheme.scrollPane(table);
         scroll.setColumnHeaderView(table.getTableHeader());
-        scroll.setPreferredSize(new Dimension(0, 340));
+        scroll.setPreferredSize(UiMetrics.dimension(0, 340));
         content.setOpaque(false);
         content.add(scroll, "history");
         JPanel overview = new ScrollablePagePanel(new BorderLayout(0, 16));

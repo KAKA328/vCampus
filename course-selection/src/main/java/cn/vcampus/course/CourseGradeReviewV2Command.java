@@ -8,6 +8,7 @@ public final class CourseGradeReviewV2Command implements Serializable {
 
     public enum Operation {
         LIST_PENDING,
+        LIST_HISTORY,
         VIEW_DETAIL,
         VIEW_AUDIT,
         APPROVE,
@@ -26,7 +27,8 @@ public final class CourseGradeReviewV2Command implements Serializable {
         this.operation = operation;
         this.submissionId = normalize(submissionId);
         this.remark = normalize(remark);
-        if (operation != Operation.LIST_PENDING && this.submissionId == null) {
+        if (operation != Operation.LIST_PENDING && operation != Operation.LIST_HISTORY
+                && this.submissionId == null) {
             throw new IllegalArgumentException("submissionId must not be blank");
         }
         if (operation == Operation.RETURN && this.remark == null) {
@@ -36,6 +38,10 @@ public final class CourseGradeReviewV2Command implements Serializable {
 
     public static CourseGradeReviewV2Command listPending(String token) {
         return new CourseGradeReviewV2Command(token, Operation.LIST_PENDING, null, null);
+    }
+
+    public static CourseGradeReviewV2Command listHistory(String token) {
+        return new CourseGradeReviewV2Command(token, Operation.LIST_HISTORY, null, null);
     }
 
     public static CourseGradeReviewV2Command viewDetail(String token, String submissionId) {

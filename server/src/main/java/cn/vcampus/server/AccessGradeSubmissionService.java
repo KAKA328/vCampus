@@ -108,6 +108,20 @@ public final class AccessGradeSubmissionService implements GradeSubmissionServic
     }
 
     @Override
+    public ServiceResult<List<GradeSubmission>> listReviewHistory() {
+        String sql = selectSubmissions() + " WHERE status IN (?,?) ORDER BY updated_at DESC,submission_id";
+        try (Connection connection = open(); PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, GradeSubmissionStatus.APPROVED.name());
+            statement.setString(2, GradeSubmissionStatus.RETURNED.name());
+            try (ResultSet results = statement.executeQuery()) {
+                List<GradeSubmission> submissions = new ArrayList<GradeSubmission>();
+                while (results.next()) submissions.add(readSubmission(results));
+                return ServiceResult.ok(Collections.unmodifiableList(submissions));
+            }
+        } catch (SQLException failure) { return databaseFailure(failure); }
+    }
+
+    @Override
     public ServiceResult<List<GradeEntry>> listEntries(String submissionId) {
         String normalized = normalize(submissionId);
         if (normalized == null) return ServiceResult.failure(StatusCode.BAD_REQUEST,

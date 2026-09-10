@@ -27,6 +27,9 @@ public final class InMemoryLibraryService implements LibraryService {
     @Override public ServiceResult<Book> getBook(String bookId) { return delegate.getBook(bookId); }
     @Override public ServiceResult<List<Book>> listByCategory(String category) { return delegate.listByCategory(category); }
     @Override public ServiceResult<Book> addBook(Book book) { return delegate.addBook(book); }
+    @Override public ServiceResult<Book> restock(String bookId, int copies) {
+        return delegate.restock(bookId, copies);
+    }
     @Override public ServiceResult<List<BorrowRecord>> borrow(String userId, String bookId) {
         return delegate.borrow(userId, bookId);
     }

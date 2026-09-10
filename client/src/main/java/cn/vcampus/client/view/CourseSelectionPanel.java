@@ -9,99 +9,118 @@ import cn.vcampus.course.SelectedCourseOffering;
 import cn.vcampus.course.SelectionRound;
 import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
-import java.awt.FlowLayout;
+import java.awt.CardLayout;
 import java.awt.Color;
+import java.awt.FlowLayout;
 import java.awt.Font;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
-import javax.swing.ButtonGroup;
+import java.util.Map;
 import javax.swing.JButton;
-import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTable;
-import javax.swing.JToggleButton;
-import javax.swing.SwingWorker;
 import javax.swing.ListSelectionModel;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 
-/**
- * 学生选课界面：先选择轮次，再查看可选教学班并选课；“我的已选”中可退选。
- */
+/** 学生按“轮次、课程、教学班”逐层完成选课，并可随时查看或退选已选课程。 */
 public final class CourseSelectionPanel extends JPanel {
-    private static final int[] TABLE_COLUMN_WIDTHS = {
-            86, 108, 170, 62, 126, 106, 220, 116, 88
-    };
+    private static final String ROUND_PAGE = "round";
+    private static final String COURSE_PAGE = "course";
+    private static final String OFFERING_PAGE = "offering";
+    private static final String SELECTED_PAGE = "selected";
+    private static final int[] COURSE_COLUMN_WIDTHS = { 150, 260, 90, 130 };
+    private static final int[] SELECTED_COLUMN_WIDTHS = { 130, 220, 90, 130, 190, 130 };
 
     private final String host;
     private final int port;
     private final Session session;
-    private final JComboBox<String> roundBox = new JComboBox<String>();
-    private final List<SelectionRound> rounds = new ArrayList<SelectionRound>();
-    private final List<String> offeringIds = new ArrayList<String>();
-    private final List<String> recordIds = new ArrayList<String>();
-    private final BatchTableModel tableModel = new BatchTableModel(
-            new Object[] { "类别", "课程编号", "课程名称", "学分", "教学班", "教师", "时间", "地点", "剩余名额" });
-    private final JTable table = new JTable(tableModel);
+    private final CardLayout pageLayout = new CardLayout();
+    private final ScrollablePagePanel pages = new ScrollablePagePanel(pageLayout);
+    private final JPanel roundCards = new JPanel(new BorderLayout());
+    private final JPanel offeringCards = new JPanel(new BorderLayout());
+    private final JLabel pageSubtitle = new JLabel();
     private final JLabel status = new JLabel();
-    private final JLabel tableTitle = new JLabel();
-    private final JLabel tableHint = new JLabel();
-    private final JLabel actionHint = new JLabel();
-    private final JButton loadRoundsButton = new JButton("刷新选课轮次");
-    private final JButton refreshViewButton = new JButton("刷新当前列表");
-    private final JToggleButton offeringsViewButton = new JToggleButton("可选教学班");
-    private final JToggleButton selectedViewButton = new JToggleButton("我的已选课程");
-    private final JButton primaryActionButton = new JButton();
-    private boolean showingSelected;
+    private final JLabel selectedRoundLabel = new JLabel();
+    private final JLabel selectedCourseLabel = new JLabel();
+    private final BatchTableModel courseModel = new BatchTableModel(
+            new Object[] { "课程编号", "课程名称", "学分", "选课类别" });
+    private final BatchTableModel selectedModel = new BatchTableModel(
+            new Object[] { "课程编号", "课程名称", "学分", "教学班", "上课时间", "地点" });
+    private final JTable courseTable = new JTable(courseModel);
+    private final JTable selectedTable = new JTable(selectedModel);
+    private final JButton courseDetailButton = new JButton("查看所选课程的教学班");
+    private final JButton selectedCoursesButton = new JButton("我的已选课程");
+    private final JButton backToRoundsButton = new JButton("返回选课轮次");
+    private final JButton backToCoursesButton = new JButton("返回课程列表");
+    private final JButton backToCoursesFromSelectedButton = new JButton("返回课程列表");
+    private final JButton dropButton = new JButton("退选所选课程");
+    private final List<SelectionRound> rounds = new ArrayList<SelectionRound>();
+    private final List<CourseChoice> courseChoices = new ArrayList<CourseChoice>();
+    private final List<SelectableCourseOffering> currentRoundOfferings =
+            new ArrayList<SelectableCourseOffering>();
+    private final List<SelectedCourseOffering> selectedOfferings =
+            new ArrayList<SelectedCourseOffering>();
+    private final List<JButton> roundEnterButtons = new ArrayList<JButton>();
+    private final Map<JButton, Boolean> offeringActionAvailability =
+            new LinkedHashMap<JButton, Boolean>();
+    private final RequestLifecycle requestLifecycle = new RequestLifecycle();
+    private SelectionRound selectedRound;
+    private CourseChoice selectedCourse;
     /** 当前网络请求尚未结束时，禁止再次提交选课相关操作。 */
     private boolean requestInProgress;
-    private final RequestLifecycle requestLifecycle = new RequestLifecycle();
 
     public CourseSelectionPanel(String host, int port, Session session) {
-        if (host == null || host.trim().isEmpty() || session == null) throw new IllegalArgumentException("host and session must not be null");
-        this.host = host.trim(); this.port = port; this.session = session;
+        if (host == null || host.trim().isEmpty() || session == null) {
+            throw new IllegalArgumentException("host and session must not be null");
+        }
+        this.host = host.trim();
+        this.port = port;
+        this.session = session;
         build();
     }
 
     private void build() {
         setLayout(new BorderLayout(0, UiMetrics.px(16)));
         setOpaque(false);
+        configureTable(courseTable, COURSE_COLUMN_WIDTHS);
+        configureTable(selectedTable, SELECTED_COLUMN_WIDTHS);
+        courseTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) updateInteractiveState();
+        });
+        selectedTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) updateInteractiveState();
+        });
+        courseDetailButton.addActionListener(e -> openCourseDetail());
+        selectedCoursesButton.addActionListener(e -> showSelectedPage());
+        backToRoundsButton.addActionListener(e -> showRoundPage());
+        backToCoursesButton.addActionListener(e -> showCoursePage());
+        backToCoursesFromSelectedButton.addActionListener(e -> showCoursePage());
+        dropButton.addActionListener(e -> dropSelectedCourse());
+        VCampusTheme.primaryButton(courseDetailButton);
+        VCampusTheme.secondaryButton(selectedCoursesButton);
+        VCampusTheme.secondaryButton(backToRoundsButton);
+        VCampusTheme.secondaryButton(backToCoursesButton);
+        VCampusTheme.secondaryButton(backToCoursesFromSelectedButton);
+        VCampusTheme.primaryButton(dropButton);
+
+        pages.setOpaque(false);
+        pages.add(roundPage(), ROUND_PAGE);
+        pages.add(coursePage(), COURSE_PAGE);
+        pages.add(offeringPage(), OFFERING_PAGE);
+        pages.add(selectedPage(), SELECTED_PAGE);
         add(header(), BorderLayout.NORTH);
-        add(VCampusTheme.pageScroll(body()), BorderLayout.CENTER);
-        showStatus("请先加载选课轮次", VCampusTheme.MUTED);
-
-        loadRoundsButton.addActionListener(e -> loadRounds());
-        refreshViewButton.addActionListener(e -> refreshCurrentView());
-        offeringsViewButton.addActionListener(e -> showOfferings());
-        selectedViewButton.addActionListener(e -> showSelected());
-        primaryActionButton.addActionListener(e -> {
-            if (showingSelected) {
-                drop();
-            } else {
-                select();
-            }
-        });
-        roundBox.addActionListener(e -> roundChanged());
-        table.getSelectionModel().addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting()) {
-                updateInteractiveState();
-            }
-        });
-        configureViewSwitch();
-        updateViewPresentation();
+        add(VCampusTheme.pageScroll(pages), BorderLayout.CENTER);
+        add(status, BorderLayout.SOUTH);
+        pageLayout.show(pages, ROUND_PAGE);
+        setSubtitle("请选择一个当前开放的选课轮次，再进入课程列表。 ");
+        showStatus("正在自动加载选课轮次", VCampusTheme.MUTED);
         updateInteractiveState();
-    }
-
-    private JPanel body() {
-        JPanel panel = new ScrollablePagePanel(new BorderLayout(0, UiMetrics.px(16)));
-        panel.setOpaque(false);
-        JPanel workspace = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
-        workspace.setOpaque(false);
-        workspace.add(roundCard(), BorderLayout.NORTH);
-        workspace.add(tablePanel(), BorderLayout.CENTER);
-        panel.add(workspace, BorderLayout.NORTH);
-        panel.add(status, BorderLayout.SOUTH);
-        return panel;
+        CourseUiSupport.loadOnFirstShow(this, this::loadRounds);
     }
 
     private JPanel header() {
@@ -110,232 +129,427 @@ public final class CourseSelectionPanel extends JPanel {
         JLabel title = new JLabel("选课系统");
         title.setFont(VCampusTheme.font(Font.BOLD, 24));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        JLabel subtitle = new JLabel("先选择选课轮次，再查看可选教学班或管理本人已选课程。");
-        subtitle.setForeground(VCampusTheme.MUTED);
+        pageSubtitle.setForeground(VCampusTheme.MUTED);
         panel.add(title, BorderLayout.NORTH);
-        panel.add(subtitle, BorderLayout.SOUTH);
+        panel.add(pageSubtitle, BorderLayout.SOUTH);
         return panel;
     }
 
-    /** 把轮次选择与列表切换分为两步，避免学生面对一组没有顺序的操作按钮。 */
-    private JPanel roundCard() {
+    private JComponent roundPage() {
+        JPanel content = scrollPage();
         JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
         VCampusTheme.panel(card);
-
-        JPanel roundRow = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10), UiMetrics.px(6)));
-        roundRow.setOpaque(false);
-        JLabel roundLabel = new JLabel("第 1 步：选择选课轮次");
-        roundLabel.setFont(VCampusTheme.font(Font.BOLD, 15));
-        roundLabel.setForeground(VCampusTheme.PRIMARY_DARK);
-        VCampusTheme.field(roundBox);
-        roundBox.setPreferredSize(UiMetrics.dimension(260, roundBox.getPreferredSize().height));
-        VCampusTheme.secondaryButton(loadRoundsButton);
-        roundRow.add(roundLabel);
-        roundRow.add(roundBox);
-        roundRow.add(loadRoundsButton);
-
-        JPanel viewRow = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(8), UiMetrics.px(4)));
-        viewRow.setOpaque(false);
-        JLabel viewLabel = new JLabel("第 2 步：选择要办理的事项");
-        viewLabel.setFont(VCampusTheme.font(Font.BOLD, 15));
-        viewLabel.setForeground(VCampusTheme.PRIMARY_DARK);
-        viewRow.add(viewLabel);
-        viewRow.add(offeringsViewButton);
-        viewRow.add(selectedViewButton);
-
-        card.add(roundRow, BorderLayout.NORTH);
-        card.add(viewRow, BorderLayout.SOUTH);
-        return card;
-    }
-
-    private JPanel tablePanel() {
-        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
-        VCampusTheme.panel(panel);
-        panel.setPreferredSize(UiMetrics.dimension(0, 420));
-        panel.setMinimumSize(UiMetrics.dimension(0, 240));
-        configureTable();
         JPanel header = new JPanel(new BorderLayout(0, UiMetrics.px(3)));
         header.setOpaque(false);
-        tableTitle.setFont(VCampusTheme.font(Font.BOLD, 17));
-        tableTitle.setForeground(VCampusTheme.PRIMARY_DARK);
-        tableHint.setFont(VCampusTheme.font(Font.PLAIN, 13));
-        tableHint.setForeground(VCampusTheme.MUTED);
-        header.add(tableTitle, BorderLayout.NORTH);
-        header.add(tableHint, BorderLayout.SOUTH);
-        VCampusTheme.secondaryButton(refreshViewButton);
-        JPanel actionBar = new JPanel(new BorderLayout(UiMetrics.px(12), 0));
-        actionBar.setOpaque(false);
-        actionHint.setForeground(VCampusTheme.MUTED);
-        VCampusTheme.primaryButton(primaryActionButton);
-        actionBar.add(actionHint, BorderLayout.CENTER);
-        actionBar.add(primaryActionButton, BorderLayout.EAST);
-        panel.add(header, BorderLayout.NORTH);
-        panel.add(VCampusTheme.scrollPane(table), BorderLayout.CENTER);
-        panel.add(actionBar, BorderLayout.SOUTH);
-        header.add(refreshViewButton, BorderLayout.EAST);
-        return panel;
+        header.add(sectionTitle("请选择选课轮次"), BorderLayout.NORTH);
+        header.add(sectionHint("进入轮次后即可查看可选课程；首修与重修轮次都会在开放时显示。 "),
+                BorderLayout.SOUTH);
+        card.add(header, BorderLayout.NORTH);
+        card.add(roundCards, BorderLayout.CENTER);
+        content.add(card, BorderLayout.NORTH);
+        return content;
     }
 
-    private void configureViewSwitch() {
-        ButtonGroup viewGroup = new ButtonGroup();
-        viewGroup.add(offeringsViewButton);
-        viewGroup.add(selectedViewButton);
-        offeringsViewButton.setSelected(true);
-        styleViewSwitch();
+    private JComponent coursePage() {
+        JPanel content = scrollPage();
+        JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
+        VCampusTheme.panel(card);
+        JPanel header = new JPanel(new BorderLayout(0, UiMetrics.px(4)));
+        header.setOpaque(false);
+        selectedRoundLabel.setFont(VCampusTheme.font(Font.BOLD, 17));
+        selectedRoundLabel.setForeground(VCampusTheme.PRIMARY_DARK);
+        header.add(selectedRoundLabel, BorderLayout.NORTH);
+        header.add(sectionHint("选择一门课程后查看该课程全部教学班与剩余容量。 "),
+                BorderLayout.SOUTH);
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiMetrics.px(8), 0));
+        actions.setOpaque(false);
+        actions.add(backToRoundsButton);
+        actions.add(selectedCoursesButton);
+        card.add(header, BorderLayout.NORTH);
+        card.add(VCampusTheme.scrollPane(courseTable), BorderLayout.CENTER);
+        JPanel footer = new JPanel(new BorderLayout(UiMetrics.px(12), 0));
+        footer.setOpaque(false);
+        footer.add(sectionHint("课程列表会在返回此页时自动刷新。 "), BorderLayout.CENTER);
+        footer.add(courseDetailButton, BorderLayout.EAST);
+        card.add(footer, BorderLayout.SOUTH);
+        content.add(actions, BorderLayout.NORTH);
+        content.add(card, BorderLayout.CENTER);
+        return content;
     }
 
-    private void styleViewSwitch() {
-        if (offeringsViewButton.isSelected()) {
-            VCampusTheme.primaryButton(offeringsViewButton);
-            VCampusTheme.secondaryButton(selectedViewButton);
-        } else {
-            VCampusTheme.secondaryButton(offeringsViewButton);
-            VCampusTheme.primaryButton(selectedViewButton);
-        }
+    private JComponent offeringPage() {
+        JPanel content = scrollPage();
+        JPanel header = new JPanel(new BorderLayout(0, UiMetrics.px(6)));
+        header.setOpaque(false);
+        selectedCourseLabel.setFont(VCampusTheme.font(Font.BOLD, 18));
+        selectedCourseLabel.setForeground(VCampusTheme.PRIMARY_DARK);
+        header.add(selectedCourseLabel, BorderLayout.NORTH);
+        header.add(sectionHint("每个教学班均显示当前选课类别对应的剩余容量；选课成功后会自动刷新。 "),
+                BorderLayout.SOUTH);
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        actions.setOpaque(false);
+        actions.add(backToCoursesButton);
+        JPanel top = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
+        top.setOpaque(false);
+        top.add(actions, BorderLayout.NORTH);
+        top.add(header, BorderLayout.SOUTH);
+        content.add(top, BorderLayout.NORTH);
+        content.add(offeringCards, BorderLayout.CENTER);
+        return content;
     }
 
-    /** 窄窗口优先保留列内容，通过表格自身的横向滚动查看完整信息。 */
-    private void configureTable() {
-        VCampusTheme.table(table);
-        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
-        for (int index = 0; index < TABLE_COLUMN_WIDTHS.length; index++) {
-            table.getColumnModel().getColumn(index).setPreferredWidth(UiMetrics.px(TABLE_COLUMN_WIDTHS[index]));
-        }
+    private JComponent selectedPage() {
+        JPanel content = scrollPage();
+        JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
+        VCampusTheme.panel(card);
+        JPanel header = new JPanel(new BorderLayout(0, UiMetrics.px(3)));
+        header.setOpaque(false);
+        header.add(sectionTitle("我的已选课程"), BorderLayout.NORTH);
+        header.add(sectionHint("这里只显示当前有效的选课记录；退选后会立即更新课程列表。 "),
+                BorderLayout.SOUTH);
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiMetrics.px(8), 0));
+        actions.setOpaque(false);
+        actions.add(backToCoursesFromSelectedButton);
+        actions.add(dropButton);
+        card.add(header, BorderLayout.NORTH);
+        card.add(VCampusTheme.scrollPane(selectedTable), BorderLayout.CENTER);
+        card.add(actions, BorderLayout.SOUTH);
+        content.add(card, BorderLayout.NORTH);
+        return content;
+    }
+
+    private static JPanel scrollPage() {
+        JPanel content = new ScrollablePagePanel(new BorderLayout(0, UiMetrics.px(16)));
+        content.setOpaque(false);
+        return content;
     }
 
     private void loadRounds() {
         request(service -> service.availableRounds(session.getToken()), response -> {
-            if (!ok(response) || !(response.getPayload() instanceof List<?>)) return;
-            rounds.clear(); roundBox.removeAllItems();
-            for (Object item : (List<?>) response.getPayload()) if (item instanceof SelectionRound) {
-                SelectionRound round = (SelectionRound) item; rounds.add(round);
-                roundBox.addItem(round.getType() == cn.vcampus.course.SelectionRoundType.INITIAL ? "首修轮次" : "重修轮次");
+            if (!requireList(response, "选课轮次")) return;
+            rounds.clear();
+            for (Object item : (List<?>) response.getPayload()) {
+                if (item instanceof SelectionRound) rounds.add((SelectionRound) item);
             }
-            showingSelected = false;
-            offeringIds.clear();
-            recordIds.clear();
-            tableModel.replaceRows(new ArrayList<Object[]>());
-            updateViewPresentation();
-            showStatus(rounds.isEmpty() ? "当前没有可用选课轮次" : "请选择一个选课轮次",
+            renderRoundCards();
+            showStatus(rounds.isEmpty() ? "当前没有开放的选课轮次" : "请选择一个选课轮次",
                     rounds.isEmpty() ? VCampusTheme.MUTED : VCampusTheme.SUCCESS);
         });
     }
 
-    private void roundChanged() {
-        if (roundBox.getSelectedIndex() >= 0 && !requestInProgress) {
-            tableModel.replaceRows(new ArrayList<Object[]>());
-            offeringIds.clear();
-            recordIds.clear();
-            showStatus("已切换选课轮次，请查看可选教学班", VCampusTheme.MUTED);
+    private void renderRoundCards() {
+        roundCards.removeAll();
+        roundEnterButtons.clear();
+        JPanel list = new JPanel();
+        list.setLayout(new javax.swing.BoxLayout(list, javax.swing.BoxLayout.Y_AXIS));
+        list.setOpaque(false);
+        if (rounds.isEmpty()) list.add(sectionHint("暂时没有处于开放时间内的选课轮次。 "));
+        for (SelectionRound round : rounds) {
+            list.add(roundCard(round));
+            list.add(javax.swing.Box.createVerticalStrut(UiMetrics.px(10)));
         }
+        roundCards.add(list, BorderLayout.NORTH);
+        roundCards.revalidate();
+        roundCards.repaint();
         updateInteractiveState();
     }
 
-    private void showOfferings() {
-        showingSelected = false;
-        styleViewSwitch();
-        updateViewPresentation();
-        loadOfferings();
+    private JPanel roundCard(SelectionRound round) {
+        JPanel card = new JPanel(new BorderLayout(UiMetrics.px(14), 0));
+        VCampusTheme.panel(card);
+        JLabel title = new JLabel(round.getType().getDisplayName());
+        title.setFont(VCampusTheme.font(Font.BOLD, 17));
+        title.setForeground(VCampusTheme.PRIMARY_DARK);
+        JPanel text = new JPanel(new BorderLayout(0, UiMetrics.px(3)));
+        text.setOpaque(false);
+        text.add(title, BorderLayout.NORTH);
+        text.add(sectionHint("学期：" + round.getTerm() + "　开放中"), BorderLayout.SOUTH);
+        JButton enter = new JButton("进入" + round.getType().getDisplayName());
+        VCampusTheme.primaryButton(enter);
+        enter.addActionListener(e -> enterRound(round));
+        roundEnterButtons.add(enter);
+        card.add(text, BorderLayout.CENTER);
+        card.add(enter, BorderLayout.EAST);
+        return card;
     }
 
-    private void showSelected() {
-        showingSelected = true;
-        styleViewSwitch();
-        updateViewPresentation();
-        loadSelected();
+    private void enterRound(SelectionRound round) {
+        selectedRound = round;
+        selectedCourse = null;
+        setSubtitle("当前轮次：" + round.getType().getDisplayName() + "（" + round.getTerm()
+                + "），请选择一门课程查看教学班。 ");
+        pageLayout.show(pages, COURSE_PAGE);
+        loadCourseList();
     }
 
-    private void refreshCurrentView() {
-        if (showingSelected) {
-            loadSelected();
-        } else {
-            loadOfferings();
+    private void showRoundPage() {
+        selectedRound = null;
+        selectedCourse = null;
+        setSubtitle("请选择一个当前开放的选课轮次，再进入课程列表。 ");
+        pageLayout.show(pages, ROUND_PAGE);
+        loadRounds();
+    }
+
+    private void showCoursePage() {
+        if (selectedRound == null) {
+            showRoundPage();
+            return;
         }
+        setSubtitle("当前轮次：" + selectedRound.getType().getDisplayName() + "（"
+                + selectedRound.getTerm() + "），请选择一门课程查看教学班。 ");
+        pageLayout.show(pages, COURSE_PAGE);
+        loadCourseList();
     }
 
-    private void loadOfferings() {
-        int index = roundBox.getSelectedIndex();
-        if (index < 0) { showStatus("请先选择选课轮次", VCampusTheme.DANGER); return; }
-        final String roundId = rounds.get(index).getRoundId();
+    private void loadCourseList() {
+        if (selectedRound != null) fetchRoundOfferings(() -> fetchSelectedOfferings(this::renderCourseList));
+    }
+
+    private void fetchRoundOfferings(final Runnable afterLoaded) {
+        if (selectedRound == null) return;
+        final String roundId = selectedRound.getRoundId();
         request(service -> service.availableOfferings(session.getToken(), roundId), response -> {
-            if (!ok(response) || !(response.getPayload() instanceof List<?>)) return;
-            showingSelected = false; offeringIds.clear(); recordIds.clear();
-            List<Object[]> rows = new ArrayList<Object[]>();
-            for (Object item : (List<?>) response.getPayload()) if (item instanceof SelectableCourseOffering) {
-                SelectableCourseOffering value = (SelectableCourseOffering) item;
-                offeringIds.add(value.getOffering().getOfferingId());
-                rows.add(new Object[] { value.getSelectionType().getDisplayName(), value.getCourse().getCourseId(), value.getCourse().getName(), value.getCourse().getCredits(), value.getOffering().getOfferingId(), value.getOffering().getTeacherId(), value.getOffering().getSchedule(), value.getOffering().getLocation(), value.getCapacityUsage().getRemainingCapacity() });
+            if (!requireList(response, "可选课程")) return;
+            currentRoundOfferings.clear();
+            for (Object item : (List<?>) response.getPayload()) {
+                if (item instanceof SelectableCourseOffering) {
+                    currentRoundOfferings.add((SelectableCourseOffering) item);
+                }
             }
-            tableModel.replaceRows(rows);
-            updateViewPresentation();
-            showStatus(rows.isEmpty() ? "本轮暂时没有可选教学班" : "已显示可选教学班",
-                    rows.isEmpty() ? VCampusTheme.MUTED : VCampusTheme.SUCCESS);
+            SwingUtilities.invokeLater(afterLoaded);
         });
     }
 
-    private void loadSelected() {
+    private void fetchSelectedOfferings(final Runnable afterLoaded) {
         request(service -> service.selectedOfferings(session.getToken()), response -> {
-            if (!ok(response) || !(response.getPayload() instanceof List<?>)) return;
-            showingSelected = true; offeringIds.clear(); recordIds.clear();
-            List<Object[]> rows = new ArrayList<Object[]>();
-            for (Object item : (List<?>) response.getPayload()) if (item instanceof SelectedCourseOffering) {
-                SelectedCourseOffering value = (SelectedCourseOffering) item;
-                recordIds.add(value.getRecord().getRecordId());
-                rows.add(new Object[] { value.getRecord().getSelectionType().getDisplayName(), value.getCourse().getCourseId(), value.getCourse().getName(), value.getCourse().getCredits(), value.getOffering().getOfferingId(), value.getOffering().getTeacherId(), value.getOffering().getSchedule(), value.getOffering().getLocation(), "-" });
+            if (!requireList(response, "已选课程")) return;
+            selectedOfferings.clear();
+            for (Object item : (List<?>) response.getPayload()) {
+                if (item instanceof SelectedCourseOffering) {
+                    selectedOfferings.add((SelectedCourseOffering) item);
+                }
             }
-            tableModel.replaceRows(rows);
-            updateViewPresentation();
-            showStatus(rows.isEmpty() ? "当前没有有效选课记录" : "已显示当前有效选课记录",
-                    rows.isEmpty() ? VCampusTheme.MUTED : VCampusTheme.SUCCESS);
+            afterLoaded.run();
         });
     }
 
-    private void select() {
-        int row = table.getSelectedRow(); int roundIndex = roundBox.getSelectedIndex();
-        if (showingSelected || row < 0 || roundIndex < 0) {
-            showStatus("请在本轮可选教学班中选择一行", VCampusTheme.DANGER);
-            return;
+    private void renderCourseList() {
+        courseChoices.clear();
+        Map<String, CourseChoice> choices = new LinkedHashMap<String, CourseChoice>();
+        for (SelectableCourseOffering offering : currentRoundOfferings) {
+            String courseId = offering.getCourse().getCourseId();
+            CourseChoice choice = choices.get(courseId);
+            if (choice == null) {
+                choice = new CourseChoice(offering);
+                choices.put(courseId, choice);
+                courseChoices.add(choice);
+            }
+            choice.offerings.add(offering);
         }
-        request(service -> service.select(session.getToken(), rounds.get(roundIndex).getRoundId(), offeringIds.get(row)), response -> {
-            if (ok(response)) { showStatus("选课成功，请刷新列表", VCampusTheme.SUCCESS); }
-        });
+        List<Object[]> rows = new ArrayList<Object[]>();
+        for (CourseChoice choice : courseChoices) {
+            SelectableCourseOffering first = choice.firstOffering;
+            rows.add(new Object[] { first.getCourse().getCourseId(), first.getCourse().getName(),
+                    Integer.valueOf(first.getCourse().getCredits()),
+                    first.getSelectionType().getDisplayName() });
+        }
+        courseModel.replaceRows(rows);
+        selectedRoundLabel.setText(selectedRound.getType().getDisplayName() + " · "
+                + selectedRound.getTerm() + " · 可选课程");
+        showStatus(rows.isEmpty() ? "本轮暂时没有可选课程" : "已加载 " + rows.size() + " 门可选课程",
+                rows.isEmpty() ? VCampusTheme.MUTED : VCampusTheme.SUCCESS);
+        updateInteractiveState();
     }
 
-    private void drop() {
-        int row = table.getSelectedRow();
-        if (!showingSelected || row < 0) {
-            showStatus("请先进入“我的已选课程”并选择一行", VCampusTheme.DANGER);
+    private void openCourseDetail() {
+        int row = courseTable.getSelectedRow();
+        if (row < 0 || row >= courseChoices.size()) {
+            showStatus("请先选择一门课程", VCampusTheme.DANGER);
             return;
         }
-        String courseName = String.valueOf(tableModel.getValueAt(row, 2));
+        selectedCourse = courseChoices.get(row);
+        setSubtitle("正在查看课程“" + selectedCourse.firstOffering.getCourse().getName()
+                + "”的全部教学班。 ");
+        pageLayout.show(pages, OFFERING_PAGE);
+        refreshOfferingDetail();
+    }
+
+    private void refreshOfferingDetail() {
+        if (selectedCourse == null) return;
+        final String courseId = selectedCourse.firstOffering.getCourse().getCourseId();
+        fetchRoundOfferings(() -> fetchSelectedOfferings(() -> {
+            renderCourseListData();
+            selectedCourse = findCourseChoice(courseId);
+            renderOfferingCards();
+        }));
+    }
+
+    private void renderCourseListData() {
+        courseChoices.clear();
+        Map<String, CourseChoice> choices = new LinkedHashMap<String, CourseChoice>();
+        for (SelectableCourseOffering offering : currentRoundOfferings) {
+            String courseId = offering.getCourse().getCourseId();
+            CourseChoice choice = choices.get(courseId);
+            if (choice == null) {
+                choice = new CourseChoice(offering);
+                choices.put(courseId, choice);
+                courseChoices.add(choice);
+            }
+            choice.offerings.add(offering);
+        }
+    }
+
+    private CourseChoice findCourseChoice(String courseId) {
+        for (CourseChoice choice : courseChoices) {
+            if (courseId.equals(choice.firstOffering.getCourse().getCourseId())) return choice;
+        }
+        return null;
+    }
+
+    private void renderOfferingCards() {
+        offeringCards.removeAll();
+        offeringActionAvailability.clear();
+        if (selectedCourse == null) {
+            offeringCards.revalidate();
+            offeringCards.repaint();
+            showStatus("该课程已不在当前可选列表中", VCampusTheme.MUTED);
+            return;
+        }
+        SelectableCourseOffering first = selectedCourse.firstOffering;
+        selectedCourseLabel.setText(first.getCourse().getCourseId() + " · "
+                + first.getCourse().getName() + " · 教学班");
+        JPanel list = new JPanel();
+        list.setLayout(new javax.swing.BoxLayout(list, javax.swing.BoxLayout.Y_AXIS));
+        list.setOpaque(false);
+        for (SelectableCourseOffering offering : selectedCourse.offerings) {
+            list.add(offeringCard(offering));
+            list.add(javax.swing.Box.createVerticalStrut(UiMetrics.px(10)));
+        }
+        offeringCards.add(list, BorderLayout.NORTH);
+        offeringCards.revalidate();
+        offeringCards.repaint();
+        showStatus("已加载 " + selectedCourse.offerings.size() + " 个教学班", VCampusTheme.SUCCESS);
+        updateInteractiveState();
+    }
+
+    private JPanel offeringCard(SelectableCourseOffering value) {
+        JPanel card = new JPanel(new BorderLayout(UiMetrics.px(16), UiMetrics.px(8)));
+        VCampusTheme.panel(card);
+        JLabel title = new JLabel("教学班 " + value.getOffering().getOfferingId());
+        title.setFont(VCampusTheme.font(Font.BOLD, 16));
+        title.setForeground(VCampusTheme.PRIMARY_DARK);
+        JLabel detail = new JLabel("<html>任课教师：" + escape(value.getOffering().getTeacherId())
+                + "<br/>上课时间：" + escape(value.getOffering().getSchedule())
+                + "<br/>上课地点：" + escape(value.getOffering().getLocation())
+                + "<br/>" + escape(value.getSelectionType().getDisplayName()) + "容量："
+                + value.getCapacityUsage().getRemainingCapacity() + " / "
+                + value.getCapacityUsage().getTotalCapacity() + "</html>");
+        detail.setForeground(VCampusTheme.TEXT);
+        JPanel text = new JPanel(new BorderLayout(0, UiMetrics.px(5)));
+        text.setOpaque(false);
+        text.add(title, BorderLayout.NORTH);
+        text.add(detail, BorderLayout.CENTER);
+        JButton select = new JButton();
+        boolean courseAlreadySelected = selectedOfferingForCourse(value.getCourse().getCourseId()) != null;
+        boolean thisOfferingSelected = selectedOfferingForId(value.getOffering().getOfferingId()) != null;
+        boolean available = !courseAlreadySelected && !value.getCapacityUsage().isFull();
+        if (thisOfferingSelected) select.setText("已选择");
+        else if (courseAlreadySelected) select.setText("不可选择");
+        else if (value.getCapacityUsage().isFull()) select.setText("名额已满");
+        else select.setText("选择此教学班");
+        if (available) {
+            VCampusTheme.primaryButton(select);
+            select.addActionListener(e -> selectOffering(value));
+        } else {
+            VCampusTheme.secondaryButton(select);
+        }
+        offeringActionAvailability.put(select, Boolean.valueOf(available));
+        card.add(text, BorderLayout.CENTER);
+        card.add(select, BorderLayout.EAST);
+        return card;
+    }
+
+    private void selectOffering(SelectableCourseOffering offering) {
+        if (selectedRound == null) {
+            showRoundPage();
+            return;
+        }
+        request(service -> service.select(session.getToken(), selectedRound.getRoundId(),
+                offering.getOffering().getOfferingId()), response -> {
+                    if (!ok(response)) return;
+                    showStatus("选课成功，正在更新教学班容量和已选状态", VCampusTheme.SUCCESS);
+                    SwingUtilities.invokeLater(this::refreshOfferingDetail);
+                });
+    }
+
+    private void showSelectedPage() {
+        if (selectedRound == null) {
+            showRoundPage();
+            return;
+        }
+        setSubtitle("当前轮次：" + selectedRound.getType().getDisplayName() + "（"
+                + selectedRound.getTerm() + "），查看当前有效选课记录。 ");
+        pageLayout.show(pages, SELECTED_PAGE);
+        fetchSelectedOfferings(this::renderSelectedCourses);
+    }
+
+    private void renderSelectedCourses() {
+        List<Object[]> rows = new ArrayList<Object[]>();
+        for (SelectedCourseOffering value : selectedOfferings) {
+            rows.add(new Object[] { value.getCourse().getCourseId(), value.getCourse().getName(),
+                    Integer.valueOf(value.getCourse().getCredits()), value.getOffering().getOfferingId(),
+                    value.getOffering().getSchedule(), value.getOffering().getLocation() });
+        }
+        selectedModel.replaceRows(rows);
+        showStatus(rows.isEmpty() ? "当前没有有效选课记录" : "已加载 " + rows.size() + " 条已选课程",
+                rows.isEmpty() ? VCampusTheme.MUTED : VCampusTheme.SUCCESS);
+        updateInteractiveState();
+    }
+
+    private void dropSelectedCourse() {
+        int row = selectedTable.getSelectedRow();
+        if (row < 0 || row >= selectedOfferings.size()) {
+            showStatus("请先选择一条已选课程", VCampusTheme.DANGER);
+            return;
+        }
+        SelectedCourseOffering target = selectedOfferings.get(row);
         if (!CourseUiSupport.confirmHighImpact(this, "确认退选",
-                "确定退选课程“" + courseName + "”吗？",
-                "该课程将不再属于你的当前有效选课记录。")) {
-            return;
-        }
-        request(service -> service.drop(session.getToken(), recordIds.get(row)), response -> {
-            if (ok(response)) { showStatus("退选成功，请刷新我的已选课程", VCampusTheme.SUCCESS); }
+                "确定退选课程“" + target.getCourse().getName() + "”吗？",
+                "该课程将不再属于你的当前有效选课记录。")) return;
+        request(service -> service.drop(session.getToken(), target.getRecord().getRecordId()), response -> {
+            if (!ok(response)) return;
+            showStatus("退选成功，正在更新已选课程", VCampusTheme.SUCCESS);
+            SwingUtilities.invokeLater(this::showSelectedPage);
         });
     }
 
-    private boolean ok(Message response) {
-        if (response.getStatusCode() == StatusCode.OK) return true;
-        showStatus(response.getPayload() instanceof String ? (String) response.getPayload()
-                : "服务器未能完成操作：" + response.getStatusCode(), VCampusTheme.DANGER);
-        return false;
+    private SelectedCourseOffering selectedOfferingForCourse(String courseId) {
+        for (SelectedCourseOffering offering : selectedOfferings) {
+            if (courseId.equals(offering.getCourse().getCourseId())) return offering;
+        }
+        return null;
+    }
+
+    private SelectedCourseOffering selectedOfferingForId(String offeringId) {
+        for (SelectedCourseOffering offering : selectedOfferings) {
+            if (offeringId.equals(offering.getOffering().getOfferingId())) return offering;
+        }
+        return null;
     }
 
     private void request(Request request, Response response) {
-        if (requestInProgress) {
-            return;
-        }
+        if (requestInProgress) return;
         final int requestId = requestLifecycle.begin();
         requestInProgress = true;
         updateInteractiveState();
         showStatus("正在请求服务器，请稍候…", VCampusTheme.MUTED);
         new SwingWorker<Message, Void>() {
-            @Override protected Message doInBackground() throws Exception { try (RemoteCourseService service = new RemoteCourseService(host, port)) { return request.run(service); } }
+            @Override protected Message doInBackground() throws Exception {
+                try (RemoteCourseService service = new RemoteCourseService(host, port)) {
+                    return request.run(service);
+                }
+            }
+
             @Override protected void done() {
                 if (!requestLifecycle.isCurrent(requestId)) return;
                 try {
@@ -350,44 +564,91 @@ public final class CourseSelectionPanel extends JPanel {
         }.execute();
     }
 
-    /** 根据登录角色与请求状态统一控制界面，避免重复提交或错选行。 */
-    private void updateInteractiveState() {
-        boolean interactive = session.getUser().getRole() == Role.STUDENT && !requestInProgress;
-        int selectedRow = table.getSelectedRow();
-        boolean hasRound = roundBox.getSelectedIndex() >= 0;
-        boolean selectedOffering = !showingSelected && selectedRow >= 0
-                && selectedRow < offeringIds.size();
-        boolean selectedRecord = showingSelected && selectedRow >= 0
-                && selectedRow < recordIds.size();
-        loadRoundsButton.setEnabled(interactive);
-        refreshViewButton.setEnabled(interactive && (showingSelected || hasRound));
-        offeringsViewButton.setEnabled(interactive);
-        selectedViewButton.setEnabled(interactive);
-        primaryActionButton.setEnabled(interactive && (showingSelected ? selectedRecord : selectedOffering));
-        roundBox.setEnabled(interactive && !rounds.isEmpty());
-        table.setEnabled(interactive);
+    private boolean requireList(Message response, String target) {
+        if (response.getStatusCode() == StatusCode.OK && response.getPayload() instanceof List<?>) return true;
+        showFailure(response, target);
+        return false;
     }
 
-    /** 视图切换时同步更新表格的语义，避免同一张表的“选择”与“退选”含义混淆。 */
-    private void updateViewPresentation() {
-        if (showingSelected) {
-            tableTitle.setText("我的已选课程");
-            tableHint.setText("这里只显示当前有效选课记录；选择一条记录后可办理退选。");
-            actionHint.setText("选择一条已选课程后，才能办理退选。");
-            primaryActionButton.setText("退选所选课程");
-        } else {
-            tableTitle.setText("本轮可选教学班");
-            tableHint.setText("选择一个教学班后即可选课；课程容量以列表中的实时结果为准。");
-            actionHint.setText("选择一条教学班后，才能提交选课申请。");
-            primaryActionButton.setText("选择所选教学班");
-        }
-        updateInteractiveState();
+    private boolean ok(Message response) {
+        if (response.getStatusCode() == StatusCode.OK) return true;
+        showFailure(response, "操作");
+        return false;
     }
+
+    private void showFailure(Message response, String target) {
+        String fallback = "服务器未能完成" + target + "：" + response.getStatusCode();
+        showStatus(response.getPayload() instanceof String ? (String) response.getPayload() : fallback,
+                VCampusTheme.DANGER);
+    }
+
+    /** 根据当前页、选中行和请求状态统一禁用无效操作，避免重复提交或跳过操作层级。 */
+    private void updateInteractiveState() {
+        boolean interactive = session.getUser().getRole() == Role.STUDENT && !requestInProgress;
+        for (JButton enter : roundEnterButtons) enter.setEnabled(interactive);
+        backToRoundsButton.setEnabled(interactive);
+        selectedCoursesButton.setEnabled(interactive && selectedRound != null);
+        courseTable.setEnabled(interactive);
+        courseDetailButton.setEnabled(interactive && courseTable.getSelectedRow() >= 0
+                && courseTable.getSelectedRow() < courseChoices.size());
+        backToCoursesButton.setEnabled(interactive);
+        backToCoursesFromSelectedButton.setEnabled(interactive);
+        selectedTable.setEnabled(interactive);
+        dropButton.setEnabled(interactive && selectedTable.getSelectedRow() >= 0
+                && selectedTable.getSelectedRow() < selectedOfferings.size());
+        for (Map.Entry<JButton, Boolean> entry : offeringActionAvailability.entrySet()) {
+            entry.getKey().setEnabled(interactive && entry.getValue().booleanValue());
+        }
+    }
+
+    private static void configureTable(JTable table, int[] widths) {
+        VCampusTheme.table(table);
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        for (int index = 0; index < widths.length; index++) {
+            table.getColumnModel().getColumn(index).setPreferredWidth(UiMetrics.px(widths[index]));
+        }
+    }
+
+    private static JLabel sectionTitle(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(VCampusTheme.font(Font.BOLD, 16));
+        label.setForeground(VCampusTheme.PRIMARY_DARK);
+        return label;
+    }
+
+    private static JLabel sectionHint(String text) {
+        JLabel label = new JLabel(text);
+        label.setForeground(VCampusTheme.MUTED);
+        return label;
+    }
+
+    private void setSubtitle(String text) { pageSubtitle.setText(text); }
 
     private void showStatus(String message, Color color) {
         CourseUiSupport.showStatus(status, message, color);
     }
 
-    private interface Request { Message run(RemoteCourseService service) throws IOException, ClassNotFoundException; }
-    private interface Response { void handle(Message response); }
+    private static String escape(String value) {
+        return value == null ? "" : value.replace("&", "&amp;")
+                .replace("<", "&lt;").replace(">", "&gt;")
+                .replace("\"", "&quot;").replace("'", "&#39;");
+    }
+
+    private static final class CourseChoice {
+        private final SelectableCourseOffering firstOffering;
+        private final List<SelectableCourseOffering> offerings = new ArrayList<SelectableCourseOffering>();
+
+        private CourseChoice(SelectableCourseOffering firstOffering) {
+            this.firstOffering = firstOffering;
+        }
+    }
+
+    private interface Request {
+        Message run(RemoteCourseService service) throws IOException, ClassNotFoundException;
+    }
+
+    private interface Response {
+        void handle(Message response);
+    }
 }

@@ -9,11 +9,20 @@ import javax.swing.JPanel;
 final class ResponsiveCardRowPanel extends JPanel {
     private final int minCardWidth;
     private final int gap;
+    private final int maxCardWidth;
 
     ResponsiveCardRowPanel(int minCardWidth, int gap) {
+        this(minCardWidth, gap, Integer.MAX_VALUE);
+    }
+
+    ResponsiveCardRowPanel(int minCardWidth, int gap, int maxCardWidth) {
         super(null);
+        if (minCardWidth <= 0 || gap < 0 || maxCardWidth < minCardWidth) {
+            throw new IllegalArgumentException("card row dimensions are invalid");
+        }
         this.minCardWidth = minCardWidth;
         this.gap = gap;
+        this.maxCardWidth = maxCardWidth;
         setOpaque(false);
     }
 
@@ -25,16 +34,18 @@ final class ResponsiveCardRowPanel extends JPanel {
         Insets insets = getInsets();
         int availableWidth = Math.max(0, getWidth() - insets.left - insets.right);
         int columns = columnsFor(availableWidth, count);
-        int cardWidth = columns == 1
+        int stretchedWidth = columns == 1
                 ? availableWidth
                 : (availableWidth - (columns - 1) * gap) / columns;
+        int cardWidth = columns == 1 ? stretchedWidth : Math.min(maxCardWidth, stretchedWidth);
+        int rowWidth = columns * cardWidth + (columns - 1) * gap;
 
-        int x = insets.left;
+        int x = insets.left + Math.max(0, (availableWidth - rowWidth) / 2);
         int y = insets.top;
         int rowHeight = 0;
         for (int index = 0; index < count; index++) {
             if (index > 0 && index % columns == 0) {
-                x = insets.left;
+                x = insets.left + Math.max(0, (availableWidth - rowWidth) / 2);
                 y += rowHeight + gap;
                 rowHeight = 0;
             }

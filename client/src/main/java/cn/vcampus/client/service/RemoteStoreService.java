@@ -21,6 +21,7 @@ import cn.vcampus.store.CartCheckoutSelectedCommand;
 import cn.vcampus.store.StoreOrderListAllCommand;
 import cn.vcampus.store.StoreHotProductsCommand;
 import cn.vcampus.store.StoreAccountQueryCommand;
+import cn.vcampus.store.StoreAccountLedgerV2Command;
 import cn.vcampus.store.StoreAccountRechargeCommand;
 import cn.vcampus.store.StoreAccountAdjustCommand;
 import java.io.Closeable;
@@ -186,7 +187,7 @@ public final class RemoteStoreService implements Closeable {
 
     /** 查询当前用户钱包流水（分）；只能查本人，响应为 List&lt;WalletTransaction&gt;。 */
     public Message ledger(String token) throws IOException, ClassNotFoundException {
-        return send(MessageType.STORE_ACCOUNT_LEDGER, new StoreAccountQueryCommand(token));
+        return send(MessageType.STORE_ACCOUNT_LEDGER_V2, new StoreAccountLedgerV2Command(token));
     }
 
     private Message send(MessageType type, Object payload) throws IOException, ClassNotFoundException {

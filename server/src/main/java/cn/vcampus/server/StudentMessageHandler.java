@@ -51,7 +51,7 @@ final class StudentMessageHandler {
             }
             return Message.response(request, result.getStatus(), result.getData());
         } catch (IllegalArgumentException invalidPayload) {
-            return Message.response(request, StatusCode.BAD_REQUEST, "request payload is invalid");
+            return Message.response(request, StatusCode.BAD_REQUEST, invalidPayload.getMessage());
         }
     }
 
@@ -100,6 +100,7 @@ final class StudentMessageHandler {
             return ServiceResult.failure(StatusCode.FORBIDDEN, "teachers cannot update student profiles");
         }
         StudentRecord record = command.getRecord();
+        if (record == null) return ServiceResult.failure(StatusCode.BAD_REQUEST, "学生档案不能为空");
         if (role == Role.STUDENT) {
             ServiceResult<StudentRecord> existing = students.findById(record.getStudentId());
             if (existing.getStatus() != StatusCode.OK) {
@@ -108,6 +109,7 @@ final class StudentMessageHandler {
             if (!owns(scope.getData(), existing.getData()) || !contactOnly(existing.getData(), record)) {
                 return ServiceResult.failure(StatusCode.FORBIDDEN, "student update scope denied");
             }
+            cn.vcampus.student.StudentProfileValidation.contacts(record.getPhone(), record.getEmail());
             return students.updateContacts(scope.getData().getUser().getUserId(),
                     existing.getData(), record.getPhone(), record.getEmail());
         } else {
@@ -116,6 +118,7 @@ final class StudentMessageHandler {
             if (writePermission.getStatus() != StatusCode.OK) {
                 return ServiceResult.failure(writePermission.getStatus(), writePermission.getMessage());
             }
+            cn.vcampus.student.StudentProfileValidation.profile(record);
             ServiceResult<StudentRecord> existing = students.findById(record.getStudentId());
             if (existing.getStatus() != StatusCode.OK && existing.getStatus() != StatusCode.NOT_FOUND) return existing;
             String oldStatus = existing.getStatus() == StatusCode.OK ? existing.getData().getStatus() : null;

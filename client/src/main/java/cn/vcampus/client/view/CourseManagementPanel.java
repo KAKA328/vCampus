@@ -11,15 +11,16 @@ import cn.vcampus.course.CourseStatus;
 import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.CardLayout;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
@@ -36,6 +37,8 @@ public final class CourseManagementPanel extends JPanel {
     private final int port;
     private final Session session;
     private final JLabel status = new JLabel();
+    private final CardLayout managementLayout = new CardLayout();
+    private final ScrollablePagePanel managementPages = new ScrollablePagePanel(managementLayout);
     private final BatchTableModel courseModel = new BatchTableModel(
             new Object[] { "课程编号", "课程名称", "学分", "状态" });
     private final BatchTableModel offeringModel = new BatchTableModel(
@@ -46,7 +49,8 @@ public final class CourseManagementPanel extends JPanel {
     private final JTextField courseId = new JTextField(10);
     private final JTextField courseName = new JTextField(12);
     private final JTextField courseCredits = new JTextField(4);
-    private final JTextField term = new JTextField("2026-2027-1", 10);
+    private final JComboBox<String> term = new JComboBox<String>(
+            new String[] { "2026-2027-1", "2025-2026-2", "2025-2026-1" });
     private final JTextField offeringId = new JTextField(12);
     private final JTextField offeringCourseId = new JTextField(10);
     private final JTextField teacherId = new JTextField(8);
@@ -73,30 +77,79 @@ public final class CourseManagementPanel extends JPanel {
     private void build() {
         setLayout(new BorderLayout(0, UiMetrics.px(16)));
         setOpaque(false);
-        JTabbedPane tabs = new JTabbedPane();
-        VCampusTheme.tabs(tabs);
-        tabs.addTab("课程目录", catalogPanel());
-        tabs.addTab("教学班", offeringPanel());
-        tabs.addTab("选课轮次", new SelectionRoundManagementPanel(host, port, session));
-        tabs.addTab("培养方案", new TrainingPlanManagementPanel(host, port, session));
-        tabs.addTab("成绩审核", new GradeReviewPanel(host, port, session));
+        managementPages.setOpaque(false);
+        managementPages.add(landingPage(), "landing");
+        managementPages.add(managementPage("课程目录管理", catalogPanel()), "catalog");
+        managementPages.add(managementPage("教学班管理", offeringPanel()), "offering");
+        managementPages.add(managementPage("选课轮次管理",
+                new SelectionRoundManagementPanel(host, port, session)), "round");
+        managementPages.add(managementPage("培养方案管理",
+                new TrainingPlanManagementPanel(host, port, session)), "plan");
+        managementPages.add(managementPage("成绩审核", new GradeReviewPanel(host, port, session)),
+                "review");
+        term.addActionListener(e -> { if (!requestInProgress) loadOfferings(); });
         add(header(), BorderLayout.NORTH);
-        add(VCampusTheme.pageScroll(body(tabs)), BorderLayout.CENTER);
+        add(VCampusTheme.pageScroll(managementPages), BorderLayout.CENTER);
+        add(status, BorderLayout.SOUTH);
         configureTable(courseTable, COURSE_COLUMN_WIDTHS);
         configureTable(offeringTable, OFFERING_COLUMN_WIDTHS);
-        showStatus("请先刷新课程目录或教学班列表", VCampusTheme.MUTED);
+        managementLayout.show(managementPages, "landing");
+        showStatus("请选择要办理的管理事项", VCampusTheme.MUTED);
     }
 
-    private JPanel body(JTabbedPane tabs) {
-        JPanel panel = new ScrollablePagePanel(new BorderLayout(0, UiMetrics.px(12)));
+    private JPanel landingPage() {
+        JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(14)));
         panel.setOpaque(false);
-        // 轮次与培养方案页包含“表单 + 上下表格工作区”，为其保留足够高度；
-        // 窗口较矮时由外层页面滚动条承接，而不是压缩表格和操作区。
-        tabs.setPreferredSize(UiMetrics.dimension(0, 720));
-        tabs.setMinimumSize(UiMetrics.dimension(0, 460));
-        panel.add(tabs, BorderLayout.CENTER);
-        panel.add(status, BorderLayout.SOUTH);
+        JPanel card = new JPanel();
+        card.setLayout(new javax.swing.BoxLayout(card, javax.swing.BoxLayout.Y_AXIS));
+        card.setOpaque(false);
+        card.add(sectionTitle("请选择要办理的管理事项"));
+        card.add(javax.swing.Box.createVerticalStrut(UiMetrics.px(8)));
+        card.add(entryCard("课程目录管理", "维护课程基本信息及启用状态。", "catalog", this::loadCourses));
+        card.add(javax.swing.Box.createVerticalStrut(UiMetrics.px(10)));
+        card.add(entryCard("教学班管理", "按学期维护教学班、任课教师、时间地点和容量。", "offering", this::loadOfferings));
+        card.add(javax.swing.Box.createVerticalStrut(UiMetrics.px(10)));
+        card.add(entryCard("选课轮次管理", "维护首修、重修轮次及开放时间。", "round", null));
+        card.add(javax.swing.Box.createVerticalStrut(UiMetrics.px(10)));
+        card.add(entryCard("培养方案管理", "维护各专业入学年份对应的培养方案和课程要求。", "plan", null));
+        card.add(javax.swing.Box.createVerticalStrut(UiMetrics.px(10)));
+        card.add(entryCard("成绩审核", "处理教师提交的成绩单并查看审核记录。", "review", null));
+        panel.add(card, BorderLayout.NORTH);
         return panel;
+    }
+
+    private JPanel entryCard(String titleText, String hintText, String page, Runnable onEnter) {
+        JPanel card = new JPanel(new BorderLayout(UiMetrics.px(16), 0));
+        VCampusTheme.panel(card);
+        JPanel text = new JPanel(new BorderLayout(0, UiMetrics.px(3)));
+        text.setOpaque(false);
+        text.add(sectionTitle(titleText), BorderLayout.NORTH);
+        text.add(sectionHint(hintText), BorderLayout.SOUTH);
+        JButton enter = new JButton("进入管理");
+        VCampusTheme.primaryButton(enter);
+        enter.addActionListener(e -> {
+            managementLayout.show(managementPages, page);
+            if (onEnter != null) onEnter.run();
+        });
+        card.add(text, BorderLayout.CENTER);
+        card.add(enter, BorderLayout.EAST);
+        return card;
+    }
+
+    private JPanel managementPage(String titleText, JPanel content) {
+        JPanel page = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
+        page.setOpaque(false);
+        JLabel title = sectionTitle(titleText);
+        JButton back = new JButton("返回管理事项");
+        VCampusTheme.secondaryButton(back);
+        back.addActionListener(e -> managementLayout.show(managementPages, "landing"));
+        JPanel heading = new JPanel(new BorderLayout(0, 0));
+        heading.setOpaque(false);
+        heading.add(title, BorderLayout.WEST);
+        heading.add(back, BorderLayout.EAST);
+        page.add(heading, BorderLayout.NORTH);
+        page.add(content, BorderLayout.CENTER);
+        return page;
     }
 
     private JPanel header() {
@@ -173,7 +226,7 @@ public final class CourseManagementPanel extends JPanel {
         JPanel fields = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
                 UiMetrics.px(4)));
         fields.setOpaque(false);
-        styleAndTrackFields(term);
+        VCampusTheme.field(term);
         fields.add(new JLabel("学期"));
         fields.add(term);
         fields.add(actionButton("刷新教学班", false, e -> loadOfferings()));
@@ -343,7 +396,7 @@ public final class CourseManagementPanel extends JPanel {
 
     private void loadOfferings() {
         try {
-            request(CourseManagementCommand.listOfferingsByTerm(session.getToken(), text(term)), response -> {
+            request(CourseManagementCommand.listOfferingsByTerm(session.getToken(), selectedTerm()), response -> {
                 if (!requireList(response)) return;
                 List<Object[]> rows = new ArrayList<Object[]>();
                 for (Object item : (List<?>) response.getPayload()) {
@@ -366,7 +419,7 @@ public final class CourseManagementPanel extends JPanel {
 
     private void createOffering() {
         try {
-            CourseOffering value = new CourseOffering(text(offeringId), text(offeringCourseId), text(term),
+            CourseOffering value = new CourseOffering(text(offeringId), text(offeringCourseId), selectedTerm(),
                     text(teacherId), text(schedule), text(location), nonNegative(requiredCapacity, "必修容量"),
                     nonNegative(electiveCapacity, "选修容量"), nonNegative(crossMajorCapacity, "跨专业容量"),
                     CourseOfferingStatus.DRAFT);
@@ -433,7 +486,7 @@ public final class CourseManagementPanel extends JPanel {
         if (row < 0) return;
         offeringId.setText(String.valueOf(offeringModel.getValueAt(row, 0)));
         offeringCourseId.setText(String.valueOf(offeringModel.getValueAt(row, 1)));
-        term.setText(String.valueOf(offeringModel.getValueAt(row, 2)));
+        term.setSelectedItem(String.valueOf(offeringModel.getValueAt(row, 2)));
         teacherId.setText(String.valueOf(offeringModel.getValueAt(row, 3)));
         schedule.setText(String.valueOf(offeringModel.getValueAt(row, 4)));
         location.setText(String.valueOf(offeringModel.getValueAt(row, 5)));
@@ -477,6 +530,7 @@ public final class CourseManagementPanel extends JPanel {
     private void setInteractive(boolean interactive) {
         for (JButton action : actions) action.setEnabled(interactive);
         for (JTextField field : inputFields) field.setEnabled(interactive);
+        term.setEnabled(interactive);
         courseTable.setEnabled(interactive); offeringTable.setEnabled(interactive);
     }
 
@@ -485,6 +539,10 @@ public final class CourseManagementPanel extends JPanel {
     }
 
     private static String text(JTextField field) { return field.getText().trim(); }
+    private String selectedTerm() {
+        Object selected = term.getSelectedItem();
+        return selected == null ? "" : selected.toString().trim();
+    }
     private static int positive(JTextField field, String name) { int value = nonNegative(field, name); if (value <= 0) throw new IllegalArgumentException(name + "必须大于 0"); return value; }
     private static int nonNegative(JTextField field, String name) { try { int value = Integer.parseInt(text(field)); if (value < 0) throw new IllegalArgumentException(name + "不能小于 0"); return value; } catch (NumberFormatException invalid) { throw new IllegalArgumentException(name + "必须是整数"); } }
 

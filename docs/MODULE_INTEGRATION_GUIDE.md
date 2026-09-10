@@ -49,7 +49,7 @@ git switch -c feature/store
 | 用户管理 | `user-management/` | 组长负责，提供管理员开户注册、批量导入、登录、登出、注销、授权 |
 | 学生学籍管理 | `student-management/` | 学生信息实体、业务接口、数据库访问 |
 | 选课系统 | `course-selection/` | 课程信息、选课、退课、已选课程查询 |
-| 图书馆 | `library/` | 图书查询、借阅、归还、借阅记录 |
+| 图书馆 | `library/` | 图书查询、借阅、归还、借阅记录、原价遗失赔偿（共用校园钱包） |
 | 商店 | `store/` | 商品查询、购买、库存、购买记录、购物车、钱包余额 |
 | 公共协议 | `common/` | 共享实体、消息类型、状态码，只在确有必要时修改 |
 | 服务器 | `server/` | Socket 启动入口、消息处理器、Access 仓储实现 |
@@ -141,6 +141,8 @@ Message response = Message.response(request, StatusCode.OK, data);
 ```
 
 ### 5.2 MessageType 分配
+
+图书赔偿新增 V3 图书接口和 `STORE_ACCOUNT_LEDGER_V2`；服务端统一组装共享钱包，不另建图书余额。原价快照、本人付款、幂等支付、Access 跨表事务及旧客户端升级提示的完整契约见 [图书赔偿与钱包对接](LIBRARY_COMPENSATION.md)。这项跨模块修改涉及 library 领域/客户端、server 支付与组装、store 钱包流水类型，需联同发布。
 
 当前已有消息类型：
 
@@ -308,6 +310,7 @@ private Message dispatch(Message request) {
         case LIBRARY_RETURN_V2:
         case LIBRARY_HISTORY_V2:
         case LIBRARY_ADD_BOOK_V2:
+        case LIBRARY_RESTOCK_V2:
             return libraryMessages.handle(request);
         case STORE_QUERY:
         case STORE_PURCHASE:
@@ -411,7 +414,7 @@ database/migrations/
 | 用户管理 | `tblUser`、`tblAuditLog` |
 | 学生学籍 | `tblStudent`、`tblClass` |
 | 选课系统 | `tblCourse`、`tblCourseSelection` |
-| 图书馆 | `tblBook`、`tblBorrowRecord` |
+| 图书馆 | `tblBook`、`tblBorrowRecord`、`tblLibraryCompensation`；赔偿共享钱包和流水表 |
 | 商店 | `tblProduct`、`tblOrder` |
 
 字段命名建议统一使用小写加下划线，例如：

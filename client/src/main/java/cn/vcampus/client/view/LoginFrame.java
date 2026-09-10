@@ -25,7 +25,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JTextField;
-import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 
 /** Login window for the Swing client. */
 public final class LoginFrame extends JFrame {
@@ -39,7 +39,10 @@ public final class LoginFrame extends JFrame {
     private final PromptPasswordField password = new PromptPasswordField(20, CredentialInputGuidance.PASSWORD_HINT);
     private final JLabel status = new JLabel("请输入账号和密码");
     private final List<ResponsiveFont> responsiveFonts = new ArrayList<ResponsiveFont>();
+    private final LoginAttemptGate loginAttempts = new LoginAttemptGate();
     private JLabel brandTitle;
+    private JButton loginButton;
+    private JButton resetPasswordButton;
 
     public LoginFrame(String host, int port) {
         super("vCampus 登录");
@@ -72,7 +75,7 @@ public final class LoginFrame extends JFrame {
     private JPanel brandPanel() {
         JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(18)));
         panel.setPreferredSize(UiMetrics.dimension(300, 0));
-        panel.setBackground(VCampusTheme.NAV_ACTIVE_BACKGROUND);
+        panel.setBackground(VCampusTheme.PANEL);
         panel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(191, 219, 254)),
                 VCampusTheme.padding(40, 30, 34, 30)));
@@ -122,20 +125,20 @@ public final class LoginFrame extends JFrame {
         addField(card, "账号", userId, 2);
         addField(card, "密码", password, 3);
 
-        JButton login = new JButton("登录系统");
-        VCampusTheme.primaryButton(login);
-        registerResponsiveFont(login, Font.BOLD, 16);
-        login.addActionListener(e -> login());
-        getRootPane().setDefaultButton(login);
+        loginButton = new JButton("登录系统");
+        VCampusTheme.primaryButton(loginButton);
+        registerResponsiveFont(loginButton, Font.BOLD, 16);
+        loginButton.addActionListener(e -> login());
+        getRootPane().setDefaultButton(loginButton);
 
-        JButton resetPassword = new JButton("申请重置密码");
-        VCampusTheme.secondaryButton(resetPassword);
-        registerResponsiveFont(resetPassword, Font.PLAIN, 15);
-        resetPassword.addActionListener(e -> showPasswordResetDialog());
+        resetPasswordButton = new JButton("申请重置密码");
+        VCampusTheme.secondaryButton(resetPasswordButton);
+        registerResponsiveFont(resetPasswordButton, Font.PLAIN, 15);
+        resetPasswordButton.addActionListener(e -> showPasswordResetDialog());
 
         c = base(0, 4);
         c.gridwidth = 2;
-        card.add(buttons(login, resetPassword), c);
+        card.add(buttons(loginButton, resetPasswordButton), c);
 
         c = base(0, 5);
         c.gridwidth = 2;
@@ -195,51 +198,90 @@ public final class LoginFrame extends JFrame {
     private void submitPasswordReset(JTextField resetUserId, JTextField reason,
                                      JTextField contactInfo, JLabel resetStatus, JButton submit) {
         submit.setEnabled(false);
-        try (RemoteUserService service = new RemoteUserService(host, port)) {
-            Message response = service.requestPasswordReset(resetUserId.getText().trim(),
-                    reason.getText().trim(), contactInfo.getText().trim());
-            if (response.getStatusCode() == StatusCode.OK) {
-                resetStatus.setText("申请已提交，请等待管理员审批");
-                resetStatus.setForeground(VCampusTheme.SUCCESS);
-                reason.setText("");
-                contactInfo.setText("");
-                submit.setEnabled(false);
-            } else if (response.getStatusCode() == StatusCode.CONFLICT) {
-                resetStatus.setText("该账号已有待审批申请，请勿重复提交");
-                resetStatus.setForeground(VCampusTheme.DANGER);
-            } else {
-                resetStatus.setText("提交失败：" + response.getStatusCode());
-                resetStatus.setForeground(VCampusTheme.DANGER);
+        final String requestedUserId = resetUserId.getText().trim();
+        final String requestedReason = reason.getText().trim();
+        final String requestedContact = contactInfo.getText().trim();
+        new SwingWorker<Message, Void>() {
+            @Override protected Message doInBackground() throws Exception {
+                try (RemoteUserService service = new RemoteUserService(host, port)) {
+                    return service.requestPasswordReset(requestedUserId, requestedReason, requestedContact);
+                }
             }
-        } catch (RuntimeException | IOException | ClassNotFoundException failure) {
-            resetStatus.setText("无法提交，请检查账号格式或服务器连接");
-            resetStatus.setForeground(VCampusTheme.DANGER);
-        } finally {
-            if (!"申请已提交，请等待管理员审批".equals(resetStatus.getText())) submit.setEnabled(true);
-        }
+
+            @Override protected void done() {
+                boolean submitted = false;
+                try {
+                    Message response = get();
+                    if (response.getStatusCode() == StatusCode.OK) {
+                        submitted = true;
+                        resetStatus.setText("申请已提交，请等待管理员审批");
+                        resetStatus.setForeground(VCampusTheme.SUCCESS);
+                        reason.setText("");
+                        contactInfo.setText("");
+                    } else if (response.getStatusCode() == StatusCode.CONFLICT) {
+                        resetStatus.setText("该账号已有待审批申请，请勿重复提交");
+                        resetStatus.setForeground(VCampusTheme.DANGER);
+                    } else {
+                        resetStatus.setText("提交失败：" + response.getStatusCode());
+                        resetStatus.setForeground(VCampusTheme.DANGER);
+                    }
+                } catch (Exception failure) {
+                    resetStatus.setText("无法提交，请检查账号格式或服务器连接");
+                    resetStatus.setForeground(VCampusTheme.DANGER);
+                } finally {
+                    submit.setEnabled(!submitted);
+                }
+            }
+        }.execute();
     }
 
     private void login() {
-        char[] secret = password.getPassword();
-        try (RemoteUserService service = new RemoteUserService(host, port)) {
-            Message response = service.login(new UserCredentials(userId.getText().trim(), new String(secret), "Login User", "STUDENT"));
-            if (response.getStatusCode() != StatusCode.OK || !(response.getPayload() instanceof Session)) {
-                showStatus("登录失败：" + response.getStatusCode(), VCampusTheme.DANGER);
-                return;
-            }
-            Session authenticated = (Session) response.getPayload();
-            if (authenticated.isForcePasswordChange()) {
-                showStatus("登录成功，请先修改临时密码", VCampusTheme.ACCENT);
-                showForcedPasswordDialog(authenticated);
-            } else {
-                showStatus("登录成功，正在进入系统…", VCampusTheme.SUCCESS);
-                SwingUtilities.invokeLater(() -> openMain(authenticated));
-            }
-        } catch (RuntimeException | IOException | ClassNotFoundException failure) {
-            showStatus("无法连接服务器，或账号/密码格式不正确", VCampusTheme.DANGER);
-        } finally {
-            Arrays.fill(secret, '\0');
+        if (!loginAttempts.begin()) {
+            return;
         }
+        updateLoginControls();
+        char[] secret = password.getPassword();
+        final String enteredUserId = userId.getText().trim();
+        final String enteredPassword = new String(secret);
+        Arrays.fill(secret, '\0');
+        showStatus("正在验证账号…", VCampusTheme.MUTED);
+        new SwingWorker<Message, Void>() {
+            @Override protected Message doInBackground() throws Exception {
+                try (RemoteUserService service = new RemoteUserService(host, port)) {
+                    return service.login(new UserCredentials(enteredUserId, enteredPassword,
+                            "Login User", "STUDENT"));
+                }
+            }
+
+            @Override protected void done() {
+                try {
+                    Message response = get();
+                    if (response.getStatusCode() != StatusCode.OK || !(response.getPayload() instanceof Session)) {
+                        showStatus("登录失败：" + response.getStatusCode(), VCampusTheme.DANGER);
+                        return;
+                    }
+                    Session authenticated = (Session) response.getPayload();
+                    if (authenticated.isForcePasswordChange()) {
+                        loginAttempts.finish();
+                        updateLoginControls();
+                        showStatus("登录成功，请先修改临时密码", VCampusTheme.ACCENT);
+                        showForcedPasswordDialog(authenticated);
+                        return;
+                    }
+                    if (loginAttempts.openMainOnce()) {
+                        showStatus("登录成功，正在进入系统…", VCampusTheme.SUCCESS);
+                        openMain(authenticated);
+                    }
+                } catch (Exception failure) {
+                    showStatus("无法连接服务器，或账号/密码格式不正确", VCampusTheme.DANGER);
+                } finally {
+                    if (!loginAttempts.isMainOpened()) {
+                        loginAttempts.finish();
+                        updateLoginControls();
+                    }
+                }
+            }
+        }.execute();
     }
 
     private void showForcedPasswordDialog(final Session authenticated) {
@@ -296,26 +338,37 @@ public final class LoginFrame extends JFrame {
             return;
         }
         submit.setEnabled(false);
-        try (RemoteUserService service = new RemoteUserService(host, port)) {
-            Message response = service.changeForcedPassword(authenticated.getToken(),
-                    new String(newPassword));
-            if (response.getStatusCode() == StatusCode.OK) {
-                dialog.dispose();
-                password.setText("");
-                showStatus("密码已更新，请使用新密码重新登录", VCampusTheme.SUCCESS);
-            } else {
-                dialogStatus.setText("修改失败：" + response.getStatusCode());
-                dialogStatus.setForeground(VCampusTheme.DANGER);
-                submit.setEnabled(true);
+        final String updatedPassword = new String(newPassword);
+        Arrays.fill(newPassword, '\0');
+        Arrays.fill(confirmation, '\0');
+        new SwingWorker<Message, Void>() {
+            @Override protected Message doInBackground() throws Exception {
+                try (RemoteUserService service = new RemoteUserService(host, port)) {
+                    return service.changeForcedPassword(authenticated.getToken(), updatedPassword);
+                }
             }
-        } catch (RuntimeException | IOException | ClassNotFoundException failure) {
-            dialogStatus.setText("无法修改密码，请确认服务器仍在运行");
-            dialogStatus.setForeground(VCampusTheme.DANGER);
-            submit.setEnabled(true);
-        } finally {
-            Arrays.fill(newPassword, '\0');
-            Arrays.fill(confirmation, '\0');
-        }
+
+            @Override protected void done() {
+                try {
+                    Message response = get();
+                    if (response.getStatusCode() == StatusCode.OK) {
+                        dialog.dispose();
+                        password.setText("");
+                        showStatus("密码已更新，请使用新密码重新登录", VCampusTheme.SUCCESS);
+                        return;
+                    }
+                    dialogStatus.setText("修改失败：" + response.getStatusCode());
+                    dialogStatus.setForeground(VCampusTheme.DANGER);
+                } catch (Exception failure) {
+                    dialogStatus.setText("无法修改密码，请确认服务器仍在运行");
+                    dialogStatus.setForeground(VCampusTheme.DANGER);
+                } finally {
+                    if (dialog.isDisplayable()) {
+                        submit.setEnabled(true);
+                    }
+                }
+            }
+        }.execute();
     }
 
     static String validateForcedPassword(String newPassword, String confirmation) {
@@ -339,6 +392,51 @@ public final class LoginFrame extends JFrame {
     private void openMain(Session session) {
         dispose();
         new MainFrame(host, port, session).setVisible(true);
+    }
+
+    private void updateLoginControls() {
+        boolean enabled = !loginAttempts.isInProgress() && !loginAttempts.isMainOpened();
+        if (loginButton != null) {
+            loginButton.setEnabled(enabled);
+        }
+        if (resetPasswordButton != null) {
+            resetPasswordButton.setEnabled(enabled);
+        }
+    }
+
+    /** Prevents queued clicks from starting duplicate logins or opening a second main window. */
+    static final class LoginAttemptGate {
+        private boolean inProgress;
+        private boolean mainOpened;
+
+        boolean begin() {
+            if (inProgress || mainOpened) {
+                return false;
+            }
+            inProgress = true;
+            return true;
+        }
+
+        void finish() {
+            inProgress = false;
+        }
+
+        boolean openMainOnce() {
+            if (mainOpened) {
+                return false;
+            }
+            mainOpened = true;
+            inProgress = false;
+            return true;
+        }
+
+        boolean isInProgress() {
+            return inProgress;
+        }
+
+        boolean isMainOpened() {
+            return mainOpened;
+        }
     }
 
     private void addField(JPanel panel, String label, Component field, int row) {
@@ -421,8 +519,8 @@ public final class LoginFrame extends JFrame {
         }
 
         private void apply(double contentScale) {
-            component.setFont(new Font("Microsoft YaHei UI", style,
-                    responsivePixels(logicalSize, contentScale)));
+            component.setFont(UiMetrics.font("Microsoft YaHei UI", style,
+                    logicalSize, contentScale));
         }
     }
 }

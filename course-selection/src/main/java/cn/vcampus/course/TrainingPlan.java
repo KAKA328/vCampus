@@ -34,8 +34,8 @@ public final class TrainingPlan implements Serializable {
         if (enrollmentYear < 1900 || enrollmentYear > 9999) {
             throw new IllegalArgumentException("enrollmentYear must be a four digit year");
         }
-        if (courses == null || courses.isEmpty()) {
-            throw new IllegalArgumentException("courses must not be empty");
+        if (courses == null) {
+            throw new IllegalArgumentException("courses must not be null");
         }
         if (status == null) {
             throw new IllegalArgumentException("status must not be null");
@@ -123,9 +123,6 @@ public final class TrainingPlan implements Serializable {
         if (!removed) {
             throw new IllegalArgumentException("courseId does not exist in training plan");
         }
-        if (changedCourses.isEmpty()) {
-            throw new IllegalArgumentException("training plan must contain at least one course");
-        }
         return new TrainingPlan(planId, majorName, enrollmentYear, changedCourses, status);
     }
 
@@ -135,6 +132,11 @@ public final class TrainingPlan implements Serializable {
             throw new IllegalArgumentException("status must not be null");
         }
         return new TrainingPlan(planId, majorName, enrollmentYear, courses, newStatus);
+    }
+
+    /** 返回更新基本信息后的方案；方案编号作为稳定标识不允许在此修改。 */
+    public TrainingPlan withBasicInfo(String newMajorName, int newEnrollmentYear) {
+        return new TrainingPlan(planId, newMajorName, newEnrollmentYear, courses, status);
     }
 
     private static String requireText(String value, String fieldName) {

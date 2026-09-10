@@ -9,7 +9,8 @@
 | 教师档案 | `TeacherProfileService` | `findById`、`findByUserId`、`save`；提供教师工号、账号绑定、院系、职称和在职状态 |
 | 学业审查 | `AcademicReviewService`、`CourseResultRecordingService` | 前者读取历史、待重修和学业审查；后者由教务审核流程批量写入正式成绩并计算下一次尝试序号 |
 | 选课 | `CourseSelectionService`、`GradeSubmissionService` | 完整选课流程使用 V2 消息：查询轮次/教学班/已选记录、按教学班选课、按选课记录退选；成绩草稿与课程维护能力见下文 |
-| 图书馆 | `LibraryService` | `search`/分类筛选、`getBook`、原子 `borrowBatch`、按记录 `returnBook`、本人/全量 `borrowHistory`、`addBook` |
+| 图书馆 | `LibraryService` | `search`/分类筛选、`getBook`、原子 `borrowBatch`、按记录 `returnBook`、本人/全量 `borrowHistory`、`addBook`、原子追加库存 `restock` |
+| 图书赔偿 | `LibraryCompensationService` | 管理员 `declareLoss`、本人 `pay`、按范围 `history`、本人共用钱包 `balance`；V3 协议详见 [对接说明](LIBRARY_COMPENSATION.md) |
 | 商店 | `StoreService` | 商品查询/分类、购买、购物车（含改数量与明细联表）、钱包（含余额与流水审计）、本人/全量订单、热销排行和商品维护；商店消息使用 token-only 命令，用户编号由服务器会话解析 |
 
 所有服务方法返回 `ServiceResult<T>`，由服务器统一映射为 `Message` 响应。服务端必须再次校验会话和权限。
@@ -64,7 +65,11 @@ StudentManagementService.findByIds(List<String> studentIds)
 
 学生、教师本人操作时，客户端只携带 `token` 和具体业务参数，服务器根据 `token -> user_id` 查出当前账号，再通过 `tblStudent.user_id` 或 `tblTeacher.user_id` 转换为业务档案编号。选课、成绩录入、学籍查询等模块不得直接信任客户端传入的 `studentId`、`teacherId` 或 `userId`。商店订单和图书借阅继续以 `user_id` 作为当前用户身份。
 
-图书馆完整流程使用显式 V2 协议：`LIBRARY_QUERY_V2`、`LIBRARY_DETAIL_V2`、`LIBRARY_BORROW_V2`、`LIBRARY_RETURN_V2`、`LIBRARY_HISTORY_V2` 和 `LIBRARY_ADD_BOOK_V2`。`Book` V3 数据载荷增加非负 `price`（元）作为馆藏参考价格，客户端和服务器须使用同一版本构建。借阅、归还和本人记录中的用户身份仅由服务器根据命令内的 token 解析；查询其他用户或全部借阅记录、增加馆藏需要 `LIBRARY_MANAGE` 权限。临期提醒基于已授权借阅记录的 `dueDate` 在客户端展示，不新增或放宽数据权限。
+图书馆完整流程使用显式 V2 协议：`LIBRARY_QUERY_V2`、`LIBRARY_DETAIL_V2`、`LIBRARY_BORROW_V2`、`LIBRARY_RETURN_V2`、`LIBRARY_HISTORY_V2`、`LIBRARY_ADD_BOOK_V2` 和 `LIBRARY_RESTOCK_V2`。`Book` V3 数据载荷增加非负 `price`（元）作为馆藏参考价格，客户端和服务器须使用同一版本构建。借阅、归还和本人记录中的用户身份仅由服务器根据命令内的 token 解析；查询其他用户或全部借阅记录、增加馆藏和补充库存需要 `LIBRARY_MANAGE` 权限。临期提醒基于已授权借阅记录的 `dueDate` 在客户端展示，不新增或放宽数据权限。
+
+`LIBRARY_RESTOCK_V2` 使用独立载荷 `LibraryRestockV2Command(token, bookId, copies)`，客户端调用 `RemoteLibraryService.restock(token, bookId, copies)`，服务与仓储调用 `restock(bookId, copies)`。`copies` 表示本次新增的正整数册数，不是目标库存。服务端只允许 `ADMIN` / `LIBRARIAN` 的有效会话通过 `LIBRARY_MANAGE` 授权；成功返回 `OK + Book` 最新快照。总册数与可借册数同时增加，借出册数及原有借阅记录、价格、分类等信息不变，零库存的已有图书也可补货。
+
+补货参数空白、册数非正数或增加后超过 Java `int` 范围返回 `BAD_REQUEST`；图书不存在返回 `NOT_FOUND`；失效会话返回 `UNAUTHORIZED`；无权角色返回 `FORBIDDEN`。Access 在同一事务、同一条更新语句中修改两个库存字段，并核对读取时的旧库存以避免覆盖并发变化；旧值不匹配返回 `CONFLICT`，提示刷新重试；数据库写入或提交失败回滚并返回 `SERVER_ERROR`。内存仓储在同一同步边界执行校验和更新。本次不改变 `Book` 的序列化字段和版本、不改变旧增书命令的语义、不增加数据库字段；新补货功能要求客户端和服务端同步升级，旧版服务端无法识别新消息类型。补货是增量操作，网络结果不确定时先刷新库存核对，不自动重发。
 
 详细对接规范见 [`ACCOUNT_PROFILE_INTEGRATION.md`](ACCOUNT_PROFILE_INTEGRATION.md)。
 
@@ -118,6 +123,8 @@ StudentManagementService.findByIds(List<String> studentIds)
 只能调用客户端 `RemoteCourseService` 已封装的对应方法。
 
 商店当前使用以下 token-only 命令，服务端必须从 token 对应会话取得 `userId`，不得相信客户端传入的学生/用户编号：
+
+图书遗失原价赔偿新增 V3 图书接口与 V2 钱包流水查询，完整请求/响应、权限、金额快照及旧版保护见 [图书赔偿对接说明](LIBRARY_COMPENSATION.md)。新版客户端通过 `STORE_ACCOUNT_LEDGER_V2` 读取含 `LIBRARY_LOSS` 的流水；下述旧流水接口仅用于兼容无新类型的历史。
 
 - `STORE_QUERY` + `StoreQueryCommand(token, keyword?, category?, minPrice?, maxPrice?, includeInactive?)`：多字段拼接查询商品，默认只返回在售商品；要求 `STORE_READ`。`keyword` 忽略大小写匹配名称或说明（可空=不限），`category` 精确匹配（可空=全部），`minPrice`/`maxPrice` 为 `Double` 闭区间、可单边（可空=该侧不限），各条件取交集；服务端经 `StoreService.searchProducts(keyword, category, minPrice, maxPrice, includeInactive)` 过滤（`listProducts(category, includeInactive)` 委托它，旧行为不变）。`includeInactive=true`（含已下架视图）学生/教师等买家**也可开启**浏览下架陈列，但"看得到 ≠ 买得到"——购买/加购仍由服务层对下架品拒绝。
 - `STORE_PURCHASE` + `StorePurchaseCommand(token, productId, quantity)`：直接购买；要求 `STORE_PURCHASE`。
@@ -186,3 +193,6 @@ StudentManagementService新增服务端内部`updateContacts(userId, expected, p
 教师本人协议先检查USER_SELF_READ统一授权，强制改密期间不能读取业务档案。
 
 教务REVIEW/GRADUATE的note现为可选审查说明，允许null、空串和纯空白，统一保存为空文本；非空仍限255字。无须变更表结构，毕业条件确认仍必需。
+
+## 学籍档案格式校验
+STUDENT_UPDATE普通管理员档案修改与学生联系方式修改新增输入校验，非法状态、手机号、邮箱、年份及超长字段返回BAD_REQUEST且不写入。手机号可空，填写时须11位ASCII数字；界面状态改为固定下拉选项，毕业仍须专用流程。StudentProfileValidation在客户端、Handler及条件写入Service复用，命令序列化字段不变。详见[学籍档案输入规范](STUDENT_PROFILE_VALIDATION.md)。

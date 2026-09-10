@@ -9,6 +9,7 @@ import cn.vcampus.common.User;
 import cn.vcampus.user.Session;
 import java.lang.reflect.Field;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JTable;
 import org.junit.jupiter.api.Test;
@@ -16,12 +17,13 @@ import org.junit.jupiter.api.Test;
 /** 验证教师教学班页使用统一表格样式，且不会在请求期间重复查询。 */
 class TeacherTeachingPanelTest {
     @Test
-    void tableKeepsLongTeachingInformationReadable() throws Exception {
+    void presentsTeachingClassIdentifierAndCourseNameBeforeEnteringDetail() throws Exception {
         TeacherTeachingPanel panel = panel();
         JTable table = table(panel);
 
         assertTrue(table.getAutoResizeMode() == JTable.AUTO_RESIZE_OFF);
-        assertTrue(table.getColumnModel().getColumn(4).getPreferredWidth() >= UiMetrics.px(220));
+        assertTrue(table.getColumnModel().getColumn(0).getPreferredWidth() >= UiMetrics.px(170));
+        assertTrue(table.getColumnModel().getColumn(1).getPreferredWidth() >= UiMetrics.px(280));
         assertTrue(button(panel).isEnabled());
         assertFalse(button(panel, "viewRosterButton").isEnabled());
         assertFalse(button(panel, "openDraftButton").isEnabled());
@@ -29,6 +31,17 @@ class TeacherTeachingPanelTest {
         assertFalse(button(panel, "submitGradesButton").isEnabled());
         assertFalse(button(panel, "chooseGradeFileButton").isEnabled());
         assertFalse(button(panel, "importGradesButton").isEnabled());
+    }
+
+    @Test
+    void usesFixedTermChoicesForAutomaticTeachingClassRefresh() throws Exception {
+        TeacherTeachingPanel panel = panel();
+        Field field = TeacherTeachingPanel.class.getDeclaredField("term");
+        field.setAccessible(true);
+        JComboBox<?> term = (JComboBox<?>) field.get(panel);
+
+        assertEquals(3, term.getItemCount());
+        assertEquals("2026-2027-1", term.getSelectedItem());
     }
 
     @Test

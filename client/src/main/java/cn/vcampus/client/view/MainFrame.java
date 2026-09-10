@@ -29,6 +29,8 @@ public final class MainFrame extends JFrame {
     private final ModuleNavigationModel navigationModel = new ModuleNavigationModel();
     private final JPanel content = new JPanel(new BorderLayout());
     private final Map<String, JButton> navButtons = new LinkedHashMap<String, JButton>();
+    private final Map<StorePanel.Mode, StorePanel> storePanels =
+            new java.util.EnumMap<StorePanel.Mode, StorePanel>(StorePanel.Mode.class);
 
     public MainFrame(String host, int port, Session session) {
         super("vCampus 主界面");
@@ -41,8 +43,8 @@ public final class MainFrame extends JFrame {
     private void build() {
         VCampusTheme.install();
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setMinimumSize(UiMetrics.dimension(1024, 640));
-        setSize(UiMetrics.dimension(1080, 680));
+        setMinimumSize(UiMetrics.dimension(920, 600));
+        setSize(UiMetrics.dimension(1180, 760));
         setLocationRelativeTo(null);
 
         JPanel root = new JPanel(new BorderLayout(0, 0));
@@ -75,6 +77,11 @@ public final class MainFrame extends JFrame {
                 assistant.resizeForWindow(layered.getWidth(), layered.getHeight());
                 layered.revalidate();
             }
+
+            @Override public void componentShown(java.awt.event.ComponentEvent event) {
+                assistant.resizeForWindow(layered.getWidth(), layered.getHeight());
+                layered.revalidate();
+            }
         });
         setContentPane(layered);
         showHome();
@@ -85,19 +92,15 @@ public final class MainFrame extends JFrame {
         panel.setBackground(VCampusTheme.HEADER_BACKGROUND);
         panel.setBorder(javax.swing.BorderFactory.createCompoundBorder(
                 javax.swing.BorderFactory.createMatteBorder(0, 0, 1, 0, VCampusTheme.HEADER_BACKGROUND.darker()),
-                VCampusTheme.padding(16, 28, 16, 28)));
+                VCampusTheme.padding(14, 28, 14, 28)));
 
-        JLabel title = new JLabel("vCampus");
+        JLabel title = new JLabel("vCampus  |  虚拟校园综合管理系统");
         title.setForeground(Color.WHITE);
-        title.setFont(VCampusTheme.font(Font.BOLD, 22));
+        title.setFont(VCampusTheme.font(Font.BOLD, 21));
 
-        JLabel subtitle = new JLabel("虚拟校园综合管理系统");
-        subtitle.setForeground(new Color(219, 234, 254));
-
-        JPanel brand = new JPanel(new BorderLayout(0, UiMetrics.px(2)));
+        JPanel brand = new JPanel(new BorderLayout());
         brand.setOpaque(false);
-        brand.add(title, BorderLayout.NORTH);
-        brand.add(subtitle, BorderLayout.SOUTH);
+        brand.add(title, BorderLayout.CENTER);
 
         JLabel user = new JLabel(session.getUser().getDisplayName() + "  /  " + session.getUser().getRole());
         user.setForeground(Color.WHITE);
@@ -120,13 +123,11 @@ public final class MainFrame extends JFrame {
     private JPanel nav() {
         JPanel outer = new JPanel(new BorderLayout(0, UiMetrics.px(14)));
         outer.setBackground(VCampusTheme.SIDEBAR);
-        outer.setBorder(javax.swing.BorderFactory.createCompoundBorder(
-                javax.swing.BorderFactory.createMatteBorder(0, 0, 0, 1, VCampusTheme.BORDER),
-                VCampusTheme.padding(22, 18, 22, 18)));
+        outer.setBorder(VCampusTheme.padding(20, 14, 20, 14));
         outer.setPreferredSize(UiMetrics.dimension(226, 0));
 
         JLabel title = new JLabel("功能导航");
-        title.setForeground(VCampusTheme.PRIMARY);
+        title.setForeground(new Color(186, 230, 253));
         title.setFont(VCampusTheme.font(Font.BOLD, 16));
         outer.add(title, BorderLayout.NORTH);
 
@@ -218,7 +219,7 @@ public final class MainFrame extends JFrame {
             StorePanel.Mode storeMode = "商店管理".equals(module.getTitle())
                     ? StorePanel.Mode.MANAGER
                     : StorePanel.Mode.CONSUMER;
-            content.add(new StorePanel(host, port, session, storeMode), BorderLayout.CENTER);
+            content.add(storePanel(storeMode), BorderLayout.CENTER);
             refreshContent();
             return;
         }
@@ -251,6 +252,16 @@ public final class MainFrame extends JFrame {
 
     private JPanel userManagementPanel() {
         return new UserManagementPanel(this, host, port, session);
+    }
+
+    /** Keeps a loaded store workspace alive when navigating elsewhere, avoiding duplicate initial requests. */
+    private StorePanel storePanel(StorePanel.Mode mode) {
+        StorePanel storePanel = storePanels.get(mode);
+        if (storePanel == null) {
+            storePanel = new StorePanel(host, port, session, mode);
+            storePanels.put(mode, storePanel);
+        }
+        return storePanel;
     }
 
     private JPanel sectionTitle(String titleText, String subtitleText) {

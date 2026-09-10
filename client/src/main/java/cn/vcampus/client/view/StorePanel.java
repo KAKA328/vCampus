@@ -174,10 +174,10 @@ public final class StorePanel extends JPanel {
     private final JButton adjustBalanceButton = new JButton("校正余额");
     private final JButton allOrdersButton = new JButton("刷新全部订单");
 
-    private boolean requestInProgress;
+    private int activeMutationRequests;
     private boolean hotViewVisible;
     private boolean inactiveViewVisible;// 管理端「含下架」视图开关；与热销视图互斥
-    private final RequestLifecycle requestLifecycle = new RequestLifecycle();
+    private int initialProductRetryAttempts = 1;
 
     public StorePanel(String host, int port, Session session) {
         this(host, port, session, defaultMode(session));
@@ -270,7 +270,7 @@ public final class StorePanel extends JPanel {
         updateButtonState();
         loadBalance();
         // 进入商店页自动加载一次商品列表，否则列表保持空白，必须手动点查询/切换视图才出现
-        loadProducts();
+        loadInitialProducts();
     }
 
     /**
@@ -282,8 +282,8 @@ public final class StorePanel extends JPanel {
         panel.setOpaque(false);
         JTabbedPane tabs = tabs();
         // 让目录区占主窗口更大比例：页面高度不足时仍由外层页级滚动兜底（FeaturePanelScrollTest 结构不变）
-        tabs.setPreferredSize(new Dimension(0, 600));
-        tabs.setMinimumSize(new Dimension(0, 300));
+        tabs.setPreferredSize(UiMetrics.dimension(0, 600));
+        tabs.setMinimumSize(UiMetrics.dimension(0, 300));
         panel.add(tabs, BorderLayout.CENTER);
 
         JPanel statusPanel = new JPanel(new BorderLayout());
@@ -353,7 +353,7 @@ public final class StorePanel extends JPanel {
     /** 页签索引按身份页不同：消费者 商品0/购物车1/我的订单2/钱包3；管理者 商品维护0/全部订单1。 */
     private void onTabSelected(int index) {
         // 已有请求在飞时不再叠加，否则新代次会顶掉正在回来的响应
-        if (requestInProgress) {
+        if (activeMutationRequests > 0) {
             return;
         }
         if (mode == Mode.MANAGER) {
@@ -694,6 +694,25 @@ public final class StorePanel extends JPanel {
         loadProducts(true);
     }
 
+    /** First entry gets one delayed retry so a transient server handoff does not leave an empty catalog. */
+    private void loadInitialProducts() {
+        final String category = selectedCategory();
+        final boolean includeInactive = inactiveViewVisible;
+        runReadRequest("正在加载商品…", service -> service.listProducts(session.getToken(),
+                        category.isEmpty() ? null : category, includeInactive),
+                response -> showProducts(response, true), this::retryInitialProductLoad);
+    }
+
+    private void retryInitialProductLoad() {
+        if (initialProductRetryAttempts-- <= 0) {
+            return;
+        }
+        showStatus("首次加载失败，正在自动重试…", VCampusTheme.MUTED);
+        Timer retry = new Timer(600, event -> loadProducts());
+        retry.setRepeats(false);
+        retry.start();
+    }
+
     /**
      * 加载商品列表。announce=true 时（用户主动操作）成功后在状态栏播报条数；
      * announce=false 时（购买/结算失败后的后台静默刷新）只更新表格数据，
@@ -720,7 +739,7 @@ public final class StorePanel extends JPanel {
         hotViewVisible = false;
         hotButton.setText("热销 Top" + HOT_PRODUCT_LIMIT);
         String suffix = includeInactive ? "（含已下架）" : "";
-        runRequest((category.isEmpty() ? "正在查询商品" : "正在查询「" + category + "」类商品") + suffix + "…",
+        runReadRequest((category.isEmpty() ? "正在查询商品" : "正在查询「" + category + "」类商品") + suffix + "…",
                 service -> service.searchProducts(session.getToken(), keyword.isEmpty() ? null : keyword,
                         category.isEmpty() ? null : category, minPrice, maxPrice, includeInactive),
                 response -> showProducts(response, announce));
@@ -874,7 +893,7 @@ public final class StorePanel extends JPanel {
     }
 
     private void loadHotProducts() {
-        runRequest("正在查询热销商品…", service -> service.hotProducts(session.getToken(), HOT_PRODUCT_LIMIT),
+        runReadRequest("正在查询热销商品…", service -> service.hotProducts(session.getToken(), HOT_PRODUCT_LIMIT),
                 response -> {
                     // 先确认成功再切视图标记，否则查询失败会把按钮错留在「返回全部商品」状态
                     if (!isSuccessful(response)) {
@@ -1019,7 +1038,7 @@ public final class StorePanel extends JPanel {
         }
         final String productId = product.getProductId();
         final String productName = product.getName();
-        runRequest("正在提交购买请求…", service -> service.purchase(session.getToken(), productId, count),
+        runMutationRequest("正在提交购买请求…", service -> service.purchase(session.getToken(), productId, count),
                 response -> {
                     if (!isSuccessful(response)) {
                         // 失败（余额不足/库存冲突等）提示已进状态栏；后台静默刷新商品与余额，
@@ -1057,7 +1076,7 @@ public final class StorePanel extends JPanel {
         }
         final String productId = product.getProductId();
         final String productName = product.getName();
-        runRequest("正在加入购物车…", service -> service.addToCart(session.getToken(), productId, count),
+        runMutationRequest("正在加入购物车…", service -> service.addToCart(session.getToken(), productId, count),
                 response -> {
                     if (!isSuccessful(response)) {
                         return;
@@ -1087,7 +1106,7 @@ public final class StorePanel extends JPanel {
         if (form == null) {
             return;
         }
-        runRequest("正在新增商品…",
+        runMutationRequest("正在新增商品…",
                 service -> service.addProduct(session.getToken(), form.getName(), form.getPrice(), form.getStock(),
                         form.getDescription(), form.getCategory()),
                 response -> {
@@ -1110,7 +1129,7 @@ public final class StorePanel extends JPanel {
             return;
         }
         final String productId = product.getProductId();
-        runRequest("正在更新商品…",
+        runMutationRequest("正在更新商品…",
                 service -> service.updateProduct(session.getToken(), productId, form.getName(), form.getPrice(),
                         form.getDescription(), form.getCategory(), product.getVersion()),
                 response -> {
@@ -1146,7 +1165,7 @@ public final class StorePanel extends JPanel {
         }
         final int additional = parsed;
         final String productId = product.getProductId();
-        runRequest("正在补货…", service -> service.restock(session.getToken(), productId, additional), response -> {
+        runMutationRequest("正在补货…", service -> service.restock(session.getToken(), productId, additional), response -> {
             if (!isSuccessful(response)) {
                 return;
             }
@@ -1171,7 +1190,7 @@ public final class StorePanel extends JPanel {
             return;
         }
         final String productId = product.getProductId();
-        runRequest("正在下架商品…", service -> service.deactivateProduct(session.getToken(), productId), response -> {
+        runMutationRequest("正在下架商品…", service -> service.deactivateProduct(session.getToken(), productId), response -> {
             if (!isSuccessful(response)) {
                 return;
             }
@@ -1190,7 +1209,7 @@ public final class StorePanel extends JPanel {
             }
             final String productId = selected.getProductId();
             final String productName = selected.getName();
-            runRequest("正在重新上架…", service -> service.reactivateProduct(session.getToken(), productId),
+            runMutationRequest("正在重新上架…", service -> service.reactivateProduct(session.getToken(), productId),
                     response -> {
                         if (!isSuccessful(response)) {
                             return;
@@ -1213,7 +1232,7 @@ public final class StorePanel extends JPanel {
             showStatus("商品编号不能为空", VCampusTheme.DANGER);
             return;
         }
-        runRequest("正在重新上架…", service -> service.reactivateProduct(session.getToken(), productId), response -> {
+        runMutationRequest("正在重新上架…", service -> service.reactivateProduct(session.getToken(), productId), response -> {
             if (!isSuccessful(response)) {
                 return;
             }
@@ -1229,7 +1248,7 @@ public final class StorePanel extends JPanel {
     /** announce=false（结算失败后的后台静默刷新）只更新表格，不覆盖状态栏错误提示。 */
     private void loadCart(boolean announce) {
         // 购物车一律走明细接口（服务端读取时联表），才能拿到商品名、单价与小计
-        runRequest("正在查询购物车…", service -> service.cartDetail(session.getToken()),
+        runReadRequest("正在查询购物车…", service -> service.cartDetail(session.getToken()),
                 response -> showCart(response, announce));
     }
 
@@ -1321,7 +1340,7 @@ public final class StorePanel extends JPanel {
         }
         final int newQuantity = parsed;
         final String cartItemId = line.getCartItemId();
-        runRequest("正在修改数量…", service -> service.updateCart(session.getToken(), cartItemId, newQuantity),
+        runMutationRequest("正在修改数量…", service -> service.updateCart(session.getToken(), cartItemId, newQuantity),
                 response -> {
                     if (!isSuccessful(response)) {
                         return;
@@ -1346,7 +1365,8 @@ public final class StorePanel extends JPanel {
         if (!storeConfirm("批量删除", "确认从购物车删除选中的 " + count + " 条商品？")) {
             return;
         }
-        runRequest("正在批量删除购物车条目…", service -> service.removeFromCartBatch(session.getToken(), ids),
+        runMutationRequest("正在批量删除购物车条目…",
+                service -> service.removeFromCartBatch(session.getToken(), ids),
                 response -> {
                     if (!isSuccessful(response)) {
                         return;
@@ -1383,7 +1403,8 @@ public final class StorePanel extends JPanel {
                         + " 元，确认从校园钱包扣款？")) {
             return;
         }
-        runRequest("正在结算选中商品…", service -> service.checkoutSelected(session.getToken(), ids), response -> {
+        runMutationRequest("正在结算选中商品…",
+                service -> service.checkoutSelected(session.getToken(), ids), response -> {
             if (!isSuccessful(response)) {
                 // 结算失败会触发服务端补偿回滚；静默刷新购物车与余额（不覆盖错误提示）
                 SwingUtilities.invokeLater(() -> loadCart(false));
@@ -1424,7 +1445,7 @@ public final class StorePanel extends JPanel {
     }
 
     private void submitCheckout() {
-        runRequest("正在结算购物车…", service -> service.checkout(session.getToken()), response -> {
+        runMutationRequest("正在结算购物车…", service -> service.checkout(session.getToken()), response -> {
             if (!isSuccessful(response)) {
                 // 结算失败会触发服务端补偿回滚；静默刷新购物车与余额（不覆盖错误提示，避免一闪即逝）
                 SwingUtilities.invokeLater(() -> loadCart(false));
@@ -1440,7 +1461,7 @@ public final class StorePanel extends JPanel {
     }
 
     private void loadOrders() {
-        runRequest("正在查询我的订单…", service -> service.ordersFor(session.getToken()), this::showOrders);
+        runReadRequest("正在查询我的订单…", service -> service.ordersFor(session.getToken()), this::showOrders);
     }
 
     private void showOrders(Message response) {
@@ -1453,7 +1474,7 @@ public final class StorePanel extends JPanel {
     }
 
     private void loadAllOrders() {
-        runRequest("正在查询全部订单…", service -> service.allOrders(session.getToken()), this::showAllOrders);
+        runReadRequest("正在查询全部订单…", service -> service.allOrders(session.getToken()), this::showAllOrders);
     }
 
     private void showAllOrders(Message response) {
@@ -1488,7 +1509,7 @@ public final class StorePanel extends JPanel {
     }
 
     private void loadBalance() {
-        runRequest("正在查询余额…", service -> service.balance(session.getToken()), this::showBalance);
+        runReadRequest("正在查询余额…", service -> service.balance(session.getToken()), this::showBalance);
     }
 
     private void showBalance(Message response) {
@@ -1502,7 +1523,7 @@ public final class StorePanel extends JPanel {
     }
 
     private void loadLedger() {
-        runRequest("正在查询钱包流水…", service -> service.ledger(session.getToken()), this::showLedger);
+        runReadRequest("正在查询钱包流水…", service -> service.ledger(session.getToken()), this::showLedger);
     }
 
     private void showLedger(Message response) {
@@ -1544,7 +1565,7 @@ public final class StorePanel extends JPanel {
             return;
         }
         final long cents = parsed;
-        runRequest("正在充值…", service -> service.recharge(session.getToken(), cents), response -> {
+        runMutationRequest("正在充值…", service -> service.recharge(session.getToken(), cents), response -> {
             if (!isSuccessful(response)) {
                 return;
             }
@@ -1576,7 +1597,7 @@ public final class StorePanel extends JPanel {
         }
         final long cents = parsed;
         final String target = targetInput.trim();
-        runRequest("正在校正余额…", service -> service.adjustBalance(session.getToken(), target, cents), response -> {
+        runMutationRequest("正在校正余额…", service -> service.adjustBalance(session.getToken(), target, cents), response -> {
             if (!isSuccessful(response)) {
                 return;
             }
@@ -1586,13 +1607,31 @@ public final class StorePanel extends JPanel {
         });
     }
 
-    private void runRequest(String loadingMessage, final StoreRequest request,
-            final ResponseHandler responseHandler) {
-        final int requestId = requestLifecycle.begin();
-        requestInProgress = true;
-        updateButtonState();
+    private void runReadRequest(String loadingMessage, StoreRequest request, ResponseHandler responseHandler) {
+        runRequest(false, loadingMessage, request, responseHandler, null);
+    }
+
+    private void runReadRequest(String loadingMessage, StoreRequest request, ResponseHandler responseHandler,
+            Runnable failureHandler) {
+        runRequest(false, loadingMessage, request, responseHandler, failureHandler);
+    }
+
+    private void runMutationRequest(String loadingMessage, StoreRequest request, ResponseHandler responseHandler) {
+        runRequest(true, loadingMessage, request, responseHandler, null);
+    }
+
+    /**
+     * Read requests keep browsing available; mutations temporarily lock mutation controls only so a slow
+     * Access response cannot make the whole store page look frozen or allow duplicate payment submissions.
+     */
+    private void runRequest(boolean mutation, String loadingMessage, final StoreRequest request,
+            final ResponseHandler responseHandler, final Runnable failureHandler) {
+        if (mutation) {
+            activeMutationRequests++;
+            updateButtonState();
+        }
         final Timer loadingStatus = DelayedUiUpdate.once(() -> {
-            if (requestLifecycle.isCurrent(requestId) && requestInProgress) {
+            if (!mutation || activeMutationRequests > 0) {
                 showStatus(loadingMessage, VCampusTheme.MUTED);
             }
         });
@@ -1620,10 +1659,13 @@ public final class StorePanel extends JPanel {
                     } else {
                         showStatus(localFailureText(cause), VCampusTheme.DANGER);
                     }
+                    if (failureHandler != null) {
+                        failureHandler.run();
+                    }
                 } finally {
                     loadingStatus.stop();
-                    if (requestLifecycle.isCurrent(requestId)) {
-                        requestInProgress = false;
+                    if (mutation) {
+                        activeMutationRequests = Math.max(0, activeMutationRequests - 1);
                         updateButtonState();
                     }
                 }
@@ -1653,7 +1695,7 @@ public final class StorePanel extends JPanel {
     }
 
     private void updateButtonState() {
-        boolean idle = !requestInProgress;
+        boolean idle = activeMutationRequests == 0;
         searchButton.setEnabled(idle);
         hotButton.setEnabled(idle);
         inactiveButton.setEnabled(idle);
@@ -1731,7 +1773,7 @@ public final class StorePanel extends JPanel {
     private void submitImport(final List<ProductImportRow> rows) {
         final int[] okCount = { 0 };
         final List<String> failedNames = new ArrayList<String>();
-        runRequest("正在批量导入商品…", service -> {
+        runMutationRequest("正在批量导入商品…", service -> {
             Message last = null;
             for (ProductImportRow row : rows) {
                 last = service.addProduct(session.getToken(), row.getName(), row.getPrice(),
@@ -2040,10 +2082,13 @@ public final class StorePanel extends JPanel {
 
         // 模态遮罩压暗宿主窗口，避免浅色对话框溶进浅色背景看不见
         final Runnable detachScrim = attachScrim(owner);
-        dialog.pack();
-        dialog.setLocationRelativeTo(owner);
-        dialog.setVisible(true);
-        detachScrim.run();
+        try {
+            dialog.pack();
+            dialog.setLocationRelativeTo(owner);
+            dialog.setVisible(true);
+        } finally {
+            detachScrim.run();
+        }
         return result[0];
     }
 

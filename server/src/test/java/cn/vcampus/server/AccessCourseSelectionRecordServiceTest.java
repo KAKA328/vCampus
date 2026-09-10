@@ -146,7 +146,7 @@ class AccessCourseSelectionRecordServiceTest {
                 + "PRIMARY KEY (offering_id))");
         statement.execute("CREATE TABLE tblCourseMeeting ("
                 + "offering_id VARCHAR(36) NOT NULL,day_of_week INTEGER NOT NULL,"
-                + "start_period INTEGER NOT NULL,end_period INTEGER NOT NULL,"
+                + "start_period INTEGER NOT NULL,end_period INTEGER NOT NULL,start_week INTEGER NOT NULL,end_week INTEGER NOT NULL,"
                 + "location VARCHAR(64) NOT NULL,"
                 + "PRIMARY KEY (offering_id,day_of_week,start_period))");
         statement.execute("CREATE TABLE tblCourseSelection ("

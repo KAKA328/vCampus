@@ -40,7 +40,8 @@ final class DashboardWorkbenchPanel extends JPanel {
     }
 
     private JPanel statRow(String displayName, String role, List<ModuleDescriptor> modules) {
-        ResponsiveCardRowPanel stats = new ResponsiveCardRowPanel(UiMetrics.px(220), UiMetrics.px(14));
+        ResponsiveCardRowPanel stats = new ResponsiveCardRowPanel(
+                UiMetrics.px(220), UiMetrics.px(14), UiMetrics.px(360));
         stats.add(statCard("当前账号", displayName, "角色 " + role, VCampusTheme.PRIMARY));
         stats.add(statCard("可用模块", String.valueOf(modules.size()), "按当前权限显示", VCampusTheme.ACCENT));
         stats.add(statCard("数据状态", "Access", "服务端持久化接入", VCampusTheme.SUCCESS));
@@ -50,8 +51,6 @@ final class DashboardWorkbenchPanel extends JPanel {
     private JPanel statCard(String titleText, String valueText, String noteText, java.awt.Color accent) {
         JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(4)));
         VCampusTheme.panel(card);
-        card.setPreferredSize(UiMetrics.dimension(220, 112));
-        card.setMinimumSize(UiMetrics.dimension(200, 106));
         card.setBorder(javax.swing.BorderFactory.createCompoundBorder(
                 javax.swing.BorderFactory.createMatteBorder(UiMetrics.px(3), 0, 0, 0, accent),
                 VCampusTheme.padding(16, 18, 16, 18)));
@@ -66,6 +65,12 @@ final class DashboardWorkbenchPanel extends JPanel {
         card.add(title, BorderLayout.NORTH);
         card.add(value, BorderLayout.CENTER);
         card.add(note, BorderLayout.SOUTH);
+        int contentHeight = title.getPreferredSize().height + value.getPreferredSize().height
+                + note.getPreferredSize().height + ((BorderLayout) card.getLayout()).getVgap() * 2;
+        Insets insets = card.getInsets();
+        int cardHeight = contentHeight + insets.top + insets.bottom;
+        card.setPreferredSize(new Dimension(UiMetrics.px(220), cardHeight));
+        card.setMinimumSize(new Dimension(UiMetrics.px(180), cardHeight));
         return card;
     }
 
@@ -85,7 +90,7 @@ final class DashboardWorkbenchPanel extends JPanel {
         rail.setLayout(new BoxLayout(rail, BoxLayout.Y_AXIS));
         rail.add(infoCard("系统状态", new String[] {
                 "Access 数据库已接入",
-                "用户、学籍、选课、图书馆、商店分模块运行",
+                modules.size() + " 个业务模块正常运行",
                 "操作结果通过服务端返回"
         }));
         rail.add(Box.createVerticalStrut(UiMetrics.px(14)));
@@ -96,7 +101,7 @@ final class DashboardWorkbenchPanel extends JPanel {
     private JPanel quickActionCard(List<ModuleDescriptor> modules, ModuleAction moduleAction) {
         JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
         VCampusTheme.panel(card);
-        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiMetrics.px(220)));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiMetrics.px(196)));
 
         JLabel title = new JLabel("快捷操作");
         title.setFont(VCampusTheme.font(Font.BOLD, 16));
@@ -127,7 +132,7 @@ final class DashboardWorkbenchPanel extends JPanel {
     private JPanel infoCard(String titleText, String[] items) {
         JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
         VCampusTheme.panel(card);
-        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiMetrics.px(220)));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiMetrics.px(196)));
 
         JLabel title = new JLabel(titleText);
         title.setFont(VCampusTheme.font(Font.BOLD, 16));

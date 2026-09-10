@@ -18,14 +18,14 @@ class InMemoryLibraryServiceTest {
     @Test
     void searchFindsBooksByTitleAuthorIsbnAndCategory() {
         assertEquals(1, service.search("三体").getData().size());
-        assertEquals(1, service.search("刘慈欣").getData().size());
+        assertEquals(3, service.search("刘慈欣").getData().size());
         assertEquals(1, service.search("9787020002207").getData().size());
-        assertEquals(5, service.search("计算机").getData().size());
+        assertEquals(10, service.search("计算机").getData().size());
     }
 
     @Test
     void emptyKeywordReturnsWholeCatalog() {
-        assertEquals(10, service.search("").getData().size());
+        assertEquals(50, service.search("").getData().size());
     }
 
     @Test
@@ -40,13 +40,13 @@ class InMemoryLibraryServiceTest {
     @Test
     void listByCategoryFiltersBooks() {
         List<Book> books = service.listByCategory("科幻").getData();
-        assertEquals(1, books.size());
+        assertEquals(6, books.size());
         assertEquals("三体", books.get(0).getTitle());
     }
 
     @Test
     void addBookSucceedsAndDuplicateIsRejected() {
-        Book book = new Book("B011", "小王子", "圣埃克苏佩里",
+        Book book = new Book("B051", "小王子", "圣埃克苏佩里",
                 "9787020042494", "文学", "人民文学出版社", 35.00d, 1, 1, "B-03");
         assertEquals(StatusCode.OK, service.addBook(book).getStatus());
         assertEquals(StatusCode.CONFLICT, service.addBook(book).getStatus());

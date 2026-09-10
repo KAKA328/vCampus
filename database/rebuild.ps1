@@ -1,5 +1,6 @@
 param(
-    [string]$DatabasePath = "database\vCampus.accdb"
+    [string]$DatabasePath = "database\vCampus.accdb",
+    [string[]]$AdditionalScript = @()
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,6 +15,22 @@ $databaseDirectory = Split-Path -Parent $database
 
 if (-not $database.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "Database path must stay inside the repository."
+}
+
+$additionalScripts = @()
+foreach ($scriptPath in $AdditionalScript) {
+    $resolvedScript = if ([System.IO.Path]::IsPathRooted($scriptPath)) {
+        [System.IO.Path]::GetFullPath($scriptPath)
+    } else {
+        [System.IO.Path]::GetFullPath((Join-Path $root $scriptPath))
+    }
+    if (-not $resolvedScript.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Additional script path must stay inside the repository: $scriptPath"
+    }
+    if (-not (Test-Path -LiteralPath $resolvedScript -PathType Leaf)) {
+        throw "Additional script does not exist: $scriptPath"
+    }
+    $additionalScripts += $resolvedScript
 }
 
 New-Item -ItemType Directory -Force -Path $databaseDirectory | Out-Null
@@ -42,8 +59,9 @@ import java.sql.Statement;
 public final class VCampusDatabaseInitializer {
     public static void main(String[] args) throws Exception {
         Path database = Paths.get(args[0]).toAbsolutePath().normalize();
-        execute(database, Paths.get(args[1]), true);
-        execute(database, Paths.get(args[2]), false);
+        for (int i = 1; i < args.length; i++) {
+            execute(database, Paths.get(args[i]), i == 1);
+        }
     }
 
     private static void execute(Path database, Path script, boolean createDatabase)
@@ -91,8 +109,12 @@ public final class VCampusDatabaseInitializer {
         Write-Host "Backed up existing database to $backup"
     }
 
-    java -cp "$sourceDirectory;$jar" VCampusDatabaseInitializer `
-        $database (Join-Path $root "database\schema.sql") (Join-Path $root "database\seed.sql")
+    $initializerArguments = @(
+        $database,
+        (Join-Path $root "database\schema.sql"),
+        (Join-Path $root "database\seed.sql")
+    ) + $additionalScripts
+    & java -cp "$sourceDirectory;$jar" VCampusDatabaseInitializer @initializerArguments
     if ($LASTEXITCODE -ne 0) {
         throw "Database initialization failed with exit code $LASTEXITCODE."
     }

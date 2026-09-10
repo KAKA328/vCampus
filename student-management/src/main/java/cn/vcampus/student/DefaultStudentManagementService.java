@@ -139,6 +139,7 @@ public final class DefaultStudentManagementService implements StudentManagementS
     @Override
     public synchronized ServiceResult<StudentRecord> saveIfUnchanged(StudentRecord record, StudentRecord expected) {
         try {
+            StudentProfileValidation.profile(record);
             return conditionalResult(students.saveIfUnchanged(record, expected));
         } catch (IllegalArgumentException invalid) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, invalid.getMessage());
@@ -156,6 +157,7 @@ public final class DefaultStudentManagementService implements StudentManagementS
             return ServiceResult.failure(StatusCode.FORBIDDEN, "contact update owner mismatch");
         }
         try {
+            StudentProfileValidation.contacts(phone, email);
             return conditionalResult(students.updateContacts(expected, phone, email));
         } catch (IllegalArgumentException invalid) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, invalid.getMessage());

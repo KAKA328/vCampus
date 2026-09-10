@@ -43,6 +43,23 @@ class ResponsiveCardRowPanelTest {
         assertEquals(row.getWidth(), second.getWidth());
     }
 
+    @Test
+    void capsCardsAndCentersThemOnWideWindows() {
+        ResponsiveCardRowPanel row = new ResponsiveCardRowPanel(260, 18, 320);
+        JPanel first = fixedPanel(260, 120);
+        JPanel second = fixedPanel(260, 140);
+        row.add(first);
+        row.add(second);
+
+        row.setBounds(0, 0, 1200, 300);
+        row.doLayout();
+
+        assertEquals(320, first.getWidth());
+        assertEquals(320, second.getWidth());
+        assertTrue(first.getX() > 0);
+        assertEquals(first.getX() + first.getWidth() + 18, second.getX());
+    }
+
     private static JPanel fixedPanel(int width, int height) {
         JPanel panel = new JPanel();
         panel.setPreferredSize(new Dimension(width, height));

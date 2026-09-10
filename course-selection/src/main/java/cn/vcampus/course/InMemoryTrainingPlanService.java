@@ -138,6 +138,30 @@ public final class InMemoryTrainingPlanService implements TrainingPlanService {
     }
 
     @Override
+    public synchronized ServiceResult<TrainingPlan> updateBasicInfo(String planId, String majorName,
+            int enrollmentYear) {
+        String normalizedPlanId = normalize(planId);
+        String normalizedMajor = normalize(majorName);
+        if (normalizedPlanId == null || normalizedMajor == null || enrollmentYear < 1900
+                || enrollmentYear > 9999) return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                        "plan basic information is invalid");
+        TrainingPlan existing = plansById.get(normalizedPlanId);
+        if (existing == null) return ServiceResult.failure(StatusCode.NOT_FOUND, "training plan not found");
+        if (existing.getStatus() != TrainingPlanStatus.DRAFT) return ServiceResult.failure(
+                StatusCode.CONFLICT, "only DRAFT training plan can be maintained");
+        String oldScope = scopeKey(existing.getMajorName(), existing.getEnrollmentYear());
+        String newScope = scopeKey(normalizedMajor, enrollmentYear);
+        String occupied = planIdByScope.get(newScope);
+        if (occupied != null && !normalizedPlanId.equals(occupied)) return ServiceResult.failure(
+                StatusCode.CONFLICT, "training plan already exists for major and enrollment year");
+        TrainingPlan changed = existing.withBasicInfo(normalizedMajor, enrollmentYear);
+        plansById.put(normalizedPlanId, changed);
+        planIdByScope.remove(oldScope);
+        planIdByScope.put(newScope, normalizedPlanId);
+        return ServiceResult.ok(changed);
+    }
+
+    @Override
     public synchronized ServiceResult<TrainingPlan> saveCourse(String planId,
             TrainingPlanCourse course) {
         String normalizedPlanId = normalize(planId);

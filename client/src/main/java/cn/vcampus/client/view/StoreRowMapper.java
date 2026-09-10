@@ -92,6 +92,9 @@ final class StoreRowMapper {
         if (type == WalletTransactionType.ADJUST) {
             return "管理员校正";
         }
+        if (type == WalletTransactionType.LIBRARY_LOSS) {
+            return "图书赔偿";
+        }
         return String.valueOf(type);
     }
 

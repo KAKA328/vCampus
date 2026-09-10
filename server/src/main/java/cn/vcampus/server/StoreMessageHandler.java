@@ -26,6 +26,9 @@ import cn.vcampus.store.CartCheckoutSelectedCommand;
 import cn.vcampus.store.StoreOrderListAllCommand;
 import cn.vcampus.store.StoreHotProductsCommand;
 import cn.vcampus.store.StoreAccountQueryCommand;
+import cn.vcampus.store.StoreAccountLedgerV2Command;
+import cn.vcampus.store.WalletTransaction;
+import cn.vcampus.store.WalletTransactionType;
 import cn.vcampus.store.StoreAccountRechargeCommand;
 import cn.vcampus.store.StoreAccountAdjustCommand;
 import cn.vcampus.user.Session;
@@ -244,6 +247,20 @@ class StoreMessageHandler {
                     ServiceResult<Void> ledgerAuth = requirePermission(ledgerQuery.getToken(), "STORE_READ");
                     result = ledgerAuth.getStatus() != StatusCode.OK ? ledgerAuth
                             : store.listTransactions(requireUserId(ledgerQuery.getToken()));
+                    if (result.getStatus() == StatusCode.OK) {
+                        for (Object entry : (java.util.List<?>) result.getData()) {
+                            if (((WalletTransaction) entry).getType() == WalletTransactionType.LIBRARY_LOSS) {
+                                return Message.response(request, StatusCode.CONFLICT,
+                                        "钱包流水包含图书赔偿，请升级客户端后查看");
+                            }
+                        }
+                    }
+                    break;
+                case STORE_ACCOUNT_LEDGER_V2:
+                    StoreAccountLedgerV2Command ledgerV2 = payload(request, StoreAccountLedgerV2Command.class);
+                    ServiceResult<Void> ledgerV2Auth = requirePermission(ledgerV2.getToken(), "STORE_READ");
+                    result = ledgerV2Auth.getStatus() != StatusCode.OK ? ledgerV2Auth
+                            : store.listTransactions(requireUserId(ledgerV2.getToken()));
                     break;
                 default:
                     result = ServiceResult.failure(StatusCode.NOT_FOUND, "not implemented");
