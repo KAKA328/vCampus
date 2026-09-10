@@ -286,7 +286,7 @@ public final class DefaultStoreService implements StoreService {
 
     // 加入购物车
     @Override
-    public final ServiceResult<Void> addToCart(String userId, String productId, int quantity) {
+    public synchronized final ServiceResult<Void> addToCart(String userId, String productId, int quantity) {
         if (quantity <= 0)
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "quantity must be positive");
         if (quantity > MAX_QUANTITY)
@@ -301,7 +301,7 @@ public final class DefaultStoreService implements StoreService {
 
     // 删除购物车条目
     @Override
-    public final ServiceResult<Void> removeFromCart(String userId, String cartItemId) {
+    public synchronized final ServiceResult<Void> removeFromCart(String userId, String cartItemId) {
         for (CartItem item : cart.findByUserId(userId)) {
             if (item.getCartItemId().equals(cartItemId)) {
                 return cart.removeItem(cartItemId) ? ServiceResult.ok(null)
@@ -313,7 +313,7 @@ public final class DefaultStoreService implements StoreService {
 
     // 修改购物车条目数量：先按归属校验，条目不属于本人一律按不存在处理，避免指定他人 cartItemId 越权改数量
     @Override
-    public final ServiceResult<Void> updateCartQuantity(String userId, String cartItemId, int newQuantity) {
+    public synchronized final ServiceResult<Void> updateCartQuantity(String userId, String cartItemId, int newQuantity) {
         if (userId == null || userId.trim().isEmpty())
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId must not be blank");
         if (cartItemId == null || cartItemId.trim().isEmpty())
@@ -382,7 +382,7 @@ public final class DefaultStoreService implements StoreService {
     // 购物车批量删除：一次删多条本人条目。列表为空 BAD_REQUEST；先按归属筛出本人条目，
     // 再由仓储层原子删除；若一条都不属于本人返回 NOT_FOUND。
     @Override
-    public final ServiceResult<Void> removeFromCart(String userId, List<String> cartItemIds) {
+    public synchronized final ServiceResult<Void> removeFromCart(String userId, List<String> cartItemIds) {
         if (userId == null || userId.trim().isEmpty())
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId must not be blank");
         if (cartItemIds == null || cartItemIds.isEmpty())

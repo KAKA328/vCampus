@@ -721,7 +721,7 @@ class StoreServiceTest {
     }
 
     @Test
-    void checkoutItemsRestoresAlreadyRemovedItemsWhenLaterRemovalFails() {
+    void checkoutItemsKeepsAllItemsWhenAtomicBatchRemovalFails() {
         InMemoryProductRepository retryProducts = new InMemoryProductRepository();
         retryProducts.save(new Product("A", "A", 5, 2.0, "", "test"));
         retryProducts.save(new Product("B", "B", 5, 3.0, "", "test"));
@@ -745,6 +745,58 @@ class StoreServiceTest {
         assertEquals(5, retryProducts.findById("A").getStock());
         assertEquals(5, retryProducts.findById("B").getStock());
         assertEquals(100_000L, retryWallet.findByUserId("u").getBalanceCents());
+    }
+
+    @Test
+    void checkoutItemsSerializesConcurrentQuantityUpdate() throws Exception {
+        InMemoryProductRepository retryProducts = new InMemoryProductRepository();
+        retryProducts.save(new Product("A", "A", 5, 2.0, "", "test"));
+        InMemoryOrderRepository retryOrders = new InMemoryOrderRepository();
+        InMemoryWalletRepository retryWallet = new InMemoryWalletRepository();
+        retryWallet.save(new BankAccount("u", 100_000L));
+        FailingCartRepository blockingCart = new FailingCartRepository(false, false);
+        blockingCart.beforeBatchRemove = new java.util.concurrent.CountDownLatch(1);
+        blockingCart.continueBatchRemove = new java.util.concurrent.CountDownLatch(1);
+        blockingCart.addItem(new CartItem("cart-a", "u", "A", 1, java.time.LocalDateTime.now()));
+        final DefaultStoreService checkout = new DefaultStoreService(
+                retryProducts, retryOrders, blockingCart, retryWallet);
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+
+        try {
+            java.util.concurrent.Future<ServiceResult<Void>> checkoutFuture = pool.submit(
+                    new java.util.concurrent.Callable<ServiceResult<Void>>() {
+                        @Override
+                        public ServiceResult<Void> call() {
+                            return checkout.checkoutItems("u", java.util.Arrays.asList("cart-a"));
+                        }
+                    });
+            assertTrue(blockingCart.beforeBatchRemove.await(1, java.util.concurrent.TimeUnit.SECONDS));
+            final java.util.concurrent.CountDownLatch updateStarted = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.Future<ServiceResult<Void>> updateFuture = pool.submit(
+                    new java.util.concurrent.Callable<ServiceResult<Void>>() {
+                        @Override
+                        public ServiceResult<Void> call() {
+                            updateStarted.countDown();
+                            return checkout.updateCartQuantity("u", "cart-a", 2);
+                        }
+                    });
+            assertTrue(updateStarted.await(1, java.util.concurrent.TimeUnit.SECONDS));
+            try {
+                assertThrows(java.util.concurrent.TimeoutException.class,
+                        () -> updateFuture.get(200, java.util.concurrent.TimeUnit.MILLISECONDS));
+            } finally {
+                blockingCart.continueBatchRemove.countDown();
+            }
+
+            assertEquals(StatusCode.OK, checkoutFuture.get(1, java.util.concurrent.TimeUnit.SECONDS).getStatus());
+            assertEquals(StatusCode.NOT_FOUND,
+                    updateFuture.get(1, java.util.concurrent.TimeUnit.SECONDS).getStatus());
+            assertEquals(4, retryProducts.findById("A").getStock());
+            assertEquals(99_800L, retryWallet.findByUserId("u").getBalanceCents());
+        } finally {
+            blockingCart.continueBatchRemove.countDown();
+            pool.shutdownNow();
+        }
     }
 
     // 测试并发加购同一商品
@@ -1784,6 +1836,8 @@ class StoreServiceTest {
         private boolean failOnRemove;// removeItem 返回 false（模拟子集删除未生效）
         private int failOnRemoveAttempt = -1;
         private int removeAttempts;
+        private java.util.concurrent.CountDownLatch beforeBatchRemove;
+        private java.util.concurrent.CountDownLatch continueBatchRemove;
 
         private FailingCartRepository(boolean failOnClear) {
             this(failOnClear, false);
@@ -1814,6 +1868,15 @@ class StoreServiceTest {
 
         @Override
         public boolean removeItems(List<String> cartItemIds) {
+            if (beforeBatchRemove != null) {
+                beforeBatchRemove.countDown();
+                try {
+                    continueBatchRemove.await();
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+            }
             if (failOnRemove
                     || (failOnRemoveAttempt > 0 && failOnRemoveAttempt <= cartItemIds.size())) {
                 return false;
