@@ -23,6 +23,8 @@ import cn.vcampus.store.StoreProductDeactivateCommand;
 import cn.vcampus.store.StoreProductReactivateCommand;
 import cn.vcampus.store.CartAddCommand;
 import cn.vcampus.store.CartCheckoutCommand;
+import cn.vcampus.store.CartRemoveBatchCommand;
+import cn.vcampus.store.CartCheckoutSelectedCommand;
 import cn.vcampus.store.StoreOrderListAllCommand;
 import cn.vcampus.store.StoreHotProductsCommand;
 import cn.vcampus.store.StoreAccountQueryCommand;
@@ -279,6 +281,73 @@ class StoreMessageHandlerTest {
         assertEquals(StatusCode.OK, response.getStatusCode());
         assertTrue(store.checkoutCalled);
         assertEquals("student001", store.lastCheckoutUserId);
+    }
+
+    // 多字段查询：keyword + category + 价格区间 + includeInactive 全部透传到服务层
+    @Test
+    void productQueryPassesKeywordAndPriceRangeToService() {
+        Message response = handler.handle(Message.request(
+                "store-query-multifield", MessageType.STORE_QUERY,
+                new StoreQueryCommand(studentSession.getToken(), "苹果", "水果", 1.5, 9.9, false)));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertEquals("苹果", store.lastSearchKeyword);
+        assertEquals("水果", store.lastCategory);
+        assertEquals(Double.valueOf(1.5), store.lastSearchMinPrice);
+        assertEquals(Double.valueOf(9.9), store.lastSearchMaxPrice);
+        assertEquals(Boolean.FALSE, store.lastListIncludeInactive);
+    }
+
+    // 批量删除购物车条目：买家（STORE_PURCHASE）授权通过，userId 取自会话
+    @Test
+    void testCartRemoveBatchAuthorized() {
+        Message response = handler.handle(Message.request(
+                "store-cart-remove-batch", MessageType.STORE_CART_REMOVE_BATCH,
+                new CartRemoveBatchCommand(studentSession.getToken(),
+                        java.util.Arrays.asList("C001", "C002"))));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertTrue(store.cartRemoveBatchCalled);
+        assertEquals("student001", store.lastCartRemoveBatchUserId);
+        assertEquals(java.util.Arrays.asList("C001", "C002"), store.lastCartRemoveBatchIds);
+    }
+
+    // 批量删除购物车条目：无商店购买权限者被拒，服务层不被触达
+    @Test
+    void testCartRemoveBatchUnauthorized() {
+        Message response = handler.handle(Message.request(
+                "store-cart-remove-batch-forbidden", MessageType.STORE_CART_REMOVE_BATCH,
+                new CartRemoveBatchCommand(librarianSession.getToken(),
+                        java.util.Arrays.asList("C001"))));
+
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
+        assertFalse(store.cartRemoveBatchCalled);
+    }
+
+    // 结算选中条目：买家（STORE_PURCHASE）授权通过，userId 取自会话，选中 id 原样透传
+    @Test
+    void testCheckoutSelectedAuthorized() {
+        Message response = handler.handle(Message.request(
+                "store-cart-checkout-selected", MessageType.STORE_CART_CHECKOUT_SELECTED,
+                new CartCheckoutSelectedCommand(studentSession.getToken(),
+                        java.util.Arrays.asList("C001", "C003"))));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertTrue(store.checkoutItemsCalled);
+        assertEquals("student001", store.lastCheckoutItemsUserId);
+        assertEquals(java.util.Arrays.asList("C001", "C003"), store.lastCheckoutItemsIds);
+    }
+
+    // 结算选中条目：无商店购买权限者被拒，服务层不被触达
+    @Test
+    void testCheckoutSelectedUnauthorized() {
+        Message response = handler.handle(Message.request(
+                "store-cart-checkout-selected-forbidden", MessageType.STORE_CART_CHECKOUT_SELECTED,
+                new CartCheckoutSelectedCommand(librarianSession.getToken(),
+                        java.util.Arrays.asList("C001"))));
+
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
+        assertFalse(store.checkoutItemsCalled);
     }
 
     @Test
@@ -643,6 +712,15 @@ class StoreMessageHandlerTest {
         private String lastLedgerUserId;
         private boolean checkoutCalled;
         private String lastCheckoutUserId;
+        private String lastSearchKeyword;
+        private Double lastSearchMinPrice;
+        private Double lastSearchMaxPrice;
+        private boolean cartRemoveBatchCalled;
+        private String lastCartRemoveBatchUserId;
+        private List<String> lastCartRemoveBatchIds;
+        private boolean checkoutItemsCalled;
+        private String lastCheckoutItemsUserId;
+        private List<String> lastCheckoutItemsIds;
         private boolean findAllOrdersCalled;
         private boolean hotProductsCalled;
         private int lastHotLimit;
@@ -672,12 +750,21 @@ class StoreMessageHandlerTest {
 
         @Override
         public ServiceResult<List<Product>> listProducts(String category, boolean includeInactive) {
+            return searchProducts(null, category, null, null, includeInactive);
+        }
+
+        @Override
+        public ServiceResult<List<Product>> searchProducts(String keyword, String category, Double minPrice,
+                Double maxPrice, boolean includeInactive) {
             if (listFailure != null)
                 throw listFailure;
             listCalled = true;
             listCallCount++;
             lastCategory = category;
             lastListIncludeInactive = Boolean.valueOf(includeInactive);
+            lastSearchKeyword = keyword;
+            lastSearchMinPrice = minPrice;
+            lastSearchMaxPrice = maxPrice;
             return ServiceResult.ok(Collections.<Product>emptyList());
         }
 
@@ -784,6 +871,22 @@ class StoreMessageHandlerTest {
         public ServiceResult<Void> checkout(String userId) {
             checkoutCalled = true;
             lastCheckoutUserId = userId;
+            return ServiceResult.ok(null);
+        }
+
+        @Override
+        public ServiceResult<Void> removeFromCart(String userId, List<String> cartItemIds) {
+            cartRemoveBatchCalled = true;
+            lastCartRemoveBatchUserId = userId;
+            lastCartRemoveBatchIds = cartItemIds;
+            return ServiceResult.ok(null);
+        }
+
+        @Override
+        public ServiceResult<Void> checkoutItems(String userId, List<String> cartItemIds) {
+            checkoutItemsCalled = true;
+            lastCheckoutItemsUserId = userId;
+            lastCheckoutItemsIds = cartItemIds;
             return ServiceResult.ok(null);
         }
 

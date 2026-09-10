@@ -21,6 +21,8 @@ import cn.vcampus.store.CartRemoveCommand;
 import cn.vcampus.store.CartUpdateCommand;
 import cn.vcampus.store.CartQueryCommand;
 import cn.vcampus.store.CartCheckoutCommand;
+import cn.vcampus.store.CartRemoveBatchCommand;
+import cn.vcampus.store.CartCheckoutSelectedCommand;
 import cn.vcampus.store.StoreOrderListAllCommand;
 import cn.vcampus.store.StoreHotProductsCommand;
 import cn.vcampus.store.StoreAccountQueryCommand;
@@ -67,7 +69,8 @@ class StoreMessageHandler {
                     StoreQueryCommand payload = payload(request, StoreQueryCommand.class);
                     ServiceResult<Void> queryAuth = requirePermission(payload.getToken(), "STORE_READ");
                     result = queryAuth.getStatus() != StatusCode.OK ? queryAuth
-                            : store.listProducts(payload.getCategory(), payload.isIncludeInactive());
+                            : store.searchProducts(payload.getKeyword(), payload.getCategory(),
+                                    payload.getMinPrice(), payload.getMaxPrice(), payload.isIncludeInactive());
                     break;
                 // 仓库购买请求
                 case STORE_PURCHASE:
@@ -169,6 +172,25 @@ class StoreMessageHandler {
                     ServiceResult<Void> checkoutAuth = requirePermission(checkout.getToken(), "STORE_PURCHASE");
                     result = checkoutAuth.getStatus() != StatusCode.OK ? checkoutAuth
                             : store.checkout(requireUserId(checkout.getToken()));
+                    break;
+                // 购物车批量删除：STORE_PURCHASE 权限，userId 取自 token，服务层再按归属筛除他人条目
+                case STORE_CART_REMOVE_BATCH:
+                    CartRemoveBatchCommand cartRemoveBatch = payload(request, CartRemoveBatchCommand.class);
+                    ServiceResult<Void> cartRemoveBatchAuth = requirePermission(cartRemoveBatch.getToken(),
+                            "STORE_PURCHASE");
+                    result = cartRemoveBatchAuth.getStatus() != StatusCode.OK ? cartRemoveBatchAuth
+                            : store.removeFromCart(requireUserId(cartRemoveBatch.getToken()),
+                                    cartRemoveBatch.getCartItemIds());
+                    break;
+                // 购物车结算选中：STORE_PURCHASE 权限，userId 取自 token，仅结算勾选子集
+                case STORE_CART_CHECKOUT_SELECTED:
+                    CartCheckoutSelectedCommand checkoutSelected = payload(request,
+                            CartCheckoutSelectedCommand.class);
+                    ServiceResult<Void> checkoutSelectedAuth = requirePermission(checkoutSelected.getToken(),
+                            "STORE_PURCHASE");
+                    result = checkoutSelectedAuth.getStatus() != StatusCode.OK ? checkoutSelectedAuth
+                            : store.checkoutItems(requireUserId(checkoutSelected.getToken()),
+                                    checkoutSelected.getCartItemIds());
                     break;
                 case STORE_ORDER_LIST_ALL:
                     StoreOrderListAllCommand all = payload(request, StoreOrderListAllCommand.class);

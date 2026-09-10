@@ -43,6 +43,13 @@ public interface StoreService {
 
     ServiceResult<Void> checkout(String userId);
 
+    // 购物车批量删除：一次删多条本人条目；列表为空返回 BAD_REQUEST，一条都不属于本人返回 NOT_FOUND
+    ServiceResult<Void> removeFromCart(String userId, List<String> cartItemIds);
+
+    // 购物车结算选中：仅结算选中子集，语义与整单 checkout 一致（逐项原子扣库存→扣款→建单），
+    // 成功后只删除选中条目；列表为空返回 BAD_REQUEST，任一 id 不属于本人或不存在返回 NOT_FOUND
+    ServiceResult<Void> checkoutItems(String userId, List<String> cartItemIds);
+
     // 增值功能
     ServiceResult<List<Order>> findAllOrders();
 
@@ -53,6 +60,11 @@ public interface StoreService {
     // 含下架商品查询：includeInactive=true 时把已下架商品一并返回，供「已下架视图/重新上架」与买家浏览下架陈列使用。
     // 通信层只要求 STORE_READ（不额外要求 STORE_MANAGE），买家也可带此位浏览下架陈列；但购买/加购仍由服务层拒绝下架品
     ServiceResult<List<Product>> listProducts(String category, boolean includeInactive);
+
+    // 多字段拼接查询：keyword 忽略大小写匹配名称或说明（可空=不限）、category 精确匹配（可空=全部）、
+    // minPrice/maxPrice 闭区间（可空=该侧不限），includeInactive 语义同 listProducts；各条件取交集
+    ServiceResult<List<Product>> searchProducts(String keyword, String category, Double minPrice, Double maxPrice,
+            boolean includeInactive);
 
     // 账户：查询余额（分），无账户返回 0
     long getBalance(String userId);

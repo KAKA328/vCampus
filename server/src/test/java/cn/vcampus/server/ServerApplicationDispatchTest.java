@@ -36,10 +36,13 @@ class ServerApplicationDispatchTest {
     void dispatchRoutesCurrentCourseQueryWithoutClientStudentId() {
         InMemoryUserManagementService users = new InMemoryUserManagementService();
         UserCredentials account = new UserCredentials("20260001", "password", "测试学生", Role.STUDENT.name());
-        users.register(account); Session session = users.login(account).getData();
+        users.register(account);
+        Session session = users.login(account).getData();
         InMemoryStudentSelectionProfileProvider profiles = new InMemoryStudentSelectionProfileProvider(
-                Collections.singletonList(new StudentSelectionProfile("20260001", "STU-001", "计算机科学与技术", 2026, "在读", CourseSelectionDemoFactory.DEMO_TERM, 1, Collections.<String>emptySet())));
-        ServerApplication server = new ServerApplication(0, users, CourseSelectionDemoFactory.createService(), profiles);
+                Collections.singletonList(new StudentSelectionProfile("20260001", "STU-001", "计算机科学与技术", 2026, "在读",
+                        CourseSelectionDemoFactory.DEMO_TERM, 1, Collections.<String>emptySet())));
+        ServerApplication server = new ServerApplication(0, users, CourseSelectionDemoFactory.createService(),
+                profiles);
 
         Message response = server.dispatch(Message.request("rounds",
                 MessageType.COURSE_SELECTION_QUERY_V2,
@@ -77,6 +80,7 @@ class ServerApplicationDispatchTest {
                 storeTypeCount++;
             }
         }
-        assertEquals(21, storeTypeCount, "STORE_* 消息类型数量变化，请同步核对 isStoreMessage 白名单（含新版钱包流水）");
+        assertEquals(23, storeTypeCount,
+                "STORE_* 消息类型数量变化，请同步核对 isStoreMessage 白名单（含新版钱包流水）");
     }
 }

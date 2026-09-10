@@ -10,7 +10,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /** Access-backed cart repository using parameterized JDBC statements. */
 public final class AccessCartRepository implements CartRepository {
@@ -62,6 +64,38 @@ public final class AccessCartRepository implements CartRepository {
             return statement.executeUpdate() > 0;
         } catch (SQLException failure) {
             throw new IllegalStateException("failed to remove cart item", failure);
+        }
+    }
+
+    @Override
+    public synchronized boolean removeItems(List<String> cartItemIds) {
+        if (cartItemIds == null || cartItemIds.isEmpty()) return false;
+        Set<String> uniqueIds = new LinkedHashSet<String>();
+        for (String cartItemId : cartItemIds) {
+            if (cartItemId == null || cartItemId.trim().isEmpty()) return false;
+            uniqueIds.add(cartItemId);
+        }
+        Connection connection = null;
+        try {
+            connection = open();
+            connection.setAutoCommit(false);
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "DELETE FROM tblCartItem WHERE cart_item_id=?")) {
+                for (String cartItemId : uniqueIds) {
+                    statement.setString(1, cartItemId);
+                    if (statement.executeUpdate() != 1) {
+                        connection.rollback();
+                        return false;
+                    }
+                }
+            }
+            connection.commit();
+            return true;
+        } catch (SQLException failure) {
+            rollback(connection);
+            throw new IllegalStateException("failed to remove cart items", failure);
+        } finally {
+            close(connection);
         }
     }
 
@@ -133,5 +167,21 @@ public final class AccessCartRepository implements CartRepository {
     private Connection open() throws SQLException {
         return DriverManager.getConnection("jdbc:ucanaccess://" + databasePath
                 + ";immediatelyReleaseResources=true");
+    }
+
+    private static void rollback(Connection connection) {
+        if (connection == null) return;
+        try {
+            connection.rollback();
+        } catch (SQLException ignored) {
+        }
+    }
+
+    private static void close(Connection connection) {
+        if (connection == null) return;
+        try {
+            connection.close();
+        } catch (SQLException ignored) {
+        }
     }
 }

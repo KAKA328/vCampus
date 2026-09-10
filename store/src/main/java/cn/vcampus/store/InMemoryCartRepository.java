@@ -1,8 +1,10 @@
 package cn.vcampus.store;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /** Thread-safe cart repository for local demos and service tests. */
@@ -33,6 +35,21 @@ public final class InMemoryCartRepository implements CartRepository {
     @Override
     public synchronized boolean removeItem(String cartItemId) {
         return items.remove(cartItemId) != null;
+    }
+
+    @Override
+    public synchronized boolean removeItems(List<String> cartItemIds) {
+        if (cartItemIds == null || cartItemIds.isEmpty()) return false;
+        Set<String> uniqueIds = new LinkedHashSet<String>();
+        for (String cartItemId : cartItemIds) {
+            if (cartItemId == null || cartItemId.trim().isEmpty()) return false;
+            uniqueIds.add(cartItemId);
+        }
+        for (String cartItemId : uniqueIds) {
+            if (!items.containsKey(cartItemId)) return false;
+        }
+        for (String cartItemId : uniqueIds) items.remove(cartItemId);
+        return true;
     }
 
     @Override
