@@ -114,10 +114,11 @@ class WalletTransactionTest {
         assertEquals(0L, netCents);
     }
 
-    // 测试五种流水类型齐备，缺一种都会让审计出现盲区
+    // 原有五种流水与图书赔偿都必须保留，避免审计出现盲区。
     @Test
     void testTransactionTypeCoversAllMoneyMovements() {
-        assertEquals(5, WalletTransactionType.values().length);
+        assertEquals(6, WalletTransactionType.values().length);
+        assertEquals(WalletTransactionType.LIBRARY_LOSS, WalletTransactionType.valueOf("LIBRARY_LOSS"));
         assertEquals(WalletTransactionType.RECHARGE, WalletTransactionType.valueOf("RECHARGE"));
         assertEquals(WalletTransactionType.PURCHASE, WalletTransactionType.valueOf("PURCHASE"));
         assertEquals(WalletTransactionType.CHECKOUT, WalletTransactionType.valueOf("CHECKOUT"));

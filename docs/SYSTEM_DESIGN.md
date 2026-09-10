@@ -267,6 +267,7 @@ database                 vCampus.accdb、schema.sql、seed.sql
 | `LIBRARY_BORROW_V2` / `LIBRARY_RETURN_V2` | token + 图书号列表 / 借阅记录号 | `LIBRARY_BORROW`，服务端按 token 取得 userId；批量借阅原子执行 |
 | `LIBRARY_HISTORY_V2` | 本人、指定用户或全量记录范围 | 本人使用 `LIBRARY_READ`；指定/全量使用 `LIBRARY_MANAGE` |
 | `LIBRARY_ADD_BOOK_V2` | `LibraryAddBookV2Command(token, book)` | `LIBRARY_MANAGE` |
+| `LIBRARY_RESTOCK_V2` | `LibraryRestockV2Command(token, bookId, copies)`；正整数增量，原子增加总量和可借量，返回更新后的 `Book` | `LIBRARY_MANAGE`，仅 `ADMIN` / `LIBRARIAN` |
 | `STORE_QUERY` | `StoreQueryCommand(token)` | `STORE_READ`，服务端按 token 校验 |
 | `STORE_PURCHASE` | `StorePurchaseCommand(token, productId, quantity)` | `STORE_PURCHASE`，服务端按 token 取得 userId |
 | `STORE_ORDER_QUERY` | `StoreOrderQueryCommand(token)` | `STORE_READ`，仅返回当前用户订单 |
@@ -326,7 +327,8 @@ User 1 ── N Order ── N OrderItem ── N Product
 | 学籍 | `StudentManagementService` | `findById`、`findByUserId`、`findMyStudentProfile`、`findByClass`、`findByMajor`、`save` |
 | 学业审查 | `AcademicReviewService` | `historyFor`、`pendingRetakes`、`review`、`latestReview` |
 | 选课 | `CourseSelectionService` | `listCourses`、`select`、`drop`、`selectedCourses` |
-| 图书馆 | `LibraryService` | `search`、`getBook`、`borrowBatch`、`returnBook`、`borrowHistory`、`addBook` |
+| 图书馆 | `LibraryService` | `search`、`getBook`、`borrowBatch`、`returnBook`、`borrowHistory`、`addBook`、`restock` |
+| 图书赔偿 | `LibraryCompensationService` | `declareLoss`、`pay`、`history`、`balance`；原价快照、本人支付、共用校园钱包 |
 | 商店 | `StoreService` | `listProducts`、`purchase`、`findOrdersByUserId` |
 
 每个接口实现均遵循：输入校验 → 权限检查 → 业务规则 → Repository → `ServiceResult<T>`。客户端通过远程适配器调用，不直接引用数据库实现。
@@ -355,6 +357,7 @@ LoginFrame
 | 学籍页 | 学号、姓名、院系、班级、状态、联系方式、查询/保存 |
 | 选课页 | 课程筛选、容量、时间、选课/退选、已选课程和成绩 |
 | 图书馆页 | 关键词查询、参考价格、库存、借阅、归还、借阅记录和自动到期提醒 |
+| 图书赔偿页 | 管理员确认遗失、读者原价支付、共用钱包余额、赔偿状态与记录；详见 [图书赔偿对接说明](LIBRARY_COMPENSATION.md) |
 | 商店页 | 商品、价格、库存、数量、购买、订单状态 |
 | 管理页 | 按角色显示用户、课程、图书、商品、统计操作 |
 

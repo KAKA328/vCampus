@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -55,13 +56,15 @@ class LibraryPanelTest {
         BorrowRecord record = new BorrowRecord("BO-1", "BR-1", "student_1", "B-10",
                 LocalDate.of(2026, 9, 1), LocalDate.of(2026, 10, 1), null, BorrowStatus.BORROWED);
 
-        Object[] row = LibraryPanel.historyRow(record);
+        Object[] row = LibraryPanel.historyRow(record, "测试驱动开发");
 
         assertEquals("BR-1", row[0]);
         assertEquals("BO-1", row[1]);
         assertEquals("student_1", row[2]);
-        assertEquals("", row[6]);
-        assertEquals("BORROWED", row[7]);
+        assertEquals("B-10", row[3]);
+        assertEquals("测试驱动开发", row[4]);
+        assertEquals("", row[7]);
+        assertEquals("BORROWED", row[8]);
     }
 
     @Test
@@ -253,6 +256,11 @@ class LibraryPanelTest {
     }
 
     private static void assertAllButtonsFocusable(Component component) {
+        if (component instanceof JComboBox<?>) {
+            // 下拉框整体接受键盘焦点；其外观委托内部的箭头不是独立的 Tab 停靠点。
+            assertTrue(component.isFocusable(), "category selector should accept keyboard focus");
+            return;
+        }
         if (component instanceof JButton) {
             assertTrue(component.isFocusable(), ((JButton) component).getText() + " should accept keyboard focus");
             assertTrue(((JButton) component).isFocusPainted(),

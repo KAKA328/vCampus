@@ -369,7 +369,8 @@ VALUES ('demo_admin', 20000);
 INSERT INTO tblBankAccount(user_id, balance_cents)
 VALUES ('demo_store_manager', 50000);
 
--- 图书馆模块演示馆藏：price 为参考价格（元），可供后续遗失赔偿规则使用。
+-- 图书馆模块演示馆藏：共 50 种、150 册，含演示借阅后 147 册可借。
+-- price 为模拟价格（元），可供后续遗失赔偿规则测试，不代表实际售价。
 INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
 VALUES ('B001', 'Java核心技术（卷I）', 'Cay S. Horstmann', '9787115547392', '计算机', '机械工业出版社', 129.00, 3, 2, 'A-01');
 
@@ -399,6 +400,127 @@ VALUES ('B009', '活着', '余华', '9787530215593', '文学', '北京十月文�
 
 INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
 VALUES ('B010', '人类简史', '尤瓦尔·赫拉利', '9787508647357', '历史', '中信出版社', 68.00, 2, 2, 'D-01');
+
+-- B011–B050 的 isbn 字段使用 DEMO-Bxxx 演示编码，出版社为占位数据；不代表真实出版版本。
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B011', '平凡的世界', '路遥', 'DEMO-B011', '文学', '演示出版社', 79.00, 3, 3, 'B-04');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B012', '围城', '钱锺书', 'DEMO-B012', '文学', '演示出版社', 48.00, 3, 3, 'B-05');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B013', '骆驼祥子', '老舍', 'DEMO-B013', '文学', '演示出版社', 32.00, 3, 3, 'B-06');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B014', '朝花夕拾', '鲁迅', 'DEMO-B014', '文学', '演示出版社', 28.00, 3, 3, 'B-07');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B015', '边城', '沈从文', 'DEMO-B015', '文学', '演示出版社', 30.00, 3, 3, 'B-08');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B016', '老人与海', '欧内斯特·海明威', 'DEMO-B016', '文学', '演示出版社', 26.00, 3, 3, 'B-09');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B017', '百年孤独', '加西亚·马尔克斯', 'DEMO-B017', '文学', '演示出版社', 68.00, 3, 3, 'B-10');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B018', '傲慢与偏见', '简·奥斯汀', 'DEMO-B018', '文学', '演示出版社', 39.00, 3, 3, 'B-11');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B019', '流浪地球', '刘慈欣', 'DEMO-B019', '科幻', '演示出版社', 45.00, 3, 3, 'B-12');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B020', '球状闪电', '刘慈欣', 'DEMO-B020', '科幻', '演示出版社', 38.00, 3, 3, 'B-13');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B021', '银河帝国：基地', '艾萨克·阿西莫夫', 'DEMO-B021', '科幻', '演示出版社', 52.00, 3, 3, 'B-14');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B022', '海底两万里', '儒勒·凡尔纳', 'DEMO-B022', '科幻', '演示出版社', 35.00, 3, 3, 'B-15');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B023', '时间机器', 'H. G. 威尔斯', 'DEMO-B023', '科幻', '演示出版社', 29.00, 3, 3, 'B-16');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B024', '数据结构（C语言版）', '严蔚敏', 'DEMO-B024', '计算机', '演示出版社', 39.00, 3, 3, 'A-06');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B025', '代码整洁之道', '罗伯特·C. 马丁', 'DEMO-B025', '计算机', '演示出版社', 79.00, 3, 3, 'A-07');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B026', '重构：改善既有代码的设计', '马丁·福勒', 'DEMO-B026', '计算机', '演示出版社', 88.00, 3, 3, 'A-08');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B027', '计算机程序的构造和解释', '哈罗德·阿贝尔森', 'DEMO-B027', '计算机', '演示出版社', 99.00, 3, 3, 'A-09');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B028', '数据库系统概念', '亚伯拉罕·西尔伯沙茨', 'DEMO-B028', '计算机', '演示出版社', 109.00, 3, 3, 'A-10');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B029', '万历十五年', '黄仁宇', 'DEMO-B029', '历史', '演示出版社', 49.00, 3, 3, 'D-02');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B030', '中国历代政治得失', '钱穆', 'DEMO-B030', '历史', '演示出版社', 32.00, 3, 3, 'D-03');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B031', '全球通史', 'L. S. 斯塔夫里阿诺斯', 'DEMO-B031', '历史', '演示出版社', 96.00, 3, 3, 'D-04');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B032', '史记', '司马迁', 'DEMO-B032', '历史', '演示出版社', 85.00, 3, 3, 'D-05');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B033', '中国近代史', '蒋廷黻', 'DEMO-B033', '历史', '演示出版社', 39.00, 3, 3, 'D-06');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B034', '线性代数', '同济大学数学系', 'DEMO-B034', '教材', '演示出版社', 39.00, 3, 3, 'C-02');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B035', '概率论与数理统计', '盛骤', 'DEMO-B035', '教材', '演示出版社', 45.00, 3, 3, 'C-03');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B036', '大学物理', '程守洙', 'DEMO-B036', '教材', '演示出版社', 62.00, 3, 3, 'C-04');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B037', '离散数学', '左孝凌', 'DEMO-B037', '教材', '演示出版社', 49.00, 3, 3, 'C-05');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B038', '苏菲的世界', '乔斯坦·贾德', 'DEMO-B038', '哲学', '演示出版社', 58.00, 3, 3, 'E-01');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B039', '理想国', '柏拉图', 'DEMO-B039', '哲学', '演示出版社', 45.00, 3, 3, 'E-02');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B040', '论语', '孔子及其弟子', 'DEMO-B040', '哲学', '演示出版社', 29.00, 3, 3, 'E-03');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B041', '道德经', '老子', 'DEMO-B041', '哲学', '演示出版社', 26.00, 3, 3, 'E-04');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B042', '艺术的故事', 'E. H. 贡布里希', 'DEMO-B042', '艺术', '演示出版社', 168.00, 3, 3, 'F-01');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B043', '美的历程', '李泽厚', 'DEMO-B043', '艺术', '演示出版社', 59.00, 3, 3, 'F-02');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B044', '谈美', '朱光潜', 'DEMO-B044', '艺术', '演示出版社', 32.00, 3, 3, 'F-03');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B045', '经济学原理', 'N. 格里高利·曼昆', 'DEMO-B045', '经济', '演示出版社', 128.00, 3, 3, 'G-01');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B046', '国富论', '亚当·斯密', 'DEMO-B046', '经济', '演示出版社', 79.00, 3, 3, 'G-02');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B047', '牛奶可乐经济学', '罗伯特·弗兰克', 'DEMO-B047', '经济', '演示出版社', 42.00, 3, 3, 'G-03');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B048', '时间简史', '史蒂芬·霍金', 'DEMO-B048', '自然科学', '演示出版社', 45.00, 3, 3, 'H-01');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B049', '从一到无穷大', '乔治·伽莫夫', 'DEMO-B049', '自然科学', '演示出版社', 49.00, 3, 3, 'H-02');
+
+INSERT INTO tblBook(book_id, title, author, isbn, category, publisher, price, total_copies, available_copies, location)
+VALUES ('B050', '物种起源', '查尔斯·达尔文', 'DEMO-B050', '自然科学', '演示出版社', 58.00, 3, 3, 'H-03');
 
 -- 借阅演示数据使用相对日期，重建数据库后始终包含临期、普通、已归还和逾期场景。
 INSERT INTO tblBorrowRecord(record_id, order_id, user_id, book_id, borrow_date, due_date, return_date, status)

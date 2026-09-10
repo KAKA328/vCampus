@@ -10,6 +10,7 @@ public enum WalletTransactionType {
     RECHARGE, // 本人充值
     PURCHASE, // 直接购买扣款
     CHECKOUT, // 购物车结账扣款
+    LIBRARY_LOSS, // 图书遗失原价赔偿扣款（名称兼容既有 VARCHAR(16) 列）
     REFUND, // 补偿退款入账
     ADJUST// 管理员校正差额
 }
