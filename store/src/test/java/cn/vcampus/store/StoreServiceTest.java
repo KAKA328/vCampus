@@ -1610,6 +1610,36 @@ class StoreServiceTest {
                 service.checkoutItems("0120", java.util.Collections.<String>emptyList()).getStatus());
     }
 
+    // 子集结算去重：请求中重复的 cartItemId 只结算一次，库存/扣款不重复
+    @Test
+    void testCheckoutItemsDeduplicatesRepeatedIds() {
+        int appleStock = products.findById("00001").getStock();
+        service.addToCart("0120", "00001", 2);
+        String appleCartId = cartItemIdOf("0120", "00001");
+
+        ServiceResult<Void> result = service.checkoutItems("0120",
+                java.util.Arrays.asList(appleCartId, appleCartId, appleCartId));
+        assertEquals(StatusCode.OK, result.getStatus());
+        // 重复 id 只扣一次：库存减 2（而非 6），仅一张订单
+        assertEquals(appleStock - 2, products.findById("00001").getStock());
+        assertEquals(1, orders.findByUserId("0120").size());
+        assertEquals(2, orders.findByUserId("0120").get(0).getQuantity());
+        assertEquals(0, cartRepo.findByUserId("0120").size());
+    }
+
+    // 多字段查询：价格区间拒绝 NaN 与±Infinity（否则会绕过过滤放行全部商品）
+    @Test
+    void testSearchProductsRejectsNonFinitePriceBounds() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.searchProducts(null, null, Double.NaN, null, false).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.searchProducts(null, null, null, Double.NaN, false).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.searchProducts(null, null, Double.NEGATIVE_INFINITY, null, false).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.searchProducts(null, null, null, Double.POSITIVE_INFINITY, false).getStatus());
+    }
+
     // 批量移除购物车：多条本人条目一次删除
     @Test
     void testRemoveFromCartBatchSuccess() {

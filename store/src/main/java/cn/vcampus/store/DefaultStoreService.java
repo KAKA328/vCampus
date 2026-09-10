@@ -410,11 +410,14 @@ public final class DefaultStoreService implements StoreService {
         for (CartItem item : cart.findByUserId(userId))
             ownedById.put(item.getCartItemId(), item);
         List<CartItem> selected = new ArrayList<CartItem>();
+        Set<String> seen = new HashSet<String>();
         for (String id : cartItemIds) {
             CartItem item = id == null ? null : ownedById.get(id);
             if (item == null)
                 return ServiceResult.failure(StatusCode.NOT_FOUND, "Cart item not found or not owned");
-            selected.add(item);
+            // 去重：同一 cartItemId 在请求中重复出现只结算一次，防止对同一条目重复扣库存/扣款
+            if (seen.add(id))
+                selected.add(item);
         }
         return checkoutInternal(userId, selected, false);
     }
@@ -613,6 +616,11 @@ public final class DefaultStoreService implements StoreService {
     @Override
     public final ServiceResult<List<Product>> searchProducts(String keyword, String category, Double minPrice,
             Double maxPrice, boolean includeInactive) {
+        // 价格区间必须是有限数：NaN 会使所有比较恒 false 而放行全部商品，±Infinity 会单边绕过过滤，一律拒绝
+        if (minPrice != null && (minPrice.isNaN() || minPrice.isInfinite()))
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "minPrice must be a finite number");
+        if (maxPrice != null && (maxPrice.isNaN() || maxPrice.isInfinite()))
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "maxPrice must be a finite number");
         String wantedCategory = category == null ? null : category.trim();
         if (wantedCategory != null && wantedCategory.isEmpty())
             wantedCategory = null;
