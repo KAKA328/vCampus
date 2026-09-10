@@ -29,6 +29,7 @@ public final class MainFrame extends JFrame {
     private final ModuleNavigationModel navigationModel = new ModuleNavigationModel();
     private final JPanel content = new JPanel(new BorderLayout());
     private final Map<String, JButton> navButtons = new LinkedHashMap<String, JButton>();
+    private StorePanel storePanel;
 
     public MainFrame(String host, int port, Session session) {
         super("vCampus 主界面");
@@ -211,7 +212,7 @@ public final class MainFrame extends JFrame {
             return;
         }
         if (useStorePanel(session.getUser().getRole(), module)) {
-            content.add(new StorePanel(host, port, session), BorderLayout.CENTER);
+            content.add(storePanel(), BorderLayout.CENTER);
             refreshContent();
             return;
         }
@@ -244,6 +245,14 @@ public final class MainFrame extends JFrame {
 
     private JPanel userManagementPanel() {
         return new UserManagementPanel(this, host, port, session);
+    }
+
+    /** Keeps a loaded store workspace alive when navigating elsewhere, avoiding duplicate initial requests. */
+    private StorePanel storePanel() {
+        if (storePanel == null) {
+            storePanel = new StorePanel(host, port, session);
+        }
+        return storePanel;
     }
 
     private JPanel sectionTitle(String titleText, String subtitleText) {
