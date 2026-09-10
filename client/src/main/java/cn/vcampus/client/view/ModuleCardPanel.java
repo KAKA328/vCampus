@@ -46,7 +46,6 @@ final class ModuleCardPanel extends JPanel {
         } else {
             VCampusTheme.secondaryButton(enter);
         }
-        enter.setPreferredSize(new Dimension(UiMetrics.px(108), enter.getPreferredSize().height));
         enter.setMinimumSize(enter.getPreferredSize());
         enter.addActionListener(enterListener);
 

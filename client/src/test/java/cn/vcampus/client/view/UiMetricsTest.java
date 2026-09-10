@@ -12,11 +12,12 @@ import org.junit.jupiter.api.Test;
 /** 验证统一尺寸换算，避免不同页面各自实现不一致的缩放规则。 */
 class UiMetricsTest {
     @Test
-    void dpiUsesNinetySixAsTheDesignBaseline() {
+    void dpiScalingAddsOnlyACompactDensityAdjustment() {
         assertEquals(1.0d, UiMetrics.scaleForDpi(96), 0.0001d);
-        assertEquals(1.25d, UiMetrics.scaleForDpi(120), 0.0001d);
-        assertEquals(1.5d, UiMetrics.scaleForDpi(144), 0.0001d);
-        assertEquals(2.0d, UiMetrics.scaleForDpi(192), 0.0001d);
+        assertEquals(1.05d, UiMetrics.scaleForDpi(120), 0.0001d);
+        assertEquals(1.10d, UiMetrics.scaleForDpi(144), 0.0001d);
+        assertEquals(1.15d, UiMetrics.scaleForDpi(192), 0.0001d);
+        assertEquals(1.15d, UiMetrics.scaleForDpi(288), 0.0001d);
     }
 
     @Test
@@ -35,7 +36,7 @@ class UiMetricsTest {
         assertThrows(IllegalArgumentException.class, () -> UiMetrics.px(-1, 1.0d));
         assertThrows(IllegalArgumentException.class,
                 () -> UiMetrics.font("Microsoft YaHei UI", Font.PLAIN, 0, 1.0d));
-        assertTrue(UiMetrics.systemScale() >= 0.75d);
-        assertTrue(UiMetrics.systemScale() <= 3.0d);
+        assertTrue(UiMetrics.systemScale() >= 0.90d);
+        assertTrue(UiMetrics.systemScale() <= 1.15d);
     }
 }

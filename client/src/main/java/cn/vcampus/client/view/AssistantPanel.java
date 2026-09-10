@@ -21,7 +21,7 @@ import javax.swing.ImageIcon;
 final class AssistantPanel extends JPanel {
     private final List<ModuleDescriptor> modules;
     private final Consumer<ModuleDescriptor> openModule;
-    private final JPanel answers = new JPanel();
+    private final JPanel answers = new ScrollablePagePanel(null);
     private JPanel card;
     private JButton avatar;
     private boolean introduced;
@@ -78,8 +78,11 @@ final class AssistantPanel extends JPanel {
         JButton close = new JButton("×");
         close.setToolTipText("收起助手");
         close.getAccessibleContext().setAccessibleName("收起小松鼠助手");
-        close.setPreferredSize(UiMetrics.dimension(34, 30));
         VCampusTheme.secondaryButton(close);
+        close.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(VCampusTheme.BORDER),
+                VCampusTheme.padding(4, 8, 4, 8)));
+        close.setPreferredSize(UiMetrics.dimension(40, 34));
         close.addActionListener(e -> collapse());
         JPanel titleBar = new JPanel(new BorderLayout());
         titleBar.setOpaque(false);
@@ -101,7 +104,10 @@ final class AssistantPanel extends JPanel {
         VCampusTheme.field(question);
         JButton ask = new JButton("发送");
         VCampusTheme.primaryButton(ask);
-        ask.setPreferredSize(UiMetrics.dimension(68, 38));
+        ask.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(VCampusTheme.PRIMARY_DARK, 2),
+                VCampusTheme.padding(7, 13, 7, 13)));
+        ask.setPreferredSize(UiMetrics.dimension(76, 38));
         ask.addActionListener(e -> answer(question.getText()));
         question.addActionListener(e -> answer(question.getText()));
         input.add(question, BorderLayout.CENTER);
