@@ -690,6 +690,36 @@ class StoreServiceTest {
         assertTrue(flakyCart.findByUserId("u").isEmpty());
     }
 
+    // P1 回归：子集结算时选中条目删除失败（removeItem 返回 false）必须整体回滚、不得返回成功，
+    // 否则订单/扣款/库存已生效而购物车条目仍在，用户重试会重复扣款、重复下单
+    @Test
+    void checkoutItemsRollsBackAndAllowsRetryWhenRemovingSelectedItemFails() {
+        InMemoryProductRepository retryProducts = new InMemoryProductRepository();
+        retryProducts.save(new Product("A", "A", 5, 2.0, "", "test"));
+        InMemoryOrderRepository retryOrders = new InMemoryOrderRepository();
+        InMemoryWalletRepository retryWallet = new InMemoryWalletRepository();
+        retryWallet.save(new BankAccount("u", 100_000L));
+        FailingCartRepository flakyCart = new FailingCartRepository(false, true);
+        flakyCart.addItem(new CartItem("cart-a", "u", "A", 2, java.time.LocalDateTime.now()));
+        DefaultStoreService checkout = new DefaultStoreService(retryProducts, retryOrders, flakyCart, retryWallet);
+
+        ServiceResult<Void> failed = checkout.checkoutItems("u", java.util.Arrays.asList("cart-a"));
+
+        assertEquals(StatusCode.CONFLICT, failed.getStatus());
+        assertEquals(5, retryProducts.findById("A").getStock());// 库存已回补
+        assertTrue(retryOrders.findByUserId("u").isEmpty());// 订单已撤销
+        assertEquals(100_000L, retryWallet.findByUserId("u").getBalanceCents());// 扣款已退回
+        assertEquals(1, flakyCart.findByUserId("u").size());// 购物车条目仍在
+
+        flakyCart.failOnRemove = false;
+        ServiceResult<Void> retried = checkout.checkoutItems("u", java.util.Arrays.asList("cart-a"));
+
+        assertEquals(StatusCode.OK, retried.getStatus());
+        assertEquals(3, retryProducts.findById("A").getStock());
+        assertEquals(1, retryOrders.findByUserId("u").size());
+        assertTrue(flakyCart.findByUserId("u").isEmpty());
+    }
+
     // 测试并发加购同一商品
     @Test
     void concurrentAddToCartSameProductKeepsSingleLine() throws Exception {
@@ -1724,9 +1754,15 @@ class StoreServiceTest {
     private static final class FailingCartRepository implements CartRepository {
         private final InMemoryCartRepository delegate = new InMemoryCartRepository();
         private boolean failOnClear;
+        private boolean failOnRemove;// removeItem 返回 false（模拟子集删除未生效）
 
         private FailingCartRepository(boolean failOnClear) {
+            this(failOnClear, false);
+        }
+
+        private FailingCartRepository(boolean failOnClear, boolean failOnRemove) {
             this.failOnClear = failOnClear;
+            this.failOnRemove = failOnRemove;
         }
 
         @Override
@@ -1741,6 +1777,8 @@ class StoreServiceTest {
 
         @Override
         public boolean removeItem(String cartItemId) {
+            if (failOnRemove)
+                return false;
             return delegate.removeItem(cartItemId);
         }
 

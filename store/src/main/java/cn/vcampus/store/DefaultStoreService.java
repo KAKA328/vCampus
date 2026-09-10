@@ -489,12 +489,18 @@ public final class DefaultStoreService implements StoreService {
             }
         }
         // 清理购物车失败也要回滚，否则用户重试会重复下单：整单清空全部，子集只删选中条目
+        // 子集逐条删除必须校验返回值——removeItem 返回 false 表示条目仍在，若此时返回成功，
+        // 订单/扣款/库存已生效而购物车条目未清除，用户再次结算会重复扣款、重复下单，故任一失败即整体回滚
         try {
             if (clearAll) {
                 cart.clearByUserId(userId);
             } else {
-                for (CartItem item : items)
-                    cart.removeItem(item.getCartItemId());
+                for (CartItem item : items) {
+                    if (!cart.removeItem(item.getCartItemId())) {
+                        return rollbackCheckoutResult(userId, created, deducted, debitedCents, StatusCode.CONFLICT,
+                                "Could not remove selected cart item; checkout rolled back");
+                    }
+                }
             }
         } catch (RuntimeException failure) {
             return rollbackCheckoutResult(userId, created, deducted, debitedCents, StatusCode.CONFLICT,
