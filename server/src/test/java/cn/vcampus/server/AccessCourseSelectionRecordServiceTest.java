@@ -6,8 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.Course;
+import cn.vcampus.course.CourseMeeting;
 import cn.vcampus.course.CourseOffering;
 import cn.vcampus.course.CourseOfferingStatus;
+import cn.vcampus.course.CourseSchedule;
 import cn.vcampus.course.CourseSelectionRecord;
 import cn.vcampus.course.SelectionRecordStatus;
 import cn.vcampus.course.SelectionType;
@@ -16,6 +18,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
 import java.time.LocalDateTime;
+import java.time.DayOfWeek;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -45,7 +49,7 @@ class AccessCourseSelectionRecordServiceTest {
         AccessCourseCatalogService catalog = new AccessCourseCatalogService(database);
         catalog.create(new Course("CS101", "程序设计基础", 3));
         AccessCourseOfferingService offerings = new AccessCourseOfferingService(database, catalog);
-        offerings.create(offering("OFFER-001"));
+        assertEquals(StatusCode.OK, offerings.create(offering("OFFER-001")).getStatus());
         service = new AccessCourseSelectionRecordService(database, offerings);
     }
 
@@ -123,7 +127,9 @@ class AccessCourseSelectionRecordServiceTest {
 
     private static CourseOffering offering(String offeringId) {
         return new CourseOffering(offeringId, "CS101", "2026-2027-1", "T001", "周一第1-2节",
-                "教学楼A201", 1, 5, 4, CourseOfferingStatus.OPEN);
+                "教学楼A201", 1, 5, 4, CourseOfferingStatus.OPEN)
+                        .withMeetingSchedule(new CourseSchedule(Arrays.asList(
+                                new CourseMeeting(DayOfWeek.MONDAY, 1, 2, "教学楼A201"))));
     }
 
     private static CourseSelectionRecord record(String recordId, String studentId,

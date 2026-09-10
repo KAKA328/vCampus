@@ -2,6 +2,7 @@ package cn.vcampus.client.view;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import cn.vcampus.common.Role;
@@ -74,6 +75,14 @@ class TeacherTeachingPanelTest {
                 instanceof VCampusTheme.ReadableButtonUI);
         assertTrue(button(panel, "submitGradesButton").getUI()
                 instanceof VCampusTheme.ReadableButtonUI);
+    }
+
+    @Test
+    void exposesTheOpenDraftActionInTheTeachingClassDetailWorkflow() throws Exception {
+        TeacherTeachingPanel panel = panel();
+
+        assertNotNull(button(panel, "openDraftButton").getParent(),
+                "教师必须能够从教学班详情页触发打开成绩草稿");
     }
 
     private static TeacherTeachingPanel panel() {

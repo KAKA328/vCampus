@@ -7,6 +7,8 @@ import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dialog;
 import java.awt.FlowLayout;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.awt.Window;
 import java.util.Collections;
 import javax.swing.JButton;
@@ -41,8 +43,9 @@ final class TrainingPlanEditorDialog extends JDialog {
                 Dialog.ModalityType.APPLICATION_MODAL);
         this.initial = initial;
         this.courseRequirementMode = courseRequirementMode;
+        planId.setEditable(initial == null);
         if (initial != null) {
-            planId.setText(initial.getPlanId()); planId.setEditable(false);
+            planId.setText(initial.getPlanId());
             majorName.setText(initial.getMajorName());
             enrollmentYear.setText(String.valueOf(initial.getEnrollmentYear()));
         }
@@ -75,23 +78,25 @@ final class TrainingPlanEditorDialog extends JDialog {
         JPanel content = new JPanel(new BorderLayout(0, UiMetrics.px(14)));
         content.setBackground(VCampusTheme.PANEL);
         content.setBorder(VCampusTheme.padding(18, 20, 18, 20));
-        JPanel form = new JPanel(new java.awt.GridLayout(0, 2, UiMetrics.px(10), UiMetrics.px(9)));
+        JPanel form = new JPanel(new GridBagLayout());
         form.setOpaque(false);
         if (courseRequirementMode) addCourseFields(form);
         else addPlanFields(form);
         content.add(form, BorderLayout.CENTER); content.add(actionBar(), BorderLayout.SOUTH);
-        setContentPane(content); pack(); setSize(UiMetrics.dimension(440, courseRequirementMode ? 300 : 355));
+        setContentPane(content); pack();
+        setMinimumSize(UiMetrics.dimension(560, courseRequirementMode ? 350 : 460));
+        setSize(UiMetrics.dimension(560, courseRequirementMode ? 350 : 460));
         setResizable(false); setLocationRelativeTo(getOwner());
     }
 
     private void addPlanFields(JPanel form) {
-        style(planId); style(majorName); style(enrollmentYear); style(courseId); style(recommendedTerm); style(selectionType);
-        form.add(new JLabel("方案编号")); form.add(planId);
-        form.add(new JLabel("专业")); form.add(majorName);
-        form.add(new JLabel("入学年份")); form.add(enrollmentYear);
+        style(planId); style(majorName); style(enrollmentYear);
+        addRow(form, "方案编号", planId);
+        addRow(form, "专业", majorName);
+        addRow(form, "入学年份", enrollmentYear);
         if (initial == null) {
             JLabel hint = new JLabel("新方案的首条课程要求"); hint.setForeground(VCampusTheme.MUTED);
-            form.add(hint); form.add(new JLabel(" "));
+            addSectionHint(form, hint);
             addCourseFields(form);
         }
     }
@@ -99,10 +104,46 @@ final class TrainingPlanEditorDialog extends JDialog {
     private void addCourseFields(JPanel form) {
         style(courseId); style(recommendedTerm); style(selectionType);
         crossMajorAllowed.setOpaque(false);
-        form.add(new JLabel("课程编号")); form.add(courseId);
-        form.add(new JLabel("建议学期")); form.add(recommendedTerm);
-        form.add(new JLabel("课程类别")); form.add(selectionType);
-        form.add(new JLabel(" ")); form.add(crossMajorAllowed);
+        addRow(form, "课程编号", courseId);
+        addRow(form, "建议学期", recommendedTerm);
+        addRow(form, "课程类别", selectionType);
+        addRow(form, " ", crossMajorAllowed);
+    }
+
+    /** 为可编辑文字输入框预留足够高度，避免高 DPI 下文字被边框压缩。 */
+    private static void style(JTextField field) {
+        field.setEnabled(true);
+        field.setMinimumSize(UiMetrics.dimension(260, 38));
+        field.setPreferredSize(UiMetrics.dimension(300, 38));
+        VCampusTheme.roundedField(field);
+    }
+
+    private static void style(javax.swing.JComponent component) {
+        VCampusTheme.roundedField(component);
+    }
+
+    private static void addRow(JPanel form, String label, java.awt.Component field) {
+        GridBagConstraints left = constraints();
+        left.gridx = 0; left.weightx = 0; left.fill = GridBagConstraints.NONE;
+        form.add(new JLabel(label), left);
+        GridBagConstraints right = constraints();
+        right.gridx = 1; right.weightx = 1; right.fill = GridBagConstraints.HORIZONTAL;
+        form.add(field, right);
+    }
+
+    private static void addSectionHint(JPanel form, JLabel hint) {
+        GridBagConstraints constraints = constraints();
+        constraints.gridx = 0; constraints.gridwidth = 2; constraints.fill = GridBagConstraints.HORIZONTAL;
+        constraints.insets = UiMetrics.insets(10, 0, 2, 0);
+        form.add(hint, constraints);
+    }
+
+    private static GridBagConstraints constraints() {
+        GridBagConstraints value = new GridBagConstraints();
+        value.gridy = GridBagConstraints.RELATIVE;
+        value.anchor = GridBagConstraints.WEST;
+        value.insets = UiMetrics.insets(4, 0, 4, 10);
+        return value;
     }
 
     private JPanel actionBar() {
@@ -145,7 +186,6 @@ final class TrainingPlanEditorDialog extends JDialog {
         if (courseRequirementMode) return course == null ? "新增课程要求" : "编辑课程要求";
         return initial == null ? "新建培养方案" : "编辑培养方案";
     }
-    private static void style(javax.swing.JComponent component) { VCampusTheme.roundedField(component); }
     private static String text(JTextField field, String name) {
         String value = field.getText() == null ? "" : field.getText().trim();
         if (value.isEmpty()) throw new IllegalArgumentException(name + "不能为空"); return value;

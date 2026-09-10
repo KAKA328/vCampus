@@ -262,6 +262,7 @@ final class TeacherTeachingPanel extends JPanel {
         JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
                 UiMetrics.px(4)));
         actions.setOpaque(false);
+        actions.add(openDraftButton);
         actions.add(new JLabel("选中学生成绩"));
         actions.add(score);
         actions.add(saveGradeButton);
