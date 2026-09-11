@@ -2428,7 +2428,7 @@ public final class StorePanel extends JPanel {
     /** 购物车专用表格模型：首列为复选框（Boolean），无需按住 Ctrl 即可勾选多行做批量操作。 */
     private static final class CartTableModel extends DefaultTableModel {
         CartTableModel() {
-            super(new Object[] { "选", "条目号", "商品", "单价", "数量", "小计", "状态" }, 0);
+            super(new Object[] { "选择", "条目号", "商品", "单价", "数量", "小计", "状态" }, 0);
         }
 
         @Override
