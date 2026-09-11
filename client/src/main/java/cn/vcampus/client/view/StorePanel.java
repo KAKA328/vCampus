@@ -92,9 +92,7 @@ public final class StorePanel extends JPanel {
     private final BatchTableModel productModel = new BatchTableModel(new Object[] {
             "商品号", "名称", "类别", "价格", "库存", "状态", "说明"
     });
-    private final BatchTableModel cartModel = new BatchTableModel(new Object[] {
-            "条目号", "商品", "单价", "数量", "小计", "状态"
-    });
+    private final CartTableModel cartModel = new CartTableModel();
     private final BatchTableModel orderModel = new BatchTableModel(new Object[] {
             "订单号", "商品", "数量", "单价", "总价", "时间"
     });
@@ -151,6 +149,7 @@ public final class StorePanel extends JPanel {
     private final JButton hotButton = new JButton("热销 Top" + HOT_PRODUCT_LIMIT);
     // 含下架视图：学生/教师也可开启（浏览已下架陈列，不可购买——服务端购买/加购仍拒绝下架品）
     private final JButton inactiveButton = new JButton("显示已下架");
+    private final JButton catalogMoreButton = new JButton("视图与筛选…");// 热销/含下架/视图切换下拉入口，保证搜索行单行不换行
     private final JButton purchaseButton = new JButton("购买选中");
     private final JButton addToCartButton = new JButton("加入购物车");
     private final JButton detailButton = new JButton("商品详情");
@@ -396,18 +395,34 @@ public final class StorePanel extends JPanel {
         maxPriceField.setPreferredSize(UiMetrics.dimension(88, 36));
         search.add(maxPriceField);
         themeSecondary(searchButton);
-        themeSecondary(hotButton);
         search.add(searchButton);
-        search.add(hotButton);
-        // 含下架开关对学生也开放：看得到不等于买得到（服务端购买/加购仍拒下架品）
-        themeSecondary(inactiveButton);
-        search.add(inactiveButton);
+        // 热销/含下架/视图切换收进“视图与筛选…”下拉，保证搜索行单行不换行（同 manageButton 下拉先例）
+        themeSecondary(catalogMoreButton);
+        search.add(catalogMoreButton);
+        final JPopupMenu catalogMoreMenu = new JPopupMenu();
+        catalogMoreMenu.setBackground(VCampusTheme.PANEL);
+        catalogMoreMenu.setBorder(VCampusTheme.roundedBorder(VCampusTheme.BORDER, 12));
+        catalogMoreMenu.setLayout(new GridLayout(0, 1, 0, UiMetrics.px(4)));
+        for (JButton operation : new JButton[] { hotButton, inactiveButton }) {
+            themeSecondary(operation);
+            operation.setHorizontalAlignment(SwingConstants.LEFT);
+            operation.setBorder(VCampusTheme.padding(8, 14, 8, 14));
+            catalogMoreMenu.add(operation);
+            operation.addActionListener(event -> catalogMoreMenu.setVisible(false));
+        }
         if (mode == Mode.CONSUMER) {
             // 视图切换（方块/列表）只对消费者开放；管理者固定列表维护（方块卡片自带购买按钮，与管理页语义冲突）
             themeSecondary(viewModeButton);
-            search.add(viewModeButton);
+            viewModeButton.setHorizontalAlignment(SwingConstants.LEFT);
+            viewModeButton.setBorder(VCampusTheme.padding(8, 14, 8, 14));
+            catalogMoreMenu.add(viewModeButton);
+            viewModeButton.addActionListener(event -> catalogMoreMenu.setVisible(false));
             viewModeButton.setToolTipText("在“方块（双列卡片）/ 列表（表格）”两种展示间切换");
         }
+        catalogMoreButton.addActionListener(event -> {
+            // 向上弹出：按钮贴近窗口顶部工具栏，向下弹更自然（与 manageButton 贴近底部相反）
+            catalogMoreMenu.show(catalogMoreButton, 0, catalogMoreButton.getHeight());
+        });
 
         configureTable(productTable);
         applyMoneyColumns(productTable, MoneyCellRenderer.MoneyFormat.YUAN, 3);
@@ -504,9 +519,14 @@ public final class StorePanel extends JPanel {
         JPanel panel = new JPanel(new BorderLayout(0, 12));
         storeSection(panel);
         configureTable(cartTable);
-        applyMoneyColumns(cartTable, MoneyCellRenderer.MoneyFormat.YUAN, 2, 4);
-        // 购物车多选：支持全选后批量删除/结算选中，覆盖 configureTable 的单选默认
+        // 首列复选框使金额列右移一位：单价=3、小计=5
+        applyMoneyColumns(cartTable, MoneyCellRenderer.MoneyFormat.YUAN, 3, 5);
+        // 复选框勾选即选中（无需 Ctrl）；保留多选模式仅为行高亮同步
         cartTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        cartModel.addTableModelListener(event -> {
+            syncCartSelection();
+            updateButtonState();
+        });
 
         JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(12), UiMetrics.px(6)));
         storeToolbar(actions);
@@ -694,12 +714,15 @@ public final class StorePanel extends JPanel {
         loadProducts(true);
     }
 
-    /** First entry gets one delayed retry so a transient server handoff does not leave an empty catalog. */
+    /**
+     * First entry gets one delayed retry so a transient server handoff does not
+     * leave an empty catalog.
+     */
     private void loadInitialProducts() {
         final String category = selectedCategory();
         final boolean includeInactive = inactiveViewVisible;
         runReadRequest("正在加载商品…", service -> service.listProducts(session.getToken(),
-                        category.isEmpty() ? null : category, includeInactive),
+                category.isEmpty() ? null : category, includeInactive),
                 response -> showProducts(response, true), this::retryInitialProductLoad);
     }
 
@@ -1290,31 +1313,45 @@ public final class StorePanel extends JPanel {
         }
     }
 
-    /** 多选模式下选中的全部购物车行（视图行号经 rowSorter 换算回模型行）；无选中返回空列表。 */
+    /** 勾选（首列复选框）的全部购物车行；模型行与 cartLines 同序，无需 Ctrl 多选。无勾选返回空列表。 */
     private List<CartLine> selectedCartLines() {
         List<CartLine> result = new ArrayList<CartLine>();
-        for (int viewRow : cartTable.getSelectedRows()) {
-            int modelRow = cartTable.convertRowIndexToModel(viewRow);
-            if (modelRow >= 0 && modelRow < cartLines.size()) {
+        for (int modelRow = 0; modelRow < cartModel.getRowCount(); modelRow++) {
+            if (cartModel.isChecked(modelRow) && modelRow < cartLines.size()) {
                 result.add(cartLines.get(modelRow));
             }
         }
         return result;
     }
 
-    /** 全选购物车：一键选中全部行，配合批量删除/购买选中使用。 */
+    /** 把行高亮同步到首列复选框的勾选集合（复选框是唯一选中事实源）。 */
+    private void syncCartSelection() {
+        cartTable.clearSelection();
+        for (int modelRow = 0; modelRow < cartModel.getRowCount(); modelRow++) {
+            if (cartModel.isChecked(modelRow)) {
+                int viewRow = cartTable.convertRowIndexToView(modelRow);
+                if (viewRow >= 0) {
+                    cartTable.addRowSelectionInterval(viewRow, viewRow);
+                }
+            }
+        }
+    }
+
+    /** 全选/取消全选购物车：切换首列复选框，配合批量删除/购买选中使用。 */
     private void selectAllCart() {
         if (cartLines.isEmpty()) {
             showStatus("购物车是空的，无可选条目", VCampusTheme.MUTED);
             return;
         }
-        cartTable.selectAll();
+        boolean allChecked = cartModel.checkedCount() == cartModel.getRowCount();
+        cartModel.setAllChecked(!allChecked);
+        showStatus(allChecked ? "已取消全选" : "已勾选全部 " + cartModel.getRowCount() + " 条", VCampusTheme.SUCCESS);
     }
 
     private void updateSelectedCartQuantity() {
         List<CartLine> selected = selectedCartLines();
         if (selected.size() != 1) {
-            showStatus("修改数量请只选择一个购物车条目", VCampusTheme.DANGER);
+            showStatus("修改数量请只勾选一个购物车条目", VCampusTheme.DANGER);
             return;
         }
         final CartLine line = selected.get(0);
@@ -1353,7 +1390,7 @@ public final class StorePanel extends JPanel {
     private void removeSelectedCartItems() {
         List<CartLine> selected = selectedCartLines();
         if (selected.isEmpty()) {
-            showStatus("请先在购物车表中选择要删除的条目", VCampusTheme.DANGER);
+            showStatus("请先勾选要删除的购物车条目", VCampusTheme.DANGER);
             return;
         }
         final List<String> ids = new ArrayList<String>();
@@ -1380,7 +1417,7 @@ public final class StorePanel extends JPanel {
     private void checkoutSelectedCart() {
         List<CartLine> selected = selectedCartLines();
         if (selected.isEmpty()) {
-            showStatus("请先在购物车表中选择要结算的条目", VCampusTheme.DANGER);
+            showStatus("请先勾选要结算的购物车条目", VCampusTheme.DANGER);
             return;
         }
         int inactive = 0;
@@ -1405,18 +1442,18 @@ public final class StorePanel extends JPanel {
         }
         runMutationRequest("正在结算选中商品…",
                 service -> service.checkoutSelected(session.getToken(), ids), response -> {
-            if (!isSuccessful(response)) {
-                // 结算失败会触发服务端补偿回滚；静默刷新购物车与余额（不覆盖错误提示）
-                SwingUtilities.invokeLater(() -> loadCart(false));
-                SwingUtilities.invokeLater(this::loadBalance);
-                return;
-            }
-            showStatus("结算成功，正在刷新…", VCampusTheme.SUCCESS);
-            SwingUtilities.invokeLater(this::loadCart);
-            SwingUtilities.invokeLater(this::loadBalance);
-            SwingUtilities.invokeLater(this::loadProducts);
-            SwingUtilities.invokeLater(this::loadOrders);
-        });
+                    if (!isSuccessful(response)) {
+                        // 结算失败会触发服务端补偿回滚；静默刷新购物车与余额（不覆盖错误提示）
+                        SwingUtilities.invokeLater(() -> loadCart(false));
+                        SwingUtilities.invokeLater(this::loadBalance);
+                        return;
+                    }
+                    showStatus("结算成功，正在刷新…", VCampusTheme.SUCCESS);
+                    SwingUtilities.invokeLater(this::loadCart);
+                    SwingUtilities.invokeLater(this::loadBalance);
+                    SwingUtilities.invokeLater(this::loadProducts);
+                    SwingUtilities.invokeLater(this::loadOrders);
+                });
     }
 
     private void checkoutCart() {
@@ -1621,8 +1658,10 @@ public final class StorePanel extends JPanel {
     }
 
     /**
-     * Read requests keep browsing available; mutations temporarily lock mutation controls only so a slow
-     * Access response cannot make the whole store page look frozen or allow duplicate payment submissions.
+     * Read requests keep browsing available; mutations temporarily lock mutation
+     * controls only so a slow
+     * Access response cannot make the whole store page look frozen or allow
+     * duplicate payment submissions.
      */
     private void runRequest(boolean mutation, String loadingMessage, final StoreRequest request,
             final ResponseHandler responseHandler, final Runnable failureHandler) {
@@ -1707,11 +1746,12 @@ public final class StorePanel extends JPanel {
         addToCartButton.setEnabled(purchasable);
         detailButton.setEnabled(idle);
         refreshCartButton.setEnabled(idle);
-        selectAllCartButton.setEnabled(idle);
-        updateQuantityButton.setEnabled(idle);
-        removeFromCartButton.setEnabled(idle);
-        checkoutSelectedButton.setEnabled(idle);
-        checkoutButton.setEnabled(idle);
+        int checkedCart = cartModel.checkedCount();
+        selectAllCartButton.setEnabled(idle && !cartLines.isEmpty());
+        updateQuantityButton.setEnabled(idle && checkedCart == 1);
+        removeFromCartButton.setEnabled(idle && checkedCart > 0);
+        checkoutSelectedButton.setEnabled(idle && checkedCart > 0);
+        checkoutButton.setEnabled(idle && !cartLines.isEmpty());
         refreshOrdersButton.setEnabled(idle);
         rechargeButton.setEnabled(idle);
         refreshLedgerButton.setEnabled(idle);
@@ -2383,5 +2423,55 @@ public final class StorePanel extends JPanel {
 
     private static int mixChannel(int base, int overlay) {
         return Math.round((base * 88 + overlay * 12) / 100f);
+    }
+
+    /** 购物车专用表格模型：首列为复选框（Boolean），无需按住 Ctrl 即可勾选多行做批量操作。 */
+    private static final class CartTableModel extends DefaultTableModel {
+        CartTableModel() {
+            super(new Object[] { "选", "条目号", "商品", "单价", "数量", "小计", "状态" }, 0);
+        }
+
+        @Override
+        public Class<?> getColumnClass(int columnIndex) {
+            return columnIndex == 0 ? Boolean.class : super.getColumnClass(columnIndex);
+        }
+
+        @Override
+        public boolean isCellEditable(int row, int column) {
+            return column == 0;// 仅复选框列可编辑，其余只读
+        }
+
+        /** 用 6 列数据行重建表格，首列复选框默认未勾选。 */
+        void replaceRows(List<Object[]> dataRows) {
+            dataVector.clear();
+            for (Object[] row : dataRows) {
+                Object[] full = new Object[row.length + 1];
+                full[0] = Boolean.FALSE;
+                System.arraycopy(row, 0, full, 1, row.length);
+                dataVector.add(convertToVector(full));
+            }
+            fireTableDataChanged();
+        }
+
+        boolean isChecked(int modelRow) {
+            return Boolean.TRUE.equals(getValueAt(modelRow, 0));
+        }
+
+        int checkedCount() {
+            int count = 0;
+            for (int row = 0; row < getRowCount(); row++) {
+                if (isChecked(row)) {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        void setAllChecked(boolean checked) {
+            for (int row = 0; row < getRowCount(); row++) {
+                super.setValueAt(Boolean.valueOf(checked), row, 0);
+            }
+            fireTableDataChanged();
+        }
     }
 }
