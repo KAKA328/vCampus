@@ -47,6 +47,8 @@ INSERT INTO tblCourse(course_id, course_name, credits, status)
 VALUES ('OS101', '操作系统', 3, 'ACTIVE');
 INSERT INTO tblCourse(course_id, course_name, credits, status)
 VALUES ('MATH101', '高等数学', 4, 'ACTIVE');
+INSERT INTO tblCourse(course_id, course_name, credits, status)
+VALUES ('HIST101', '中国近现代史纲要', 3, 'DISABLED');
 
 -- 学籍与学业审查演示数据：每个选课联调账号都预先绑定档案。
 INSERT INTO tblClass(class_id, class_name, department_name, major_name, grade_year)

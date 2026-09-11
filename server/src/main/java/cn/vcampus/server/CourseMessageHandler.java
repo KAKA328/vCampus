@@ -613,8 +613,10 @@ final class CourseMessageHandler {
                         : catalog.create(command.getCourse());
             case UPDATE_COURSE_DETAILS:
                 return catalog == null ? managementServiceUnavailable()
-                        : catalog.updateDetails(command.getTargetId(), command.getName(),
-                                command.getCredits());
+                        : command.getCourse() == null
+                                ? catalog.updateDetails(command.getTargetId(), command.getName(),
+                                        command.getCredits())
+                                : catalog.updateDetails(command.getTargetId(), command.getCourse());
             case CHANGE_COURSE_STATUS:
                 return catalog == null ? managementServiceUnavailable()
                         : catalog.changeStatus(command.getTargetId(), command.getCourseStatus());
@@ -640,7 +642,7 @@ final class CourseMessageHandler {
                                 command.getOffering().getMeetingSchedule());
             case UPDATE_OFFERING_DETAILS:
                 return offerings == null ? managementServiceUnavailable()
-                        : offerings.updateDetails(command.getOffering());
+                        : offerings.updateDetails(command.getTargetId(), command.getOffering());
             case LIST_SELECTION_ROUNDS_BY_TERM:
                 return selectionRounds == null ? managementServiceUnavailable()
                         : selectionRounds.listByTerm(command.getTerm());

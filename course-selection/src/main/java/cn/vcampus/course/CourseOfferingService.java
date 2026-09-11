@@ -32,4 +32,8 @@ public interface CourseOfferingService {
 
     /** 以同一次保存更新教学班可维护的信息，避免分步更新出现部分成功。 */
     ServiceResult<CourseOffering> updateDetails(CourseOffering offering);
+
+    /** 更新教学班编号、课程编号及其可维护信息，并同步维护关联数据。 */
+    ServiceResult<CourseOffering> updateDetails(String originalOfferingId,
+            CourseOffering offering);
 }

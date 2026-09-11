@@ -143,6 +143,26 @@ class AccessCourseOfferingServiceTest {
     }
 
     @Test
+    void renamesOfferingAndKeepsSelectionAndScheduleReferencesConsistent() {
+        service.create(offering("OFFER-001", CourseOfferingStatus.OPEN));
+        AccessCourseSelectionRecordService records = new AccessCourseSelectionRecordService(
+                temporaryDirectory.resolve("course-offering-test.accdb"), service);
+        assertEquals(StatusCode.OK, records.create(new CourseSelectionRecord("RECORD-001", "S001",
+                "OFFER-001", "ROUND-001", SelectionType.REQUIRED,
+                LocalDateTime.of(2026, 9, 1, 8, 0))).getStatus());
+        CourseOffering updated = new CourseOffering("OFFER-009", "CS101", TERM, "T002",
+                "1-16周 星期二第3-4节", "教学楼B302", 35, 15, 5,
+                CourseOfferingStatus.OPEN).withMeetingSchedule(new CourseSchedule(Arrays.asList(
+                        new CourseMeeting(DayOfWeek.TUESDAY, 3, 4, "教学楼B302"))));
+
+        assertEquals(StatusCode.OK, service.updateDetails("OFFER-001", updated).getStatus());
+        assertEquals(StatusCode.NOT_FOUND, service.findById("OFFER-001").getStatus());
+        assertEquals("CS101", service.findById("OFFER-009").getData().getCourseId());
+        assertEquals(1, records.listActiveByOffering("OFFER-009").getData().size());
+        assertEquals(1, service.findById("OFFER-009").getData().getMeetingSchedule().getMeetings().size());
+    }
+
+    @Test
     void rejectsDisabledOrUnknownCourseAndDuplicateOffering() {
         assertEquals(StatusCode.OK,
                 catalog.changeStatus("CS101", cn.vcampus.course.CourseStatus.DISABLED).getStatus());

@@ -37,7 +37,8 @@ class CourseManagementPanelTest {
 
         assertEquals(JTable.AUTO_RESIZE_OFF, courseTable.getAutoResizeMode());
         assertEquals(JTable.AUTO_RESIZE_OFF, offeringTable.getAutoResizeMode());
-        assertTrue(offeringTable.getColumnModel().getColumn(4).getPreferredWidth()
+        assertEquals("课程名称", offeringTable.getColumnName(2));
+        assertTrue(offeringTable.getColumnModel().getColumn(5).getPreferredWidth()
                 >= UiMetrics.px(220));
     }
 

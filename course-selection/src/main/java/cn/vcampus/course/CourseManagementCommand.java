@@ -118,6 +118,15 @@ public final class CourseManagementCommand implements Serializable {
                 0, 0, 0, null, null);
     }
 
+    /** 更新课程时保留原编号，用于服务端安全迁移关联记录。 */
+    public static CourseManagementCommand updateCourseDetails(String token,
+            String originalCourseId, Course course) {
+        if (course == null) throw new IllegalArgumentException("course must not be null");
+        return new CourseManagementCommand(token, Operation.UPDATE_COURSE_DETAILS, course, null,
+                requireText(originalCourseId, "originalCourseId"), null, null, 0,
+                0, 0, 0, null, null);
+    }
+
     public static CourseManagementCommand changeCourseStatus(String token, String courseId,
             CourseStatus status) {
         if (status == null) throw new IllegalArgumentException("course status must not be null");
@@ -174,6 +183,17 @@ public final class CourseManagementCommand implements Serializable {
         }
         return new CourseManagementCommand(token, Operation.UPDATE_OFFERING_DETAILS, null,
                 offering, offering.getOfferingId(), null, null, 0, 0, 0, 0, null, null);
+    }
+
+    /** 更新教学班时保留原编号，用于服务端安全迁移关联记录。 */
+    public static CourseManagementCommand updateOfferingDetails(String token,
+            String originalOfferingId, CourseOffering offering) {
+        if (offering == null || offering.getMeetingSchedule().isEmpty()) {
+            throw new IllegalArgumentException("offering must contain at least one meeting");
+        }
+        return new CourseManagementCommand(token, Operation.UPDATE_OFFERING_DETAILS, null,
+                offering, requireText(originalOfferingId, "originalOfferingId"), null, null,
+                0, 0, 0, 0, null, null);
     }
 
     public static CourseManagementCommand listSelectionRoundsByTerm(String token, String term) {
