@@ -41,7 +41,6 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 
 /** 任课老师按学期查看本人负责教学班的入口页面。 */
 final class TeacherTeachingPanel extends JPanel {
-    private static final String[] TERMS = { "2026-2027-1", "2025-2026-2", "2025-2026-1" };
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     private static final int[] OFFERING_COLUMN_WIDTHS = { 170, 280 };
     private static final int[] ROSTER_COLUMN_WIDTHS = { 90, 130, 120, 180, 130, 130 };
@@ -49,7 +48,7 @@ final class TeacherTeachingPanel extends JPanel {
     private final String host;
     private final int port;
     private final Session session;
-    private final JComboBox<String> term = new JComboBox<String>(TERMS);
+    private final JComboBox<String> term = CourseTermOptions.comboBox();
     private final JButton refreshButton = new JButton("刷新教学班");
     private final JButton viewRosterButton = new JButton("进入教学班");
     private final JButton backButton = new JButton("返回教学班列表");

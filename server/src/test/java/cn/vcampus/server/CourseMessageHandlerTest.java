@@ -167,7 +167,17 @@ class CourseMessageHandlerTest {
                 MessageType.COURSE_MANAGE, CourseManagementCommand.updateSelectionRoundTimeWindow(
                         academicSession.getToken(), "ROUND-EXTRA", startsAt.plusDays(1),
                         endsAt.plusDays(1))));
-        assertEquals(StatusCode.OK, updateRoundTime.getStatusCode());
+        assertEquals(StatusCode.CONFLICT, updateRoundTime.getStatusCode());
+
+        Message disableRound = managementHandler.handle(Message.request("disable-round",
+                MessageType.COURSE_MANAGE, CourseManagementCommand.changeSelectionRoundStatus(
+                        academicSession.getToken(), "ROUND-EXTRA", SelectionRoundStatus.CLOSED)));
+        assertEquals(StatusCode.OK, disableRound.getStatusCode());
+        Message updateDisabledRoundTime = managementHandler.handle(Message.request("update-disabled-round-time",
+                MessageType.COURSE_MANAGE, CourseManagementCommand.updateSelectionRoundTimeWindow(
+                        academicSession.getToken(), "ROUND-EXTRA", startsAt.plusDays(1),
+                        endsAt.plusDays(1))));
+        assertEquals(StatusCode.OK, updateDisabledRoundTime.getStatusCode());
 
         TrainingPlan plan = new TrainingPlan("PLAN-CS-2030", "计算机科学与技术", 2030,
                 Collections.singletonList(new TrainingPlanCourse("CS201", 1,

@@ -50,8 +50,7 @@ public final class CourseManagementPanel extends JPanel {
     private final JTable courseTable = new JTable(courseModel);
     private final JTable offeringTable = new JTable(offeringModel);
 
-    private final JComboBox<String> term = new JComboBox<String>(
-            new String[] { "2026-2027-1", "2025-2026-2", "2025-2026-1" });
+    private final JComboBox<String> term = CourseTermOptions.comboBox();
     private final Map<String, CourseOffering> offeringsById =
             new LinkedHashMap<String, CourseOffering>();
 

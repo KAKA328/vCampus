@@ -1,5 +1,6 @@
 package cn.vcampus.client.view;
 
+import cn.vcampus.course.Course;
 import cn.vcampus.course.SelectionType;
 import cn.vcampus.course.TrainingPlan;
 import cn.vcampus.course.TrainingPlanCourse;
@@ -10,36 +11,41 @@ import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Window;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JPanel;
+import javax.swing.JSpinner;
 import javax.swing.JTextField;
+import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 
-/** 培养方案及其课程要求的新增、编辑弹窗。 */
+/** 培养方案基本信息和方案课程要求的受控编辑弹窗。 */
 final class TrainingPlanEditorDialog extends JDialog {
     private final TrainingPlan initial;
     private final boolean courseRequirementMode;
     private final JTextField planId = new JTextField(14);
     private final JTextField majorName = new JTextField(14);
-    private final JTextField enrollmentYear = new JTextField(6);
-    private final JTextField courseId = new JTextField(12);
-    private final JTextField recommendedTerm = new JTextField(4);
+    private final JSpinner enrollmentYear = new JSpinner(new SpinnerNumberModel(2026, 1900, 9999, 1));
+    private final JComboBox<Course> course = new JComboBox<Course>();
+    private final JSpinner recommendedTerm = new JSpinner(new SpinnerNumberModel(1, 1, 16, 1));
     private final JComboBox<SelectionType> selectionType = new JComboBox<SelectionType>(
-            new SelectionType[] { SelectionType.REQUIRED, SelectionType.ELECTIVE,
-                    SelectionType.CROSS_MAJOR });
+            new SelectionType[] { SelectionType.REQUIRED, SelectionType.ELECTIVE });
     private final JCheckBox crossMajorAllowed = new JCheckBox("允许跨专业选择");
     private final JLabel error = new JLabel(" ");
     private TrainingPlan planResult;
     private TrainingPlanCourse courseResult;
 
     private TrainingPlanEditorDialog(Component owner, TrainingPlan initial,
-            TrainingPlanCourse course, boolean courseRequirementMode) {
-        super(ownerWindow(owner), title(initial, course, courseRequirementMode),
+            TrainingPlanCourse initialCourse, List<Course> courses, boolean courseRequirementMode) {
+        super(ownerWindow(owner), title(initial, initialCourse, courseRequirementMode),
                 Dialog.ModalityType.APPLICATION_MODAL);
         this.initial = initial;
         this.courseRequirementMode = courseRequirementMode;
@@ -47,31 +53,60 @@ final class TrainingPlanEditorDialog extends JDialog {
         if (initial != null) {
             planId.setText(initial.getPlanId());
             majorName.setText(initial.getMajorName());
-            enrollmentYear.setText(String.valueOf(initial.getEnrollmentYear()));
+            enrollmentYear.setValue(Integer.valueOf(initial.getEnrollmentYear()));
         }
-        if (course != null) {
-            courseId.setText(course.getCourseId());
-            recommendedTerm.setText(String.valueOf(course.getRecommendedTerm()));
-            selectionType.setSelectedItem(course.getSelectionType());
-            crossMajorAllowed.setSelected(course.isCrossMajorAllowed());
+        if (courseRequirementMode) {
+            populateCourses(courses, initialCourse);
+            if (initialCourse != null) {
+                recommendedTerm.setValue(Integer.valueOf(initialCourse.getRecommendedTerm()));
+                selectionType.setSelectedItem(initialCourse.getSelectionType());
+                crossMajorAllowed.setSelected(initialCourse.isCrossMajorAllowed());
+            }
         }
         build();
     }
 
     static TrainingPlan create(Component owner) {
-        TrainingPlanEditorDialog dialog = new TrainingPlanEditorDialog(owner, null, null, false);
-        dialog.setVisible(true); return dialog.planResult;
+        TrainingPlanEditorDialog dialog = new TrainingPlanEditorDialog(owner, null, null,
+                Collections.<Course>emptyList(), false);
+        dialog.setVisible(true);
+        return dialog.planResult;
     }
 
     static TrainingPlan edit(Component owner, TrainingPlan plan) {
         if (plan == null) return null;
-        TrainingPlanEditorDialog dialog = new TrainingPlanEditorDialog(owner, plan, null, false);
-        dialog.setVisible(true); return dialog.planResult;
+        TrainingPlanEditorDialog dialog = new TrainingPlanEditorDialog(owner, plan, null,
+                Collections.<Course>emptyList(), false);
+        dialog.setVisible(true);
+        return dialog.planResult;
     }
 
-    static TrainingPlanCourse editCourse(Component owner, TrainingPlanCourse course) {
-        TrainingPlanEditorDialog dialog = new TrainingPlanEditorDialog(owner, null, course, true);
-        dialog.setVisible(true); return dialog.courseResult;
+    static TrainingPlanCourse editCourse(Component owner, TrainingPlanCourse initial,
+            List<Course> courses) {
+        TrainingPlanEditorDialog dialog = new TrainingPlanEditorDialog(owner, null, initial, courses, true);
+        dialog.setVisible(true);
+        return dialog.courseResult;
+    }
+
+    private void populateCourses(List<Course> courses, TrainingPlanCourse initialCourse) {
+        List<Course> choices = courses == null ? Collections.<Course>emptyList() : new ArrayList<Course>(courses);
+        for (Course item : choices) course.addItem(item);
+        course.setRenderer(new DefaultListCellRenderer() {
+            @Override public Component getListCellRendererComponent(JList<?> list, Object value,
+                    int index, boolean selected, boolean focused) {
+                String text = value instanceof Course ? ((Course) value).getCourseId() + " - "
+                        + ((Course) value).getName() : "请选择课程";
+                return super.getListCellRendererComponent(list, text, index, selected, focused);
+            }
+        });
+        if (initialCourse != null) {
+            for (int index = 0; index < course.getItemCount(); index++) {
+                if (initialCourse.getCourseId().equals(course.getItemAt(index).getCourseId())) {
+                    course.setSelectedIndex(index);
+                    break;
+                }
+            }
+        }
     }
 
     private void build() {
@@ -80,13 +115,15 @@ final class TrainingPlanEditorDialog extends JDialog {
         content.setBorder(VCampusTheme.padding(18, 20, 18, 20));
         JPanel form = new JPanel(new GridBagLayout());
         form.setOpaque(false);
-        if (courseRequirementMode) addCourseFields(form);
-        else addPlanFields(form);
-        content.add(form, BorderLayout.CENTER); content.add(actionBar(), BorderLayout.SOUTH);
-        setContentPane(content); pack();
-        setMinimumSize(UiMetrics.dimension(560, courseRequirementMode ? 350 : 460));
-        setSize(UiMetrics.dimension(560, courseRequirementMode ? 350 : 460));
-        setResizable(false); setLocationRelativeTo(getOwner());
+        if (courseRequirementMode) addCourseFields(form); else addPlanFields(form);
+        content.add(form, BorderLayout.CENTER);
+        content.add(actionBar(), BorderLayout.SOUTH);
+        setContentPane(content);
+        pack();
+        setMinimumSize(UiMetrics.dimension(560, courseRequirementMode ? 350 : 300));
+        setSize(UiMetrics.dimension(560, courseRequirementMode ? 350 : 300));
+        setResizable(false);
+        setLocationRelativeTo(getOwner());
     }
 
     private void addPlanFields(JPanel form) {
@@ -94,107 +131,83 @@ final class TrainingPlanEditorDialog extends JDialog {
         addRow(form, "方案编号", planId);
         addRow(form, "专业", majorName);
         addRow(form, "入学年份", enrollmentYear);
-        if (initial == null) {
-            JLabel hint = new JLabel("新方案的首条课程要求"); hint.setForeground(VCampusTheme.MUTED);
-            addSectionHint(form, hint);
-            addCourseFields(form);
-        }
+        JLabel hint = new JLabel("学籍模块目前未提供专业目录查询，暂使用专业名称录入。 ");
+        hint.setForeground(VCampusTheme.MUTED);
+        addHint(form, hint);
     }
 
     private void addCourseFields(JPanel form) {
-        style(courseId); style(recommendedTerm); style(selectionType);
+        style(course); style(recommendedTerm); style(selectionType);
         crossMajorAllowed.setOpaque(false);
-        addRow(form, "课程编号", courseId);
+        addRow(form, "课程", course);
         addRow(form, "建议学期", recommendedTerm);
         addRow(form, "课程类别", selectionType);
         addRow(form, " ", crossMajorAllowed);
     }
 
-    /** 为可编辑文字输入框预留足够高度，避免高 DPI 下文字被边框压缩。 */
-    private static void style(JTextField field) {
-        field.setEnabled(true);
-        field.setMinimumSize(UiMetrics.dimension(260, 38));
-        field.setPreferredSize(UiMetrics.dimension(300, 38));
-        VCampusTheme.roundedField(field);
-    }
-
-    private static void style(javax.swing.JComponent component) {
-        VCampusTheme.roundedField(component);
-    }
-
-    private static void addRow(JPanel form, String label, java.awt.Component field) {
-        GridBagConstraints left = constraints();
-        left.gridx = 0; left.weightx = 0; left.fill = GridBagConstraints.NONE;
-        form.add(new JLabel(label), left);
-        GridBagConstraints right = constraints();
-        right.gridx = 1; right.weightx = 1; right.fill = GridBagConstraints.HORIZONTAL;
-        form.add(field, right);
-    }
-
-    private static void addSectionHint(JPanel form, JLabel hint) {
-        GridBagConstraints constraints = constraints();
-        constraints.gridx = 0; constraints.gridwidth = 2; constraints.fill = GridBagConstraints.HORIZONTAL;
-        constraints.insets = UiMetrics.insets(10, 0, 2, 0);
-        form.add(hint, constraints);
-    }
-
-    private static GridBagConstraints constraints() {
-        GridBagConstraints value = new GridBagConstraints();
-        value.gridy = GridBagConstraints.RELATIVE;
-        value.anchor = GridBagConstraints.WEST;
-        value.insets = UiMetrics.insets(4, 0, 4, 10);
-        return value;
-    }
-
     private JPanel actionBar() {
-        JPanel bottom = new JPanel(new BorderLayout(0, UiMetrics.px(6))); bottom.setOpaque(false);
-        error.setForeground(VCampusTheme.DANGER); bottom.add(error, BorderLayout.NORTH);
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiMetrics.px(8), 0)); actions.setOpaque(false);
-        JButton cancel = new JButton("取消"); JButton confirm = new JButton(confirmText());
+        JPanel bottom = new JPanel(new BorderLayout(0, UiMetrics.px(6)));
+        bottom.setOpaque(false);
+        error.setForeground(VCampusTheme.DANGER);
+        bottom.add(error, BorderLayout.NORTH);
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiMetrics.px(8), 0));
+        actions.setOpaque(false);
+        JButton cancel = new JButton("取消");
+        JButton confirm = new JButton(confirmText());
         VCampusTheme.secondaryButton(cancel); VCampusTheme.primaryButton(confirm);
         cancel.addActionListener(e -> dispose()); confirm.addActionListener(e -> confirm());
         actions.add(cancel); actions.add(confirm); bottom.add(actions, BorderLayout.SOUTH);
-        getRootPane().setDefaultButton(confirm); return bottom;
+        getRootPane().setDefaultButton(confirm);
+        return bottom;
     }
 
     private void confirm() {
         try {
-            if (courseRequirementMode) {
-                courseResult = courseRequirement();
-            } else if (initial == null) {
-                planResult = new TrainingPlan(text(planId, "方案编号"), text(majorName, "专业"),
-                        positive(enrollmentYear, "入学年份"), Collections.singletonList(courseRequirement()));
-            } else {
-                planResult = initial.withBasicInfo(text(majorName, "专业"),
-                        positive(enrollmentYear, "入学年份"));
-            }
+            if (courseRequirementMode) courseResult = courseRequirement();
+            else if (initial == null) planResult = new TrainingPlan(text(planId, "方案编号"),
+                    text(majorName, "专业"), ((Integer) enrollmentYear.getValue()).intValue(),
+                    Collections.<TrainingPlanCourse>emptyList());
+            else planResult = initial.withBasicInfo(text(majorName, "专业"),
+                    ((Integer) enrollmentYear.getValue()).intValue());
             dispose();
         } catch (IllegalArgumentException invalid) { error.setText(invalid.getMessage()); }
     }
 
     private TrainingPlanCourse courseRequirement() {
-        return new TrainingPlanCourse(text(courseId, "课程编号"), positive(recommendedTerm, "建议学期"),
+        Course selected = (Course) course.getSelectedItem();
+        if (selected == null) throw new IllegalArgumentException("请选择课程");
+        return new TrainingPlanCourse(selected.getCourseId(), ((Integer) recommendedTerm.getValue()).intValue(),
                 (SelectionType) selectionType.getSelectedItem(), crossMajorAllowed.isSelected());
     }
 
-    private String confirmText() {
-        if (courseRequirementMode) return "保存课程要求";
-        return initial == null ? "新建培养方案" : "保存方案信息";
-    }
-    private static String title(TrainingPlan initial, TrainingPlanCourse course,
-            boolean courseRequirementMode) {
-        if (courseRequirementMode) return course == null ? "新增课程要求" : "编辑课程要求";
+    private String confirmText() { return courseRequirementMode ? "保存课程要求" : initial == null ? "新建培养方案" : "保存方案信息"; }
+    private static String title(TrainingPlan initial, TrainingPlanCourse course, boolean courseMode) {
+        if (courseMode) return course == null ? "新增课程要求" : "编辑课程要求";
         return initial == null ? "新建培养方案" : "编辑培养方案";
+    }
+    private static void style(javax.swing.JComponent component) {
+        component.setMinimumSize(UiMetrics.dimension(300, 38));
+        component.setPreferredSize(UiMetrics.dimension(300, 38));
+        VCampusTheme.roundedField(component);
+    }
+    private static void addRow(JPanel form, String label, Component field) {
+        GridBagConstraints left = constraints(); left.gridx = 0; left.weightx = 0; left.fill = GridBagConstraints.NONE;
+        form.add(new JLabel(label), left);
+        GridBagConstraints right = constraints(); right.gridx = 1; right.weightx = 1; right.fill = GridBagConstraints.HORIZONTAL;
+        form.add(field, right);
+    }
+    private static void addHint(JPanel form, JLabel hint) {
+        GridBagConstraints constraints = constraints(); constraints.gridx = 0; constraints.gridwidth = 2;
+        constraints.fill = GridBagConstraints.HORIZONTAL; form.add(hint, constraints);
+    }
+    private static GridBagConstraints constraints() {
+        GridBagConstraints value = new GridBagConstraints(); value.gridy = GridBagConstraints.RELATIVE;
+        value.anchor = GridBagConstraints.WEST; value.insets = UiMetrics.insets(4, 0, 4, 10); return value;
     }
     private static String text(JTextField field, String name) {
         String value = field.getText() == null ? "" : field.getText().trim();
-        if (value.isEmpty()) throw new IllegalArgumentException(name + "不能为空"); return value;
+        if (value.isEmpty()) throw new IllegalArgumentException(name + "不能为空");
+        return value;
     }
-    private static int positive(JTextField field, String name) {
-        try { int value = Integer.parseInt(text(field, name)); if (value <= 0) throw new IllegalArgumentException(name + "必须大于 0"); return value; }
-        catch (NumberFormatException invalid) { throw new IllegalArgumentException(name + "必须是整数"); }
-    }
-    private static Window ownerWindow(Component owner) {
-        return owner == null ? null : SwingUtilities.getWindowAncestor(owner);
-    }
+    private static Window ownerWindow(Component owner) { return owner == null ? null : SwingUtilities.getWindowAncestor(owner); }
 }
