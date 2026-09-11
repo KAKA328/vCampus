@@ -69,7 +69,7 @@ class TeacherTeachingPanelTest {
     void presentsTeachingAndGradeWorkAsSeparateSteps() throws Exception {
         TeacherTeachingPanel panel = panel();
 
-        assertEquals("学生名单与成绩草稿", label(panel, "rosterTitle").getText());
+        assertEquals("学生名单", label(panel, "rosterTitle").getText());
         assertTrue(label(panel, "rosterHint").getText().contains("选择一个教学班"));
         assertTrue(button(panel, "viewRosterButton").getUI()
                 instanceof VCampusTheme.ReadableButtonUI);
@@ -83,6 +83,20 @@ class TeacherTeachingPanelTest {
 
         assertNotNull(button(panel, "openDraftButton").getParent(),
                 "教师必须能够从教学班详情页触发打开成绩草稿");
+    }
+
+    @Test
+    void providesDedicatedDraftPageAndReturnToRosterAction() throws Exception {
+        TeacherTeachingPanel panel = panel();
+        Field pagesField = TeacherTeachingPanel.class.getDeclaredField("pages");
+        pagesField.setAccessible(true);
+        javax.swing.JPanel pages = (javax.swing.JPanel) pagesField.get(panel);
+
+        assertEquals(3, pages.getComponentCount(), "教学班、名单和成绩草稿应为三个独立页面");
+        assertNotNull(button(panel, "backToRosterButton").getParent(),
+                "成绩草稿页必须提供返回学生名单的操作");
+        assertNotNull(button(panel, "saveGradeButton").getParent(),
+                "成绩登记操作必须保留在独立成绩草稿页");
     }
 
     private static TeacherTeachingPanel panel() {
