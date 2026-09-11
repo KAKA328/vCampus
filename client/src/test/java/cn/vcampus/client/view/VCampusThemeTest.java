@@ -3,6 +3,7 @@ package cn.vcampus.client.view;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
+import java.awt.event.InputEvent;
 import java.awt.event.MouseWheelEvent;
 import java.awt.image.BufferedImage;
 import javax.swing.JButton;
@@ -157,6 +158,60 @@ class VCampusThemeTest {
         assertTrue(VCampusTheme.forwardVerticalWheelAtBoundary(inner, event));
         assertTrue(event.isConsumed());
         assertTrue(outer.getVerticalScrollBar().getValue() > 0);
+    }
+
+    @Test
+    void wheelOverPageCardContinuesToOuterPage() {
+        JPanel page = new JPanel(null);
+        page.setPreferredSize(new Dimension(360, 900));
+        JPanel card = new JPanel();
+        card.setBounds(12, 12, 260, 110);
+        page.add(card);
+        JScrollPane outer = VCampusTheme.pageScroll(page);
+        outer.setSize(300, 180);
+        outer.doLayout();
+        outer.getVerticalScrollBar().setValue(0);
+        MouseWheelEvent event = new MouseWheelEvent(card, MouseWheelEvent.MOUSE_WHEEL,
+                System.currentTimeMillis(), 0, 20, 20, 0, false,
+                MouseWheelEvent.WHEEL_UNIT_SCROLL, 3, 1);
+
+        card.dispatchEvent(event);
+
+        assertTrue(event.isConsumed());
+        assertTrue(outer.getVerticalScrollBar().getValue() > 0,
+                "鼠标位于卡片空白区域时也应滚动外层页面");
+    }
+
+    @Test
+    void shiftWheelMovesWideInnerTableHorizontallyBeforeOuterPage() {
+        JPanel page = new JPanel(null);
+        page.setPreferredSize(new Dimension(640, 900));
+        JScrollPane outer = VCampusTheme.pageScroll(page);
+        outer.setSize(320, 200);
+
+        JTable table = new JTable(new DefaultTableModel(5, 2));
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        table.getColumnModel().getColumn(0).setPreferredWidth(450);
+        table.getColumnModel().getColumn(1).setPreferredWidth(450);
+        table.setPreferredScrollableViewportSize(new Dimension(900, 100));
+        JScrollPane inner = VCampusTheme.scrollPane(table);
+        inner.setBounds(0, 0, 280, 120);
+        page.add(inner);
+        outer.doLayout();
+        inner.doLayout();
+        outer.getVerticalScrollBar().setValue(0);
+        int initialHorizontal = inner.getHorizontalScrollBar().getValue();
+        MouseWheelEvent event = new MouseWheelEvent(table, MouseWheelEvent.MOUSE_WHEEL,
+                System.currentTimeMillis(), InputEvent.SHIFT_DOWN_MASK, 20, 20, 0, false,
+                MouseWheelEvent.WHEEL_UNIT_SCROLL, 3, 1);
+
+        table.dispatchEvent(event);
+
+        assertTrue(event.isConsumed());
+        assertTrue(inner.getHorizontalScrollBar().getValue() > initialHorizontal,
+                "宽表格应优先响应 Shift + 滚轮横向移动");
+        assertEquals(0, outer.getVerticalScrollBar().getValue(),
+                "内层宽表格可以横向移动时不应带动外层页面");
     }
 
     @Test
