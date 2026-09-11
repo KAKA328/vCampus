@@ -106,13 +106,20 @@ public final class DefaultUserManagementService implements UserManagementService
         return ServiceResult.ok(new UserImportResult(batchId, rows.size(), successCount, failures));
     }
 
-    @Override public ServiceResult<Void> setAccountActive(UserStatusCommand command) {
+    @Override public synchronized ServiceResult<Void> setAccountActive(UserStatusCommand command) {
         if (command == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "account status command is required");
         }
         ServiceResult<Session> current = requireUserManager(command.getToken());
         if (current.getStatus() != StatusCode.OK) {
             return ServiceResult.failure(current.getStatus(), current.getMessage());
+        }
+        UserAccount target = users.findById(command.getUserId());
+        if (target == null) {
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "user not found");
+        }
+        if (!command.isActive() && isLastActiveAdministrator(target)) {
+            return ServiceResult.failure(StatusCode.CONFLICT, "cannot disable the last active administrator");
         }
         if (!users.setActive(command.getUserId(), command.isActive())) {
             return ServiceResult.failure(StatusCode.NOT_FOUND, "user not found");
@@ -346,12 +353,17 @@ public final class DefaultUserManagementService implements UserManagementService
         }
     }
 
-    @Override public ServiceResult<Void> unregister(String userId, String token) {
+    @Override public synchronized ServiceResult<Void> unregister(String userId, String token) {
         Session session = sessions.find(token);
         if (session == null) return ServiceResult.failure(StatusCode.UNAUTHORIZED, "invalid session");
         boolean self = session.getUser().getUserId().equals(userId);
         boolean admin = permissionPolicy.isAllowed(session.getUser().getRole(), Permission.USER_MANAGE);
         if (!self && !admin) return ServiceResult.failure(StatusCode.UNAUTHORIZED, "invalid session");
+        UserAccount target = users.findById(userId);
+        if (target == null) return ServiceResult.failure(StatusCode.NOT_FOUND, "user not found");
+        if (isLastActiveAdministrator(target)) {
+            return ServiceResult.failure(StatusCode.CONFLICT, "cannot disable the last active administrator");
+        }
         if (!users.deactivateById(userId)) return ServiceResult.failure(StatusCode.NOT_FOUND, "user not found");
         sessions.invalidateUser(userId);
         auditLog.record(new AuditEvent(session.getUser().getUserId(), "UNREGISTER_USER", "USER", userId, Instant.now()));
@@ -422,6 +434,20 @@ public final class DefaultUserManagementService implements UserManagementService
             return "账号已绑定其他档案";
         }
         return "档案绑定失败";
+    }
+
+    private int activeAdminCount() {
+        int count = 0;
+        for (UserAccount account : users.findAll()) {
+            if (account.isActive() && account.getUser().getRole() == Role.ADMIN) count++;
+        }
+        return count;
+    }
+
+    private boolean isLastActiveAdministrator(UserAccount account) {
+        return account.isActive()
+                && account.getUser().getRole() == Role.ADMIN
+                && activeAdminCount() <= 1;
     }
 
     private void rollbackCreatedAccount(String userId, RuntimeException cause) {
