@@ -69,8 +69,7 @@ final class CourseScheduleEditorDialog extends JDialog {
 
     private void build() {
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        setResizable(false);
-        JPanel content = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
+        JPanel content = new ScrollablePagePanel(new BorderLayout(0, UiMetrics.px(12)));
         content.setBackground(VCampusTheme.PANEL);
         content.setBorder(VCampusTheme.padding(18, 20, 18, 20));
 
@@ -83,8 +82,8 @@ final class CourseScheduleEditorDialog extends JDialog {
         JPanel fields = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(8),
                 UiMetrics.px(4)));
         fields.setOpaque(false);
-        style(startWeek); style(endWeek); style(dayOfWeek); style(startPeriod); style(endPeriod);
-        style(location);
+        style(startWeek, 80); style(endWeek, 80); style(dayOfWeek, 110);
+        style(startPeriod, 80); style(endPeriod, 80); style(location, 220);
         fields.add(new JLabel("起始周")); fields.add(startWeek);
         fields.add(new JLabel("结束周")); fields.add(endWeek);
         fields.add(new JLabel("星期")); fields.add(dayOfWeek);
@@ -126,10 +125,7 @@ final class CourseScheduleEditorDialog extends JDialog {
         bottom.add(actions, BorderLayout.SOUTH);
         content.add(bottom, BorderLayout.SOUTH);
 
-        setContentPane(content);
-        pack();
-        setSize(UiMetrics.dimension(720, 430));
-        setLocationRelativeTo(getOwner());
+        CourseFormDialogSupport.showScrollableForm(this, content, 840, 560, 700, 440);
         getRootPane().setDefaultButton(confirm);
     }
 
@@ -186,8 +182,8 @@ final class CourseScheduleEditorDialog extends JDialog {
         return owner == null ? null : SwingUtilities.getWindowAncestor(owner);
     }
 
-    private static void style(javax.swing.JComponent component) {
-        VCampusTheme.roundedField(component);
+    private static void style(javax.swing.JComponent component, int minimumWidth) {
+        CourseFormDialogSupport.styleField(component, minimumWidth);
     }
 
     private static int positive(JTextField field, String name) {

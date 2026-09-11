@@ -110,7 +110,7 @@ final class TrainingPlanEditorDialog extends JDialog {
     }
 
     private void build() {
-        JPanel content = new JPanel(new BorderLayout(0, UiMetrics.px(14)));
+        JPanel content = new ScrollablePagePanel(new BorderLayout(0, UiMetrics.px(14)));
         content.setBackground(VCampusTheme.PANEL);
         content.setBorder(VCampusTheme.padding(18, 20, 18, 20));
         JPanel form = new JPanel(new GridBagLayout());
@@ -118,12 +118,8 @@ final class TrainingPlanEditorDialog extends JDialog {
         if (courseRequirementMode) addCourseFields(form); else addPlanFields(form);
         content.add(form, BorderLayout.CENTER);
         content.add(actionBar(), BorderLayout.SOUTH);
-        setContentPane(content);
-        pack();
-        setMinimumSize(UiMetrics.dimension(560, courseRequirementMode ? 350 : 300));
-        setSize(UiMetrics.dimension(560, courseRequirementMode ? 350 : 300));
-        setResizable(false);
-        setLocationRelativeTo(getOwner());
+        CourseFormDialogSupport.showScrollableForm(this, content, 700,
+                courseRequirementMode ? 500 : 460, 600, courseRequirementMode ? 420 : 380);
     }
 
     private void addPlanFields(JPanel form) {
@@ -138,6 +134,7 @@ final class TrainingPlanEditorDialog extends JDialog {
 
     private void addCourseFields(JPanel form) {
         style(course); style(recommendedTerm); style(selectionType);
+        selectionType.setRenderer(CourseFormDialogSupport.courseCategoryRenderer());
         crossMajorAllowed.setOpaque(false);
         addRow(form, "课程", course);
         addRow(form, "建议学期", recommendedTerm);
@@ -186,9 +183,7 @@ final class TrainingPlanEditorDialog extends JDialog {
         return initial == null ? "新建培养方案" : "编辑培养方案";
     }
     private static void style(javax.swing.JComponent component) {
-        component.setMinimumSize(UiMetrics.dimension(300, 38));
-        component.setPreferredSize(UiMetrics.dimension(300, 38));
-        VCampusTheme.roundedField(component);
+        CourseFormDialogSupport.styleField(component);
     }
     private static void addRow(JPanel form, String label, Component field) {
         GridBagConstraints left = constraints(); left.gridx = 0; left.weightx = 0; left.fill = GridBagConstraints.NONE;

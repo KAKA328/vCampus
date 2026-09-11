@@ -69,7 +69,7 @@ final class SelectionRoundEditorDialog extends JDialog {
     }
 
     private void build() {
-        JPanel content = new JPanel(new BorderLayout(0, UiMetrics.px(14)));
+        JPanel content = new ScrollablePagePanel(new BorderLayout(0, UiMetrics.px(14)));
         content.setBackground(VCampusTheme.PANEL);
         content.setBorder(VCampusTheme.padding(18, 20, 18, 20));
         JPanel form = new JPanel(new GridBagLayout());
@@ -77,6 +77,7 @@ final class SelectionRoundEditorDialog extends JDialog {
         style(roundId);
         style(term);
         style(type);
+        type.setRenderer(CourseFormDialogSupport.roundTypeRenderer());
         style(startsAt);
         style(endsAt);
         addRow(form, "轮次编号", roundId);
@@ -95,12 +96,7 @@ final class SelectionRoundEditorDialog extends JDialog {
         form.add(hint, hintConstraints);
         content.add(form, BorderLayout.CENTER);
         content.add(actionBar(), BorderLayout.SOUTH);
-        setContentPane(content);
-        pack();
-        setMinimumSize(UiMetrics.dimension(560, 370));
-        setSize(UiMetrics.dimension(560, 370));
-        setResizable(false);
-        setLocationRelativeTo(getOwner());
+        CourseFormDialogSupport.showScrollableForm(this, content, 700, 500, 600, 420);
     }
 
     private JPanel actionBar() {
@@ -146,9 +142,7 @@ final class SelectionRoundEditorDialog extends JDialog {
     }
 
     private static void style(javax.swing.JComponent component) {
-        component.setMinimumSize(UiMetrics.dimension(300, 38));
-        component.setPreferredSize(UiMetrics.dimension(300, 38));
-        VCampusTheme.roundedField(component);
+        CourseFormDialogSupport.styleField(component);
     }
 
     private static void addRow(JPanel form, String label, Component field) {

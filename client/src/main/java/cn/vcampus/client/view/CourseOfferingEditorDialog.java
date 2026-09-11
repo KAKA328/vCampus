@@ -85,13 +85,14 @@ final class CourseOfferingEditorDialog extends JDialog {
     }
 
     private void build() {
-        JPanel content = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
+        JPanel content = new ScrollablePagePanel(new BorderLayout(0, UiMetrics.px(12)));
         content.setBackground(VCampusTheme.PANEL);
         content.setBorder(VCampusTheme.padding(18, 20, 18, 20));
         JPanel form = new JPanel(new java.awt.GridLayout(0, 2, UiMetrics.px(10), UiMetrics.px(8)));
         form.setOpaque(false);
         style(offeringId); style(courseBox); style(teacherBox); style(location);
-        style(requiredCapacity); style(electiveCapacity); style(crossMajorCapacity); style(schedule);
+        style(requiredCapacity, 120); style(electiveCapacity, 120);
+        style(crossMajorCapacity, 120); style(schedule);
         schedule.setEditable(false);
         courseBox.setRenderer(courseRenderer());
         for (Course course : allCourses) courseBox.addItem(course);
@@ -114,11 +115,7 @@ final class CourseOfferingEditorDialog extends JDialog {
         form.add(new JLabel("结构化排课")); form.add(scheduleWithButton());
         content.add(form, BorderLayout.CENTER);
         content.add(actionBar(), BorderLayout.SOUTH);
-        setContentPane(content);
-        pack();
-        setSize(UiMetrics.dimension(650, 450));
-        setResizable(false);
-        setLocationRelativeTo(getOwner());
+        CourseFormDialogSupport.showScrollableForm(this, content, 820, 590, 680, 470);
     }
 
     private JPanel pair(JTextField first, JTextField second) {
@@ -237,7 +234,11 @@ final class CourseOfferingEditorDialog extends JDialog {
     }
 
     private static void style(javax.swing.JComponent component) {
-        VCampusTheme.roundedField(component);
+        CourseFormDialogSupport.styleField(component);
+    }
+
+    private static void style(javax.swing.JComponent component, int minimumWidth) {
+        CourseFormDialogSupport.styleField(component, minimumWidth);
     }
 
     private static String value(JTextField field) {

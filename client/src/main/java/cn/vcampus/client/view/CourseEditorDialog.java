@@ -47,22 +47,23 @@ final class CourseEditorDialog extends JDialog {
     }
 
     private void build(boolean creating) {
-        JPanel content = new JPanel(new BorderLayout(0, UiMetrics.px(14)));
+        JPanel content = new ScrollablePagePanel(new BorderLayout(0, UiMetrics.px(14)));
         content.setBackground(VCampusTheme.PANEL);
         content.setBorder(VCampusTheme.padding(18, 20, 18, 20));
         JPanel form = new JPanel(new java.awt.GridLayout(0, 2, UiMetrics.px(10), UiMetrics.px(10)));
         form.setOpaque(false);
-        VCampusTheme.field(courseId); VCampusTheme.field(courseName); VCampusTheme.field(credits);
-        VCampusTheme.field(status);
+        CourseFormDialogSupport.styleField(courseId);
+        CourseFormDialogSupport.styleField(courseName);
+        CourseFormDialogSupport.styleField(credits);
+        CourseFormDialogSupport.styleField(status);
+        status.setRenderer(CourseFormDialogSupport.courseStatusRenderer());
         form.add(new JLabel("课程编号")); form.add(courseId);
         form.add(new JLabel("课程名称")); form.add(courseName);
         form.add(new JLabel("学分")); form.add(credits);
         form.add(new JLabel("课程状态")); form.add(status);
         content.add(form, BorderLayout.CENTER);
         content.add(actionBar(creating), BorderLayout.SOUTH);
-        setContentPane(content);
-        pack(); setSize(UiMetrics.dimension(410, 300));
-        setResizable(false); setLocationRelativeTo(getOwner());
+        CourseFormDialogSupport.showScrollableForm(this, content, 680, 460, 560, 380);
     }
 
     private JPanel actionBar(boolean creating) {
