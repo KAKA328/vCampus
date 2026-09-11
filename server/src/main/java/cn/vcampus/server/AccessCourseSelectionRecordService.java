@@ -18,7 +18,9 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 /** 使用 Access 保存学生选课记录的服务实现。 */
@@ -117,6 +119,50 @@ public final class AccessCourseSelectionRecordService implements CourseSelection
     @Override
     public ServiceResult<List<CourseSelectionRecord>> listActiveByOffering(String offeringId) {
         return listByOfferingAndStatus(offeringId, SelectionRecordStatus.ACTIVE);
+    }
+
+    @Override
+    public ServiceResult<List<CourseSelectionRecord>> listActiveByOfferingIds(
+            Collection<String> offeringIds) {
+        if (offeringIds == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "offeringIds must not be null");
+        }
+        java.util.Set<String> normalizedIds = new LinkedHashSet<String>();
+        for (String offeringId : offeringIds) {
+            String normalizedOfferingId = normalize(offeringId);
+            if (normalizedOfferingId == null) {
+                return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                        "offeringIds must not contain blank values");
+            }
+            normalizedIds.add(normalizedOfferingId);
+        }
+        if (normalizedIds.isEmpty()) {
+            return ServiceResult.ok(Collections.<CourseSelectionRecord>emptyList());
+        }
+        StringBuilder sql = new StringBuilder(selectRecords())
+                .append(" WHERE status=? AND offering_id IN (");
+        for (int index = 0; index < normalizedIds.size(); index++) {
+            if (index > 0) sql.append(',');
+            sql.append('?');
+        }
+        sql.append(") ORDER BY offering_id,selected_at,selection_id");
+        try (Connection connection = open();
+                PreparedStatement statement = connection.prepareStatement(sql.toString())) {
+            statement.setString(1, SelectionRecordStatus.ACTIVE.name());
+            int parameterIndex = 2;
+            for (String offeringId : normalizedIds) {
+                statement.setString(parameterIndex++, offeringId);
+            }
+            try (ResultSet results = statement.executeQuery()) {
+                List<CourseSelectionRecord> records = new ArrayList<CourseSelectionRecord>();
+                while (results.next()) {
+                    records.add(readRecord(results));
+                }
+                return ServiceResult.ok(Collections.unmodifiableList(records));
+            }
+        } catch (SQLException failure) {
+            return databaseFailure(failure);
+        }
     }
 
     @Override

@@ -25,7 +25,9 @@ import java.sql.SQLException;
 import java.time.DayOfWeek;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /** 使用 Access 保存教学班的服务实现。 */
 public final class AccessCourseOfferingService implements CourseOfferingService {
@@ -530,9 +532,19 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
         try (ResultSet results = statement.executeQuery()) {
             List<CourseOffering> offerings = new ArrayList<CourseOffering>();
             while (results.next()) {
-                offerings.add(readOffering(results, connection));
+                offerings.add(readOfferingFields(results));
             }
-            return ServiceResult.ok(Collections.unmodifiableList(offerings));
+            if (offerings.isEmpty()) {
+                return ServiceResult.ok(Collections.<CourseOffering>emptyList());
+            }
+            Map<String, CourseSchedule> schedules = readMeetingSchedules(connection, offerings);
+            List<CourseOffering> hydrated = new ArrayList<CourseOffering>();
+            for (CourseOffering offering : offerings) {
+                CourseSchedule schedule = schedules.get(offering.getOfferingId());
+                hydrated.add(offering.withMeetingSchedule(schedule == null
+                        ? CourseSchedule.empty() : schedule));
+            }
+            return ServiceResult.ok(Collections.unmodifiableList(hydrated));
         }
     }
 
@@ -552,14 +564,17 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
 
     private static CourseOffering readOffering(ResultSet results, Connection connection)
             throws SQLException {
-        String offeringId = results.getString("offering_id");
-        CourseOffering offering = new CourseOffering(offeringId, results.getString("course_id"),
+        CourseOffering offering = readOfferingFields(results);
+        return offering.withMeetingSchedule(readMeetingSchedule(connection, offering.getOfferingId()));
+    }
+
+    private static CourseOffering readOfferingFields(ResultSet results) throws SQLException {
+        return new CourseOffering(results.getString("offering_id"), results.getString("course_id"),
                 results.getString("term"), results.getString("teacher_id"),
                 results.getString("schedule"), results.getString("location"),
                 results.getInt("required_capacity"), results.getInt("elective_capacity"),
                 results.getInt("cross_major_capacity"),
                 CourseOfferingStatus.valueOf(results.getString("status")));
-        return offering.withMeetingSchedule(readMeetingSchedule(connection, offeringId));
     }
 
     /** 将一门教学班的全部结构化上课时间写入同一事务。 */
@@ -677,6 +692,46 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
             }
         }
         return meetings.isEmpty() ? CourseSchedule.empty() : new CourseSchedule(meetings);
+    }
+
+    /**
+     * 同一教学班列表的结构化排课一次性读取，避免列表中每一行都单独执行 SQL。
+     */
+    private static Map<String, CourseSchedule> readMeetingSchedules(Connection connection,
+            List<CourseOffering> offerings) throws SQLException {
+        StringBuilder sql = new StringBuilder("SELECT offering_id,day_of_week,start_period,end_period,")
+                .append("start_week,end_week,location FROM tblCourseMeeting WHERE offering_id IN (");
+        for (int index = 0; index < offerings.size(); index++) {
+            if (index > 0) sql.append(',');
+            sql.append('?');
+        }
+        sql.append(") ORDER BY offering_id,day_of_week,start_period");
+        Map<String, List<CourseMeeting>> meetingsByOffering =
+                new LinkedHashMap<String, List<CourseMeeting>>();
+        try (PreparedStatement statement = connection.prepareStatement(sql.toString())) {
+            for (int index = 0; index < offerings.size(); index++) {
+                statement.setString(index + 1, offerings.get(index).getOfferingId());
+            }
+            try (ResultSet results = statement.executeQuery()) {
+                while (results.next()) {
+                    String offeringId = results.getString("offering_id");
+                    List<CourseMeeting> meetings = meetingsByOffering.get(offeringId);
+                    if (meetings == null) {
+                        meetings = new ArrayList<CourseMeeting>();
+                        meetingsByOffering.put(offeringId, meetings);
+                    }
+                    meetings.add(new CourseMeeting(DayOfWeek.of(results.getInt("day_of_week")),
+                            results.getInt("start_period"), results.getInt("end_period"),
+                            results.getInt("start_week"), results.getInt("end_week"),
+                            results.getString("location")));
+                }
+            }
+        }
+        Map<String, CourseSchedule> schedules = new LinkedHashMap<String, CourseSchedule>();
+        for (Map.Entry<String, List<CourseMeeting>> entry : meetingsByOffering.entrySet()) {
+            schedules.put(entry.getKey(), new CourseSchedule(entry.getValue()));
+        }
+        return schedules;
     }
 
     private static void rollback(Connection connection) {

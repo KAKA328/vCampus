@@ -132,6 +132,19 @@ class AccessCourseSelectionRecordServiceTest {
                                 new CourseMeeting(DayOfWeek.MONDAY, 1, 2, "教学楼A201"))));
     }
 
+    @Test
+    void listsActiveRecordsForManyOfferingsInOneRead() {
+        assertEquals(StatusCode.OK,
+                service.create(record("RECORD-001", "S001", SelectionType.REQUIRED)).getStatus());
+
+        ServiceResult<List<CourseSelectionRecord>> records = service.listActiveByOfferingIds(
+                Arrays.asList("OFFER-001", "UNKNOWN", "OFFER-001"));
+
+        assertEquals(StatusCode.OK, records.getStatus());
+        assertEquals(1, records.getData().size());
+        assertEquals("OFFER-001", records.getData().get(0).getOfferingId());
+    }
+
     private static CourseSelectionRecord record(String recordId, String studentId,
             SelectionType selectionType) {
         return new CourseSelectionRecord(recordId, studentId, "OFFER-001", "ROUND-001",

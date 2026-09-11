@@ -4,7 +4,9 @@ import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -89,6 +91,33 @@ public final class InMemoryCourseSelectionRecordService implements CourseSelecti
     public synchronized ServiceResult<List<CourseSelectionRecord>> listActiveByOffering(
             String offeringId) {
         return listByOfferingAndStatus(offeringId, SelectionRecordStatus.ACTIVE);
+    }
+
+    @Override
+    public synchronized ServiceResult<List<CourseSelectionRecord>> listActiveByOfferingIds(
+            Collection<String> offeringIds) {
+        if (offeringIds == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "offeringIds must not be null");
+        }
+        java.util.Set<String> normalizedIds = new LinkedHashSet<String>();
+        for (String offeringId : offeringIds) {
+            String normalizedOfferingId = normalize(offeringId);
+            if (normalizedOfferingId == null) {
+                return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                        "offeringIds must not contain blank values");
+            }
+            normalizedIds.add(normalizedOfferingId);
+        }
+        if (normalizedIds.isEmpty()) {
+            return ServiceResult.ok(Collections.<CourseSelectionRecord>emptyList());
+        }
+        List<CourseSelectionRecord> records = new ArrayList<CourseSelectionRecord>();
+        for (CourseSelectionRecord record : recordsById.values()) {
+            if (record.isActive() && normalizedIds.contains(record.getOfferingId())) {
+                records.add(record);
+            }
+        }
+        return ServiceResult.ok(Collections.unmodifiableList(records));
     }
 
     @Override

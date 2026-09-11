@@ -78,28 +78,56 @@ public final class DefaultCourseSelectionService implements CourseSelectionServi
         if (eligibleResult.getStatus() != StatusCode.OK) {
             return ServiceResult.failure(eligibleResult.getStatus(), eligibleResult.getMessage());
         }
+        ServiceResult<List<Course>> courseResult = courses.listAll();
+        if (courseResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(courseResult.getStatus(), courseResult.getMessage());
+        }
+        Map<String, Course> coursesById = new LinkedHashMap<String, Course>();
+        for (Course course : courseResult.getData()) {
+            coursesById.put(course.getCourseId(), course);
+        }
+        ServiceResult<List<CourseOffering>> offeringResult = offerings.listByTerm(
+                student.getCurrentTerm());
+        if (offeringResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(offeringResult.getStatus(), offeringResult.getMessage());
+        }
+        Map<String, List<CourseOffering>> openOfferingsByCourse =
+                new LinkedHashMap<String, List<CourseOffering>>();
+        List<CourseOffering> openEligibleOfferings = new ArrayList<CourseOffering>();
+        for (CourseOffering offering : offeringResult.getData()) {
+            if (offering.getStatus() != CourseOfferingStatus.OPEN
+                    || !eligibleResult.getData().containsKey(offering.getCourseId())) {
+                continue;
+            }
+            List<CourseOffering> courseOfferings = openOfferingsByCourse.get(
+                    offering.getCourseId());
+            if (courseOfferings == null) {
+                courseOfferings = new ArrayList<CourseOffering>();
+                openOfferingsByCourse.put(offering.getCourseId(), courseOfferings);
+            }
+            courseOfferings.add(offering);
+            openEligibleOfferings.add(offering);
+        }
+        ServiceResult<Map<String, CourseOfferingCapacitySnapshot>> capacityResult = capacities
+                .snapshotForOfferings(openEligibleOfferings);
+        if (capacityResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(capacityResult.getStatus(), capacityResult.getMessage());
+        }
         List<SelectableCourseOffering> result = new ArrayList<SelectableCourseOffering>();
         for (Map.Entry<String, SelectionType> eligibleCourse : eligibleResult.getData().entrySet()) {
-            ServiceResult<Course> courseResult = courses.findById(eligibleCourse.getKey());
-            if (courseResult.getStatus() != StatusCode.OK) {
-                continue;
-            }
-            ServiceResult<List<CourseOffering>> offeringResult = offerings.listOpenByCourse(
-                    eligibleCourse.getKey(), student.getCurrentTerm());
-            if (offeringResult.getStatus() != StatusCode.OK) {
-                continue;
-            }
-            for (CourseOffering offering : offeringResult.getData()) {
-                ServiceResult<CourseOfferingCapacitySnapshot> capacityResult = capacities.snapshotFor(
+            Course course = coursesById.get(eligibleCourse.getKey());
+            List<CourseOffering> courseOfferings = openOfferingsByCourse.get(
+                    eligibleCourse.getKey());
+            if (course == null || courseOfferings == null) continue;
+            for (CourseOffering offering : courseOfferings) {
+                CourseOfferingCapacitySnapshot snapshot = capacityResult.getData().get(
                         offering.getOfferingId());
-                if (capacityResult.getStatus() != StatusCode.OK) {
-                    continue;
-                }
-                CapacityBucketUsage usage = capacityResult.getData().getUsage(
+                if (snapshot == null) continue;
+                CapacityBucketUsage usage = snapshot.getUsage(
                         eligibleCourse.getValue().getCapacityBucket());
                 if (!usage.isFull()) {
-                    result.add(new SelectableCourseOffering(courseResult.getData(), offering,
-                            eligibleCourse.getValue(), capacityResult.getData()));
+                    result.add(new SelectableCourseOffering(course, offering,
+                            eligibleCourse.getValue(), snapshot));
                 }
             }
         }

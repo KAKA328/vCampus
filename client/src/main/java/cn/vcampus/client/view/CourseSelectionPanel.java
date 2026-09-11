@@ -364,7 +364,9 @@ public final class CourseSelectionPanel extends JPanel {
         setSubtitle("正在查看课程“" + selectedCourse.firstOffering.getCourse().getName()
                 + "”的全部教学班。 ");
         pageLayout.show(pages, OFFERING_PAGE);
-        refreshOfferingDetail();
+        // 课程列表已携带当前轮次全部教学班和容量快照，点击课程时直接渲染，
+        // 避免为同一份数据再次发起网络请求而造成明显等待。
+        renderOfferingCards();
     }
 
     private void refreshOfferingDetail() {
