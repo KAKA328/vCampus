@@ -100,7 +100,7 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
                 writeMeetingSchedule(connection, offering);
                 initializeCapacityUsage(connection, offering);
                 connection.commit();
-                return ServiceResult.ok(offering);
+                return ServiceResult.ok(withTeacherName(offering));
             } catch (SQLException failure) {
                 rollback(connection);
                 return databaseFailure(failure);
@@ -123,7 +123,7 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, normalizedOfferingId);
             try (ResultSet results = statement.executeQuery()) {
-                return results.next() ? ServiceResult.ok(readOffering(results, connection))
+                return results.next() ? ServiceResult.ok(withTeacherName(readOffering(results, connection)))
                         : ServiceResult.<CourseOffering>failure(StatusCode.NOT_FOUND,
                                 "course offering not found");
             }
@@ -195,7 +195,7 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, changed.getStatus().name());
             statement.setString(2, changed.getOfferingId());
-            return statement.executeUpdate() == 1 ? ServiceResult.ok(changed)
+            return statement.executeUpdate() == 1 ? ServiceResult.ok(withTeacherName(changed))
                     : ServiceResult.<CourseOffering>failure(StatusCode.NOT_FOUND,
                             "course offering not found");
         } catch (SQLException failure) {
@@ -235,7 +235,7 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
             statement.setInt(2, changed.getElectiveCapacity());
             statement.setInt(3, changed.getCrossMajorCapacity());
             statement.setString(4, changed.getOfferingId());
-            return statement.executeUpdate() == 1 ? ServiceResult.ok(changed)
+            return statement.executeUpdate() == 1 ? ServiceResult.ok(withTeacherName(changed))
                     : ServiceResult.<CourseOffering>failure(StatusCode.NOT_FOUND,
                             "course offering not found");
         } catch (SQLException failure) {
@@ -269,7 +269,7 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
             statement.setString(1, changed.getTeacherId());
             statement.setString(2, changed.getLocation());
             statement.setString(3, changed.getOfferingId());
-            return statement.executeUpdate() == 1 ? ServiceResult.ok(changed)
+            return statement.executeUpdate() == 1 ? ServiceResult.ok(withTeacherName(changed))
                     : ServiceResult.<CourseOffering>failure(StatusCode.NOT_FOUND,
                             "course offering not found");
         } catch (SQLException failure) {
@@ -307,7 +307,7 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
                 }
                 replaceMeetingSchedule(connection, changed);
                 connection.commit();
-                return ServiceResult.ok(changed);
+                return ServiceResult.ok(withTeacherName(changed));
             } catch (SQLException failure) {
                 rollback(connection);
                 return databaseFailure(failure);
@@ -395,7 +395,7 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
                 updateOfferingReferences(connection, normalizedOriginalId, changed);
                 replaceMeetingSchedule(connection, changed);
                 connection.commit();
-                return ServiceResult.ok(changed);
+                return ServiceResult.ok(withTeacherName(changed));
             } catch (SQLException failure) {
                 rollback(connection);
                 return databaseFailure(failure);
@@ -526,7 +526,7 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
                 + "elective_capacity,cross_major_capacity,status FROM tblCourseOffering";
     }
 
-    private static ServiceResult<List<CourseOffering>> readOfferings(PreparedStatement statement,
+    private ServiceResult<List<CourseOffering>> readOfferings(PreparedStatement statement,
             Connection connection)
             throws SQLException {
         try (ResultSet results = statement.executeQuery()) {
@@ -544,8 +544,31 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
                 hydrated.add(offering.withMeetingSchedule(schedule == null
                         ? CourseSchedule.empty() : schedule));
             }
-            return ServiceResult.ok(Collections.unmodifiableList(hydrated));
+            return ServiceResult.ok(Collections.unmodifiableList(withTeacherNames(hydrated)));
         }
+    }
+
+    /** 一次读取教师目录，为同一列表中的教学班补齐面向界面的教师姓名。 */
+    private List<CourseOffering> withTeacherNames(List<CourseOffering> offerings) {
+        ServiceResult<List<TeacherProfile>> result = teacherProfiles.findAll();
+        if (result.getStatus() != StatusCode.OK) return offerings;
+        Map<String, String> names = new LinkedHashMap<String, String>();
+        for (TeacherProfile teacher : result.getData()) {
+            names.put(teacher.getTeacherId(), teacher.getTeacherName());
+        }
+        List<CourseOffering> decorated = new ArrayList<CourseOffering>();
+        for (CourseOffering offering : offerings) {
+            String name = names.get(offering.getTeacherId());
+            decorated.add(name == null ? offering : offering.withTeacherName(name));
+        }
+        return decorated;
+    }
+
+    /** 单条教学班读取时补齐教师姓名；找不到档案时仍保留教师编号作为安全回退。 */
+    private CourseOffering withTeacherName(CourseOffering offering) {
+        ServiceResult<TeacherProfile> result = teacherProfiles.findById(offering.getTeacherId());
+        return result.getStatus() == StatusCode.OK
+                ? offering.withTeacherName(result.getData().getTeacherName()) : offering;
     }
 
     private static void writeOffering(PreparedStatement statement, CourseOffering offering)

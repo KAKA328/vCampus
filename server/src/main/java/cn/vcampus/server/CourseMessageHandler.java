@@ -466,10 +466,10 @@ final class CourseMessageHandler {
         if (reviewer.getStatus() != StatusCode.OK) return reviewer;
         if (gradeSubmissions == null) return gradeReviewServiceUnavailable();
         if (command.getOperation() == CourseGradeReviewV2Command.Operation.LIST_PENDING) {
-            return gradeSubmissions.listByStatus(GradeSubmissionStatus.PENDING_REVIEW);
+            return withTeacherNames(gradeSubmissions.listByStatus(GradeSubmissionStatus.PENDING_REVIEW));
         }
         if (command.getOperation() == CourseGradeReviewV2Command.Operation.LIST_HISTORY) {
-            return gradeSubmissions.listReviewHistory();
+            return withTeacherNames(gradeSubmissions.listReviewHistory());
         }
         if (command.getOperation() == CourseGradeReviewV2Command.Operation.VIEW_AUDIT) {
             return gradeSubmissions.listAudit(command.getSubmissionId());
@@ -481,9 +481,9 @@ final class CourseMessageHandler {
         }
         if (command.getOperation() == CourseGradeReviewV2Command.Operation.RETURN) {
             if (gradeApprovals == null) return gradeReviewServiceUnavailable();
-            return gradeApprovals.returnForRevision(command.getSubmissionId(),
+            return withTeacherName(gradeApprovals.returnForRevision(command.getSubmissionId(),
                     detail.getData().getReviewVersionNo().intValue(),
-                    reviewer.getData().getUser().getUserId(), command.getRemark());
+                    reviewer.getData().getUser().getUserId(), command.getRemark()));
         }
         if (detail.getData().getSubmission().getStatus()
                 != GradeSubmissionStatus.PENDING_REVIEW) {
@@ -496,9 +496,9 @@ final class CourseMessageHandler {
         if (complete.getStatus() != StatusCode.OK) return complete;
         ServiceResult<List<FormalCourseResult>> recordsToPublish = formalResults(detail.getData());
         if (recordsToPublish.getStatus() != StatusCode.OK) return recordsToPublish;
-        return gradeApprovals.approve(command.getSubmissionId(),
+        return withTeacherName(gradeApprovals.approve(command.getSubmissionId(),
                 detail.getData().getReviewVersionNo().intValue(), recordsToPublish.getData(),
-                reviewer.getData().getUser().getUserId(), command.getRemark());
+                reviewer.getData().getUser().getUserId(), command.getRemark()));
     }
 
     private ServiceResult<TeachingGradeDraft> reviewDetail(String submissionId) {
@@ -515,8 +515,30 @@ final class CourseMessageHandler {
         if (snapshot.getStatus() != StatusCode.OK) {
             return ServiceResult.failure(snapshot.getStatus(), snapshot.getMessage());
         }
-        return ServiceResult.ok(new TeachingGradeDraft(roster.getData(), submission.getData(),
+        return ServiceResult.ok(new TeachingGradeDraft(roster.getData(), withTeacherName(
+                submission.getData()),
                 snapshot.getData()));
+    }
+
+    /** 将成绩审核页面返回的教师工号补齐为教师档案姓名，查不到时保留工号。 */
+    private ServiceResult<List<GradeSubmission>> withTeacherNames(
+            ServiceResult<List<GradeSubmission>> result) {
+        if (result.getStatus() != StatusCode.OK || teachers == null) return result;
+        List<GradeSubmission> decorated = new ArrayList<GradeSubmission>();
+        for (GradeSubmission submission : result.getData()) decorated.add(withTeacherName(submission));
+        return ServiceResult.ok(decorated);
+    }
+
+    private ServiceResult<GradeSubmission> withTeacherName(ServiceResult<GradeSubmission> result) {
+        return result.getStatus() == StatusCode.OK
+                ? ServiceResult.ok(withTeacherName(result.getData())) : result;
+    }
+
+    private GradeSubmission withTeacherName(GradeSubmission submission) {
+        if (teachers == null || submission == null) return submission;
+        ServiceResult<TeacherProfile> teacher = teachers.findById(submission.getTeacherId());
+        return teacher.getStatus() == StatusCode.OK
+                ? submission.withTeacherName(teacher.getData().getTeacherName()) : submission;
     }
 
     /** 教务审核允许查看任意教学班，但仍只读取有效选课名单。 */

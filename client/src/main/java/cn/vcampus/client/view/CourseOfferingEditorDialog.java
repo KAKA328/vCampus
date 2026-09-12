@@ -12,7 +12,6 @@ import java.awt.FlowLayout;
 import java.awt.Window;
 import java.util.ArrayList;
 import java.util.List;
-import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
@@ -20,6 +19,8 @@ import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
+import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 
@@ -31,7 +32,9 @@ final class CourseOfferingEditorDialog extends JDialog {
     private final List<TeacherProfile> allTeachers;
     private final JTextField offeringId = new JTextField(14);
     private final JComboBox<Course> courseBox = new JComboBox<Course>();
-    private final JComboBox<TeacherProfile> teacherBox = new JComboBox<TeacherProfile>();
+    private final JTextField teacherField = new JTextField(14);
+    private final JList<TeacherProfile> teacherCandidates = new JList<TeacherProfile>();
+    private final JPopupMenu teacherPopup = new JPopupMenu();
     private final JTextField location = new JTextField(10);
     private final JTextField requiredCapacity = new JTextField(4);
     private final JTextField electiveCapacity = new JTextField(4);
@@ -40,7 +43,9 @@ final class CourseOfferingEditorDialog extends JDialog {
     private final JLabel error = new JLabel(" ");
     private CourseSchedule meetingSchedule = CourseSchedule.empty();
     private CourseOffering result;
-    private boolean filtering;
+    /** 已明确选择的教师，与当前筛选文本分离。 */
+    private TeacherProfile selectedTeacher;
+    private boolean updatingTeacherField;
 
     private CourseOfferingEditorDialog(Component owner, String term, CourseOffering initial,
             List<Course> courses, List<TeacherProfile> teachers) {
@@ -90,25 +95,19 @@ final class CourseOfferingEditorDialog extends JDialog {
         content.setBorder(VCampusTheme.padding(18, 20, 18, 20));
         JPanel form = new JPanel(new java.awt.GridLayout(0, 2, UiMetrics.px(10), UiMetrics.px(8)));
         form.setOpaque(false);
-        style(offeringId); style(courseBox); style(teacherBox); style(location);
+        style(offeringId); style(courseBox); style(teacherField); style(location);
         style(requiredCapacity, 120); style(electiveCapacity, 120);
         style(crossMajorCapacity, 120); style(schedule);
         schedule.setEditable(false);
         courseBox.setRenderer(courseRenderer());
         for (Course course : allCourses) courseBox.addItem(course);
         if (initial != null) selectCourse(initial.getCourseId());
-        teacherBox.setRenderer(teacherRenderer());
-        teacherBox.setEditable(true);
-        ((JTextField) teacherBox.getEditor().getEditorComponent()).getDocument()
-                .addDocumentListener(new SimpleDocumentListener(() -> {
-                    if (!filtering) filterTeachers(teacherKeyword());
-                }));
-        filterTeachers("");
+        configureTeacherPicker();
         if (initial != null) selectTeacher(initial.getTeacherId());
         form.add(new JLabel("教学班编号")); form.add(offeringId);
         form.add(new JLabel("课程编号 / 名称")); form.add(courseBox);
         form.add(new JLabel("学期")); form.add(new JLabel(term));
-        form.add(new JLabel("任课教师")); form.add(teacherBox);
+        form.add(new JLabel("任课教师")); form.add(teacherPicker());
         form.add(new JLabel("主上课地点")); form.add(location);
         form.add(new JLabel("必修 / 选修容量")); form.add(pair(requiredCapacity, electiveCapacity));
         form.add(new JLabel("跨专业容量")); form.add(crossMajorCapacity);
@@ -167,29 +166,68 @@ final class CourseOfferingEditorDialog extends JDialog {
         if (value(location).isEmpty()) location.setText(changed.getMeetings().get(0).getLocation());
     }
 
-    /** 在同一个可输入下拉框中按姓名、工号、院系过滤教师。 */
-    private void filterTeachers(String keyword) {
+    /** 在同一教师选择控件中按姓名、工号、院系过滤候选项。 */
+    private void filterTeachers(String keyword, boolean showPopup) {
         String normalized = keyword == null ? "" : keyword.trim().toLowerCase();
-        TeacherProfile selected = teacherBox.getSelectedItem() instanceof TeacherProfile
-                ? (TeacherProfile) teacherBox.getSelectedItem() : null;
-        DefaultComboBoxModel<TeacherProfile> model = new DefaultComboBoxModel<TeacherProfile>();
+        javax.swing.DefaultListModel<TeacherProfile> model =
+                new javax.swing.DefaultListModel<TeacherProfile>();
         for (TeacherProfile teacher : allTeachers) {
             if (teacherText(teacher).toLowerCase().contains(normalized)) model.addElement(teacher);
         }
-        filtering = true;
-        teacherBox.setModel(model);
-        if (selected != null && teacherText(selected).toLowerCase().contains(normalized)) {
-            teacherBox.setSelectedItem(selected);
-        } else {
-            teacherBox.setSelectedItem(null);
-            teacherBox.getEditor().setItem(keyword);
+        teacherCandidates.setModel(model);
+        if (showPopup && !model.isEmpty() && teacherField.isShowing()) {
+            teacherPopup.show(teacherField, 0, teacherField.getHeight());
+            restoreTeacherFieldFocus();
+        } else if (model.isEmpty()) {
+            teacherPopup.setVisible(false);
         }
-        filtering = false;
     }
 
-    private String teacherKeyword() {
-        Object value = teacherBox.getEditor().getItem();
-        return value == null ? "" : String.valueOf(value);
+    /** 候选弹层出现后仍保持文本输入焦点和光标位置，支持连续输入与删除。 */
+    private void restoreTeacherFieldFocus() {
+        SwingUtilities.invokeLater(() -> {
+            if (!teacherField.isShowing()) return;
+            // DocumentListener 触发时插入或删除尚未完全更新光标位置，延后读取可保留最新位置。
+            int caretPosition = teacherField.getCaretPosition();
+            teacherField.requestFocusInWindow();
+            teacherField.setCaretPosition(Math.min(caretPosition, teacherField.getText().length()));
+        });
+    }
+
+    private void configureTeacherPicker() {
+        teacherCandidates.setCellRenderer(teacherRenderer());
+        teacherCandidates.setVisibleRowCount(5);
+        teacherCandidates.setFocusable(false);
+        teacherCandidates.addListSelectionListener(event -> {
+            if (event.getValueIsAdjusting()) return;
+            TeacherProfile teacher = teacherCandidates.getSelectedValue();
+            if (teacher != null) setSelectedTeacher(teacher);
+        });
+        JScrollPane candidateScroller = VCampusTheme.scrollPane(teacherCandidates);
+        candidateScroller.setPreferredSize(UiMetrics.dimension(360, 176));
+        teacherPopup.setBorder(javax.swing.BorderFactory.createLineBorder(VCampusTheme.BORDER));
+        teacherPopup.setFocusable(false);
+        teacherPopup.add(candidateScroller);
+        teacherField.getDocument().addDocumentListener(new SimpleDocumentListener(() -> {
+            if (updatingTeacherField) return;
+            selectedTeacher = null;
+            filterTeachers(value(teacherField), true);
+        }));
+        filterTeachers("", false);
+    }
+
+    /** 文本输入和候选弹层组合为一个可输入筛选的教师选择控件。 */
+    private JPanel teacherPicker() {
+        JPanel picker = new JPanel(new BorderLayout(UiMetrics.px(6), 0));
+        picker.setOpaque(false);
+        JButton showCandidates = new JButton("⌄");
+        showCandidates.setToolTipText("展开在职教师列表");
+        VCampusTheme.secondaryButton(showCandidates);
+        showCandidates.setPreferredSize(UiMetrics.dimension(42, 38));
+        showCandidates.addActionListener(e -> filterTeachers(value(teacherField), true));
+        picker.add(teacherField, BorderLayout.CENTER);
+        picker.add(showCandidates, BorderLayout.EAST);
+        return picker;
     }
 
     private void selectCourse(String courseId) {
@@ -203,20 +241,27 @@ final class CourseOfferingEditorDialog extends JDialog {
     }
 
     private void selectTeacher(String teacherId) {
-        for (int index = 0; index < teacherBox.getItemCount(); index++) {
-            TeacherProfile teacher = teacherBox.getItemAt(index);
+        for (TeacherProfile teacher : allTeachers) {
             if (teacher.getTeacherId().equals(teacherId)) {
-                teacherBox.setSelectedIndex(index);
+                setSelectedTeacher(teacher);
                 return;
             }
         }
     }
 
+    /** 选择候选后仅在文本框写入名称，提交仍使用独立保存的教师资料。 */
+    private void setSelectedTeacher(TeacherProfile teacher) {
+        selectedTeacher = teacher;
+        updatingTeacherField = true;
+        teacherField.setText(teacherText(teacher));
+        updatingTeacherField = false;
+        teacherPopup.setVisible(false);
+    }
+
     private void confirm() {
         try {
             Course course = (Course) courseBox.getSelectedItem();
-            TeacherProfile teacher = teacherBox.getSelectedItem() instanceof TeacherProfile
-                    ? (TeacherProfile) teacherBox.getSelectedItem() : null;
+            TeacherProfile teacher = selectedTeacher;
             if (course == null) throw new IllegalArgumentException("请选择一门课程");
             if (teacher == null) throw new IllegalArgumentException("请选择一位在职教师");
             if (meetingSchedule.isEmpty()) throw new IllegalArgumentException("请至少添加一条结构化上课时段");
@@ -267,8 +312,8 @@ final class CourseOfferingEditorDialog extends JDialog {
 
     private static String teacherText(TeacherProfile teacher) {
         if (teacher == null) return "";
-        return teacher.getTeacherName() + "（" + teacher.getTeacherId() + "）"
-                + (teacher.getDepartmentName() == null ? "" : " - " + teacher.getDepartmentName());
+        return teacher.getTeacherName()
+                + (teacher.getDepartmentName() == null ? "" : " · " + teacher.getDepartmentName());
     }
 
     private static DefaultListCellRenderer courseRenderer() {

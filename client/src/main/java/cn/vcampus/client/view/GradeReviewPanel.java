@@ -165,7 +165,7 @@ final class GradeReviewPanel extends JPanel {
             pendingSubmissions.clear(); List<Object[]> rows = new ArrayList<Object[]>();
             for (Object item : (List<?>) response.getPayload()) if (item instanceof GradeSubmission) {
                 GradeSubmission submission = (GradeSubmission) item; pendingSubmissions.add(submission);
-                rows.add(new Object[] { submission.getSubmissionId(), submission.getOfferingId(), submission.getTeacherId(), format(submission.getUpdatedAt()) });
+                rows.add(new Object[] { submission.getSubmissionId(), submission.getOfferingId(), submission.getTeacherDisplayName(), format(submission.getUpdatedAt()) });
             }
             submissionModel.replaceRows(rows);
             showStatus(rows.isEmpty() ? "当前没有待审核成绩单" : "已加载 " + rows.size() + " 份待审核成绩单", rows.isEmpty() ? VCampusTheme.MUTED : VCampusTheme.SUCCESS);
@@ -183,7 +183,7 @@ final class GradeReviewPanel extends JPanel {
             historySubmissions.clear(); List<Object[]> rows = new ArrayList<Object[]>();
             for (Object item : (List<?>) response.getPayload()) if (item instanceof GradeSubmission) {
                 GradeSubmission submission = (GradeSubmission) item; historySubmissions.add(submission);
-                rows.add(new Object[] { submission.getSubmissionId(), submission.getOfferingId(), submission.getTeacherId(),
+                rows.add(new Object[] { submission.getSubmissionId(), submission.getOfferingId(), submission.getTeacherDisplayName(),
                         submissionStatusText(submission.getStatus()), format(submission.getReviewedAt()), safe(submission.getReviewRemark()) });
             }
             historyModel.replaceRows(rows);

@@ -54,6 +54,8 @@ class AccessDatabaseSchemaTest {
         assertEquals(1, countWhere(database, "tblStudent", "student_id", "20230003"));
         assertEquals(9, count(database, "tblStudent"));
         assertEquals(1, countWhere(database, "tblTeacher", "teacher_id", "教师001"));
+        assertEquals("李明远", scalarText(database,
+                "SELECT teacher_name FROM tblTeacher WHERE teacher_id='教师001'"));
         assertEquals(4, count(database, "tblSelectionRound"));
         assertEquals(10, count(database, "tblCourseOffering"));
         assertEquals(13, count(database, "tblCourseMeeting"));

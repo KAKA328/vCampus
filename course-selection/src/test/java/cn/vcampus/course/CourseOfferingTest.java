@@ -57,6 +57,18 @@ class CourseOfferingTest {
     }
 
     @Test
+    void carriesTeacherNameForDisplayWithoutChangingTeacherIdentifier() {
+        CourseOffering offering = new CourseOffering("OFFER-2026-001", "CS101", "2026-2027-1",
+                "TEACHER-001", "周一 1-2 节", "教学楼 A201", 50, 20, 10,
+                CourseOfferingStatus.OPEN).withTeacherName("李明远");
+
+        assertEquals("TEACHER-001", offering.getTeacherId());
+        assertEquals("李明远", offering.getTeacherDisplayName());
+        assertEquals("李明远", offering.withStatus(CourseOfferingStatus.CLOSED)
+                .getTeacherDisplayName());
+    }
+
+    @Test
     void rejectsInvalidTeachingClassInformation() {
         assertThrows(IllegalArgumentException.class,
                 () -> new CourseOffering("", "CS101", "2026-2027-1", "TEACHER-001",

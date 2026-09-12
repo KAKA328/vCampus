@@ -332,11 +332,11 @@ public final class ServerApplication implements Closeable {
             return new DefaultTeacherProfileService(new AccessTeacherRepository(databasePath));
         }
         InMemoryTeacherRepository repository = new InMemoryTeacherRepository();
-        repository.save(new TeacherProfile("教师001", "demo_teacher", "演示任课教师一",
+        repository.save(new TeacherProfile("教师001", "demo_teacher", "李明远",
                 "计算机学院", "讲师", true));
-        repository.save(new TeacherProfile("教师002", "demo_teacher_002", "演示教师二",
+        repository.save(new TeacherProfile("教师002", "demo_teacher_002", "周雨桐",
                 "计算机学院", "讲师", true));
-        repository.save(new TeacherProfile("教师003", "demo_teacher_003", "演示教师三",
+        repository.save(new TeacherProfile("教师003", "demo_teacher_003", "陈思涵",
                 "通识教育学院", "讲师", true));
         return new DefaultTeacherProfileService(repository);
     }

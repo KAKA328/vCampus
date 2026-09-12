@@ -433,7 +433,7 @@ public final class CourseSelectionPanel extends JPanel {
         JLabel title = new JLabel("教学班 " + value.getOffering().getOfferingId());
         title.setFont(VCampusTheme.font(Font.BOLD, 16));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
-        JLabel detail = new JLabel("<html>任课教师：" + escape(value.getOffering().getTeacherId())
+        JLabel detail = new JLabel("<html>任课教师：" + escape(value.getOffering().getTeacherDisplayName())
                 + "<br/>上课时间：" + escape(value.getOffering().getSchedule())
                 + "<br/>上课地点：" + escape(value.getOffering().getLocation())
                 + "<br/>容量：" + totalCapacity(value)

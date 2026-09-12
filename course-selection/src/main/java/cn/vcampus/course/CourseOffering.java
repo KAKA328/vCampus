@@ -16,6 +16,8 @@ public final class CourseOffering implements Serializable {
     private final String courseId;
     private final String term;
     private final String teacherId;
+    /** 任课教师显示名称，仅用于返回给客户端展示，不参与教学班关联。 */
+    private final String teacherName;
     private final String schedule;
     private final String location;
     private final int requiredCapacity;
@@ -28,16 +30,18 @@ public final class CourseOffering implements Serializable {
             String schedule, String location, int requiredCapacity, int electiveCapacity,
             int crossMajorCapacity, CourseOfferingStatus status) {
         this(offeringId, courseId, term, teacherId, schedule, location, requiredCapacity,
-                electiveCapacity, crossMajorCapacity, status, CourseSchedule.empty());
+                electiveCapacity, crossMajorCapacity, status, CourseSchedule.empty(), null);
     }
 
     private CourseOffering(String offeringId, String courseId, String term, String teacherId,
             String schedule, String location, int requiredCapacity, int electiveCapacity,
-            int crossMajorCapacity, CourseOfferingStatus status, CourseSchedule meetingSchedule) {
+            int crossMajorCapacity, CourseOfferingStatus status, CourseSchedule meetingSchedule,
+            String teacherName) {
         this.offeringId = requireText(offeringId, "offeringId");
         this.courseId = requireText(courseId, "courseId");
         this.term = requireText(term, "term");
         this.teacherId = requireText(teacherId, "teacherId");
+        this.teacherName = normalize(teacherName);
         this.schedule = requireText(schedule, "schedule");
         this.location = requireText(location, "location");
         validateCapacity(requiredCapacity, "requiredCapacity");
@@ -73,6 +77,16 @@ public final class CourseOffering implements Serializable {
 
     public String getTeacherId() {
         return teacherId;
+    }
+
+    /** 返回任课教师姓名；未附带教师档案时返回 {@code null}。 */
+    public String getTeacherName() {
+        return teacherName;
+    }
+
+    /** 面向界面的任课教师名称，缺少档案数据时安全回退到教师编号。 */
+    public String getTeacherDisplayName() {
+        return teacherName == null ? teacherId : teacherName;
     }
 
     public String getSchedule() {
@@ -136,7 +150,8 @@ public final class CourseOffering implements Serializable {
      */
     public CourseOffering withStatus(CourseOfferingStatus newStatus) {
         return new CourseOffering(offeringId, courseId, term, teacherId, schedule, location,
-                requiredCapacity, electiveCapacity, crossMajorCapacity, newStatus, meetingSchedule);
+                requiredCapacity, electiveCapacity, crossMajorCapacity, newStatus, meetingSchedule,
+                teacherName);
     }
 
     /**
@@ -148,7 +163,7 @@ public final class CourseOffering implements Serializable {
             int newCrossMajorCapacity) {
         return new CourseOffering(offeringId, courseId, term, teacherId, schedule, location,
                 newRequiredCapacity, newElectiveCapacity, newCrossMajorCapacity, status,
-                meetingSchedule);
+                meetingSchedule, teacherName);
     }
 
     /**
@@ -158,13 +173,15 @@ public final class CourseOffering implements Serializable {
      */
     public CourseOffering withTeachingInfo(String newTeacherId, String newLocation) {
         return new CourseOffering(offeringId, courseId, term, newTeacherId, schedule, newLocation,
-                requiredCapacity, electiveCapacity, crossMajorCapacity, status, meetingSchedule);
+                requiredCapacity, electiveCapacity, crossMajorCapacity, status, meetingSchedule,
+                teacherId.equals(newTeacherId) ? teacherName : null);
     }
 
     /** 返回附加结构化上课时间表后的新教学班对象。 */
     public CourseOffering withMeetingSchedule(CourseSchedule newMeetingSchedule) {
         return new CourseOffering(offeringId, courseId, term, teacherId, schedule, location,
-                requiredCapacity, electiveCapacity, crossMajorCapacity, status, newMeetingSchedule);
+                requiredCapacity, electiveCapacity, crossMajorCapacity, status, newMeetingSchedule,
+                teacherName);
     }
 
     /**
@@ -175,7 +192,15 @@ public final class CourseOffering implements Serializable {
      */
     public CourseOffering withSchedule(String newSchedule, CourseSchedule newMeetingSchedule) {
         return new CourseOffering(offeringId, courseId, term, teacherId, newSchedule, location,
-                requiredCapacity, electiveCapacity, crossMajorCapacity, status, newMeetingSchedule);
+                requiredCapacity, electiveCapacity, crossMajorCapacity, status, newMeetingSchedule,
+                teacherName);
+    }
+
+    /** 返回附带教师档案显示名称的新教学班对象。 */
+    public CourseOffering withTeacherName(String newTeacherName) {
+        return new CourseOffering(offeringId, courseId, term, teacherId, schedule, location,
+                requiredCapacity, electiveCapacity, crossMajorCapacity, status, meetingSchedule,
+                newTeacherName);
     }
 
     private static String requireText(String value, String fieldName) {
@@ -183,6 +208,12 @@ public final class CourseOffering implements Serializable {
             throw new IllegalArgumentException(fieldName + " must not be blank");
         }
         return value.trim();
+    }
+
+    private static String normalize(String value) {
+        if (value == null) return null;
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 
     private static void validateCapacity(int capacity, String fieldName) {

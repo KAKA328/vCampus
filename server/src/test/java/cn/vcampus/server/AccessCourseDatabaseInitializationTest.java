@@ -39,6 +39,8 @@ class AccessCourseDatabaseInitializationTest {
                 .findById("JAVA101").getStatus());
         assertEquals(StatusCode.OK, runtime.getModule().getOfferingService()
                 .findById("offering-java-2026a").getStatus());
+        assertEquals("李明远", runtime.getModule().getOfferingService()
+                .findById("offering-java-2026a").getData().getTeacherDisplayName());
 
         assertEquals(StatusCode.OK, runtime.getModule().getCatalogService()
                 .create(new Course("TEST101", "全新数据库验证课程", 1)).getStatus());

@@ -60,6 +60,7 @@ class AccessCourseOfferingServiceTest {
 
         assertEquals(StatusCode.OK, open.getStatus());
         assertEquals(1, open.getData().size());
+        assertEquals("教师一", open.getData().get(0).getTeacherDisplayName());
         assertEquals("教学楼A201", open.getData().get(0).getLocation());
         assertEquals(30, open.getData().get(0).getRequiredCapacity());
         assertEquals(2, open.getData().get(0).getMeetingSchedule().getMeetings().size());

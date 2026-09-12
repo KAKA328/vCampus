@@ -1,6 +1,7 @@
 package cn.vcampus.client.view;
 
 import cn.vcampus.client.service.RemoteCourseService;
+import cn.vcampus.client.service.RemoteStudentService;
 import cn.vcampus.common.Message;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.Course;
@@ -8,6 +9,7 @@ import cn.vcampus.course.CourseManagementCommand;
 import cn.vcampus.course.CourseOffering;
 import cn.vcampus.course.CourseOfferingStatus;
 import cn.vcampus.course.CourseStatus;
+import cn.vcampus.student.AcademicAdminCommandV1;
 import cn.vcampus.student.TeacherProfile;
 import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
@@ -375,7 +377,7 @@ public final class CourseManagementPanel extends JPanel {
                         rows.add(new Object[] { value.getOfferingId(), value.getCourseId(),
                                 courseNames.containsKey(value.getCourseId())
                                         ? courseNames.get(value.getCourseId()) : "课程已不存在",
-                                value.getTerm(), value.getTeacherId(), value.getSchedule(), value.getLocation(),
+                                value.getTerm(), value.getTeacherDisplayName(), value.getSchedule(), value.getLocation(),
                                 value.getRequiredCapacity(), value.getElectiveCapacity(),
                                 value.getCrossMajorCapacity(), value.getStatus().getDisplayName() });
                     }
@@ -445,7 +447,10 @@ public final class CourseManagementPanel extends JPanel {
                 response -> showSuccessThenReload(response, "教学班状态已更新", this::loadOfferings));
     }
 
-    /** 在弹窗打开前查询服务端已过滤的在职教师目录，避免客户端自行判断教师状态。 */
+    /**
+     * 复用教务端既有教师目录，避免教学班编辑依赖额外的课程消息链路。
+     * 教师在职状态仍由服务端资料返回，客户端仅过滤出可分配项。
+     */
     private void loadActiveTeachers(TeacherHandler handler) {
         if (requestInProgress) return;
         requestInProgress = true;
@@ -453,42 +458,51 @@ public final class CourseManagementPanel extends JPanel {
         showStatus("正在加载在职教师，请稍候…", VCampusTheme.MUTED);
         new SwingWorker<Message, Void>() {
             @Override protected Message doInBackground() throws Exception {
-                try (RemoteCourseService service = new RemoteCourseService(host, port)) {
-                    return service.activeTeachers(session.getToken());
+                try (RemoteStudentService service = new RemoteStudentService(host, port)) {
+                    return service.administer(new AcademicAdminCommandV1(session.getToken(),
+                            AcademicAdminCommandV1.Action.TEACHERS, null, 0, null, "", false));
                 }
             }
             @Override protected void done() {
-                boolean handedOff = false;
+                Message response;
                 try {
-                    Message response = get();
-                    if (response.getStatusCode() != StatusCode.OK
-                            || !(response.getPayload() instanceof List<?>)) {
-                        showFailure(response);
-                        return;
-                    }
-                    List<TeacherProfile> teachers = new ArrayList<TeacherProfile>();
-                    for (Object item : (List<?>) response.getPayload()) {
-                        if (item instanceof TeacherProfile) teachers.add((TeacherProfile) item);
-                    }
-                    if (teachers.isEmpty()) {
-                        showStatus("当前没有可分配的在职教师", VCampusTheme.DANGER);
-                        return;
-                    }
-                    requestInProgress = false;
-                    setInteractive(true);
-                    handedOff = true;
-                    handler.handle(teachers);
+                    response = get();
                 } catch (Exception failure) {
-                    showStatus("无法加载在职教师目录，请确认选课服务器已启动且教务账号仍有效后重试。",
+                    showStatus("无法读取教务教师目录，请确认服务器连接后重试。",
                             VCampusTheme.DANGER);
-                } finally {
-                    if (!handedOff) {
-                        requestInProgress = false;
-                        setInteractive(true);
+                    finishTeacherDirectoryRequest();
+                    return;
+                }
+                if (response.getStatusCode() != StatusCode.OK
+                        || !(response.getPayload() instanceof List<?>)) {
+                    showFailure(response);
+                    finishTeacherDirectoryRequest();
+                    return;
+                }
+                List<TeacherProfile> teachers = new ArrayList<TeacherProfile>();
+                for (Object item : (List<?>) response.getPayload()) {
+                    if (item instanceof TeacherProfile && ((TeacherProfile) item).isActive()) {
+                        teachers.add((TeacherProfile) item);
                     }
+                }
+                if (teachers.isEmpty()) {
+                    showStatus("当前没有可分配的在职教师", VCampusTheme.DANGER);
+                    finishTeacherDirectoryRequest();
+                    return;
+                }
+                finishTeacherDirectoryRequest();
+                try {
+                    handler.handle(teachers);
+                } catch (RuntimeException failure) {
+                    showStatus("无法打开教学班编辑窗口，请关闭其他弹窗后重试。", VCampusTheme.DANGER);
                 }
             }
         }.execute();
+    }
+
+    private void finishTeacherDirectoryRequest() {
+        requestInProgress = false;
+        setInteractive(true);
     }
 
     /** 加载课程目录，为教学班列表显示和弹窗内课程编号/名称联动提供同一份数据。 */

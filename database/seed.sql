@@ -15,7 +15,7 @@ INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, for
 VALUES ('demo_student', 'IZBIc+YD2QyDs5+HFIF4yQ==:jZiW3CFhJ854HF2PQsi2QVG0VRdz+SdW59ig/fMh1MY=', 'Demo Student', 'STUDENT', 1, 0);
 
 INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
-VALUES ('demo_teacher', 'cSoOs3pVGxBnmJO0OZy1Rg==:qmNTtyQn+Lprr8EEzSRs/ZNxtQKgSEzVy3WOSl7VYdQ=', 'Demo Teacher', 'TEACHER', 1, 0);
+VALUES ('demo_teacher', 'cSoOs3pVGxBnmJO0OZy1Rg==:qmNTtyQn+Lprr8EEzSRs/ZNxtQKgSEzVy3WOSl7VYdQ=', '李明远', 'TEACHER', 1, 0);
 
 -- 选课联调账号：同一初始密码 Demo123，分别覆盖无选课、重修、选修与跨专业场景。
 INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
@@ -27,9 +27,9 @@ VALUES ('demo_student_elective', 'IZBIc+YD2QyDs5+HFIF4yQ==:jZiW3CFhJ854HF2PQsi2Q
 INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
 VALUES ('demo_student_cross', 'IZBIc+YD2QyDs5+HFIF4yQ==:jZiW3CFhJ854HF2PQsi2QVG0VRdz+SdW59ig/fMh1MY=', 'Demo Cross Major Student', 'STUDENT', 1, 0);
 INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
-VALUES ('demo_teacher_002', 'cSoOs3pVGxBnmJO0OZy1Rg==:qmNTtyQn+Lprr8EEzSRs/ZNxtQKgSEzVy3WOSl7VYdQ=', 'Demo Teacher Two', 'TEACHER', 1, 0);
+VALUES ('demo_teacher_002', 'cSoOs3pVGxBnmJO0OZy1Rg==:qmNTtyQn+Lprr8EEzSRs/ZNxtQKgSEzVy3WOSl7VYdQ=', '周雨桐', 'TEACHER', 1, 0);
 INSERT INTO tblUser(user_id, password_hash, display_name, role_code, active, force_password_change)
-VALUES ('demo_teacher_003', 'cSoOs3pVGxBnmJO0OZy1Rg==:qmNTtyQn+Lprr8EEzSRs/ZNxtQKgSEzVy3WOSl7VYdQ=', 'Demo Teacher Three', 'TEACHER', 1, 0);
+VALUES ('demo_teacher_003', 'cSoOs3pVGxBnmJO0OZy1Rg==:qmNTtyQn+Lprr8EEzSRs/ZNxtQKgSEzVy3WOSl7VYdQ=', '陈思涵', 'TEACHER', 1, 0);
 
 -- 选课模块演示课程。
 INSERT INTO tblCourse(course_id, course_name, credits, status)
@@ -84,11 +84,11 @@ INSERT INTO tblStudent(student_id, user_id, student_name, gender, department_nam
 VALUES ('20260009', NULL, 'Demo Grade Student Three', '未知', '计算机科学与工程学院', '计算机科学与技术', 'CS2026-02', 2026, '在读', '', '');
 
 INSERT INTO tblTeacher(teacher_id, user_id, teacher_name, department_name, title, active)
-VALUES ('教师001', 'demo_teacher', 'Demo Teacher One', '计算机科学与工程学院', '讲师', 1);
+VALUES ('教师001', 'demo_teacher', '李明远', '计算机科学与工程学院', '讲师', 1);
 INSERT INTO tblTeacher(teacher_id, user_id, teacher_name, department_name, title, active)
-VALUES ('教师002', 'demo_teacher_002', 'Demo Teacher Two', '计算机科学与工程学院', '讲师', 1);
+VALUES ('教师002', 'demo_teacher_002', '周雨桐', '计算机科学与工程学院', '讲师', 1);
 INSERT INTO tblTeacher(teacher_id, user_id, teacher_name, department_name, title, active)
-VALUES ('教师003', 'demo_teacher_003', 'Demo Teacher Three', '通识教育学院', '讲师', 1);
+VALUES ('教师003', 'demo_teacher_003', '陈思涵', '通识教育学院', '讲师', 1);
 
 INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, term, schedule, location, required_capacity, elective_capacity, cross_major_capacity, status)
 VALUES ('offering-java-2026a', 'JAVA101', '教师001', '2026-2027-1', '1-8周，周一1-2节，周三3-4节；9-16周，周二5-6节', '教学楼A201', 40, 20, 10, 'OPEN');
