@@ -89,7 +89,7 @@ final class CourseScheduleEditorDialog extends JDialog {
             CourseMeeting first = sameWeeks.get(0);
             text.append(first.getStartWeek()).append("-").append(first.getEndWeek()).append("周");
             for (CourseMeeting meeting : sameWeeks) {
-                text.append("，").append(dayLabel(meeting.getDayOfWeek()))
+                text.append("，").append(compactDayLabel(meeting.getDayOfWeek()))
                         .append(meeting.getStartPeriod()).append("-")
                         .append(meeting.getEndPeriod()).append("节");
             }
@@ -241,6 +241,22 @@ final class CourseScheduleEditorDialog extends JDialog {
             case FRIDAY: return "星期五";
             case SATURDAY: return "星期六";
             case SUNDAY: return "星期日";
+            default: throw new IllegalArgumentException("unsupported day");
+        }
+    }
+
+    /**
+     * 课程时间摘要使用紧凑的“周一”格式，便于在教学班列表中完整展示。
+     */
+    private static String compactDayLabel(DayOfWeek day) {
+        switch (day) {
+            case MONDAY: return "周一";
+            case TUESDAY: return "周二";
+            case WEDNESDAY: return "周三";
+            case THURSDAY: return "周四";
+            case FRIDAY: return "周五";
+            case SATURDAY: return "周六";
+            case SUNDAY: return "周日";
             default: throw new IllegalArgumentException("unsupported day");
         }
     }
