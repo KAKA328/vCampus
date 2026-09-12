@@ -34,6 +34,8 @@ class GradeReviewPanelTest {
                 new Session("token", new User("academic-001", "教务老师", Role.ACADEMIC_ADMIN)));
 
         assertTrue(button(panel, "pendingDetailButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+        assertTrue(button(panel, "backToPendingButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+        assertTrue(button(panel, "backToPendingButton").isEnabled());
         assertTrue(button(panel, "historyDetailButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
         assertTrue(button(panel, "approveButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
         assertTrue(table(panel, "historyTable").getAutoResizeMode()

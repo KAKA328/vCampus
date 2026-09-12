@@ -24,6 +24,8 @@ class CourseFormDialogSupportTest {
                 CourseStatus.DISABLED));
         assertEquals("首修轮次", rendererText(CourseFormDialogSupport.roundTypeRenderer(),
                 SelectionRoundType.INITIAL));
+        assertEquals("重修", rendererText(CourseFormDialogSupport.shortRoundTypeRenderer(),
+                SelectionRoundType.RETAKE));
         assertEquals("选修", rendererText(CourseFormDialogSupport.courseCategoryRenderer(),
                 SelectionType.ELECTIVE));
     }
@@ -39,6 +41,10 @@ class CourseFormDialogSupportTest {
         CourseFormDialogSupport.styleField(compact, 80);
         assertTrue(compact.getMinimumSize().width >= UiMetrics.px(80));
         assertTrue(compact.getMinimumSize().height >= UiMetrics.px(38));
+
+        JLabel label = CourseFormDialogSupport.fieldLabel("轮次编号");
+        assertTrue(label.getMinimumSize().width >= UiMetrics.px(120));
+        assertTrue(label.getMinimumSize().height >= UiMetrics.px(38));
     }
 
     private static String rendererText(javax.swing.ListCellRenderer<Object> renderer,

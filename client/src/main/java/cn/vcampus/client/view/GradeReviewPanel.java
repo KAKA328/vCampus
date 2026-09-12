@@ -63,6 +63,7 @@ final class GradeReviewPanel extends JPanel {
     private final JButton historyButton = new JButton("已审核成绩单");
     private final JButton pendingDetailButton = new JButton("查看详情");
     private final JButton refreshHistoryButton = new JButton("刷新历史");
+    private final JButton backToPendingButton = new JButton("返回待审核列表");
     private final JButton historyDetailButton = new JButton("查看详情");
     private final JButton backButton = new JButton("返回列表");
     private final JButton approveButton = new JButton("审核通过");
@@ -87,6 +88,7 @@ final class GradeReviewPanel extends JPanel {
         historyButton.addActionListener(e -> showHistory());
         pendingDetailButton.addActionListener(e -> openSelectedPending());
         refreshHistoryButton.addActionListener(e -> loadHistory());
+        backToPendingButton.addActionListener(e -> returnToPending());
         historyDetailButton.addActionListener(e -> openSelectedHistory());
         backButton.addActionListener(e -> showCard(returnCard));
         approveButton.addActionListener(e -> approve());
@@ -124,7 +126,8 @@ final class GradeReviewPanel extends JPanel {
         JPanel controls = new JPanel(new BorderLayout(0, UiMetrics.px(4))); controls.setOpaque(false);
         controls.add(sectionHint("保留审核通过与退回修改的历史结果，可进入详情查看当时的成绩版本和流转记录。"), BorderLayout.NORTH);
         JPanel buttons = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(8), UiMetrics.px(4))); buttons.setOpaque(false);
-        addSecondary(buttons, refreshHistoryButton); addPrimary(buttons, historyDetailButton);
+        addSecondary(buttons, backToPendingButton); addSecondary(buttons, refreshHistoryButton);
+        addPrimary(buttons, historyDetailButton);
         controls.add(buttons, BorderLayout.CENTER); toolbar.add(controls, BorderLayout.CENTER);
         page.add(toolbar, BorderLayout.NORTH);
         page.add(card("审核历史", "选择一行后查看详情；历史成绩单不再提供审核操作。", historyTable), BorderLayout.CENTER);
@@ -170,6 +173,10 @@ final class GradeReviewPanel extends JPanel {
     }
 
     private void showHistory() { showCard(HISTORY_CARD); loadHistory(); }
+    private void returnToPending() {
+        showCard(PENDING_CARD);
+        SwingUtilities.invokeLater(this::loadPending);
+    }
     private void loadHistory() {
         request(service -> service.gradeReviewHistory(session.getToken()), response -> {
             if (!requireList(response, "已审核成绩单")) return;
@@ -283,7 +290,8 @@ final class GradeReviewPanel extends JPanel {
         boolean historySelected = !requestInProgress && selected(historyTable, historySubmissions) != null;
         boolean pendingDetail = !requestInProgress && currentSubmission != null && currentSubmission.getStatus() == GradeSubmissionStatus.PENDING_REVIEW;
         refreshButton.setEnabled(!requestInProgress); historyButton.setEnabled(!requestInProgress); pendingDetailButton.setEnabled(pendingSelected);
-        refreshHistoryButton.setEnabled(!requestInProgress); historyDetailButton.setEnabled(historySelected); backButton.setEnabled(!requestInProgress);
+        refreshHistoryButton.setEnabled(!requestInProgress); backToPendingButton.setEnabled(!requestInProgress);
+        historyDetailButton.setEnabled(historySelected); backButton.setEnabled(!requestInProgress);
         approveButton.setEnabled(pendingDetail); returnButton.setEnabled(pendingDetail);
         submissionTable.setEnabled(!requestInProgress); historyTable.setEnabled(!requestInProgress); detailTable.setEnabled(!requestInProgress); auditTable.setEnabled(!requestInProgress);
     }

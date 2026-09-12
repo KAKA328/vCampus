@@ -7,6 +7,7 @@ import java.awt.Component;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
+import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -38,12 +39,26 @@ final class CourseFormDialogSupport {
         VCampusTheme.roundedField(component);
     }
 
+    static JLabel fieldLabel(String text) {
+        JLabel label = new JLabel(text);
+        label.setMinimumSize(UiMetrics.dimension(120, 38));
+        label.setPreferredSize(UiMetrics.dimension(120, 38));
+        label.setFont(VCampusTheme.font(java.awt.Font.PLAIN, 14));
+        return label;
+    }
+
     static String courseStatusText(CourseStatus status) {
         return status == null ? "" : status.getDisplayName();
     }
 
     static String roundTypeText(SelectionRoundType type) {
         return type == null ? "" : type.getDisplayName();
+    }
+
+    static String shortRoundTypeText(SelectionRoundType type) {
+        if (type == SelectionRoundType.INITIAL) return "首修";
+        if (type == SelectionRoundType.RETAKE) return "重修";
+        return "";
     }
 
     static String courseCategoryText(SelectionType type) {
@@ -58,6 +73,11 @@ final class CourseFormDialogSupport {
     static DefaultListCellRenderer roundTypeRenderer() {
         return displayNameRenderer(value -> value instanceof SelectionRoundType
                 ? roundTypeText((SelectionRoundType) value) : String.valueOf(value));
+    }
+
+    static DefaultListCellRenderer shortRoundTypeRenderer() {
+        return displayNameRenderer(value -> value instanceof SelectionRoundType
+                ? shortRoundTypeText((SelectionRoundType) value) : String.valueOf(value));
     }
 
     static DefaultListCellRenderer courseCategoryRenderer() {

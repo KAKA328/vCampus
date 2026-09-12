@@ -74,10 +74,10 @@ final class SelectionRoundEditorDialog extends JDialog {
         content.setBorder(VCampusTheme.padding(18, 20, 18, 20));
         JPanel form = new JPanel(new GridBagLayout());
         form.setOpaque(false);
-        style(roundId);
+        style(roundId, 380);
         style(term);
         style(type);
-        type.setRenderer(CourseFormDialogSupport.roundTypeRenderer());
+        type.setRenderer(CourseFormDialogSupport.shortRoundTypeRenderer());
         style(startsAt);
         style(endsAt);
         addRow(form, "轮次编号", roundId);
@@ -96,7 +96,7 @@ final class SelectionRoundEditorDialog extends JDialog {
         form.add(hint, hintConstraints);
         content.add(form, BorderLayout.CENTER);
         content.add(actionBar(), BorderLayout.SOUTH);
-        CourseFormDialogSupport.showScrollableForm(this, content, 700, 500, 600, 420);
+        CourseFormDialogSupport.showScrollableForm(this, content, 740, 500, 620, 420);
     }
 
     private JPanel actionBar() {
@@ -145,12 +145,16 @@ final class SelectionRoundEditorDialog extends JDialog {
         CourseFormDialogSupport.styleField(component);
     }
 
+    private static void style(javax.swing.JComponent component, int minimumWidth) {
+        CourseFormDialogSupport.styleField(component, minimumWidth);
+    }
+
     private static void addRow(JPanel form, String label, Component field) {
         GridBagConstraints left = constraints();
         left.gridx = 0;
         left.weightx = 0;
         left.fill = GridBagConstraints.NONE;
-        form.add(new JLabel(label), left);
+        form.add(CourseFormDialogSupport.fieldLabel(label), left);
         GridBagConstraints right = constraints();
         right.gridx = 1;
         right.weightx = 1;

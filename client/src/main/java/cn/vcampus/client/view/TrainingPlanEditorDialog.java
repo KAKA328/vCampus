@@ -118,12 +118,12 @@ final class TrainingPlanEditorDialog extends JDialog {
         if (courseRequirementMode) addCourseFields(form); else addPlanFields(form);
         content.add(form, BorderLayout.CENTER);
         content.add(actionBar(), BorderLayout.SOUTH);
-        CourseFormDialogSupport.showScrollableForm(this, content, 700,
-                courseRequirementMode ? 500 : 460, 600, courseRequirementMode ? 420 : 380);
+        CourseFormDialogSupport.showScrollableForm(this, content, 740,
+                courseRequirementMode ? 500 : 460, 620, courseRequirementMode ? 420 : 380);
     }
 
     private void addPlanFields(JPanel form) {
-        style(planId); style(majorName); style(enrollmentYear);
+        style(planId, 380); style(majorName); style(enrollmentYear);
         addRow(form, "方案编号", planId);
         addRow(form, "专业", majorName);
         addRow(form, "入学年份", enrollmentYear);
@@ -185,9 +185,12 @@ final class TrainingPlanEditorDialog extends JDialog {
     private static void style(javax.swing.JComponent component) {
         CourseFormDialogSupport.styleField(component);
     }
+    private static void style(javax.swing.JComponent component, int minimumWidth) {
+        CourseFormDialogSupport.styleField(component, minimumWidth);
+    }
     private static void addRow(JPanel form, String label, Component field) {
         GridBagConstraints left = constraints(); left.gridx = 0; left.weightx = 0; left.fill = GridBagConstraints.NONE;
-        form.add(new JLabel(label), left);
+        form.add(CourseFormDialogSupport.fieldLabel(label), left);
         GridBagConstraints right = constraints(); right.gridx = 1; right.weightx = 1; right.fill = GridBagConstraints.HORIZONTAL;
         form.add(field, right);
     }
