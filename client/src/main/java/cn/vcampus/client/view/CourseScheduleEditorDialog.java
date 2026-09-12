@@ -9,7 +9,11 @@ import java.awt.FlowLayout;
 import java.awt.Window;
 import java.time.DayOfWeek;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
@@ -56,13 +60,39 @@ final class CourseScheduleEditorDialog extends JDialog {
 
     static String format(CourseSchedule schedule) {
         if (schedule == null || schedule.isEmpty()) return "";
+        List<CourseMeeting> ordered = new ArrayList<CourseMeeting>(schedule.getMeetings());
+        Collections.sort(ordered, new Comparator<CourseMeeting>() {
+            @Override public int compare(CourseMeeting first, CourseMeeting second) {
+                int compared = first.getStartWeek() - second.getStartWeek();
+                if (compared != 0) return compared;
+                compared = first.getEndWeek() - second.getEndWeek();
+                if (compared != 0) return compared;
+                compared = first.getDayOfWeek().getValue() - second.getDayOfWeek().getValue();
+                if (compared != 0) return compared;
+                compared = first.getStartPeriod() - second.getStartPeriod();
+                return compared != 0 ? compared : first.getEndPeriod() - second.getEndPeriod();
+            }
+        });
+        Map<String, List<CourseMeeting>> grouped = new LinkedHashMap<String, List<CourseMeeting>>();
+        for (CourseMeeting meeting : ordered) {
+            String key = meeting.getStartWeek() + ":" + meeting.getEndWeek();
+            List<CourseMeeting> sameWeeks = grouped.get(key);
+            if (sameWeeks == null) {
+                sameWeeks = new ArrayList<CourseMeeting>();
+                grouped.put(key, sameWeeks);
+            }
+            sameWeeks.add(meeting);
+        }
         StringBuilder text = new StringBuilder();
-        for (CourseMeeting meeting : schedule.getMeetings()) {
+        for (List<CourseMeeting> sameWeeks : grouped.values()) {
             if (text.length() > 0) text.append("；");
-            text.append(meeting.getStartWeek()).append("-").append(meeting.getEndWeek())
-                    .append("周 ").append(dayLabel(meeting.getDayOfWeek())).append(" 第")
-                    .append(meeting.getStartPeriod()).append("-").append(meeting.getEndPeriod())
-                    .append("节（").append(meeting.getLocation()).append("）");
+            CourseMeeting first = sameWeeks.get(0);
+            text.append(first.getStartWeek()).append("-").append(first.getEndWeek()).append("周");
+            for (CourseMeeting meeting : sameWeeks) {
+                text.append("，").append(dayLabel(meeting.getDayOfWeek()))
+                        .append(meeting.getStartPeriod()).append("-")
+                        .append(meeting.getEndPeriod()).append("节");
+            }
         }
         return text.toString();
     }

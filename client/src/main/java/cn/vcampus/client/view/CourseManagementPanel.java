@@ -31,7 +31,7 @@ import javax.swing.SwingWorker;
 public final class CourseManagementPanel extends JPanel {
     private static final int[] COURSE_COLUMN_WIDTHS = { 140, 250, 80, 110 };
     private static final int[] OFFERING_COLUMN_WIDTHS = {
-            145, 125, 210, 125, 125, 220, 120, 95, 95, 115, 105
+            115, 100, 180, 115, 110, 380, 100, 80, 80, 95, 90
     };
 
     private final String host;
@@ -479,7 +479,8 @@ public final class CourseManagementPanel extends JPanel {
                     handedOff = true;
                     handler.handle(teachers);
                 } catch (Exception failure) {
-                    showStatus("无法加载在职教师目录", VCampusTheme.DANGER);
+                    showStatus("无法加载在职教师目录，请确认选课服务器已启动且教务账号仍有效后重试。",
+                            VCampusTheme.DANGER);
                 } finally {
                     if (!handedOff) {
                         requestInProgress = false;

@@ -91,26 +91,26 @@ INSERT INTO tblTeacher(teacher_id, user_id, teacher_name, department_name, title
 VALUES ('教师003', 'demo_teacher_003', 'Demo Teacher Three', '通识教育学院', '讲师', 1);
 
 INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, term, schedule, location, required_capacity, elective_capacity, cross_major_capacity, status)
-VALUES ('offering-java-2026a', 'JAVA101', '教师001', '2026-2027-1', '周一第1-2节', '教学楼A201', 40, 20, 10, 'OPEN');
+VALUES ('offering-java-2026a', 'JAVA101', '教师001', '2026-2027-1', '1-8周，周一1-2节，周三3-4节；9-16周，周二5-6节', '教学楼A201', 40, 20, 10, 'OPEN');
 INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, term, schedule, location, required_capacity, elective_capacity, cross_major_capacity, status)
-VALUES ('offering-java-2026b', 'JAVA101', '教师001', '2026-2027-1', '周三第3-4节', '教学楼A202', 40, 20, 10, 'OPEN');
+VALUES ('offering-java-2026b', 'JAVA101', '教师001', '2026-2027-1', '1-16周，周三3-4节', '教学楼A202', 40, 20, 10, 'OPEN');
 INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, term, schedule, location, required_capacity, elective_capacity, cross_major_capacity, status)
-VALUES ('offering-db-2026a', 'DB101', '教师002', '2026-2027-1', '周二第3-4节', '教学楼A203', 20, 30, 10, 'OPEN');
+VALUES ('offering-db-2026a', 'DB101', '教师002', '2026-2027-1', '1-16周，周二3-4节', '教学楼A203', 20, 30, 10, 'OPEN');
 INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, term, schedule, location, required_capacity, elective_capacity, cross_major_capacity, status)
-VALUES ('offering-net-2026a', 'NET101', '教师001', '2026-2027-1', '周四第5-6节', '教学楼B301', 30, 10, 5, 'OPEN');
+VALUES ('offering-net-2026a', 'NET101', '教师001', '2026-2027-1', '1-16周，周四5-6节', '教学楼B301', 30, 10, 5, 'OPEN');
 INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, term, schedule, location, required_capacity, elective_capacity, cross_major_capacity, status)
-VALUES ('offering-net-2026b', 'NET101', '教师001', '2026-2027-1', '周一第1-2节', '教学楼A205', 30, 10, 5, 'OPEN');
+VALUES ('offering-net-2026b', 'NET101', '教师001', '2026-2027-1', '1-8周，周一1-2节；9-16周，周五7-8节', '教学楼A205', 30, 10, 5, 'OPEN');
 INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, term, schedule, location, required_capacity, elective_capacity, cross_major_capacity, status)
-VALUES ('offering-ge-2026a', 'GE101', '教师003', '2026-2027-1', '周三第5-6节', '教学楼A204', 0, 10, 20, 'OPEN');
+VALUES ('offering-ge-2026a', 'GE101', '教师003', '2026-2027-1', '1-16周，周三5-6节', '教学楼A204', 0, 10, 20, 'OPEN');
 INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, term, schedule, location, required_capacity, elective_capacity, cross_major_capacity, status)
-VALUES ('offering-os-draft', 'OS101', '教师002', '2026-2027-1', '周五第1-2节', '教学楼B302', 30, 10, 5, 'DRAFT');
+VALUES ('offering-os-draft', 'OS101', '教师002', '2026-2027-1', '1-16周，周五1-2节', '教学楼B302', 30, 10, 5, 'DRAFT');
 -- 人工智能导论故意设置为低容量教学班，用于演示并发抢课容量控制。
 INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, term, schedule, location, required_capacity, elective_capacity, cross_major_capacity, status)
-VALUES ('offering-ai-2026a', 'AI101', '教师003', '2026-2027-1', '周一第1-2节', '教学楼C101', 1, 1, 1, 'OPEN');
+VALUES ('offering-ai-2026a', 'AI101', '教师003', '2026-2027-1', '1-16周，周一1-2节', '教学楼C101', 1, 1, 1, 'OPEN');
 INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, term, schedule, location, required_capacity, elective_capacity, cross_major_capacity, status)
-VALUES ('offering-math-2025b', 'MATH101', '教师002', '2025-2026-2', '周二第1-2节', '教学楼B201', 30, 10, 5, 'CLOSED');
+VALUES ('offering-math-2025b', 'MATH101', '教师002', '2025-2026-2', '1-16周，周二1-2节', '教学楼B201', 30, 10, 5, 'CLOSED');
 INSERT INTO tblCourseOffering(offering_id, course_id, teacher_id, term, schedule, location, required_capacity, elective_capacity, cross_major_capacity, status)
-VALUES ('offering-eng-2025a', 'ENG101', '教师003', '2025-2026-1', '周四第3-4节', '教学楼C201', 30, 10, 5, 'CLOSED');
+VALUES ('offering-eng-2025a', 'ENG101', '教师003', '2025-2026-1', '1-16周，周四3-4节', '教学楼C201', 30, 10, 5, 'CLOSED');
 
 -- 容量占用辅助表只记录当前已选人数；新建教学班的三个容量池均从 0 开始。
 INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count)
@@ -148,16 +148,19 @@ INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_co
 INSERT INTO tblCourseOfferingCapacityUsage(offering_id, capacity_bucket, used_count) VALUES ('offering-eng-2025a', 'CROSS_MAJOR', 0);
 
 INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location)
-VALUES ('offering-java-2026a', 1, 1, 2, 1, 20, '教学楼A201');
-INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location) VALUES ('offering-java-2026b', 3, 3, 4, 1, 20, '教学楼A202');
-INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location) VALUES ('offering-db-2026a', 2, 3, 4, 1, 20, '教学楼A203');
-INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location) VALUES ('offering-net-2026a', 4, 5, 6, 1, 20, '教学楼B301');
-INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location) VALUES ('offering-net-2026b', 1, 1, 2, 1, 20, '教学楼A205');
-INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location) VALUES ('offering-ge-2026a', 3, 5, 6, 1, 20, '教学楼A204');
-INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location) VALUES ('offering-os-draft', 5, 1, 2, 1, 20, '教学楼B302');
-INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location) VALUES ('offering-ai-2026a', 1, 1, 2, 1, 20, '教学楼C101');
-INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location) VALUES ('offering-math-2025b', 2, 1, 2, 1, 20, '教学楼B201');
-INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location) VALUES ('offering-eng-2025a', 4, 3, 4, 1, 20, '教学楼C201');
+VALUES ('offering-java-2026a', 1, 1, 2, 1, 8, '教学楼A201');
+INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location) VALUES ('offering-java-2026a', 3, 3, 4, 1, 8, '教学楼A201');
+INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location) VALUES ('offering-java-2026a', 2, 5, 6, 9, 16, '教学楼A201');
+INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location) VALUES ('offering-java-2026b', 3, 3, 4, 1, 16, '教学楼A202');
+INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location) VALUES ('offering-db-2026a', 2, 3, 4, 1, 16, '教学楼A203');
+INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location) VALUES ('offering-net-2026a', 4, 5, 6, 1, 16, '教学楼B301');
+INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location) VALUES ('offering-net-2026b', 1, 1, 2, 1, 8, '教学楼A205');
+INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location) VALUES ('offering-net-2026b', 5, 7, 8, 9, 16, '教学楼A205');
+INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location) VALUES ('offering-ge-2026a', 3, 5, 6, 1, 16, '教学楼A204');
+INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location) VALUES ('offering-os-draft', 5, 1, 2, 1, 16, '教学楼B302');
+INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location) VALUES ('offering-ai-2026a', 1, 1, 2, 1, 16, '教学楼C101');
+INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location) VALUES ('offering-math-2025b', 2, 1, 2, 1, 16, '教学楼B201');
+INSERT INTO tblCourseMeeting(offering_id, day_of_week, start_period, end_period, start_week, end_week, location) VALUES ('offering-eng-2025a', 4, 3, 4, 1, 16, '教学楼C201');
 
 INSERT INTO tblTrainingPlan(plan_id, major_name, enrollment_year, status)
 VALUES ('plan-cs-2026', '计算机科学与技术', 2026, 'PUBLISHED');
