@@ -22,6 +22,12 @@ import javax.swing.SwingUtilities;
 
 /** 仅供选课系统页面复用的状态反馈与高影响操作确认工具。 */
 final class CourseUiSupport {
+    enum UnsavedInputChoice {
+        SAVE_AND_RETURN,
+        DISCARD,
+        CONTINUE_EDITING
+    }
+
     private CourseUiSupport() {
     }
 
@@ -94,6 +100,39 @@ final class CourseUiSupport {
         dialog.getRootPane().setDefaultButton(confirm);
         show(dialog, content, UiMetrics.dimension(460, 270));
         return value[0];
+    }
+
+    /** 未保存输入离开页面前明确提供保存、放弃和继续编辑三个选择。 */
+    static UnsavedInputChoice confirmUnsavedInput(Component owner, String title,
+            String instruction) {
+        final UnsavedInputChoice[] choice = { UnsavedInputChoice.CONTINUE_EDITING };
+        JDialog dialog = dialog(owner, title);
+        JPanel content = dialogContent();
+        content.add(messageBlock("当前成绩输入尚未保存。", instruction), BorderLayout.CENTER);
+        JPanel actionBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiMetrics.px(8), 0));
+        actionBar.setOpaque(false);
+        JButton keepEditing = new JButton("继续编辑");
+        JButton discard = new JButton("放弃修改");
+        JButton saveAndReturn = new JButton("保存并返回");
+        VCampusTheme.secondaryButton(keepEditing);
+        VCampusTheme.secondaryButton(discard);
+        VCampusTheme.primaryButton(saveAndReturn);
+        keepEditing.addActionListener(e -> dialog.dispose());
+        discard.addActionListener(e -> {
+            choice[0] = UnsavedInputChoice.DISCARD;
+            dialog.dispose();
+        });
+        saveAndReturn.addActionListener(e -> {
+            choice[0] = UnsavedInputChoice.SAVE_AND_RETURN;
+            dialog.dispose();
+        });
+        actionBar.add(keepEditing);
+        actionBar.add(discard);
+        actionBar.add(saveAndReturn);
+        content.add(actionBar, BorderLayout.SOUTH);
+        dialog.getRootPane().setDefaultButton(saveAndReturn);
+        show(dialog, content, UiMetrics.dimension(560, 230));
+        return choice[0];
     }
 
     /** 页面实际显示后仅自动加载一次，避免构造阶段阻塞 EDT，也避免重复发起请求。 */

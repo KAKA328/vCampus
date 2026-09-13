@@ -41,10 +41,6 @@ public final class InMemoryCourseCatalogService implements CourseCatalogService 
         if (course == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "course must not be null");
         }
-        if (course.getStatus() != CourseStatus.ACTIVE) {
-            return ServiceResult.failure(StatusCode.BAD_REQUEST,
-                    "new course must be created as ACTIVE");
-        }
         if (coursesById.containsKey(course.getCourseId())) {
             return ServiceResult.failure(StatusCode.CONFLICT, "course already exists");
         }
@@ -106,12 +102,29 @@ public final class InMemoryCourseCatalogService implements CourseCatalogService 
             return ServiceResult.failure(StatusCode.NOT_FOUND, "course not found");
         }
         try {
-            Course changed = existing.withDetails(name, credits);
-            coursesById.put(normalizedCourseId, changed);
-            return ServiceResult.ok(changed);
+            return updateDetails(normalizedCourseId, existing.withDetails(name, credits));
         } catch (IllegalArgumentException invalidDetails) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, invalidDetails.getMessage());
         }
+    }
+
+    @Override
+    public synchronized ServiceResult<Course> updateDetails(String originalCourseId, Course course) {
+        String normalizedOriginalId = normalize(originalCourseId);
+        if (normalizedOriginalId == null || course == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "originalCourseId and course must not be null");
+        }
+        if (!coursesById.containsKey(normalizedOriginalId)) {
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "course not found");
+        }
+        if (!normalizedOriginalId.equals(course.getCourseId())
+                && coursesById.containsKey(course.getCourseId())) {
+            return ServiceResult.failure(StatusCode.CONFLICT, "course already exists");
+        }
+        coursesById.remove(normalizedOriginalId);
+        coursesById.put(course.getCourseId(), course);
+        return ServiceResult.ok(course);
     }
 
     @Override

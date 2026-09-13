@@ -52,12 +52,23 @@ class AccessDatabaseSchemaTest {
         assertEquals(3, countWhere(database, "tblUser", "role_code", "TEACHER"));
         assertEquals(1, countWhere(database, "tblStudent", "student_id", "20260001"));
         assertEquals(1, countWhere(database, "tblStudent", "student_id", "20230003"));
-        assertEquals(6, count(database, "tblStudent"));
+        assertEquals(9, count(database, "tblStudent"));
         assertEquals(1, countWhere(database, "tblTeacher", "teacher_id", "教师001"));
-        assertEquals(2, count(database, "tblSelectionRound"));
-        assertEquals(7, count(database, "tblCourseOffering"));
-        assertEquals(4, count(database, "tblCourseSelection"));
-        assertEquals(2, count(database, "tblGradeSubmission"));
+        assertEquals("李明远", scalarText(database,
+                "SELECT teacher_name FROM tblTeacher WHERE teacher_id='教师001'"));
+        assertEquals(4, count(database, "tblSelectionRound"));
+        assertEquals(10, count(database, "tblCourseOffering"));
+        assertEquals(13, count(database, "tblCourseMeeting"));
+        assertEquals(3, countWhere(database, "tblCourseMeeting", "offering_id",
+                "offering-java-2026a"));
+        assertEquals("1-8周，周一1-2节，周三3-4节；9-16周，周二5-6节", scalarText(database,
+                "SELECT schedule FROM tblCourseOffering WHERE offering_id='offering-java-2026a'"));
+        assertEquals(7, count(database, "tblCourseSelection"));
+        assertEquals(4, count(database, "tblGradeSubmission"));
+        assertEquals(1, countWhere(database, "tblGradeSubmission", "status", "APPROVED"));
+        assertEquals(1, countWhere(database, "tblGradeSubmission", "status", "RETURNED"));
+        assertEquals(1, countWhere(database, "tblGradeSubmission", "status", "PENDING_REVIEW"));
+        assertEquals(1, countWhere(database, "tblGradeSubmission", "status", "DRAFT"));
         assertEquals(105, count(database, "tblProduct"));
         assertEquals(50, count(database, "tblBook"));
         assertEquals(4, count(database, "tblBorrowRecord"));
@@ -217,6 +228,15 @@ class AccessDatabaseSchemaTest {
              ResultSet result = statement.executeQuery(sql)) {
             result.next();
             return result.getDouble(1);
+        }
+    }
+
+    private static String scalarText(Path database, String sql) throws SQLException {
+        try (Connection connection = open(database);
+             Statement statement = connection.createStatement();
+             ResultSet result = statement.executeQuery(sql)) {
+            result.next();
+            return result.getString(1);
         }
     }
 }

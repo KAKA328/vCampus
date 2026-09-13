@@ -60,6 +60,7 @@ class AccessCourseOfferingServiceTest {
 
         assertEquals(StatusCode.OK, open.getStatus());
         assertEquals(1, open.getData().size());
+        assertEquals("教师一", open.getData().get(0).getTeacherDisplayName());
         assertEquals("教学楼A201", open.getData().get(0).getLocation());
         assertEquals(30, open.getData().get(0).getRequiredCapacity());
         assertEquals(2, open.getData().get(0).getMeetingSchedule().getMeetings().size());
@@ -104,6 +105,62 @@ class AccessCourseOfferingServiceTest {
         assertEquals(CourseOfferingStatus.OPEN, saved.getStatus());
         assertEquals(StatusCode.CONFLICT,
                 service.changeCapacities("OFFER-001", 0, 6, 4).getStatus());
+    }
+
+    @Test
+    void replacesStructuredScheduleAndPersistsItAfterRestart() {
+        service.create(offering("OFFER-001", CourseOfferingStatus.DRAFT));
+        CourseSchedule schedule = new CourseSchedule(Arrays.asList(
+                new CourseMeeting(DayOfWeek.TUESDAY, 3, 4, 1, 8, "教学楼B302"),
+                new CourseMeeting(DayOfWeek.THURSDAY, 5, 6, 9, 16, "教学楼B302")));
+
+        assertEquals(StatusCode.OK, service.updateSchedule("OFFER-001",
+                "1-8周 星期二第3-4节；9-16周 星期四第5-6节", schedule).getStatus());
+        AccessCourseOfferingService restarted = new AccessCourseOfferingService(
+                temporaryDirectory.resolve("course-offering-test.accdb"), catalog);
+        CourseOffering saved = restarted.findById("OFFER-001").getData();
+
+        assertEquals("1-8周 星期二第3-4节；9-16周 星期四第5-6节", saved.getSchedule());
+        assertEquals(2, saved.getMeetingSchedule().getMeetings().size());
+        assertEquals(8, saved.getMeetingSchedule().getMeetings().get(0).getEndWeek());
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.updateSchedule("OFFER-001", "未排课", CourseSchedule.empty()).getStatus());
+    }
+
+    @Test
+    void updatesOfferingDetailsInOneTransaction() {
+        service.create(offering("OFFER-001", CourseOfferingStatus.DRAFT));
+        CourseOffering changed = new CourseOffering("OFFER-001", "CS101", TERM, "T002",
+                "1-16周 星期二第3-4节", "教学楼B302", 35, 15, 5,
+                CourseOfferingStatus.DRAFT).withMeetingSchedule(new CourseSchedule(Arrays.asList(
+                        new CourseMeeting(DayOfWeek.TUESDAY, 3, 4, "教学楼B302"))));
+
+        assertEquals(StatusCode.OK, service.updateDetails(changed).getStatus());
+        CourseOffering saved = service.findById("OFFER-001").getData();
+        assertEquals("T002", saved.getTeacherId());
+        assertEquals(55, saved.getTotalCapacity());
+        assertEquals(DayOfWeek.TUESDAY,
+                saved.getMeetingSchedule().getMeetings().get(0).getDayOfWeek());
+    }
+
+    @Test
+    void renamesOfferingAndKeepsSelectionAndScheduleReferencesConsistent() {
+        service.create(offering("OFFER-001", CourseOfferingStatus.OPEN));
+        AccessCourseSelectionRecordService records = new AccessCourseSelectionRecordService(
+                temporaryDirectory.resolve("course-offering-test.accdb"), service);
+        assertEquals(StatusCode.OK, records.create(new CourseSelectionRecord("RECORD-001", "S001",
+                "OFFER-001", "ROUND-001", SelectionType.REQUIRED,
+                LocalDateTime.of(2026, 9, 1, 8, 0))).getStatus());
+        CourseOffering updated = new CourseOffering("OFFER-009", "CS101", TERM, "T002",
+                "1-16周 星期二第3-4节", "教学楼B302", 35, 15, 5,
+                CourseOfferingStatus.OPEN).withMeetingSchedule(new CourseSchedule(Arrays.asList(
+                        new CourseMeeting(DayOfWeek.TUESDAY, 3, 4, "教学楼B302"))));
+
+        assertEquals(StatusCode.OK, service.updateDetails("OFFER-001", updated).getStatus());
+        assertEquals(StatusCode.NOT_FOUND, service.findById("OFFER-001").getStatus());
+        assertEquals("CS101", service.findById("OFFER-009").getData().getCourseId());
+        assertEquals(1, records.listActiveByOffering("OFFER-009").getData().size());
+        assertEquals(1, service.findById("OFFER-009").getData().getMeetingSchedule().getMeetings().size());
     }
 
     @Test

@@ -25,7 +25,9 @@ import java.sql.SQLException;
 import java.time.DayOfWeek;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /** 使用 Access 保存教学班的服务实现。 */
 public final class AccessCourseOfferingService implements CourseOfferingService {
@@ -67,6 +69,10 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
         if (offering == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "offering must not be null");
         }
+        ServiceResult<Void> scheduleResult = requireStructuredSchedule(offering.getMeetingSchedule());
+        if (scheduleResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(scheduleResult.getStatus(), scheduleResult.getMessage());
+        }
         ServiceResult<Void> courseResult = requireActiveCourse(offering.getCourseId());
         if (courseResult.getStatus() != StatusCode.OK) {
             return ServiceResult.failure(courseResult.getStatus(), courseResult.getMessage());
@@ -94,7 +100,7 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
                 writeMeetingSchedule(connection, offering);
                 initializeCapacityUsage(connection, offering);
                 connection.commit();
-                return ServiceResult.ok(offering);
+                return ServiceResult.ok(withTeacherName(offering));
             } catch (SQLException failure) {
                 rollback(connection);
                 return databaseFailure(failure);
@@ -117,7 +123,7 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, normalizedOfferingId);
             try (ResultSet results = statement.executeQuery()) {
-                return results.next() ? ServiceResult.ok(readOffering(results, connection))
+                return results.next() ? ServiceResult.ok(withTeacherName(readOffering(results, connection)))
                         : ServiceResult.<CourseOffering>failure(StatusCode.NOT_FOUND,
                                 "course offering not found");
             }
@@ -189,7 +195,7 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, changed.getStatus().name());
             statement.setString(2, changed.getOfferingId());
-            return statement.executeUpdate() == 1 ? ServiceResult.ok(changed)
+            return statement.executeUpdate() == 1 ? ServiceResult.ok(withTeacherName(changed))
                     : ServiceResult.<CourseOffering>failure(StatusCode.NOT_FOUND,
                             "course offering not found");
         } catch (SQLException failure) {
@@ -229,7 +235,7 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
             statement.setInt(2, changed.getElectiveCapacity());
             statement.setInt(3, changed.getCrossMajorCapacity());
             statement.setString(4, changed.getOfferingId());
-            return statement.executeUpdate() == 1 ? ServiceResult.ok(changed)
+            return statement.executeUpdate() == 1 ? ServiceResult.ok(withTeacherName(changed))
                     : ServiceResult.<CourseOffering>failure(StatusCode.NOT_FOUND,
                             "course offering not found");
         } catch (SQLException failure) {
@@ -263,9 +269,137 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
             statement.setString(1, changed.getTeacherId());
             statement.setString(2, changed.getLocation());
             statement.setString(3, changed.getOfferingId());
-            return statement.executeUpdate() == 1 ? ServiceResult.ok(changed)
+            return statement.executeUpdate() == 1 ? ServiceResult.ok(withTeacherName(changed))
                     : ServiceResult.<CourseOffering>failure(StatusCode.NOT_FOUND,
                             "course offering not found");
+        } catch (SQLException failure) {
+            return databaseFailure(failure);
+        }
+    }
+
+    @Override
+    public synchronized ServiceResult<CourseOffering> updateSchedule(String offeringId,
+            String schedule, CourseSchedule meetingSchedule) {
+        String normalizedOfferingId = normalize(offeringId);
+        String normalizedSchedule = normalize(schedule);
+        if (normalizedOfferingId == null || normalizedSchedule == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "offeringId and schedule must not be blank");
+        }
+        ServiceResult<Void> scheduleResult = requireStructuredSchedule(meetingSchedule);
+        if (scheduleResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(scheduleResult.getStatus(), scheduleResult.getMessage());
+        }
+        ServiceResult<CourseOffering> existing = findById(normalizedOfferingId);
+        if (existing.getStatus() != StatusCode.OK) {
+            return existing;
+        }
+        CourseOffering changed = existing.getData().withSchedule(normalizedSchedule, meetingSchedule);
+        String sql = "UPDATE tblCourseOffering SET schedule=? WHERE offering_id=?";
+        try (Connection connection = open()) {
+            connection.setAutoCommit(false);
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setString(1, changed.getSchedule());
+                statement.setString(2, changed.getOfferingId());
+                if (statement.executeUpdate() != 1) {
+                    rollback(connection);
+                    return ServiceResult.failure(StatusCode.NOT_FOUND, "course offering not found");
+                }
+                replaceMeetingSchedule(connection, changed);
+                connection.commit();
+                return ServiceResult.ok(withTeacherName(changed));
+            } catch (SQLException failure) {
+                rollback(connection);
+                return databaseFailure(failure);
+            }
+        } catch (SQLException failure) {
+            return databaseFailure(failure);
+        }
+    }
+
+    @Override
+    public synchronized ServiceResult<CourseOffering> updateDetails(CourseOffering offering) {
+        return offering == null ? ServiceResult.<CourseOffering>failure(StatusCode.BAD_REQUEST,
+                "offering must not be null") : updateDetails(offering.getOfferingId(), offering);
+    }
+
+    @Override
+    public synchronized ServiceResult<CourseOffering> updateDetails(String originalOfferingId,
+            CourseOffering offering) {
+        String normalizedOriginalId = normalize(originalOfferingId);
+        if (normalizedOriginalId == null || offering == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "originalOfferingId and offering must not be null");
+        }
+        ServiceResult<Void> scheduleResult = requireStructuredSchedule(offering.getMeetingSchedule());
+        if (scheduleResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(scheduleResult.getStatus(), scheduleResult.getMessage());
+        }
+        ServiceResult<CourseOffering> existing = findById(normalizedOriginalId);
+        if (existing.getStatus() != StatusCode.OK) return existing;
+        CourseOffering current = existing.getData();
+        if (!current.getTerm().equals(offering.getTerm())) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "term cannot be changed for an existing offering");
+        }
+        if (!current.getCourseId().equals(offering.getCourseId())) {
+            ServiceResult<Void> courseResult = requireActiveCourse(offering.getCourseId());
+            if (courseResult.getStatus() != StatusCode.OK) {
+                return ServiceResult.failure(courseResult.getStatus(), courseResult.getMessage());
+            }
+        }
+        if (!normalizedOriginalId.equals(offering.getOfferingId())) {
+            ServiceResult<CourseOffering> duplicate = findById(offering.getOfferingId());
+            if (duplicate.getStatus() == StatusCode.OK) {
+                return ServiceResult.failure(StatusCode.CONFLICT, "course offering already exists");
+            }
+            if (duplicate.getStatus() != StatusCode.NOT_FOUND) {
+                return ServiceResult.failure(duplicate.getStatus(), duplicate.getMessage());
+            }
+        }
+        ServiceResult<Void> teacherResult = requireActiveTeacher(offering.getTeacherId());
+        if (teacherResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(teacherResult.getStatus(), teacherResult.getMessage());
+        }
+        final CourseOffering changed;
+        try {
+            changed = new CourseOffering(offering.getOfferingId(), offering.getCourseId(),
+                    current.getTerm(), offering.getTeacherId(), offering.getSchedule(),
+                    offering.getLocation(), offering.getRequiredCapacity(),
+                    offering.getElectiveCapacity(), offering.getCrossMajorCapacity(),
+                    current.getStatus()).withMeetingSchedule(offering.getMeetingSchedule());
+        } catch (IllegalArgumentException invalid) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, invalid.getMessage());
+        }
+        ServiceResult<Void> capacityResult = verifyCapacityNotBelowActiveSelections(current, changed);
+        if (capacityResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(capacityResult.getStatus(), capacityResult.getMessage());
+        }
+        String sql = "UPDATE tblCourseOffering SET offering_id=?,course_id=?,teacher_id=?,schedule=?,location=?,"
+                + "required_capacity=?,elective_capacity=?,cross_major_capacity=? WHERE offering_id=?";
+        try (Connection connection = open()) {
+            connection.setAutoCommit(false);
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setString(1, changed.getOfferingId());
+                statement.setString(2, changed.getCourseId());
+                statement.setString(3, changed.getTeacherId());
+                statement.setString(4, changed.getSchedule());
+                statement.setString(5, changed.getLocation());
+                statement.setInt(6, changed.getRequiredCapacity());
+                statement.setInt(7, changed.getElectiveCapacity());
+                statement.setInt(8, changed.getCrossMajorCapacity());
+                statement.setString(9, normalizedOriginalId);
+                if (statement.executeUpdate() != 1) {
+                    rollback(connection);
+                    return ServiceResult.failure(StatusCode.NOT_FOUND, "course offering not found");
+                }
+                updateOfferingReferences(connection, normalizedOriginalId, changed);
+                replaceMeetingSchedule(connection, changed);
+                connection.commit();
+                return ServiceResult.ok(withTeacherName(changed));
+            } catch (SQLException failure) {
+                rollback(connection);
+                return databaseFailure(failure);
+            }
         } catch (SQLException failure) {
             return databaseFailure(failure);
         }
@@ -298,6 +432,14 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
         ServiceResult<Course> result = courseCatalog.findActiveById(courseId);
         return result.getStatus() == StatusCode.OK ? ServiceResult.ok(null)
                 : ServiceResult.<Void>failure(result.getStatus(), result.getMessage());
+    }
+
+    private static ServiceResult<Void> requireStructuredSchedule(CourseSchedule meetingSchedule) {
+        if (meetingSchedule == null || meetingSchedule.isEmpty()) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "meeting schedule must contain at least one meeting");
+        }
+        return ServiceResult.ok(null);
     }
 
     private ServiceResult<Void> requireActiveTeacher(String teacherId) {
@@ -384,16 +526,49 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
                 + "elective_capacity,cross_major_capacity,status FROM tblCourseOffering";
     }
 
-    private static ServiceResult<List<CourseOffering>> readOfferings(PreparedStatement statement,
+    private ServiceResult<List<CourseOffering>> readOfferings(PreparedStatement statement,
             Connection connection)
             throws SQLException {
         try (ResultSet results = statement.executeQuery()) {
             List<CourseOffering> offerings = new ArrayList<CourseOffering>();
             while (results.next()) {
-                offerings.add(readOffering(results, connection));
+                offerings.add(readOfferingFields(results));
             }
-            return ServiceResult.ok(Collections.unmodifiableList(offerings));
+            if (offerings.isEmpty()) {
+                return ServiceResult.ok(Collections.<CourseOffering>emptyList());
+            }
+            Map<String, CourseSchedule> schedules = readMeetingSchedules(connection, offerings);
+            List<CourseOffering> hydrated = new ArrayList<CourseOffering>();
+            for (CourseOffering offering : offerings) {
+                CourseSchedule schedule = schedules.get(offering.getOfferingId());
+                hydrated.add(offering.withMeetingSchedule(schedule == null
+                        ? CourseSchedule.empty() : schedule));
+            }
+            return ServiceResult.ok(Collections.unmodifiableList(withTeacherNames(hydrated)));
         }
+    }
+
+    /** 一次读取教师目录，为同一列表中的教学班补齐面向界面的教师姓名。 */
+    private List<CourseOffering> withTeacherNames(List<CourseOffering> offerings) {
+        ServiceResult<List<TeacherProfile>> result = teacherProfiles.findAll();
+        if (result.getStatus() != StatusCode.OK) return offerings;
+        Map<String, String> names = new LinkedHashMap<String, String>();
+        for (TeacherProfile teacher : result.getData()) {
+            names.put(teacher.getTeacherId(), teacher.getTeacherName());
+        }
+        List<CourseOffering> decorated = new ArrayList<CourseOffering>();
+        for (CourseOffering offering : offerings) {
+            String name = names.get(offering.getTeacherId());
+            decorated.add(name == null ? offering : offering.withTeacherName(name));
+        }
+        return decorated;
+    }
+
+    /** 单条教学班读取时补齐教师姓名；找不到档案时仍保留教师编号作为安全回退。 */
+    private CourseOffering withTeacherName(CourseOffering offering) {
+        ServiceResult<TeacherProfile> result = teacherProfiles.findById(offering.getTeacherId());
+        return result.getStatus() == StatusCode.OK
+                ? offering.withTeacherName(result.getData().getTeacherName()) : offering;
     }
 
     private static void writeOffering(PreparedStatement statement, CourseOffering offering)
@@ -412,14 +587,17 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
 
     private static CourseOffering readOffering(ResultSet results, Connection connection)
             throws SQLException {
-        String offeringId = results.getString("offering_id");
-        CourseOffering offering = new CourseOffering(offeringId, results.getString("course_id"),
+        CourseOffering offering = readOfferingFields(results);
+        return offering.withMeetingSchedule(readMeetingSchedule(connection, offering.getOfferingId()));
+    }
+
+    private static CourseOffering readOfferingFields(ResultSet results) throws SQLException {
+        return new CourseOffering(results.getString("offering_id"), results.getString("course_id"),
                 results.getString("term"), results.getString("teacher_id"),
                 results.getString("schedule"), results.getString("location"),
                 results.getInt("required_capacity"), results.getInt("elective_capacity"),
                 results.getInt("cross_major_capacity"),
                 CourseOfferingStatus.valueOf(results.getString("status")));
-        return offering.withMeetingSchedule(readMeetingSchedule(connection, offeringId));
     }
 
     /** 将一门教学班的全部结构化上课时间写入同一事务。 */
@@ -443,6 +621,63 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
                 statement.addBatch();
             }
             statement.executeBatch();
+        }
+    }
+
+    /** 删除旧排课后写入新排课，调用方必须处于同一数据库事务中。 */
+    private static void replaceMeetingSchedule(Connection connection, CourseOffering offering)
+            throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "DELETE FROM tblCourseMeeting WHERE offering_id=?")) {
+            statement.setString(1, offering.getOfferingId());
+            statement.executeUpdate();
+        }
+        writeMeetingSchedule(connection, offering);
+    }
+
+    /**
+     * 教学班编号变更后，在同一事务内迁移所有直接关联数据。
+     *
+     * <p>完整演示库包含这些表；精简的单元测试数据库可能只创建其中一部分，因此逐表检测。</p>
+     */
+    private static void updateOfferingReferences(Connection connection, String originalOfferingId,
+            CourseOffering changed) throws SQLException {
+        updateOfferingReference(connection, "tblCourseMeeting", originalOfferingId,
+                changed.getOfferingId());
+        updateOfferingReference(connection, "tblCourseSelection", originalOfferingId,
+                changed.getOfferingId());
+        updateOfferingReference(connection, "tblActiveCourseSelection", originalOfferingId,
+                changed.getOfferingId());
+        updateOfferingReference(connection, "tblCourseOfferingCapacityUsage", originalOfferingId,
+                changed.getOfferingId());
+        updateOfferingReference(connection, "tblGradeSubmission", originalOfferingId,
+                changed.getOfferingId());
+        if (tableExists(connection, "tblCourseResult")) {
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "UPDATE tblCourseResult SET offering_id=?,course_id=? WHERE offering_id=?")) {
+                statement.setString(1, changed.getOfferingId());
+                statement.setString(2, changed.getCourseId());
+                statement.setString(3, originalOfferingId);
+                statement.executeUpdate();
+            }
+        }
+    }
+
+    private static void updateOfferingReference(Connection connection, String tableName,
+            String originalOfferingId, String updatedOfferingId) throws SQLException {
+        if (!tableExists(connection, tableName)) return;
+        try (PreparedStatement statement = connection.prepareStatement(
+                "UPDATE " + tableName + " SET offering_id=? WHERE offering_id=?")) {
+            statement.setString(1, updatedOfferingId);
+            statement.setString(2, originalOfferingId);
+            statement.executeUpdate();
+        }
+    }
+
+    private static boolean tableExists(Connection connection, String tableName) throws SQLException {
+        try (ResultSet tables = connection.getMetaData().getTables(null, null, tableName,
+                new String[] { "TABLE" })) {
+            return tables.next();
         }
     }
 
@@ -480,6 +715,46 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
             }
         }
         return meetings.isEmpty() ? CourseSchedule.empty() : new CourseSchedule(meetings);
+    }
+
+    /**
+     * 同一教学班列表的结构化排课一次性读取，避免列表中每一行都单独执行 SQL。
+     */
+    private static Map<String, CourseSchedule> readMeetingSchedules(Connection connection,
+            List<CourseOffering> offerings) throws SQLException {
+        StringBuilder sql = new StringBuilder("SELECT offering_id,day_of_week,start_period,end_period,")
+                .append("start_week,end_week,location FROM tblCourseMeeting WHERE offering_id IN (");
+        for (int index = 0; index < offerings.size(); index++) {
+            if (index > 0) sql.append(',');
+            sql.append('?');
+        }
+        sql.append(") ORDER BY offering_id,day_of_week,start_period");
+        Map<String, List<CourseMeeting>> meetingsByOffering =
+                new LinkedHashMap<String, List<CourseMeeting>>();
+        try (PreparedStatement statement = connection.prepareStatement(sql.toString())) {
+            for (int index = 0; index < offerings.size(); index++) {
+                statement.setString(index + 1, offerings.get(index).getOfferingId());
+            }
+            try (ResultSet results = statement.executeQuery()) {
+                while (results.next()) {
+                    String offeringId = results.getString("offering_id");
+                    List<CourseMeeting> meetings = meetingsByOffering.get(offeringId);
+                    if (meetings == null) {
+                        meetings = new ArrayList<CourseMeeting>();
+                        meetingsByOffering.put(offeringId, meetings);
+                    }
+                    meetings.add(new CourseMeeting(DayOfWeek.of(results.getInt("day_of_week")),
+                            results.getInt("start_period"), results.getInt("end_period"),
+                            results.getInt("start_week"), results.getInt("end_week"),
+                            results.getString("location")));
+                }
+            }
+        }
+        Map<String, CourseSchedule> schedules = new LinkedHashMap<String, CourseSchedule>();
+        for (Map.Entry<String, List<CourseMeeting>> entry : meetingsByOffering.entrySet()) {
+            schedules.put(entry.getKey(), new CourseSchedule(entry.getValue()));
+        }
+        return schedules;
     }
 
     private static void rollback(Connection connection) {

@@ -2,6 +2,7 @@ package cn.vcampus.client.view;
 
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -10,6 +11,10 @@ import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Shape;
+import java.awt.event.MouseWheelEvent;
+import java.awt.event.MouseWheelListener;
+import java.awt.event.ContainerAdapter;
+import java.awt.event.ContainerEvent;
 import javax.swing.AbstractButton;
 import javax.swing.ButtonModel;
 import javax.swing.BorderFactory;
@@ -18,8 +23,10 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
+import javax.swing.JSpinner;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
+import javax.swing.JComboBox;
 import javax.swing.ListSelectionModel;
 import javax.swing.UIManager;
 import javax.swing.border.AbstractBorder;
@@ -31,6 +38,7 @@ import javax.swing.plaf.basic.BasicScrollBarUI;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import javax.swing.border.Border;
 import javax.swing.JPanel;
+import javax.swing.text.JTextComponent;
 import java.awt.LayoutManager;
 import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
@@ -58,6 +66,7 @@ final class VCampusTheme {
     // 商店按钮专属：设置该 client property 后 ReadableButtonUI 才绘制悬停浅色与圆角焦点环；
     // 未设置的按钮（其他模块）走原路径，视觉与行为零变化。
     static final String HOVER_KEY = "vcampus.button.hover";
+    private static final String PAGE_WHEEL_FORWARDING_KEY = "vcampus.pageWheelForwarding";
 
     private VCampusTheme() { }
 
@@ -220,6 +229,7 @@ final class VCampusTheme {
         scroller.setOpaque(false);
         scroller.getViewport().setOpaque(false);
         scroller.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        installPageWheelForwarding(scroller, view);
         return scroller;
     }
 
@@ -231,7 +241,123 @@ final class VCampusTheme {
         scroller.getVerticalScrollBar().setUnitIncrement(18);
         styleScrollBar(scroller.getVerticalScrollBar());
         styleScrollBar(scroller.getHorizontalScrollBar());
+        installNestedScrollForwarding(scroller, view);
         return scroller;
+    }
+
+    /**
+     * 内层列表没有滚动空间，或已抵达上下边界时，将滚轮交给外层页面。
+     * 这样课程、教学班等较短列表不会截获整页滚动。
+     */
+    private static void installNestedScrollForwarding(final JScrollPane scroller,
+            JComponent view) {
+        MouseWheelListener listener = event -> forwardVerticalWheelAtBoundary(scroller, event);
+        scroller.addMouseWheelListener(listener);
+        view.addMouseWheelListener(listener);
+    }
+
+    static boolean forwardVerticalWheelAtBoundary(JScrollPane scroller, MouseWheelEvent event) {
+        if (scroller == null || event == null || event.isConsumed()
+                || event.getWheelRotation() == 0) return false;
+        if (event.isShiftDown() && moveHorizontal(scroller, event)) return true;
+        JScrollBar innerBar = scroller.getVerticalScrollBar();
+        int maximum = innerBar.getMaximum() - innerBar.getVisibleAmount();
+        boolean scrollUp = event.getWheelRotation() < 0;
+        if ((scrollUp && innerBar.getValue() > innerBar.getMinimum())
+                || (!scrollUp && innerBar.getValue() < maximum)) {
+            return false;
+        }
+        JScrollPane outer = parentScrollPane(scroller);
+        if (outer == null) return false;
+        return moveVertical(outer, event);
+    }
+
+    /**
+     * 页面滚动不能只依赖内层表格接力。将监听器安装到页面的既有和后续子组件，
+     * 鼠标位于卡片或空白区时也能控制外层页面；文本输入和下拉选择保持自身交互。
+     */
+    private static void installPageWheelForwarding(final JScrollPane pageScroller,
+            Component component) {
+        if (!(component instanceof JComponent)) return;
+        JComponent swingComponent = (JComponent) component;
+        if (swingComponent.getClientProperty(PAGE_WHEEL_FORWARDING_KEY) != null) return;
+        swingComponent.putClientProperty(PAGE_WHEEL_FORWARDING_KEY, Boolean.TRUE);
+        swingComponent.addMouseWheelListener(event -> forwardWheelToPage(pageScroller, event));
+        if (!(component instanceof Container)) return;
+        Container container = (Container) component;
+        for (Component child : container.getComponents()) {
+            installPageWheelForwarding(pageScroller, child);
+        }
+        container.addContainerListener(new ContainerAdapter() {
+            @Override public void componentAdded(ContainerEvent event) {
+                installPageWheelForwarding(pageScroller, event.getChild());
+            }
+        });
+    }
+
+    private static void forwardWheelToPage(JScrollPane pageScroller, MouseWheelEvent event) {
+        if (pageScroller == null || event == null || event.isConsumed()
+                || event.getWheelRotation() == 0 || isTextInput(event.getComponent())) return;
+        JScrollPane nested = nearestScrollPane(event.getComponent(), pageScroller);
+        if (nested != null) {
+            if (event.isShiftDown() && moveHorizontal(nested, event)) return;
+            if (canContinueVertically(nested, event.getWheelRotation())) return;
+        }
+        moveVertical(pageScroller, event);
+    }
+
+    private static boolean isTextInput(Component component) {
+        return component instanceof JTextComponent || component instanceof JComboBox<?>
+                || component instanceof JSpinner;
+    }
+
+    /** 返回事件源所属的内层滚动容器；页面自身不视为内层列表。 */
+    private static JScrollPane nearestScrollPane(Component source, JScrollPane pageScroller) {
+        Component current = source;
+        while (current != null && current != pageScroller) {
+            if (current instanceof JScrollPane) return (JScrollPane) current;
+            current = current.getParent();
+        }
+        return null;
+    }
+
+    private static boolean canContinueVertically(JScrollPane scroller, int wheelRotation) {
+        JScrollBar bar = scroller.getVerticalScrollBar();
+        int maximum = bar.getMaximum() - bar.getVisibleAmount();
+        return wheelRotation < 0 ? bar.getValue() > bar.getMinimum() : bar.getValue() < maximum;
+    }
+
+    private static boolean moveVertical(JScrollPane scroller, MouseWheelEvent event) {
+        return moveScrollBar(scroller.getVerticalScrollBar(), event);
+    }
+
+    /** Shift + 滚轮优先移动宽表格的横向滚动条，减少拖动细窄滚动条的成本。 */
+    private static boolean moveHorizontal(JScrollPane scroller, MouseWheelEvent event) {
+        return moveScrollBar(scroller.getHorizontalScrollBar(), event);
+    }
+
+    private static boolean moveScrollBar(JScrollBar bar, MouseWheelEvent event) {
+        int maximum = bar.getMaximum() - bar.getVisibleAmount();
+        if (maximum <= bar.getMinimum()) return false;
+        int units = event.getUnitsToScroll();
+        if (units == 0) units = event.getWheelRotation();
+        if (units == 0) return false;
+        int unitIncrement = Math.max(1, bar.getUnitIncrement(units < 0 ? -1 : 1));
+        int target = bar.getValue() + units * unitIncrement;
+        target = Math.max(bar.getMinimum(), Math.min(maximum, target));
+        if (target == bar.getValue()) return false;
+        bar.setValue(target);
+        event.consume();
+        return true;
+    }
+
+    private static JScrollPane parentScrollPane(JScrollPane inner) {
+        java.awt.Container parent = inner.getParent();
+        while (parent != null) {
+            if (parent instanceof JScrollPane) return (JScrollPane) parent;
+            parent = parent.getParent();
+        }
+        return null;
     }
 
     private static void styleScrollBar(JScrollBar scrollBar) {

@@ -37,7 +37,6 @@ class CourseSelectionPanelTest {
         update.setAccessible(true);
         update.invoke(panel);
 
-        assertFalse(button(panel, "courseDetailButton").isEnabled());
         assertFalse(button(panel, "selectedCoursesButton").isEnabled());
         assertFalse(button(panel, "backToRoundsButton").isEnabled());
         assertFalse(button(panel, "backToCoursesButton").isEnabled());
@@ -45,7 +44,6 @@ class CourseSelectionPanelTest {
 
         busy.setBoolean(panel, false);
         update.invoke(panel);
-        assertFalse(button(panel, "courseDetailButton").isEnabled());
         assertFalse(button(panel, "selectedCoursesButton").isEnabled());
     }
 
@@ -53,7 +51,6 @@ class CourseSelectionPanelTest {
     void appliesSharedThemeToCourseActions() throws Exception {
         CourseSelectionPanel panel = new CourseSelectionPanel("localhost", 19090,
                 new Session("token", new User("student-001", "测试学生", Role.STUDENT)));
-        assertTrue(button(panel, "courseDetailButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
         assertTrue(button(panel, "selectedCoursesButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
         assertTrue(button(panel, "backToRoundsButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
         assertTrue(button(panel, "backToCoursesButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
@@ -67,6 +64,19 @@ class CourseSelectionPanelTest {
 
         assertTrue(label(panel, "pageSubtitle").getText().contains("请选择一个当前开放的选课轮次"));
         assertFalse(button(panel, "selectedCoursesButton").isEnabled());
+    }
+
+    @Test
+    void opensTeachingClassesBySelectingACourseWithoutAnExtraActionButton() throws Exception {
+        CourseSelectionPanel panel = new CourseSelectionPanel("localhost", 19090,
+                new Session("token", new User("student-001", "测试学生", Role.STUDENT)));
+
+        try {
+            CourseSelectionPanel.class.getDeclaredField("courseDetailButton");
+            throw new AssertionError("课程列表不应保留额外的查看教学班按钮");
+        } catch (NoSuchFieldException expected) {
+            assertTrue(true);
+        }
     }
 
     @Test

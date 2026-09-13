@@ -15,6 +15,8 @@ public final class GradeSubmission implements Serializable {
     private final String submissionId;
     private final String offeringId;
     private final String teacherId;
+    /** 任课教师显示名称，仅用于回传界面展示。 */
+    private final String teacherName;
     private final GradeSubmissionStatus status;
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
@@ -24,15 +26,24 @@ public final class GradeSubmission implements Serializable {
 
     public GradeSubmission(String submissionId, String offeringId, String teacherId,
             GradeSubmissionStatus status, LocalDateTime createdAt, LocalDateTime updatedAt) {
-        this(submissionId, offeringId, teacherId, status, createdAt, updatedAt, null, null, null);
+        this(submissionId, offeringId, teacherId, status, createdAt, updatedAt, null, null, null,
+                null);
     }
 
     public GradeSubmission(String submissionId, String offeringId, String teacherId,
             GradeSubmissionStatus status, LocalDateTime createdAt, LocalDateTime updatedAt,
             String reviewedBy, LocalDateTime reviewedAt, String reviewRemark) {
+        this(submissionId, offeringId, teacherId, status, createdAt, updatedAt, reviewedBy,
+                reviewedAt, reviewRemark, null);
+    }
+
+    private GradeSubmission(String submissionId, String offeringId, String teacherId,
+            GradeSubmissionStatus status, LocalDateTime createdAt, LocalDateTime updatedAt,
+            String reviewedBy, LocalDateTime reviewedAt, String reviewRemark, String teacherName) {
         this.submissionId = requireText(submissionId, "submissionId");
         this.offeringId = requireText(offeringId, "offeringId");
         this.teacherId = requireText(teacherId, "teacherId");
+        this.teacherName = normalize(teacherName);
         if (status == null || createdAt == null || updatedAt == null) {
             throw new IllegalArgumentException("status, createdAt and updatedAt must not be null");
         }
@@ -59,6 +70,8 @@ public final class GradeSubmission implements Serializable {
     public String getSubmissionId() { return submissionId; }
     public String getOfferingId() { return offeringId; }
     public String getTeacherId() { return teacherId; }
+    public String getTeacherName() { return teacherName; }
+    public String getTeacherDisplayName() { return teacherName == null ? teacherId : teacherName; }
     public GradeSubmissionStatus getStatus() { return status; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
@@ -69,13 +82,14 @@ public final class GradeSubmission implements Serializable {
     /** 录入或修改单个学生成绩后更新草稿的最后修改时间。 */
     public GradeSubmission withUpdatedAt(LocalDateTime newUpdatedAt) {
         return new GradeSubmission(submissionId, offeringId, teacherId, status, createdAt,
-                newUpdatedAt, reviewedBy, reviewedAt, reviewRemark);
+                newUpdatedAt, reviewedBy, reviewedAt, reviewRemark, teacherName);
     }
 
     /** 教师提交或再次提交后清除上次审核意见，进入待审核状态。 */
     public GradeSubmission pendingReview(LocalDateTime newUpdatedAt) {
         return new GradeSubmission(submissionId, offeringId, teacherId,
-                GradeSubmissionStatus.PENDING_REVIEW, createdAt, newUpdatedAt, null, null, null);
+                GradeSubmissionStatus.PENDING_REVIEW, createdAt, newUpdatedAt, null, null, null,
+                teacherName);
     }
 
     /** 保存教务老师的审核结论和退回意见。 */
@@ -86,7 +100,13 @@ public final class GradeSubmission implements Serializable {
             throw new IllegalArgumentException("review outcome must be approved or returned");
         }
         return new GradeSubmission(submissionId, offeringId, teacherId, newStatus, createdAt,
-                newReviewedAt, newReviewedBy, newReviewedAt, newReviewRemark);
+                newReviewedAt, newReviewedBy, newReviewedAt, newReviewRemark, teacherName);
+    }
+
+    /** 返回附带教师档案显示名称的新成绩提交单对象。 */
+    public GradeSubmission withTeacherName(String newTeacherName) {
+        return new GradeSubmission(submissionId, offeringId, teacherId, status, createdAt,
+                updatedAt, reviewedBy, reviewedAt, reviewRemark, newTeacherName);
     }
 
     private static String requireText(String value, String field) {

@@ -23,4 +23,17 @@ public interface CourseOfferingService {
     /** 仅修改任课老师和上课地点，不修改既有的上课时间。 */
     ServiceResult<CourseOffering> updateTeachingInfo(String offeringId, String teacherId,
             String location);
+
+    /**
+     * 替换教学班的完整结构化排课，并同步更新列表中展示的时间文本。
+     */
+    ServiceResult<CourseOffering> updateSchedule(String offeringId, String schedule,
+            CourseSchedule meetingSchedule);
+
+    /** 以同一次保存更新教学班可维护的信息，避免分步更新出现部分成功。 */
+    ServiceResult<CourseOffering> updateDetails(CourseOffering offering);
+
+    /** 更新教学班编号、课程编号及其可维护信息，并同步维护关联数据。 */
+    ServiceResult<CourseOffering> updateDetails(String originalOfferingId,
+            CourseOffering offering);
 }

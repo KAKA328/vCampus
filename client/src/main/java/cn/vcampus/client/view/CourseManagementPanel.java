@@ -1,6 +1,7 @@
 package cn.vcampus.client.view;
 
 import cn.vcampus.client.service.RemoteCourseService;
+import cn.vcampus.client.service.RemoteStudentService;
 import cn.vcampus.common.Message;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.Course;
@@ -8,21 +9,23 @@ import cn.vcampus.course.CourseManagementCommand;
 import cn.vcampus.course.CourseOffering;
 import cn.vcampus.course.CourseOfferingStatus;
 import cn.vcampus.course.CourseStatus;
+import cn.vcampus.student.AcademicAdminCommandV1;
+import cn.vcampus.student.TeacherProfile;
 import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.CardLayout;
 import java.awt.FlowLayout;
 import java.awt.Font;
-import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTable;
-import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingWorker;
 
@@ -30,38 +33,30 @@ import javax.swing.SwingWorker;
 public final class CourseManagementPanel extends JPanel {
     private static final int[] COURSE_COLUMN_WIDTHS = { 140, 250, 80, 110 };
     private static final int[] OFFERING_COLUMN_WIDTHS = {
-            145, 125, 125, 125, 220, 120, 95, 95, 115, 105
+            115, 100, 180, 115, 110, 380, 100, 80, 80, 95, 90
     };
 
     private final String host;
     private final int port;
     private final Session session;
     private final JLabel status = new JLabel();
+    private final JLabel catalogStatus = new JLabel();
+    private final JLabel offeringStatus = new JLabel();
+    private JLabel activeStatus = status;
     private final CardLayout managementLayout = new CardLayout();
     private final ScrollablePagePanel managementPages = new ScrollablePagePanel(managementLayout);
     private final BatchTableModel courseModel = new BatchTableModel(
             new Object[] { "课程编号", "课程名称", "学分", "状态" });
     private final BatchTableModel offeringModel = new BatchTableModel(
-            new Object[] { "教学班编号", "课程编号", "学期", "教师", "时间", "地点", "必修容量", "选修容量", "跨专业容量", "状态" });
+            new Object[] { "教学班编号", "课程编号", "课程名称", "学期", "教师", "时间", "地点", "必修容量", "选修容量", "跨专业容量", "状态" });
     private final JTable courseTable = new JTable(courseModel);
     private final JTable offeringTable = new JTable(offeringModel);
 
-    private final JTextField courseId = new JTextField(10);
-    private final JTextField courseName = new JTextField(12);
-    private final JTextField courseCredits = new JTextField(4);
-    private final JComboBox<String> term = new JComboBox<String>(
-            new String[] { "2026-2027-1", "2025-2026-2", "2025-2026-1" });
-    private final JTextField offeringId = new JTextField(12);
-    private final JTextField offeringCourseId = new JTextField(10);
-    private final JTextField teacherId = new JTextField(8);
-    private final JTextField schedule = new JTextField(10);
-    private final JTextField location = new JTextField(7);
-    private final JTextField requiredCapacity = new JTextField(4);
-    private final JTextField electiveCapacity = new JTextField(4);
-    private final JTextField crossMajorCapacity = new JTextField(4);
+    private final JComboBox<String> term = CourseTermOptions.comboBox();
+    private final Map<String, CourseOffering> offeringsById =
+            new LinkedHashMap<String, CourseOffering>();
 
     private final List<JButton> actions = new ArrayList<JButton>();
-    private final List<JTextField> inputFields = new ArrayList<JTextField>();
     private boolean requestInProgress;
 
     public CourseManagementPanel(String host, int port, Session session) {
@@ -128,6 +123,7 @@ public final class CourseManagementPanel extends JPanel {
         JButton enter = new JButton("进入管理");
         VCampusTheme.primaryButton(enter);
         enter.addActionListener(e -> {
+            activeStatus = statusFor(page);
             managementLayout.show(managementPages, page);
             if (onEnter != null) onEnter.run();
         });
@@ -142,7 +138,11 @@ public final class CourseManagementPanel extends JPanel {
         JLabel title = sectionTitle(titleText);
         JButton back = new JButton("返回管理事项");
         VCampusTheme.secondaryButton(back);
-        back.addActionListener(e -> managementLayout.show(managementPages, "landing"));
+        back.addActionListener(e -> {
+            activeStatus = status;
+            managementLayout.show(managementPages, "landing");
+            showStatus("请选择要办理的管理事项", VCampusTheme.MUTED);
+        });
         JPanel heading = new JPanel(new BorderLayout(0, 0));
         heading.setOpaque(false);
         heading.add(title, BorderLayout.WEST);
@@ -155,7 +155,7 @@ public final class CourseManagementPanel extends JPanel {
     private JPanel header() {
         JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(5)));
         panel.setOpaque(false);
-        JLabel title = new JLabel("选课管理");
+        JLabel title = new JLabel("教务教学管理");
         title.setFont(VCampusTheme.font(Font.BOLD, 24));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
         JLabel subtitle = new JLabel("维护课程目录、教学班、选课轮次和培养方案，并审核教师提交的成绩。 ");
@@ -168,34 +168,23 @@ public final class CourseManagementPanel extends JPanel {
     private JPanel catalogPanel() {
         JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(12)));
         panel.setOpaque(false);
-        JPanel form = new JPanel(new BorderLayout(0, UiMetrics.px(10)));
+        JPanel form = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
         VCampusTheme.panel(form);
-        JLabel title = sectionTitle("课程信息");
-        JLabel hint = sectionHint("填写后可新增课程；从下方列表选择一行，会自动带入信息以便修改。 ");
-        JPanel fields = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
-                UiMetrics.px(6)));
-        fields.setOpaque(false);
-        styleAndTrackFields(courseId, courseName, courseCredits);
-        fields.add(new JLabel("课程编号")); fields.add(courseId);
-        fields.add(new JLabel("课程名称")); fields.add(courseName);
-        fields.add(new JLabel("学分")); fields.add(courseCredits);
+        JLabel title = sectionTitle("课程目录操作");
+        JLabel hint = sectionHint("在弹窗中维护课程基本信息与启用状态。 ");
         JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(8),
                 UiMetrics.px(4)));
         actions.setOpaque(false);
-        actions.add(actionButton("新增课程", true, e -> createCourse()));
-        actions.add(actionButton("保存课程修改", false, e -> updateCourse()));
+        actions.add(actionButton("新增课程", true, e -> openCreateCourse()));
+        actions.add(actionButton("编辑所选课程", false, e -> openEditCourse()));
         actions.add(actionButton("启用/停用所选课程", false, e -> toggleCourseStatus()));
-        JPanel content = new JPanel(new BorderLayout(0, UiMetrics.px(6)));
-        content.setOpaque(false);
-        content.add(fields, BorderLayout.NORTH);
-        content.add(actions, BorderLayout.SOUTH);
         JPanel header = new JPanel(new BorderLayout(0, UiMetrics.px(2)));
         header.setOpaque(false);
         header.add(title, BorderLayout.NORTH);
         header.add(hint, BorderLayout.SOUTH);
         form.add(header, BorderLayout.NORTH);
-        form.add(content, BorderLayout.CENTER);
-        courseTable.getSelectionModel().addListSelectionListener(e -> fillCourseFields());
+        form.add(actions, BorderLayout.CENTER);
+        form.add(catalogStatus, BorderLayout.SOUTH);
         panel.add(form, BorderLayout.NORTH);
         panel.add(tableCard("课程目录", "刷新后选择一门课程，即可在上方维护它的基本信息。",
                 courseTable, actionButton("刷新课程目录", false, e -> loadCourses())), BorderLayout.CENTER);
@@ -209,9 +198,8 @@ public final class CourseManagementPanel extends JPanel {
         controls.setOpaque(false);
         controls.add(offeringQueryCard(), BorderLayout.NORTH);
         controls.add(offeringFormCard(), BorderLayout.CENTER);
-        offeringTable.getSelectionModel().addListSelectionListener(e -> fillOfferingFields());
         panel.add(controls, BorderLayout.NORTH);
-        panel.add(tableCard("教学班列表", "选择一行后，可在上方维护任课教师、地点或容量。",
+        panel.add(tableCard("教学班列表", "选择一行后，可在上方维护课程、教师、地点、容量和排课。",
                 offeringTable, actionButton("刷新当前学期教学班", false, e -> loadOfferings())),
                 BorderLayout.CENTER);
         return panel;
@@ -221,8 +209,8 @@ public final class CourseManagementPanel extends JPanel {
     private JPanel offeringQueryCard() {
         JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
         VCampusTheme.panel(card);
-        JLabel title = sectionTitle("第 1 步：查询教学班");
-        JLabel hint = sectionHint("先填写学期并刷新列表，再选择教学班进行维护。 ");
+        JLabel title = sectionTitle("查询教学班");
+        JLabel hint = sectionHint("选择学期后查看对应教学班。 ");
         JPanel fields = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
                 UiMetrics.px(4)));
         fields.setOpaque(false);
@@ -239,42 +227,21 @@ public final class CourseManagementPanel extends JPanel {
     private JPanel offeringFormCard() {
         JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
         VCampusTheme.panel(card);
-        JLabel title = sectionTitle("第 2 步：新建或维护教学班");
-        JLabel hint = sectionHint("上课时间在创建时确定；后续仅可修改任课教师、地点和各类容量。 ");
-        JPanel identity = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
-                UiMetrics.px(4)));
-        identity.setOpaque(false);
-        styleAndTrackFields(offeringId, offeringCourseId, teacherId, schedule, location,
-                requiredCapacity, electiveCapacity, crossMajorCapacity);
-        identity.add(new JLabel("教学班编号")); identity.add(offeringId);
-        identity.add(new JLabel("课程编号")); identity.add(offeringCourseId);
-        identity.add(new JLabel("任课教师")); identity.add(teacherId);
-        identity.add(new JLabel("上课时间")); identity.add(schedule);
-        identity.add(new JLabel("上课地点")); identity.add(location);
-        JPanel capacity = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(10),
-                UiMetrics.px(4)));
-        capacity.setOpaque(false);
-        capacity.add(new JLabel("必修容量")); capacity.add(requiredCapacity);
-        capacity.add(new JLabel("选修容量")); capacity.add(electiveCapacity);
-        capacity.add(new JLabel("跨专业容量")); capacity.add(crossMajorCapacity);
+        JLabel title = sectionTitle("新增或编辑教学班");
+        JLabel hint = sectionHint("在弹窗中维护教学班基本信息、容量与排课。 ");
         JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(8),
                 UiMetrics.px(4)));
         actions.setOpaque(false);
-        actions.add(actionButton("新增教学班", true, e -> createOffering()));
-        actions.add(actionButton("保存教师与地点", false, e -> updateOfferingTeachingInfo()));
-        actions.add(actionButton("保存容量", false, e -> updateOfferingCapacities()));
+        actions.add(actionButton("新增教学班", true, e -> openCreateOffering()));
+        actions.add(actionButton("编辑所选教学班", false, e -> openEditOffering()));
         actions.add(actionButton("开放/关闭所选教学班", false, e -> toggleOfferingStatus()));
-        JPanel content = new JPanel(new BorderLayout(0, UiMetrics.px(4)));
-        content.setOpaque(false);
-        content.add(identity, BorderLayout.NORTH);
-        content.add(capacity, BorderLayout.CENTER);
-        content.add(actions, BorderLayout.SOUTH);
         JPanel header = new JPanel(new BorderLayout(0, UiMetrics.px(2)));
         header.setOpaque(false);
         header.add(title, BorderLayout.NORTH);
         header.add(hint, BorderLayout.SOUTH);
         card.add(header, BorderLayout.NORTH);
-        card.add(content, BorderLayout.CENTER);
+        card.add(actions, BorderLayout.CENTER);
+        card.add(offeringStatus, BorderLayout.SOUTH);
         return card;
     }
 
@@ -307,15 +274,6 @@ public final class CourseManagementPanel extends JPanel {
         return label;
     }
 
-    private void styleAndTrackFields(JTextField... fields) {
-        for (JTextField field : fields) {
-            VCampusTheme.field(field);
-            if (!inputFields.contains(field)) {
-                inputFields.add(field);
-            }
-        }
-    }
-
     private JButton actionButton(String text, boolean primary,
             java.awt.event.ActionListener listener) {
         JButton button = new JButton(text);
@@ -345,7 +303,8 @@ public final class CourseManagementPanel extends JPanel {
             for (Object item : (List<?>) response.getPayload()) {
                 if (item instanceof Course) {
                     Course course = (Course) item;
-                    rows.add(new Object[] { course.getCourseId(), course.getName(), course.getCredits(), course.getStatus() });
+                    rows.add(new Object[] { course.getCourseId(), course.getName(), course.getCredits(),
+                            course.getStatus().getDisplayName() });
                 }
             }
             courseModel.replaceRows(rows);
@@ -354,24 +313,28 @@ public final class CourseManagementPanel extends JPanel {
         });
     }
 
-    private void createCourse() {
-        try {
-            request(CourseManagementCommand.createCourse(session.getToken(), new Course(text(courseId),
-                    text(courseName), positive(courseCredits, "学分"))), response -> showSuccess(response,
-                            "课程已新增，请刷新课程目录"));
-        } catch (IllegalArgumentException invalid) {
-            showStatus("课程信息填写不正确：" + invalid.getMessage(), VCampusTheme.DANGER);
-        }
+    private void openCreateCourse() {
+        Course value = CourseEditorDialog.create(this);
+        if (value == null) return;
+        request(CourseManagementCommand.createCourse(session.getToken(), value),
+                response -> showSuccessThenReload(response, "课程已新增", this::loadCourses));
     }
 
-    private void updateCourse() {
-        try {
-            request(CourseManagementCommand.updateCourseDetails(session.getToken(), text(courseId),
-                    text(courseName), positive(courseCredits, "学分")), response -> showSuccess(response,
-                            "课程信息已更新，请刷新课程目录"));
-        } catch (IllegalArgumentException invalid) {
-            showStatus("课程信息填写不正确：" + invalid.getMessage(), VCampusTheme.DANGER);
+    private void openEditCourse() {
+        int row = courseTable.getSelectedRow();
+        if (row < 0) {
+            showStatus("请先选择一门课程", VCampusTheme.DANGER);
+            return;
         }
+        Course initial = new Course(String.valueOf(courseModel.getValueAt(row, 0)),
+                String.valueOf(courseModel.getValueAt(row, 1)),
+                ((Number) courseModel.getValueAt(row, 2)).intValue()).withStatus(
+                        "启用".equals(courseModel.getValueAt(row, 3))
+                                ? CourseStatus.ACTIVE : CourseStatus.DISABLED);
+        Course value = CourseEditorDialog.edit(this, initial);
+        if (value == null) return;
+        request(CourseManagementCommand.updateCourseDetails(session.getToken(), initial.getCourseId(),
+                value), response -> showSuccessThenReload(response, "课程信息已更新", this::loadCourses));
     }
 
     private void toggleCourseStatus() {
@@ -380,7 +343,8 @@ public final class CourseManagementPanel extends JPanel {
             showStatus("请先选择一门课程", VCampusTheme.DANGER);
             return;
         }
-        CourseStatus current = (CourseStatus) courseModel.getValueAt(row, 3);
+        CourseStatus current = "启用".equals(courseModel.getValueAt(row, 3))
+                ? CourseStatus.ACTIVE : CourseStatus.DISABLED;
         CourseStatus target = current == CourseStatus.ACTIVE ? CourseStatus.DISABLED : CourseStatus.ACTIVE;
         String courseName = String.valueOf(courseModel.getValueAt(row, 1));
         if (!CourseUiSupport.confirmHighImpact(this, "确认修改课程状态",
@@ -390,22 +354,32 @@ public final class CourseManagementPanel extends JPanel {
             return;
         }
         request(CourseManagementCommand.changeCourseStatus(session.getToken(),
-                String.valueOf(courseModel.getValueAt(row, 0)), target), response -> showSuccess(response,
-                        "课程状态已更新，请刷新课程目录"));
+                String.valueOf(courseModel.getValueAt(row, 0)), target),
+                response -> showSuccessThenReload(response, "课程状态已更新", this::loadCourses));
     }
 
     private void loadOfferings() {
+        loadCourseChoices(false, this::loadOfferings);
+    }
+
+    private void loadOfferings(List<Course> courses) {
         try {
+            Map<String, String> courseNames = new LinkedHashMap<String, String>();
+            for (Course course : courses) courseNames.put(course.getCourseId(), course.getName());
             request(CourseManagementCommand.listOfferingsByTerm(session.getToken(), selectedTerm()), response -> {
                 if (!requireList(response)) return;
                 List<Object[]> rows = new ArrayList<Object[]>();
+                offeringsById.clear();
                 for (Object item : (List<?>) response.getPayload()) {
                     if (item instanceof CourseOffering) {
                         CourseOffering value = (CourseOffering) item;
-                        rows.add(new Object[] { value.getOfferingId(), value.getCourseId(), value.getTerm(),
-                                value.getTeacherId(), value.getSchedule(), value.getLocation(),
+                        offeringsById.put(value.getOfferingId(), value);
+                        rows.add(new Object[] { value.getOfferingId(), value.getCourseId(),
+                                courseNames.containsKey(value.getCourseId())
+                                        ? courseNames.get(value.getCourseId()) : "课程已不存在",
+                                value.getTerm(), value.getTeacherDisplayName(), value.getSchedule(), value.getLocation(),
                                 value.getRequiredCapacity(), value.getElectiveCapacity(),
-                                value.getCrossMajorCapacity(), value.getStatus() });
+                                value.getCrossMajorCapacity(), value.getStatus().getDisplayName() });
                     }
                 }
                 offeringModel.replaceRows(rows);
@@ -417,39 +391,34 @@ public final class CourseManagementPanel extends JPanel {
         }
     }
 
-    private void createOffering() {
-        try {
-            CourseOffering value = new CourseOffering(text(offeringId), text(offeringCourseId), selectedTerm(),
-                    text(teacherId), text(schedule), text(location), nonNegative(requiredCapacity, "必修容量"),
-                    nonNegative(electiveCapacity, "选修容量"), nonNegative(crossMajorCapacity, "跨专业容量"),
-                    CourseOfferingStatus.DRAFT);
-            request(CourseManagementCommand.createOffering(session.getToken(), value), response -> showSuccess(response,
-                    "教学班已新增，请刷新教学班列表"));
-        } catch (IllegalArgumentException invalid) {
-            showStatus("教学班信息填写不正确：" + invalid.getMessage(), VCampusTheme.DANGER);
-        }
+    private void openCreateOffering() {
+        loadCourseChoices(true, courses -> loadActiveTeachers(teachers -> {
+            CourseOffering value = CourseOfferingEditorDialog.create(this, selectedTerm(), courses, teachers);
+            if (value == null) return;
+            request(CourseManagementCommand.createOffering(session.getToken(), value),
+                    response -> showSuccessThenReload(response, "教学班已新增", this::loadOfferings));
+        }));
     }
 
-    private void updateOfferingCapacities() {
-        try {
-            request(CourseManagementCommand.changeOfferingCapacities(session.getToken(), text(offeringId),
-                    nonNegative(requiredCapacity, "必修容量"), nonNegative(electiveCapacity, "选修容量"),
-                    nonNegative(crossMajorCapacity, "跨专业容量")), response -> showSuccess(response,
-                            "教学班容量已更新，请刷新教学班列表"));
-        } catch (IllegalArgumentException invalid) {
-            showStatus("容量填写不正确：" + invalid.getMessage(), VCampusTheme.DANGER);
+    private void openEditOffering() {
+        int row = offeringTable.getSelectedRow();
+        if (row < 0) {
+            showStatus("请先选择一个教学班", VCampusTheme.DANGER);
+            return;
         }
-    }
-
-    /** 仅提交教师和地点；上课时间由教学班创建时确定，本次维护不会修改它。 */
-    private void updateOfferingTeachingInfo() {
-        try {
-            request(CourseManagementCommand.updateOfferingTeachingInfo(session.getToken(),
-                    text(offeringId), text(teacherId), text(location)), response -> showSuccess(response,
-                            "任课老师和上课地点已更新，请刷新教学班列表"));
-        } catch (IllegalArgumentException invalid) {
-            showStatus("任课老师和地点不能为空", VCampusTheme.DANGER);
+        CourseOffering initial = offeringsById.get(String.valueOf(offeringModel.getValueAt(row, 0)));
+        if (initial == null) {
+            showStatus("教学班信息已过期，请刷新当前学期列表", VCampusTheme.DANGER);
+            return;
         }
+        String originalOfferingId = initial.getOfferingId();
+        loadCourseChoices(false, courses -> loadActiveTeachers(teachers -> {
+            CourseOffering value = CourseOfferingEditorDialog.edit(this, initial, courses, teachers);
+            if (value == null) return;
+            request(CourseManagementCommand.updateOfferingDetails(session.getToken(),
+                    originalOfferingId, value), response -> showSuccessThenReload(response,
+                            "教学班已更新", this::loadOfferings));
+        }));
     }
 
     private void toggleOfferingStatus() {
@@ -458,7 +427,12 @@ public final class CourseManagementPanel extends JPanel {
             showStatus("请先选择一个教学班", VCampusTheme.DANGER);
             return;
         }
-        CourseOfferingStatus current = (CourseOfferingStatus) offeringModel.getValueAt(row, 9);
+        CourseOffering currentOffering = offeringsById.get(String.valueOf(offeringModel.getValueAt(row, 0)));
+        if (currentOffering == null) {
+            showStatus("教学班信息已过期，请刷新当前学期列表", VCampusTheme.DANGER);
+            return;
+        }
+        CourseOfferingStatus current = currentOffering.getStatus();
         CourseOfferingStatus target = current == CourseOfferingStatus.OPEN
                 ? CourseOfferingStatus.CLOSED : CourseOfferingStatus.OPEN;
         String currentOfferingId = String.valueOf(offeringModel.getValueAt(row, 0));
@@ -469,30 +443,116 @@ public final class CourseManagementPanel extends JPanel {
             return;
         }
         request(CourseManagementCommand.changeOfferingStatus(session.getToken(),
-                String.valueOf(offeringModel.getValueAt(row, 0)), target), response -> showSuccess(response,
-                        "教学班状态已更新，请刷新教学班列表"));
+                String.valueOf(offeringModel.getValueAt(row, 0)), target),
+                response -> showSuccessThenReload(response, "教学班状态已更新", this::loadOfferings));
     }
 
-    private void fillCourseFields() {
-        int row = courseTable.getSelectedRow();
-        if (row < 0) return;
-        courseId.setText(String.valueOf(courseModel.getValueAt(row, 0)));
-        courseName.setText(String.valueOf(courseModel.getValueAt(row, 1)));
-        courseCredits.setText(String.valueOf(courseModel.getValueAt(row, 2)));
+    /**
+     * 复用教务端既有教师目录，避免教学班编辑依赖额外的课程消息链路。
+     * 教师在职状态仍由服务端资料返回，客户端仅过滤出可分配项。
+     */
+    private void loadActiveTeachers(TeacherHandler handler) {
+        if (requestInProgress) return;
+        requestInProgress = true;
+        setInteractive(false);
+        showStatus("正在加载在职教师，请稍候…", VCampusTheme.MUTED);
+        new SwingWorker<Message, Void>() {
+            @Override protected Message doInBackground() throws Exception {
+                try (RemoteStudentService service = new RemoteStudentService(host, port)) {
+                    return service.administer(new AcademicAdminCommandV1(session.getToken(),
+                            AcademicAdminCommandV1.Action.TEACHERS, null, 0, null, "", false));
+                }
+            }
+            @Override protected void done() {
+                Message response;
+                try {
+                    response = get();
+                } catch (Exception failure) {
+                    showStatus("无法读取教务教师目录，请确认服务器连接后重试。",
+                            VCampusTheme.DANGER);
+                    finishTeacherDirectoryRequest();
+                    return;
+                }
+                if (response.getStatusCode() != StatusCode.OK
+                        || !(response.getPayload() instanceof List<?>)) {
+                    showFailure(response);
+                    finishTeacherDirectoryRequest();
+                    return;
+                }
+                List<TeacherProfile> teachers = new ArrayList<TeacherProfile>();
+                for (Object item : (List<?>) response.getPayload()) {
+                    if (item instanceof TeacherProfile && ((TeacherProfile) item).isActive()) {
+                        teachers.add((TeacherProfile) item);
+                    }
+                }
+                if (teachers.isEmpty()) {
+                    showStatus("当前没有可分配的在职教师", VCampusTheme.DANGER);
+                    finishTeacherDirectoryRequest();
+                    return;
+                }
+                finishTeacherDirectoryRequest();
+                try {
+                    handler.handle(teachers);
+                } catch (RuntimeException failure) {
+                    showStatus("无法打开教学班编辑窗口，请关闭其他弹窗后重试。", VCampusTheme.DANGER);
+                }
+            }
+        }.execute();
     }
 
-    private void fillOfferingFields() {
-        int row = offeringTable.getSelectedRow();
-        if (row < 0) return;
-        offeringId.setText(String.valueOf(offeringModel.getValueAt(row, 0)));
-        offeringCourseId.setText(String.valueOf(offeringModel.getValueAt(row, 1)));
-        term.setSelectedItem(String.valueOf(offeringModel.getValueAt(row, 2)));
-        teacherId.setText(String.valueOf(offeringModel.getValueAt(row, 3)));
-        schedule.setText(String.valueOf(offeringModel.getValueAt(row, 4)));
-        location.setText(String.valueOf(offeringModel.getValueAt(row, 5)));
-        requiredCapacity.setText(String.valueOf(offeringModel.getValueAt(row, 6)));
-        electiveCapacity.setText(String.valueOf(offeringModel.getValueAt(row, 7)));
-        crossMajorCapacity.setText(String.valueOf(offeringModel.getValueAt(row, 8)));
+    private void finishTeacherDirectoryRequest() {
+        requestInProgress = false;
+        setInteractive(true);
+    }
+
+    /** 加载课程目录，为教学班列表显示和弹窗内课程编号/名称联动提供同一份数据。 */
+    private void loadCourseChoices(boolean activeOnly, CourseHandler handler) {
+        if (requestInProgress) return;
+        requestInProgress = true;
+        setInteractive(false);
+        showStatus("正在加载课程目录，请稍候…", VCampusTheme.MUTED);
+        new SwingWorker<Message, Void>() {
+            @Override protected Message doInBackground() throws Exception {
+                try (RemoteCourseService service = new RemoteCourseService(host, port)) {
+                    return service.manage(CourseManagementCommand.listCourses(session.getToken()));
+                }
+            }
+
+            @Override protected void done() {
+                boolean handedOff = false;
+                try {
+                    Message response = get();
+                    if (response.getStatusCode() != StatusCode.OK
+                            || !(response.getPayload() instanceof List<?>)) {
+                        showFailure(response);
+                        return;
+                    }
+                    List<Course> courses = new ArrayList<Course>();
+                    for (Object item : (List<?>) response.getPayload()) {
+                        if (item instanceof Course && (!activeOnly
+                                || ((Course) item).getStatus() == CourseStatus.ACTIVE)) {
+                            courses.add((Course) item);
+                        }
+                    }
+                    if (courses.isEmpty()) {
+                        showStatus(activeOnly ? "当前没有可用于教学班的启用课程" : "当前没有课程目录记录",
+                                VCampusTheme.DANGER);
+                        return;
+                    }
+                    requestInProgress = false;
+                    setInteractive(true);
+                    handedOff = true;
+                    handler.handle(courses);
+                } catch (Exception failure) {
+                    showStatus("无法加载课程目录", VCampusTheme.DANGER);
+                } finally {
+                    if (!handedOff) {
+                        requestInProgress = false;
+                        setInteractive(true);
+                    }
+                }
+            }
+        }.execute();
     }
 
     private void request(CourseManagementCommand command, ResponseHandler handler) {
@@ -522,6 +582,15 @@ public final class CourseManagementPanel extends JPanel {
         showStatus(message, VCampusTheme.SUCCESS);
     }
 
+    private void showSuccessThenReload(Message response, String message, Runnable reload) {
+        if (response.getStatusCode() != StatusCode.OK) {
+            showFailure(response);
+            return;
+        }
+        showStatus(message, VCampusTheme.SUCCESS);
+        javax.swing.SwingUtilities.invokeLater(reload);
+    }
+
     private void showFailure(Message response) {
         showStatus(response.getPayload() instanceof String ? (String) response.getPayload()
                 : "服务器未能完成操作：" + response.getStatusCode(), VCampusTheme.DANGER);
@@ -529,22 +598,25 @@ public final class CourseManagementPanel extends JPanel {
 
     private void setInteractive(boolean interactive) {
         for (JButton action : actions) action.setEnabled(interactive);
-        for (JTextField field : inputFields) field.setEnabled(interactive);
         term.setEnabled(interactive);
         courseTable.setEnabled(interactive); offeringTable.setEnabled(interactive);
     }
 
     private void showStatus(String message, Color color) {
-        CourseUiSupport.showStatus(status, message, color);
+        if (activeStatus != null) CourseUiSupport.showStatus(activeStatus, message, color);
     }
 
-    private static String text(JTextField field) { return field.getText().trim(); }
+    private JLabel statusFor(String page) {
+        if ("catalog".equals(page)) return catalogStatus;
+        if ("offering".equals(page)) return offeringStatus;
+        return null;
+    }
+
     private String selectedTerm() {
         Object selected = term.getSelectedItem();
         return selected == null ? "" : selected.toString().trim();
     }
-    private static int positive(JTextField field, String name) { int value = nonNegative(field, name); if (value <= 0) throw new IllegalArgumentException(name + "必须大于 0"); return value; }
-    private static int nonNegative(JTextField field, String name) { try { int value = Integer.parseInt(text(field)); if (value < 0) throw new IllegalArgumentException(name + "不能小于 0"); return value; } catch (NumberFormatException invalid) { throw new IllegalArgumentException(name + "必须是整数"); } }
-
     private interface ResponseHandler { void handle(Message response); }
+    private interface TeacherHandler { void handle(List<TeacherProfile> teachers); }
+    private interface CourseHandler { void handle(List<Course> courses); }
 }

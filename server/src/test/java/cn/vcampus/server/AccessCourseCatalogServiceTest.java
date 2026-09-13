@@ -35,6 +35,12 @@ class AccessCourseCatalogServiceTest {
                     + "credits INTEGER NOT NULL,"
                     + "status VARCHAR(16) NOT NULL,"
                     + "PRIMARY KEY (course_id))");
+            statement.execute("CREATE TABLE tblCourseOffering ("
+                    + "offering_id VARCHAR(36) NOT NULL,course_id VARCHAR(32) NOT NULL)");
+            statement.execute("CREATE TABLE tblTrainingPlanCourse ("
+                    + "plan_id VARCHAR(36) NOT NULL,course_id VARCHAR(32) NOT NULL)");
+            statement.execute("CREATE TABLE tblCourseResult ("
+                    + "result_id VARCHAR(36) NOT NULL,course_id VARCHAR(32) NOT NULL)");
         }
         service = new AccessCourseCatalogService(database);
     }
@@ -81,6 +87,37 @@ class AccessCourseCatalogServiceTest {
         assertEquals(StatusCode.BAD_REQUEST, service.updateDetails("CS101", "", 3).getStatus());
         assertEquals(StatusCode.NOT_FOUND,
                 service.changeStatus("UNKNOWN", CourseStatus.ACTIVE).getStatus());
+    }
+
+    @Test
+    void renamesCourseAndKeepsReferencedCourseIdsConsistent() throws Exception {
+        service.create(new Course("CS101", "程序设计基础", 3));
+        Path database = temporaryDirectory.resolve("course-catalog-test.accdb");
+        try (Connection connection = DriverManager.getConnection("jdbc:ucanaccess://" + database
+                + ";immediatelyReleaseResources=true"); Statement statement = connection.createStatement()) {
+            statement.execute("INSERT INTO tblCourseOffering(offering_id,course_id) VALUES('O001','CS101')");
+            statement.execute("INSERT INTO tblTrainingPlanCourse(plan_id,course_id) VALUES('P001','CS101')");
+            statement.execute("INSERT INTO tblCourseResult(result_id,course_id) VALUES('R001','CS101')");
+        }
+
+        Course updated = new Course("CS201", "程序设计进阶", 4)
+                .withStatus(CourseStatus.DISABLED);
+        assertEquals(StatusCode.OK, service.updateDetails("CS101", updated).getStatus());
+        assertEquals(StatusCode.NOT_FOUND, service.findById("CS101").getStatus());
+        assertEquals(CourseStatus.DISABLED, service.findById("CS201").getData().getStatus());
+
+        try (Connection connection = DriverManager.getConnection("jdbc:ucanaccess://" + database
+                + ";immediatelyReleaseResources=true"); Statement statement = connection.createStatement()) {
+            assertEquals("CS201", value(statement, "tblCourseOffering", "course_id"));
+            assertEquals("CS201", value(statement, "tblTrainingPlanCourse", "course_id"));
+            assertEquals("CS201", value(statement, "tblCourseResult", "course_id"));
+        }
+    }
+
+    private static String value(Statement statement, String table, String column) throws Exception {
+        try (java.sql.ResultSet results = statement.executeQuery("SELECT " + column + " FROM " + table)) {
+            return results.next() ? results.getString(1) : null;
+        }
     }
 
 }
