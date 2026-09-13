@@ -90,7 +90,7 @@ class AccessCourseCatalogServiceTest {
     }
 
     @Test
-    void renamesCourseAndKeepsReferencedCourseIdsConsistent() throws Exception {
+    void rejectsCourseRenameWhenTeachingOrHistoricalDataReferencesIt() throws Exception {
         service.create(new Course("CS101", "程序设计基础", 3));
         Path database = temporaryDirectory.resolve("course-catalog-test.accdb");
         try (Connection connection = DriverManager.getConnection("jdbc:ucanaccess://" + database
@@ -102,15 +102,15 @@ class AccessCourseCatalogServiceTest {
 
         Course updated = new Course("CS201", "程序设计进阶", 4)
                 .withStatus(CourseStatus.DISABLED);
-        assertEquals(StatusCode.OK, service.updateDetails("CS101", updated).getStatus());
-        assertEquals(StatusCode.NOT_FOUND, service.findById("CS101").getStatus());
-        assertEquals(CourseStatus.DISABLED, service.findById("CS201").getData().getStatus());
+        assertEquals(StatusCode.CONFLICT, service.updateDetails("CS101", updated).getStatus());
+        assertEquals(StatusCode.OK, service.findById("CS101").getStatus());
+        assertEquals(StatusCode.NOT_FOUND, service.findById("CS201").getStatus());
 
         try (Connection connection = DriverManager.getConnection("jdbc:ucanaccess://" + database
                 + ";immediatelyReleaseResources=true"); Statement statement = connection.createStatement()) {
-            assertEquals("CS201", value(statement, "tblCourseOffering", "course_id"));
-            assertEquals("CS201", value(statement, "tblTrainingPlanCourse", "course_id"));
-            assertEquals("CS201", value(statement, "tblCourseResult", "course_id"));
+            assertEquals("CS101", value(statement, "tblCourseOffering", "course_id"));
+            assertEquals("CS101", value(statement, "tblTrainingPlanCourse", "course_id"));
+            assertEquals("CS101", value(statement, "tblCourseResult", "course_id"));
         }
     }
 

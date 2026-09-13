@@ -109,12 +109,12 @@ class CourseMessageHandlerTest {
                 users);
 
         Message createCourse = managementHandler.handle(Message.request("create-course",
-                MessageType.COURSE_MANAGE, CourseManagementCommand.createCourse(
+                MessageType.COURSE_MANAGE_V2, CourseManagementCommand.createCourse(
                         academicSession.getToken(), new Course("CS201", "算法设计", 3))));
         assertEquals(StatusCode.OK, createCourse.getStatusCode());
 
         Message createOffering = managementHandler.handle(Message.request("create-offering",
-                MessageType.COURSE_MANAGE, CourseManagementCommand.createOffering(
+                MessageType.COURSE_MANAGE_V2, CourseManagementCommand.createOffering(
                         academicSession.getToken(), new CourseOffering("OFFER-CS201-01", "CS201",
                                 CourseSelectionDemoFactory.DEMO_TERM, "教师004", "周四 1-2 节", "A204",
                                 30, 10, 5, CourseOfferingStatus.DRAFT).withMeetingSchedule(
@@ -123,7 +123,7 @@ class CourseMessageHandlerTest {
         assertEquals(StatusCode.OK, createOffering.getStatusCode());
 
         Message updateTeachingInfo = managementHandler.handle(Message.request("update-teaching-info",
-                MessageType.COURSE_MANAGE, CourseManagementCommand.updateOfferingTeachingInfo(
+                MessageType.COURSE_MANAGE_V2, CourseManagementCommand.updateOfferingTeachingInfo(
                         academicSession.getToken(), "OFFER-CS201-01", "教师005", "B301")));
         assertEquals(StatusCode.OK, updateTeachingInfo.getStatusCode());
         CourseOffering updatedOffering = (CourseOffering) updateTeachingInfo.getPayload();
@@ -135,7 +135,7 @@ class CourseMessageHandlerTest {
                 new CourseSchedule(Collections.singletonList(new CourseMeeting(DayOfWeek.TUESDAY,
                         3, 4, 1, 8, "B301"))));
         Message updateSchedule = managementHandler.handle(Message.request("update-schedule",
-                MessageType.COURSE_MANAGE, CourseManagementCommand.updateOfferingSchedule(
+                MessageType.COURSE_MANAGE_V2, CourseManagementCommand.updateOfferingSchedule(
                         academicSession.getToken(), rescheduled)));
         assertEquals(StatusCode.OK, updateSchedule.getStatusCode());
         CourseOffering scheduleUpdatedOffering = (CourseOffering) updateSchedule.getPayload();
@@ -144,7 +144,7 @@ class CourseMessageHandlerTest {
         CourseOffering details = scheduleUpdatedOffering.withTeachingInfo("教师004", "C401")
                 .withCapacities(28, 12, 6);
         Message updateDetails = managementHandler.handle(Message.request("update-details",
-                MessageType.COURSE_MANAGE, CourseManagementCommand.updateOfferingDetails(
+                MessageType.COURSE_MANAGE_V2, CourseManagementCommand.updateOfferingDetails(
                         academicSession.getToken(), details)));
         assertEquals(StatusCode.OK, updateDetails.getStatusCode());
         assertEquals("C401", ((CourseOffering) updateDetails.getPayload()).getLocation());
@@ -152,29 +152,29 @@ class CourseMessageHandlerTest {
         LocalDateTime startsAt = LocalDateTime.of(2026, 10, 1, 8, 0);
         LocalDateTime endsAt = LocalDateTime.of(2026, 10, 7, 18, 0);
         Message createRound = managementHandler.handle(Message.request("create-round",
-                MessageType.COURSE_MANAGE, CourseManagementCommand.createSelectionRound(
+                MessageType.COURSE_MANAGE_V2, CourseManagementCommand.createSelectionRound(
                         academicSession.getToken(), new SelectionRound("ROUND-EXTRA",
                                 "2026-2027-2", SelectionRoundType.INITIAL, startsAt, endsAt,
                                 SelectionRoundStatus.DRAFT))));
         assertEquals(StatusCode.OK, createRound.getStatusCode());
 
         Message openRound = managementHandler.handle(Message.request("open-round",
-                MessageType.COURSE_MANAGE, CourseManagementCommand.changeSelectionRoundStatus(
+                MessageType.COURSE_MANAGE_V2, CourseManagementCommand.changeSelectionRoundStatus(
                         academicSession.getToken(), "ROUND-EXTRA", SelectionRoundStatus.OPEN)));
         assertEquals(StatusCode.OK, openRound.getStatusCode());
 
         Message updateRoundTime = managementHandler.handle(Message.request("update-round-time",
-                MessageType.COURSE_MANAGE, CourseManagementCommand.updateSelectionRoundTimeWindow(
+                MessageType.COURSE_MANAGE_V2, CourseManagementCommand.updateSelectionRoundTimeWindow(
                         academicSession.getToken(), "ROUND-EXTRA", startsAt.plusDays(1),
                         endsAt.plusDays(1))));
         assertEquals(StatusCode.CONFLICT, updateRoundTime.getStatusCode());
 
         Message disableRound = managementHandler.handle(Message.request("disable-round",
-                MessageType.COURSE_MANAGE, CourseManagementCommand.changeSelectionRoundStatus(
+                MessageType.COURSE_MANAGE_V2, CourseManagementCommand.changeSelectionRoundStatus(
                         academicSession.getToken(), "ROUND-EXTRA", SelectionRoundStatus.CLOSED)));
         assertEquals(StatusCode.OK, disableRound.getStatusCode());
         Message updateDisabledRoundTime = managementHandler.handle(Message.request("update-disabled-round-time",
-                MessageType.COURSE_MANAGE, CourseManagementCommand.updateSelectionRoundTimeWindow(
+                MessageType.COURSE_MANAGE_V2, CourseManagementCommand.updateSelectionRoundTimeWindow(
                         academicSession.getToken(), "ROUND-EXTRA", startsAt.plusDays(1),
                         endsAt.plusDays(1))));
         assertEquals(StatusCode.OK, updateDisabledRoundTime.getStatusCode());
@@ -196,7 +196,7 @@ class CourseMessageHandlerTest {
 
     @Test
     void studentCannotCallCourseManagementMessage() {
-        Message response = handler.handle(Message.request("manage", MessageType.COURSE_MANAGE,
+        Message response = handler.handle(Message.request("manage", MessageType.COURSE_MANAGE_V2,
                 CourseManagementCommand.listCourses(session.getToken())));
         assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
     }

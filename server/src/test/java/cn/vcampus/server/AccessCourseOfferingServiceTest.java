@@ -42,6 +42,7 @@ class AccessCourseOfferingServiceTest {
             createCurrentOfferingTable(statement);
             createCurrentMeetingTable(statement);
             createCurrentSelectionRecordTable(statement);
+            createGradeSubmissionTable(statement);
             createTeacherTable(statement);
         }
         catalog = new AccessCourseCatalogService(database);
@@ -144,7 +145,7 @@ class AccessCourseOfferingServiceTest {
     }
 
     @Test
-    void renamesOfferingAndKeepsSelectionAndScheduleReferencesConsistent() {
+    void rejectsOfferingRenameWhenActiveSelectionsExist() {
         service.create(offering("OFFER-001", CourseOfferingStatus.OPEN));
         AccessCourseSelectionRecordService records = new AccessCourseSelectionRecordService(
                 temporaryDirectory.resolve("course-offering-test.accdb"), service);
@@ -156,11 +157,41 @@ class AccessCourseOfferingServiceTest {
                 CourseOfferingStatus.OPEN).withMeetingSchedule(new CourseSchedule(Arrays.asList(
                         new CourseMeeting(DayOfWeek.TUESDAY, 3, 4, "教学楼B302"))));
 
-        assertEquals(StatusCode.OK, service.updateDetails("OFFER-001", updated).getStatus());
-        assertEquals(StatusCode.NOT_FOUND, service.findById("OFFER-001").getStatus());
-        assertEquals("CS101", service.findById("OFFER-009").getData().getCourseId());
-        assertEquals(1, records.listActiveByOffering("OFFER-009").getData().size());
-        assertEquals(1, service.findById("OFFER-009").getData().getMeetingSchedule().getMeetings().size());
+        assertEquals(StatusCode.CONFLICT, service.updateDetails("OFFER-001", updated).getStatus());
+        assertEquals(StatusCode.OK, service.findById("OFFER-001").getStatus());
+        assertEquals(StatusCode.NOT_FOUND, service.findById("OFFER-009").getStatus());
+        assertEquals(1, records.listActiveByOffering("OFFER-001").getData().size());
+    }
+
+    @Test
+    void rejectsTeacherChangeWhenGradeSubmissionAlreadyExists() throws Exception {
+        service.create(offering("OFFER-001", CourseOfferingStatus.DRAFT));
+        Path database = temporaryDirectory.resolve("course-offering-test.accdb");
+        try (Connection connection = DriverManager.getConnection("jdbc:ucanaccess://" + database
+                + ";immediatelyReleaseResources=true"); Statement statement = connection.createStatement()) {
+            statement.execute("INSERT INTO tblGradeSubmission(submission_id,offering_id,teacher_id) "
+                    + "VALUES('GRADE-001','OFFER-001','T001')");
+        }
+
+        assertEquals(StatusCode.CONFLICT,
+                service.updateTeachingInfo("OFFER-001", "T002", "教学楼B302").getStatus());
+        CourseOffering changed = offering("OFFER-001", "CS101", "T002", CourseOfferingStatus.DRAFT);
+        assertEquals(StatusCode.CONFLICT, service.updateDetails(changed).getStatus());
+        assertEquals("T001", service.findById("OFFER-001").getData().getTeacherId());
+    }
+
+    @Test
+    void rejectsCourseChangeWhenActiveSelectionsExist() {
+        catalog.create(new Course("CS102", "数据结构", 3));
+        service.create(offering("OFFER-001", CourseOfferingStatus.OPEN));
+        AccessCourseSelectionRecordService records = new AccessCourseSelectionRecordService(
+                temporaryDirectory.resolve("course-offering-test.accdb"), service);
+        records.create(new CourseSelectionRecord("RECORD-001", "S001", "OFFER-001", "ROUND-001",
+                SelectionType.REQUIRED, LocalDateTime.of(2026, 9, 1, 8, 0)));
+
+        CourseOffering changed = offering("OFFER-001", "CS102", CourseOfferingStatus.OPEN);
+        assertEquals(StatusCode.CONFLICT, service.updateDetails(changed).getStatus());
+        assertEquals("CS101", service.findById("OFFER-001").getData().getCourseId());
     }
 
     @Test
@@ -244,6 +275,12 @@ class AccessCourseOfferingServiceTest {
         statement.execute("CREATE TABLE tblCourseOfferingCapacityUsage ("
                 + "offering_id VARCHAR(36) NOT NULL,capacity_bucket VARCHAR(16) NOT NULL,"
                 + "used_count INTEGER NOT NULL,PRIMARY KEY (offering_id,capacity_bucket))");
+    }
+
+    private static void createGradeSubmissionTable(Statement statement) throws Exception {
+        statement.execute("CREATE TABLE tblGradeSubmission (submission_id VARCHAR(36) NOT NULL,"
+                + "offering_id VARCHAR(36) NOT NULL,teacher_id VARCHAR(32) NOT NULL,"
+                + "PRIMARY KEY (submission_id))");
     }
 
     private static void createCurrentMeetingTable(Statement statement) throws Exception {

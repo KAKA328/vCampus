@@ -192,6 +192,23 @@ class InMemoryCourseOfferingServiceTest {
                 service.changeCapacities("OFFER-001", 0, 1, 1).getStatus());
     }
 
+    @Test
+    void rejectsOfferingOrCourseIdChangeWhenSelectionRecordsExist() {
+        InMemoryCourseSelectionRecordService records = new InMemoryCourseSelectionRecordService(
+                Arrays.asList(new CourseSelectionRecord("RECORD-001", "STU-001", "OFFER-001",
+                        "ROUND-001", SelectionType.REQUIRED,
+                        LocalDateTime.of(2026, 9, 1, 8, 0))));
+        InMemoryCourseOfferingService service = new InMemoryCourseOfferingService(Arrays.asList(
+                offering("OFFER-001", "CS101", CourseOfferingStatus.OPEN, 10, 1, 1)), null,
+                records);
+
+        assertEquals(StatusCode.CONFLICT, service.updateDetails("OFFER-001",
+                offering("OFFER-009", "CS101", CourseOfferingStatus.OPEN, 10, 1, 1)).getStatus());
+        assertEquals(StatusCode.CONFLICT, service.updateDetails("OFFER-001",
+                offering("OFFER-001", "CS102", CourseOfferingStatus.OPEN, 10, 1, 1)).getStatus());
+        assertEquals(StatusCode.OK, service.findById("OFFER-001").getStatus());
+    }
+
     private static CourseOffering offering(String offeringId, String courseId,
             CourseOfferingStatus status, int requiredCapacity, int electiveCapacity,
             int crossMajorCapacity) {

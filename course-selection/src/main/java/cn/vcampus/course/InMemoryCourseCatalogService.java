@@ -122,6 +122,11 @@ public final class InMemoryCourseCatalogService implements CourseCatalogService 
                 && coursesById.containsKey(course.getCourseId())) {
             return ServiceResult.failure(StatusCode.CONFLICT, "course already exists");
         }
+        if (!normalizedOriginalId.equals(course.getCourseId())) {
+            // 内存目录不持有教学班、培养方案和成绩引用，不能安全迁移课程编号。
+            return ServiceResult.failure(StatusCode.CONFLICT,
+                    "内存演示中不能修改课程编号，请保留原课程编号");
+        }
         coursesById.remove(normalizedOriginalId);
         coursesById.put(course.getCourseId(), course);
         return ServiceResult.ok(course);

@@ -266,6 +266,11 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
         String sql = "UPDATE tblCourseOffering SET teacher_id=?,location=? WHERE offering_id=?";
         try (Connection connection = open();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
+            if (!existing.getData().getTeacherId().equals(normalizedTeacherId)
+                    && hasGradeSubmission(connection, normalizedOfferingId)) {
+                return ServiceResult.failure(StatusCode.CONFLICT,
+                        "教学班已有成绩提交，不能更换任课教师");
+            }
             statement.setString(1, changed.getTeacherId());
             statement.setString(2, changed.getLocation());
             statement.setString(3, changed.getOfferingId());
@@ -379,6 +384,20 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
         try (Connection connection = open()) {
             connection.setAutoCommit(false);
             try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                boolean courseChanged = !current.getCourseId().equals(changed.getCourseId());
+                boolean offeringIdChanged = !normalizedOriginalId.equals(changed.getOfferingId());
+                if ((courseChanged || offeringIdChanged)
+                        && hasAssociatedBusinessData(connection, normalizedOriginalId)) {
+                    rollback(connection);
+                    return ServiceResult.failure(StatusCode.CONFLICT,
+                            "教学班已有选课、成绩或正式成绩记录，不能修改课程编号或教学班编号");
+                }
+                if (!current.getTeacherId().equals(changed.getTeacherId())
+                        && hasGradeSubmission(connection, normalizedOriginalId)) {
+                    rollback(connection);
+                    return ServiceResult.failure(StatusCode.CONFLICT,
+                            "教学班已有成绩提交，不能更换任课教师");
+                }
                 statement.setString(1, changed.getOfferingId());
                 statement.setString(2, changed.getCourseId());
                 statement.setString(3, changed.getTeacherId());
@@ -678,6 +697,32 @@ public final class AccessCourseOfferingService implements CourseOfferingService 
         try (ResultSet tables = connection.getMetaData().getTables(null, null, tableName,
                 new String[] { "TABLE" })) {
             return tables.next();
+        }
+    }
+
+    /** 关键业务产生后不再改写教学班身份，避免历史选课和成绩被重新解释。 */
+    private static boolean hasAssociatedBusinessData(Connection connection, String offeringId)
+            throws SQLException {
+        return hasOfferingRows(connection, "tblCourseSelection", offeringId, true)
+                || hasGradeSubmission(connection, offeringId)
+                || hasOfferingRows(connection, "tblCourseResult", offeringId, false);
+    }
+
+    private static boolean hasGradeSubmission(Connection connection, String offeringId)
+            throws SQLException {
+        return hasOfferingRows(connection, "tblGradeSubmission", offeringId, false);
+    }
+
+    private static boolean hasOfferingRows(Connection connection, String tableName, String offeringId,
+            boolean activeOnly) throws SQLException {
+        if (!tableExists(connection, tableName)) return false;
+        String sql = "SELECT * FROM " + tableName + " WHERE offering_id=?"
+                + (activeOnly ? " AND status='ACTIVE'" : "");
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, offeringId);
+            try (ResultSet results = statement.executeQuery()) {
+                return results.next();
+            }
         }
     }
 

@@ -284,6 +284,12 @@ public final class InMemoryCourseOfferingService implements CourseOfferingServic
                 return ServiceResult.failure(courseResult.getStatus(), courseResult.getMessage());
             }
         }
+        if ((!existing.getCourseId().equals(offering.getCourseId())
+                || !normalizedOriginalId.equals(offering.getOfferingId()))
+                && hasSelectionRecords(existing.getOfferingId())) {
+            return ServiceResult.failure(StatusCode.CONFLICT,
+                    "教学班已有选课记录，不能修改课程编号或教学班编号");
+        }
         ServiceResult<Void> scheduleResult = requireStructuredSchedule(offering.getMeetingSchedule());
         if (scheduleResult.getStatus() != StatusCode.OK) {
             return ServiceResult.failure(scheduleResult.getStatus(), scheduleResult.getMessage());
@@ -380,5 +386,12 @@ public final class InMemoryCourseOfferingService implements CourseOfferingServic
                     "capacity must not be lower than active selection count");
         }
         return ServiceResult.ok(null);
+    }
+
+    /** 内存实现不迁移选课记录，存在记录时与持久化实现一样保护教学班身份。 */
+    private boolean hasSelectionRecords(String offeringId) {
+        if (selectionRecords == null) return false;
+        ServiceResult<List<CourseSelectionRecord>> records = selectionRecords.listByOffering(offeringId);
+        return records.getStatus() == StatusCode.OK && !records.getData().isEmpty();
     }
 }

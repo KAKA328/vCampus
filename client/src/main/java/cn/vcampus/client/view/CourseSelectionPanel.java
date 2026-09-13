@@ -4,6 +4,7 @@ import cn.vcampus.client.service.RemoteCourseService;
 import cn.vcampus.common.Message;
 import cn.vcampus.common.Role;
 import cn.vcampus.common.StatusCode;
+import cn.vcampus.course.CourseMeeting;
 import cn.vcampus.course.SelectableCourseOffering;
 import cn.vcampus.course.SelectedCourseOffering;
 import cn.vcampus.course.SelectionRound;
@@ -14,6 +15,7 @@ import java.awt.Color;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.io.IOException;
+import java.time.DayOfWeek;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -435,7 +437,7 @@ public final class CourseSelectionPanel extends JPanel {
         title.setForeground(VCampusTheme.PRIMARY_DARK);
         JLabel detail = new JLabel("<html>任课教师：" + escape(value.getOffering().getTeacherDisplayName())
                 + "<br/>上课时间：" + escape(value.getOffering().getSchedule())
-                + "<br/>上课地点：" + escape(value.getOffering().getLocation())
+                + "<br/>上课地点：" + escape(meetingLocationSummary(value.getOffering()))
                 + "<br/>容量：" + totalCapacity(value)
                 + "<br/>已选人数：" + selectedCount(value) + "</html>");
         detail.setForeground(VCampusTheme.TEXT);
@@ -491,7 +493,7 @@ public final class CourseSelectionPanel extends JPanel {
         for (SelectedCourseOffering value : selectedOfferings) {
             rows.add(new Object[] { value.getCourse().getCourseId(), value.getCourse().getName(),
                     Integer.valueOf(value.getCourse().getCredits()), value.getOffering().getOfferingId(),
-                    value.getOffering().getSchedule(), value.getOffering().getLocation() });
+                    value.getOffering().getSchedule(), meetingLocationSummary(value.getOffering()) });
         }
         selectedModel.replaceRows(rows);
         showStatus(rows.isEmpty() ? "当前没有有效选课记录" : "已加载 " + rows.size() + " 条已选课程",
@@ -618,6 +620,35 @@ public final class CourseSelectionPanel extends JPanel {
 
     private void showStatus(String message, Color color) {
         CourseUiSupport.showStatus(status, message, color);
+    }
+
+    /** 按具体上课时段展示地点，避免多个教室时误用教学班默认地点。 */
+    static String meetingLocationSummary(cn.vcampus.course.CourseOffering offering) {
+        if (offering == null || offering.getMeetingSchedule().isEmpty()) {
+            return offering == null ? "" : offering.getLocation();
+        }
+        StringBuilder text = new StringBuilder();
+        for (CourseMeeting meeting : offering.getMeetingSchedule().getMeetings()) {
+            if (text.length() > 0) text.append("；");
+            text.append(meeting.getStartWeek()).append("-").append(meeting.getEndWeek())
+                    .append("周，").append(dayLabel(meeting.getDayOfWeek()))
+                    .append(meeting.getStartPeriod()).append("-").append(meeting.getEndPeriod())
+                    .append("节：").append(meeting.getLocation());
+        }
+        return text.toString();
+    }
+
+    private static String dayLabel(DayOfWeek day) {
+        switch (day) {
+            case MONDAY: return "周一";
+            case TUESDAY: return "周二";
+            case WEDNESDAY: return "周三";
+            case THURSDAY: return "周四";
+            case FRIDAY: return "周五";
+            case SATURDAY: return "周六";
+            case SUNDAY: return "周日";
+            default: throw new IllegalArgumentException("unsupported day");
+        }
     }
 
     private static String escape(String value) {

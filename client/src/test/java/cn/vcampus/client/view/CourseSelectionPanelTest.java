@@ -1,12 +1,19 @@
 package cn.vcampus.client.view;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import cn.vcampus.common.Role;
 import cn.vcampus.common.User;
+import cn.vcampus.course.CourseMeeting;
+import cn.vcampus.course.CourseOffering;
+import cn.vcampus.course.CourseOfferingStatus;
+import cn.vcampus.course.CourseSchedule;
 import cn.vcampus.user.Session;
+import java.time.DayOfWeek;
+import java.util.Arrays;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import javax.swing.AbstractButton;
@@ -90,6 +97,18 @@ class CourseSelectionPanelTest {
         assertTrue(table.getAutoResizeMode() == JTable.AUTO_RESIZE_OFF);
         assertTrue(table.getColumnModel().getColumn(0).getPreferredWidth() >= UiMetrics.px(150));
         assertTrue(table.getColumnModel().getColumn(1).getPreferredWidth() >= UiMetrics.px(260));
+    }
+
+    @Test
+    void listsTheLocationForEachStructuredMeeting() {
+        CourseOffering offering = new CourseOffering("OFFER-001", "CS101", "2026-2027-1",
+                "教师001", "1-8周，周一1-2节；9-16周，周三3-4节", "教学楼A201", 30, 5, 5,
+                CourseOfferingStatus.OPEN).withMeetingSchedule(new CourseSchedule(Arrays.asList(
+                        new CourseMeeting(DayOfWeek.MONDAY, 1, 2, 1, 8, "教学楼A201"),
+                        new CourseMeeting(DayOfWeek.WEDNESDAY, 3, 4, 9, 16, "教学楼B302"))));
+
+        assertEquals("1-8周，周一1-2节：教学楼A201；9-16周，周三3-4节：教学楼B302",
+                CourseSelectionPanel.meetingLocationSummary(offering));
     }
 
     private static AbstractButton button(CourseSelectionPanel panel, String fieldName) throws Exception {

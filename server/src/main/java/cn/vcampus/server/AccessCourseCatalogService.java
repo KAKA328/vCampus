@@ -149,6 +149,12 @@ public final class AccessCourseCatalogService implements CourseCatalogService {
         try (Connection connection = open()) {
             connection.setAutoCommit(false);
             try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                if (!normalizedOriginalId.equals(course.getCourseId())
+                        && hasCourseReferences(connection, normalizedOriginalId)) {
+                    rollback(connection);
+                    return ServiceResult.failure(StatusCode.CONFLICT,
+                            "课程已有教学、培养方案或成绩关联，不能修改课程编号");
+                }
                 statement.setString(1, course.getCourseId());
                 statement.setString(2, course.getName());
                 statement.setInt(3, course.getCredits());
@@ -255,6 +261,26 @@ public final class AccessCourseCatalogService implements CourseCatalogService {
         try (ResultSet tables = connection.getMetaData().getTables(null, null, tableName,
                 new String[] { "TABLE" })) {
             return tables.next();
+        }
+    }
+
+    /** 编号一旦被教学、培养或成绩数据引用，禁止重命名以保留历史业务语义。 */
+    private static boolean hasCourseReferences(Connection connection, String courseId)
+            throws SQLException {
+        return hasCourseRows(connection, "tblCourseOffering", courseId)
+                || hasCourseRows(connection, "tblTrainingPlanCourse", courseId)
+                || hasCourseRows(connection, "tblCourseResult", courseId);
+    }
+
+    private static boolean hasCourseRows(Connection connection, String tableName, String courseId)
+            throws SQLException {
+        if (!tableExists(connection, tableName)) return false;
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT * FROM " + tableName + " WHERE course_id=?")) {
+            statement.setString(1, courseId);
+            try (ResultSet results = statement.executeQuery()) {
+                return results.next();
+            }
         }
     }
 

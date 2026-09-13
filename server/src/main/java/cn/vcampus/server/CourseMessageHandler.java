@@ -196,7 +196,7 @@ final class CourseMessageHandler {
                     result = manageTrainingPlans(
                             payload(request, TrainingPlanManagementCommand.class));
                     break;
-                case COURSE_MANAGE:
+                case COURSE_MANAGE_V2:
                     result = manage(payload(request, CourseManagementCommand.class));
                     break;
                 default:
