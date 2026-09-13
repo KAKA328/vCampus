@@ -72,6 +72,11 @@ import javax.swing.table.TableCellRenderer;
  * 界面显隐只是 UX（对齐 LibraryPanel 的角色分化方式）。
  */
 public final class StorePanel extends JPanel {
+    /** 商店身份页：CONSUMER=消费者（浏览/购买/购物车/钱包），MANAGER=管理者（商品维护/全部订单/余额校正）。 */
+    public enum Mode {
+        CONSUMER, MANAGER
+    }
+
     private static final int HOT_PRODUCT_LIMIT = 10;
     private static final int MAX_QUANTITY = 999;
     // 类别下拉的“全部”占位项（与 category=null 等价）
@@ -80,14 +85,14 @@ public final class StorePanel extends JPanel {
     private final String host;
     private final int port;
     private final Session session;
+    private final Mode mode;
+    // manager 等价于 mode==MANAGER，保留布尔量供既有显隐判断复用
     private final boolean manager;
 
     private final BatchTableModel productModel = new BatchTableModel(new Object[] {
             "商品号", "名称", "类别", "价格", "库存", "状态", "说明"
     });
-    private final BatchTableModel cartModel = new BatchTableModel(new Object[] {
-            "条目号", "商品", "单价", "数量", "小计", "状态"
-    });
+    private final CartTableModel cartModel = new CartTableModel();
     private final BatchTableModel orderModel = new BatchTableModel(new Object[] {
             "订单号", "商品", "数量", "单价", "总价", "时间"
     });
@@ -111,6 +116,9 @@ public final class StorePanel extends JPanel {
     private long cartTotalCents;
 
     private final JTextField keywordField = new JTextField(12);
+    // 价格区间（元）：留空=该侧不限；与关键词/类别一起发服务端做多字段拼接查询
+    private final JTextField minPriceField = new JTextField(6);
+    private final JTextField maxPriceField = new JTextField(6);
     // 类别从下拉选（来源 = 各次加载结果里出现过的类别并集，免手输易错的裸文本）
     private final JComboBox<String> categoryBox = new JComboBox<String>();
     private final Set<String> knownCategories = new TreeSet<String>();
@@ -141,6 +149,7 @@ public final class StorePanel extends JPanel {
     private final JButton hotButton = new JButton("热销 Top" + HOT_PRODUCT_LIMIT);
     // 含下架视图：学生/教师也可开启（浏览已下架陈列，不可购买——服务端购买/加购仍拒绝下架品）
     private final JButton inactiveButton = new JButton("显示已下架");
+    private final JButton catalogMoreButton = new JButton("视图与筛选…");// 热销/含下架/视图切换下拉入口，保证搜索行单行不换行
     private final JButton purchaseButton = new JButton("购买选中");
     private final JButton addToCartButton = new JButton("加入购物车");
     private final JButton detailButton = new JButton("商品详情");
@@ -153,9 +162,11 @@ public final class StorePanel extends JPanel {
     private final JButton importProductsButton = new JButton("批量导入…");// 商品批量导入入口（管理端下拉内）
     private final ProductImportFileReader productImportReader = new ProductImportFileReader();
     private final JButton refreshCartButton = new JButton("刷新购物车");
+    private final JButton selectAllCartButton = new JButton("全选");
     private final JButton updateQuantityButton = new JButton("修改数量");
-    private final JButton removeFromCartButton = new JButton("移除选中");
-    private final JButton checkoutButton = new JButton("去结算");
+    private final JButton removeFromCartButton = new JButton("批量删除");
+    private final JButton checkoutSelectedButton = new JButton("购买选中");
+    private final JButton checkoutButton = new JButton("结算全部");
     private final JButton refreshOrdersButton = new JButton("刷新我的订单");
     private final JButton rechargeButton = new JButton("充值");
     private final JButton refreshLedgerButton = new JButton("刷新流水");
@@ -168,14 +179,25 @@ public final class StorePanel extends JPanel {
     private int initialProductRetryAttempts = 1;
 
     public StorePanel(String host, int port, Session session) {
-        if (host == null || host.trim().isEmpty() || session == null) {
-            throw new IllegalArgumentException("host and session must not be null");
+        this(host, port, session, defaultMode(session));
+    }
+
+    /** 显式指定身份页：CONSUMER 只给消费者能力，MANAGER 只给商品维护/全部订单/余额校正。 */
+    public StorePanel(String host, int port, Session session, Mode mode) {
+        if (host == null || host.trim().isEmpty() || session == null || mode == null) {
+            throw new IllegalArgumentException("host, session and mode must not be null");
         }
         this.host = host.trim();
         this.port = port;
         this.session = session;
-        this.manager = canManage(session.getUser().getRole());
+        this.mode = mode;
+        this.manager = mode == Mode.MANAGER;
         build();
+    }
+
+    // 3 参构造的默认模式：管理员/商店经理→MANAGER，其余→CONSUMER（供旧调用与测试）
+    private static Mode defaultMode(Session session) {
+        return session != null && canManage(session.getUser().getRole()) ? Mode.MANAGER : Mode.CONSUMER;
     }
 
     /** 管理员与商店经理可维护商品、查看全部订单和校正余额。 */
@@ -204,8 +226,10 @@ public final class StorePanel extends JPanel {
         deactivateButton.addActionListener(event -> deactivateSelected());
         reactivateButton.addActionListener(event -> reactivateSelected());
         refreshCartButton.addActionListener(event -> loadCart());
+        selectAllCartButton.addActionListener(event -> selectAllCart());
         updateQuantityButton.addActionListener(event -> updateSelectedCartQuantity());
-        removeFromCartButton.addActionListener(event -> removeSelectedCartItem());
+        removeFromCartButton.addActionListener(event -> removeSelectedCartItems());
+        checkoutSelectedButton.addActionListener(event -> checkoutSelectedCart());
         checkoutButton.addActionListener(event -> checkoutCart());
         refreshOrdersButton.addActionListener(event -> loadOrders());
         rechargeButton.addActionListener(event -> promptRecharge());
@@ -214,8 +238,9 @@ public final class StorePanel extends JPanel {
         if (manager) {
             adjustBalanceButton.addActionListener(event -> promptAdjustBalance());
         }
-        // 回车即查询，与图书馆页的搜索框行为一致
-        keywordField.addActionListener(event -> applyKeywordFilter());
+        // 回车即发服务端多字段查询（关键词+类别+价格区间），与“查询商品”按钮一致；
+        // 输入过程中的即时手感仍由 KeywordWatcher 对已加载结果做本地过滤兼顾
+        keywordField.addActionListener(event -> loadProducts());
         // 类别下拉的切换即查询（程序化刷新选项期间被 updatingCategoryOptions 抑制，避免循环触发）
         categoryBox.addActionListener(event -> {
             if (!updatingCategoryOptions) {
@@ -278,8 +303,8 @@ public final class StorePanel extends JPanel {
         title.setFont(VCampusTheme.font(Font.BOLD, 24));
         title.setForeground(VCampusTheme.PRIMARY_DARK);
         String capabilities = manager
-                ? "可维护商品与库存、查看全部订单、校正用户余额，也可自行购买。"
-                : "可浏览商品、直接购买、购物车结算，并查看本人订单与钱包流水。";
+                ? "以管理者身份维护商品与库存、查看全部订单、校正用户余额。"
+                : "以消费者身份浏览商品、直接购买、购物车结算，并查看本人订单与钱包流水。";
         JLabel subtitle = new JLabel("当前用户：" + session.getUser().getDisplayName() + "；" + capabilities);
         subtitle.setForeground(VCampusTheme.MUTED);
 
@@ -308,22 +333,32 @@ public final class StorePanel extends JPanel {
         tabs.setUI(new VCampusTheme.StickyTabbedPaneUI());
         tabs.setOpaque(true);
         tabs.setBackground(VCampusTheme.BACKGROUND);
-        tabs.addTab("商品列表", catalogPanel());
-        tabs.addTab("购物车", cartPanel());
-        tabs.addTab("我的订单", orderPanel());
-        tabs.addTab("钱包", walletPanel());
-        if (manager) {
+        if (mode == Mode.MANAGER) {
+            // 管理者页：只有商品维护与全部订单，不出现购物车/我的订单/钱包等消费者页签
+            tabs.addTab("商品维护", catalogPanel());
             tabs.addTab("全部订单", allOrderPanel());
+        } else {
+            // 消费者页：商品列表 / 购物车 / 我的订单 / 钱包
+            tabs.addTab("商品列表", catalogPanel());
+            tabs.addTab("购物车", cartPanel());
+            tabs.addTab("我的订单", orderPanel());
+            tabs.addTab("钱包", walletPanel());
         }
         // 切页签即加载该页数据，用户不必每页都先找“刷新”按钮
         tabs.addChangeListener(event -> onTabSelected(tabs.getSelectedIndex()));
         return tabs;
     }
 
-    /** 页签索引固定为 商品0 / 购物车1 / 我的订单2 / 钱包3 / 全部订单4，其中 4 仅管理员存在。 */
+    /** 页签索引按身份页不同：消费者 商品0/购物车1/我的订单2/钱包3；管理者 商品维护0/全部订单1。 */
     private void onTabSelected(int index) {
         // 已有请求在飞时不再叠加，否则新代次会顶掉正在回来的响应
         if (activeMutationRequests > 0) {
+            return;
+        }
+        if (mode == Mode.MANAGER) {
+            if (index == 1) {
+                loadAllOrders();
+            }
             return;
         }
         if (index == 1) {
@@ -332,8 +367,6 @@ public final class StorePanel extends JPanel {
             loadOrders();
         } else if (index == 3) {
             loadLedger();
-        } else if (index == 4 && manager) {
-            loadAllOrders();
         }
     }
 
@@ -352,16 +385,44 @@ public final class StorePanel extends JPanel {
         VCampusTheme.roundedField(categoryBox);
         categoryBox.setPreferredSize(UiMetrics.dimension(150, 36));
         search.add(categoryBox);
+        // 价格区间：两个数字输入框，留空=该侧不限；与关键词/类别一起发服务端做多字段拼接查询
+        search.add(new JLabel("价格"));
+        VCampusTheme.roundedField(minPriceField);
+        minPriceField.setPreferredSize(UiMetrics.dimension(88, 36));
+        search.add(minPriceField);
+        search.add(new JLabel("—"));
+        VCampusTheme.roundedField(maxPriceField);
+        maxPriceField.setPreferredSize(UiMetrics.dimension(88, 36));
+        search.add(maxPriceField);
         themeSecondary(searchButton);
-        themeSecondary(hotButton);
         search.add(searchButton);
-        search.add(hotButton);
-        // 含下架开关对学生也开放：看得到不等于买得到（服务端购买/加购仍拒下架品）
-        themeSecondary(inactiveButton);
-        search.add(inactiveButton);
-        themeSecondary(viewModeButton);
-        search.add(viewModeButton);
-        viewModeButton.setToolTipText("在“方块（双列卡片）/ 列表（表格）”两种展示间切换");
+        // 热销/含下架/视图切换收进“视图与筛选…”下拉，保证搜索行单行不换行（同 manageButton 下拉先例）
+        themeSecondary(catalogMoreButton);
+        search.add(catalogMoreButton);
+        final JPopupMenu catalogMoreMenu = new JPopupMenu();
+        catalogMoreMenu.setBackground(VCampusTheme.PANEL);
+        catalogMoreMenu.setBorder(VCampusTheme.roundedBorder(VCampusTheme.BORDER, 12));
+        catalogMoreMenu.setLayout(new GridLayout(0, 1, 0, UiMetrics.px(4)));
+        for (JButton operation : new JButton[] { hotButton, inactiveButton }) {
+            themeSecondary(operation);
+            operation.setHorizontalAlignment(SwingConstants.LEFT);
+            operation.setBorder(VCampusTheme.padding(8, 14, 8, 14));
+            catalogMoreMenu.add(operation);
+            operation.addActionListener(event -> catalogMoreMenu.setVisible(false));
+        }
+        if (mode == Mode.CONSUMER) {
+            // 视图切换（方块/列表）只对消费者开放；管理者固定列表维护（方块卡片自带购买按钮，与管理页语义冲突）
+            themeSecondary(viewModeButton);
+            viewModeButton.setHorizontalAlignment(SwingConstants.LEFT);
+            viewModeButton.setBorder(VCampusTheme.padding(8, 14, 8, 14));
+            catalogMoreMenu.add(viewModeButton);
+            viewModeButton.addActionListener(event -> catalogMoreMenu.setVisible(false));
+            viewModeButton.setToolTipText("在“方块（双列卡片）/ 列表（表格）”两种展示间切换");
+        }
+        catalogMoreButton.addActionListener(event -> {
+            // 向上弹出：按钮贴近窗口顶部工具栏，向下弹更自然（与 manageButton 贴近底部相反）
+            catalogMoreMenu.show(catalogMoreButton, 0, catalogMoreButton.getHeight());
+        });
 
         configureTable(productTable);
         applyMoneyColumns(productTable, MoneyCellRenderer.MoneyFormat.YUAN, 3);
@@ -388,17 +449,20 @@ public final class StorePanel extends JPanel {
         // SOUTH-列表：选中行操作（数量/购买/加购/详情 + 管理员维护），包进白色圆角表面
         JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(12), UiMetrics.px(6)));
         storeToolbar(actions);
-        themePrimary(purchaseButton);
-        themeSecondary(addToCartButton);
         themeSecondary(detailButton);
-        actions.add(new JLabel("数量"));
-        styleQuantitySpinner(quantity, 88);
-        actions.add(quantity);
-        actions.add(purchaseButton);
-        actions.add(addToCartButton);
-        actions.add(detailButton);
-        if (manager) {
-            // 维护类操作收进“管理商品”下拉，避免操作行换行成两行（观感差）
+        if (mode == Mode.CONSUMER) {
+            // 消费者操作行：数量 + 购买选中 + 加入购物车 + 商品详情（不出现管理下拉与余额校正）
+            themePrimary(purchaseButton);
+            themeSecondary(addToCartButton);
+            actions.add(new JLabel("数量"));
+            styleQuantitySpinner(quantity, 88);
+            actions.add(quantity);
+            actions.add(purchaseButton);
+            actions.add(addToCartButton);
+            actions.add(detailButton);
+        } else {
+            // 管理者操作行：商品详情 + 管理下拉（新增/编辑/补货/下架/重新上架/批量导入）+ 余额校正；不出现数量/购买/加购
+            actions.add(detailButton);
             themeSecondary(manageButton);
             actions.add(manageButton);
             final JPopupMenu manageMenu = new JPopupMenu();
@@ -419,6 +483,8 @@ public final class StorePanel extends JPanel {
                 int menuHeight = manageMenu.getPreferredSize().height;
                 manageMenu.show(manageButton, 0, -menuHeight);
             });
+            themeSecondary(adjustBalanceButton);
+            actions.add(adjustBalanceButton);
         }
         // SOUTH 仅承载列表操作行；方块视图时整行隐藏，把纵向空间让给商品区（卡片自带加购/购买/详情按钮）
         catalogSouth.add(actions, BorderLayout.CENTER);
@@ -453,17 +519,28 @@ public final class StorePanel extends JPanel {
         JPanel panel = new JPanel(new BorderLayout(0, 12));
         storeSection(panel);
         configureTable(cartTable);
-        applyMoneyColumns(cartTable, MoneyCellRenderer.MoneyFormat.YUAN, 2, 4);
+        // 首列复选框使金额列右移一位：单价=3、小计=5
+        applyMoneyColumns(cartTable, MoneyCellRenderer.MoneyFormat.YUAN, 3, 5);
+        // 复选框勾选即选中（无需 Ctrl）；保留多选模式仅为行高亮同步
+        cartTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        cartModel.addTableModelListener(event -> {
+            syncCartSelection();
+            updateButtonState();
+        });
 
         JPanel actions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(12), UiMetrics.px(6)));
         storeToolbar(actions);
         themeSecondary(refreshCartButton);
+        themeSecondary(selectAllCartButton);
         themeSecondary(updateQuantityButton);
         themeSecondary(removeFromCartButton);
+        themePrimary(checkoutSelectedButton);
         themePrimary(checkoutButton);
         actions.add(refreshCartButton);
+        actions.add(selectAllCartButton);
         actions.add(updateQuantityButton);
         actions.add(removeFromCartButton);
+        actions.add(checkoutSelectedButton);
         actions.add(checkoutButton);
 
         // 合计只累加服务端给出的 subtotalCents，不在前端用单价×数量重算，否则会与实扣金额差一两分
@@ -515,10 +592,7 @@ public final class StorePanel extends JPanel {
         themeSecondary(refreshLedgerButton);
         balanceBar.add(rechargeButton);
         balanceBar.add(refreshLedgerButton);
-        if (manager) {
-            themeSecondary(adjustBalanceButton);
-            balanceBar.add(adjustBalanceButton);
-        }
+        // 余额校正属于管理者能力，已移到「商品维护」页操作行；钱包页为消费者专属，不再出现校正入口
 
         configureTable(ledgerTable);
         // 金额列是带符号的「分」，余额列是非负的「分」，两种单位不能共用同一渲染分支
@@ -640,12 +714,15 @@ public final class StorePanel extends JPanel {
         loadProducts(true);
     }
 
-    /** First entry gets one delayed retry so a transient server handoff does not leave an empty catalog. */
+    /**
+     * First entry gets one delayed retry so a transient server handoff does not
+     * leave an empty catalog.
+     */
     private void loadInitialProducts() {
         final String category = selectedCategory();
         final boolean includeInactive = inactiveViewVisible;
         runReadRequest("正在加载商品…", service -> service.listProducts(session.getToken(),
-                        category.isEmpty() ? null : category, includeInactive),
+                category.isEmpty() ? null : category, includeInactive),
                 response -> showProducts(response, true), this::retryInitialProductLoad);
     }
 
@@ -666,15 +743,41 @@ public final class StorePanel extends JPanel {
      */
     private void loadProducts(boolean announce) {
         final String category = selectedCategory();
+        final String keyword = keywordField.getText().trim();
         // 含下架视图对所有角色开放（服务端已放宽为 STORE_READ）：买家可浏览下架陈列，购买仍被拒
         final boolean includeInactive = inactiveViewVisible;
+        final Double minPrice;
+        final Double maxPrice;
+        try {
+            minPrice = parsePriceBound(minPriceField.getText());
+            maxPrice = parsePriceBound(maxPriceField.getText());
+        } catch (NumberFormatException invalid) {
+            showStatus("价格区间格式不正确，请输入数字或留空", VCampusTheme.DANGER);
+            return;
+        }
+        if (minPrice != null && maxPrice != null && minPrice.doubleValue() > maxPrice.doubleValue()) {
+            showStatus("最低价不能大于最高价", VCampusTheme.DANGER);
+            return;
+        }
         hotViewVisible = false;
         hotButton.setText("热销 Top" + HOT_PRODUCT_LIMIT);
         String suffix = includeInactive ? "（含已下架）" : "";
         runReadRequest((category.isEmpty() ? "正在查询商品" : "正在查询「" + category + "」类商品") + suffix + "…",
-                service -> service.listProducts(session.getToken(),
-                        category.isEmpty() ? null : category, includeInactive),
+                service -> service.searchProducts(session.getToken(), keyword.isEmpty() ? null : keyword,
+                        category.isEmpty() ? null : category, minPrice, maxPrice, includeInactive),
                 response -> showProducts(response, announce));
+    }
+
+    /** 价格区间输入解析：空白=该侧不限（null）；非数字抛 NumberFormatException 由调用方转成中文提示。 */
+    private static Double parsePriceBound(String text) {
+        if (text == null) {
+            return null;
+        }
+        String trimmed = text.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        return Double.valueOf(trimmed);
     }
 
     /** 类别下拉当前值：选中“全部类别”或暂无选择时返回空串（等价于 category=null）。 */
@@ -1210,24 +1313,48 @@ public final class StorePanel extends JPanel {
         }
     }
 
-    private CartLine selectedCartLine() {
-        int selected = cartTable.getSelectedRow();
-        if (selected < 0) {
-            return null;
+    /** 勾选（首列复选框）的全部购物车行；模型行与 cartLines 同序，无需 Ctrl 多选。无勾选返回空列表。 */
+    private List<CartLine> selectedCartLines() {
+        List<CartLine> result = new ArrayList<CartLine>();
+        for (int modelRow = 0; modelRow < cartModel.getRowCount(); modelRow++) {
+            if (cartModel.isChecked(modelRow) && modelRow < cartLines.size()) {
+                result.add(cartLines.get(modelRow));
+            }
         }
-        int modelRow = cartTable.convertRowIndexToModel(selected);
-        if (modelRow < 0 || modelRow >= cartLines.size()) {
-            return null;
+        return result;
+    }
+
+    /** 把行高亮同步到首列复选框的勾选集合（复选框是唯一选中事实源）。 */
+    private void syncCartSelection() {
+        cartTable.clearSelection();
+        for (int modelRow = 0; modelRow < cartModel.getRowCount(); modelRow++) {
+            if (cartModel.isChecked(modelRow)) {
+                int viewRow = cartTable.convertRowIndexToView(modelRow);
+                if (viewRow >= 0) {
+                    cartTable.addRowSelectionInterval(viewRow, viewRow);
+                }
+            }
         }
-        return cartLines.get(modelRow);
+    }
+
+    /** 全选/取消全选购物车：切换首列复选框，配合批量删除/购买选中使用。 */
+    private void selectAllCart() {
+        if (cartLines.isEmpty()) {
+            showStatus("购物车是空的，无可选条目", VCampusTheme.MUTED);
+            return;
+        }
+        boolean allChecked = cartModel.checkedCount() == cartModel.getRowCount();
+        cartModel.setAllChecked(!allChecked);
+        showStatus(allChecked ? "已取消全选" : "已勾选全部 " + cartModel.getRowCount() + " 条", VCampusTheme.SUCCESS);
     }
 
     private void updateSelectedCartQuantity() {
-        final CartLine line = selectedCartLine();
-        if (line == null) {
-            showStatus("请先在购物车表中选择一个条目", VCampusTheme.DANGER);
+        List<CartLine> selected = selectedCartLines();
+        if (selected.size() != 1) {
+            showStatus("修改数量请只勾选一个购物车条目", VCampusTheme.DANGER);
             return;
         }
+        final CartLine line = selected.get(0);
         if (!line.isActive()) {
             showStatus("「" + line.getProductName() + "」已下架，请移除该条目", VCampusTheme.DANGER);
             return;
@@ -1260,20 +1387,72 @@ public final class StorePanel extends JPanel {
                 });
     }
 
-    private void removeSelectedCartItem() {
-        final CartLine line = selectedCartLine();
-        if (line == null) {
-            showStatus("请先在购物车表中选择一个条目", VCampusTheme.DANGER);
+    private void removeSelectedCartItems() {
+        List<CartLine> selected = selectedCartLines();
+        if (selected.isEmpty()) {
+            showStatus("请先勾选要删除的购物车条目", VCampusTheme.DANGER);
             return;
         }
-        final String cartItemId = line.getCartItemId();
-        runMutationRequest("正在移除购物车条目…", service -> service.removeFromCart(session.getToken(), cartItemId),
+        final List<String> ids = new ArrayList<String>();
+        for (CartLine line : selected) {
+            ids.add(line.getCartItemId());
+        }
+        final int count = ids.size();
+        // 批量删除不可逆，先把件数摆出来让用户确认
+        if (!storeConfirm("批量删除", "确认从购物车删除选中的 " + count + " 条商品？")) {
+            return;
+        }
+        runMutationRequest("正在批量删除购物车条目…",
+                service -> service.removeFromCartBatch(session.getToken(), ids),
                 response -> {
                     if (!isSuccessful(response)) {
                         return;
                     }
-                    showStatus("已移除「" + line.getProductName() + "」", VCampusTheme.SUCCESS);
+                    showStatus("已删除 " + count + " 条购物车条目", VCampusTheme.SUCCESS);
                     SwingUtilities.invokeLater(this::loadCart);
+                });
+    }
+
+    /** 结算选中：仅结算勾选子集（服务端子集 checkout），含下架/合计确认与整单结算一致。 */
+    private void checkoutSelectedCart() {
+        List<CartLine> selected = selectedCartLines();
+        if (selected.isEmpty()) {
+            showStatus("请先勾选要结算的购物车条目", VCampusTheme.DANGER);
+            return;
+        }
+        int inactive = 0;
+        long total = 0L;
+        final List<String> ids = new ArrayList<String>();
+        for (CartLine line : selected) {
+            if (!line.isActive()) {
+                inactive++;
+            }
+            total += line.getSubtotalCents();
+            ids.add(line.getCartItemId());
+        }
+        if (inactive > 0) {
+            showStatus("选中的条目里有 " + inactive + " 条已下架商品，请先移除再结算", VCampusTheme.DANGER);
+            return;
+        }
+        final int count = selected.size();
+        if (!storeConfirm("结算选中",
+                "本次结算选中 " + count + " 条、合计 " + StoreRowMapper.formatYuan(total)
+                        + " 元，确认从校园钱包扣款？")) {
+            return;
+        }
+        runMutationRequest("正在结算选中商品…",
+                service -> service.checkoutSelected(session.getToken(), ids), response -> {
+                    if (!isSuccessful(response)) {
+                        // 结算失败会触发服务端补偿回滚；静默刷新购物车与余额（不覆盖错误提示）
+                        SwingUtilities.invokeLater(() -> loadCart(false));
+                        SwingUtilities.invokeLater(this::loadBalance);
+                        return;
+                    }
+                    showStatus("结算成功，正在刷新…", VCampusTheme.SUCCESS);
+                    SwingUtilities.invokeLater(this::loadCart);
+                    SwingUtilities.invokeLater(this::loadBalance);
+                    SwingUtilities.invokeLater(this::loadProducts);
+                    SwingUtilities.invokeLater(this::loadOrders);
                 });
     }
 
@@ -1479,8 +1658,10 @@ public final class StorePanel extends JPanel {
     }
 
     /**
-     * Read requests keep browsing available; mutations temporarily lock mutation controls only so a slow
-     * Access response cannot make the whole store page look frozen or allow duplicate payment submissions.
+     * Read requests keep browsing available; mutations temporarily lock mutation
+     * controls only so a slow
+     * Access response cannot make the whole store page look frozen or allow
+     * duplicate payment submissions.
      */
     private void runRequest(boolean mutation, String loadingMessage, final StoreRequest request,
             final ResponseHandler responseHandler, final Runnable failureHandler) {
@@ -1565,9 +1746,12 @@ public final class StorePanel extends JPanel {
         addToCartButton.setEnabled(purchasable);
         detailButton.setEnabled(idle);
         refreshCartButton.setEnabled(idle);
-        updateQuantityButton.setEnabled(idle);
-        removeFromCartButton.setEnabled(idle);
-        checkoutButton.setEnabled(idle);
+        int checkedCart = cartModel.checkedCount();
+        selectAllCartButton.setEnabled(idle && !cartLines.isEmpty());
+        updateQuantityButton.setEnabled(idle && checkedCart == 1);
+        removeFromCartButton.setEnabled(idle && checkedCart > 0);
+        checkoutSelectedButton.setEnabled(idle && checkedCart > 0);
+        checkoutButton.setEnabled(idle && !cartLines.isEmpty());
         refreshOrdersButton.setEnabled(idle);
         rechargeButton.setEnabled(idle);
         refreshLedgerButton.setEnabled(idle);
@@ -1581,6 +1765,8 @@ public final class StorePanel extends JPanel {
         adjustBalanceButton.setEnabled(manager && idle);
         keywordField.setEnabled(idle);
         categoryBox.setEnabled(idle);
+        minPriceField.setEnabled(idle);
+        maxPriceField.setEnabled(idle);
         quantity.setEnabled(idle);
     }
 
@@ -2237,5 +2423,55 @@ public final class StorePanel extends JPanel {
 
     private static int mixChannel(int base, int overlay) {
         return Math.round((base * 88 + overlay * 12) / 100f);
+    }
+
+    /** 购物车专用表格模型：首列为复选框（Boolean），无需按住 Ctrl 即可勾选多行做批量操作。 */
+    private static final class CartTableModel extends DefaultTableModel {
+        CartTableModel() {
+            super(new Object[] { "选择", "条目号", "商品", "单价", "数量", "小计", "状态" }, 0);
+        }
+
+        @Override
+        public Class<?> getColumnClass(int columnIndex) {
+            return columnIndex == 0 ? Boolean.class : super.getColumnClass(columnIndex);
+        }
+
+        @Override
+        public boolean isCellEditable(int row, int column) {
+            return column == 0;// 仅复选框列可编辑，其余只读
+        }
+
+        /** 用 6 列数据行重建表格，首列复选框默认未勾选。 */
+        void replaceRows(List<Object[]> dataRows) {
+            dataVector.clear();
+            for (Object[] row : dataRows) {
+                Object[] full = new Object[row.length + 1];
+                full[0] = Boolean.FALSE;
+                System.arraycopy(row, 0, full, 1, row.length);
+                dataVector.add(convertToVector(full));
+            }
+            fireTableDataChanged();
+        }
+
+        boolean isChecked(int modelRow) {
+            return Boolean.TRUE.equals(getValueAt(modelRow, 0));
+        }
+
+        int checkedCount() {
+            int count = 0;
+            for (int row = 0; row < getRowCount(); row++) {
+                if (isChecked(row)) {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        void setAllChecked(boolean checked) {
+            for (int row = 0; row < getRowCount(); row++) {
+                super.setValueAt(Boolean.valueOf(checked), row, 0);
+            }
+            fireTableDataChanged();
+        }
     }
 }

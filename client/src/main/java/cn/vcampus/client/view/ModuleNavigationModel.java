@@ -13,7 +13,8 @@ public final class ModuleNavigationModel {
             new ModuleDescriptor("学籍管理", "维护学生基本信息、班级、专业和联系方式。", "可用：学生档案查询和维护已接入"),
             new ModuleDescriptor("教务教学管理", "管理课程、教学班、选课轮次、培养方案并审核教师成绩。", "可用：教务教学管理与成绩审核已接入"),
             new ModuleDescriptor("图书管理", "管理图书信息、借阅、归还和借阅记录。", "可用：馆藏维护和全部借阅记录已接入"),
-            new ModuleDescriptor("商店管理", "管理商品信息、库存、购买记录、订单查询和钱包余额。", "可用：商品维护、库存补货、全部订单和余额校正已接入")));
+            new ModuleDescriptor("商店", "以消费者身份浏览商品、加入购物车并结算、查看本人订单和钱包。", "可用：商品查询、购买、购物车结算和校园钱包已接入"),
+            new ModuleDescriptor("商店管理", "以管理者身份维护商品信息、库存、全部订单和钱包余额校正。", "可用：商品维护、库存补货、全部订单和余额校正已接入")));
 
     private static final List<ModuleDescriptor> STUDENT_MODULES = Collections.unmodifiableList(Arrays.asList(
             new ModuleDescriptor("学籍信息", "查看个人学号、班级、专业和基础学籍信息。", "可用：本人档案查询和联系方式维护已接入"),
@@ -34,8 +35,9 @@ public final class ModuleNavigationModel {
     private static final List<ModuleDescriptor> LIBRARY_MODULES = Collections.singletonList(
             new ModuleDescriptor("图书馆", "维护图书资料、借阅归还和借阅记录。", "可用：馆藏维护和全部借阅记录已接入"));
 
-    private static final List<ModuleDescriptor> STORE_MODULES = Collections.singletonList(
-            new ModuleDescriptor("商店", "维护商品资料、库存和购买记录。", "可用：商品维护、库存补货、购买和订单查询已接入"));
+    private static final List<ModuleDescriptor> STORE_MODULES = Collections.unmodifiableList(Arrays.asList(
+            new ModuleDescriptor("商店", "以消费者身份浏览商品、加入购物车并结算、查看本人订单和钱包。", "可用：商品查询、购买、购物车结算和校园钱包已接入"),
+            new ModuleDescriptor("商店管理", "以管理者身份维护商品信息、库存、全部订单和钱包余额校正。", "可用：商品维护、库存补货、全部订单和余额校正已接入")));
 
     public List<String> visibleModules(Role role) {
         List<String> titles = new ArrayList<String>();

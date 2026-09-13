@@ -10,6 +10,9 @@ public interface CartRepository {
 
     boolean removeItem(String cartItemId); // 根据购物车项编号删除购物车项
 
+    /** 原子删除一组购物车项：全部存在时一起删除，否则不删除任何一项。 */
+    boolean removeItems(List<String> cartItemIds);
+
     boolean updateQuantity(String cartItemId, int newQuantity); // 根据购物车项编号更新购物车项数量
 
     void clearByUserId(String userId); // 下单之后清空购物车

@@ -16,6 +16,8 @@ import cn.vcampus.store.CartRemoveCommand;
 import cn.vcampus.store.CartUpdateCommand;
 import cn.vcampus.store.CartQueryCommand;
 import cn.vcampus.store.CartCheckoutCommand;
+import cn.vcampus.store.CartRemoveBatchCommand;
+import cn.vcampus.store.CartCheckoutSelectedCommand;
 import cn.vcampus.store.StoreOrderListAllCommand;
 import cn.vcampus.store.StoreHotProductsCommand;
 import cn.vcampus.store.StoreAccountQueryCommand;
@@ -24,6 +26,7 @@ import cn.vcampus.store.StoreAccountRechargeCommand;
 import cn.vcampus.store.StoreAccountAdjustCommand;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** 客户端商店服务，把 Swing 页面操作转换为统一 Socket 消息。 */
@@ -64,6 +67,16 @@ public final class RemoteStoreService implements Closeable {
     public Message listProducts(String token, String category, boolean includeInactive)
             throws IOException, ClassNotFoundException {
         return send(MessageType.STORE_QUERY, new StoreQueryCommand(token, category, includeInactive));
+    }
+
+    /**
+     * 多字段拼接查询：keyword 忽略大小写匹配名称或说明（可空=不限）、category 精确匹配（可空=全部）、
+     * minPrice/maxPrice 闭区间（可空=该侧不限），includeInactive=true 一并返回已下架商品。
+     */
+    public Message searchProducts(String token, String keyword, String category, Double minPrice, Double maxPrice,
+            boolean includeInactive) throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_QUERY,
+                new StoreQueryCommand(token, keyword, category, minPrice, maxPrice, includeInactive));
     }
 
     /** 管理员补充库存。 */
@@ -131,6 +144,18 @@ public final class RemoteStoreService implements Closeable {
     /** 结算当前用户购物车。 */
     public Message checkout(String token) throws IOException, ClassNotFoundException {
         return send(MessageType.STORE_CART_CHECKOUT, new CartCheckoutCommand(token));
+    }
+
+    /** 批量删除当前用户购物车条目；条目归属由服务端校验。 */
+    public Message removeFromCartBatch(String token, List<String> cartItemIds)
+            throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_CART_REMOVE_BATCH, new CartRemoveBatchCommand(token, cartItemIds));
+    }
+
+    /** 仅结算勾选的购物车条目；条目归属由服务端校验。 */
+    public Message checkoutSelected(String token, List<String> cartItemIds)
+            throws IOException, ClassNotFoundException {
+        return send(MessageType.STORE_CART_CHECKOUT_SELECTED, new CartCheckoutSelectedCommand(token, cartItemIds));
     }
 
     /** 管理员查询全部订单。 */

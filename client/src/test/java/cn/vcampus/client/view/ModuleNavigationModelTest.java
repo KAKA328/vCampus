@@ -28,6 +28,7 @@ class ModuleNavigationModelTest {
         assertTrue(model.visibleModules(Role.ADMIN).contains("学籍管理"));
         assertTrue(model.visibleModules(Role.ADMIN).contains("教务教学管理"));
         assertTrue(model.visibleModules(Role.ADMIN).contains("图书管理"));
+        assertTrue(model.visibleModules(Role.ADMIN).contains("商店"));
         assertTrue(model.visibleModules(Role.ADMIN).contains("商店管理"));
     }
 
@@ -60,10 +61,13 @@ class ModuleNavigationModelTest {
     void storeManagerCannotSeeCourseSelectionEntry() {
         ModuleNavigationModel model = new ModuleNavigationModel();
 
-        assertEquals(1, model.visibleModules(Role.STORE_MANAGER).size());
+        assertEquals(2, model.visibleModules(Role.STORE_MANAGER).size());
         assertTrue(model.visibleModules(Role.STORE_MANAGER).contains("商店"));
+        assertTrue(model.visibleModules(Role.STORE_MANAGER).contains("商店管理"));
         assertFalse(model.visibleModules(Role.STORE_MANAGER).contains("学生选课"));
         assertFalse(model.visibleModules(Role.STORE_MANAGER).contains("教务教学管理"));
+        assertFalse(model.visibleModules(Role.STORE_MANAGER).contains("选课系统"));
+        assertFalse(model.visibleModules(Role.STORE_MANAGER).contains("选课管理"));
     }
 
     @Test
@@ -119,14 +123,16 @@ class ModuleNavigationModelTest {
     }
 
     @Test
-    void adminUsesStorePanelViaManagementEntry() {
+    void adminUsesStorePanelViaBothConsumerAndManagementEntries() {
         ModuleNavigationModel model = new ModuleNavigationModel();
 
-        // ADMIN 导航里的商店入口标题是“商店管理”，必须同样路由到 StorePanel，
-        // 否则管理员会掉进占位面板，用不到商品维护、全部订单和余额校正能力。
+        // ADMIN 同时拥有「商店管理」(管理者) 与「商店」(消费者) 两个入口，两个标题都要路由到 StorePanel，
+        // 否则管理员会掉进占位面板，用不到商品维护/全部订单/余额校正或自身购买能力。
         assertTrue(MainFrame.useStorePanel(Role.ADMIN, model.findModule(Role.ADMIN, "商店管理")));
-        // 管理员看到的不是买家的“商店”标题，用买家标题查不到模块，自然也不该进 StorePanel。
-        assertFalse(MainFrame.useStorePanel(Role.ADMIN, model.findModule(Role.ADMIN, "商店")));
+        assertTrue(MainFrame.useStorePanel(Role.ADMIN, model.findModule(Role.ADMIN, "商店")));
+        // STORE_MANAGER 同样双入口都路由到 StorePanel。
+        assertTrue(MainFrame.useStorePanel(Role.STORE_MANAGER, model.findModule(Role.STORE_MANAGER, "商店管理")));
+        assertTrue(MainFrame.useStorePanel(Role.STORE_MANAGER, model.findModule(Role.STORE_MANAGER, "商店")));
     }
 
     @Test

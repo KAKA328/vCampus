@@ -690,6 +690,115 @@ class StoreServiceTest {
         assertTrue(flakyCart.findByUserId("u").isEmpty());
     }
 
+    // P1 回归：子集结算时选中条目删除失败（removeItem 返回 false）必须整体回滚、不得返回成功，
+    // 否则订单/扣款/库存已生效而购物车条目仍在，用户重试会重复扣款、重复下单
+    @Test
+    void checkoutItemsRollsBackAndAllowsRetryWhenRemovingSelectedItemFails() {
+        InMemoryProductRepository retryProducts = new InMemoryProductRepository();
+        retryProducts.save(new Product("A", "A", 5, 2.0, "", "test"));
+        InMemoryOrderRepository retryOrders = new InMemoryOrderRepository();
+        InMemoryWalletRepository retryWallet = new InMemoryWalletRepository();
+        retryWallet.save(new BankAccount("u", 100_000L));
+        FailingCartRepository flakyCart = new FailingCartRepository(false, true);
+        flakyCart.addItem(new CartItem("cart-a", "u", "A", 2, java.time.LocalDateTime.now()));
+        DefaultStoreService checkout = new DefaultStoreService(retryProducts, retryOrders, flakyCart, retryWallet);
+
+        ServiceResult<Void> failed = checkout.checkoutItems("u", java.util.Arrays.asList("cart-a"));
+
+        assertEquals(StatusCode.CONFLICT, failed.getStatus());
+        assertEquals(5, retryProducts.findById("A").getStock());// 库存已回补
+        assertTrue(retryOrders.findByUserId("u").isEmpty());// 订单已撤销
+        assertEquals(100_000L, retryWallet.findByUserId("u").getBalanceCents());// 扣款已退回
+        assertEquals(1, flakyCart.findByUserId("u").size());// 购物车条目仍在
+
+        flakyCart.failOnRemove = false;
+        ServiceResult<Void> retried = checkout.checkoutItems("u", java.util.Arrays.asList("cart-a"));
+
+        assertEquals(StatusCode.OK, retried.getStatus());
+        assertEquals(3, retryProducts.findById("A").getStock());
+        assertEquals(1, retryOrders.findByUserId("u").size());
+        assertTrue(flakyCart.findByUserId("u").isEmpty());
+    }
+
+    @Test
+    void checkoutItemsKeepsAllItemsWhenAtomicBatchRemovalFails() {
+        InMemoryProductRepository retryProducts = new InMemoryProductRepository();
+        retryProducts.save(new Product("A", "A", 5, 2.0, "", "test"));
+        retryProducts.save(new Product("B", "B", 5, 3.0, "", "test"));
+        InMemoryOrderRepository retryOrders = new InMemoryOrderRepository();
+        InMemoryWalletRepository retryWallet = new InMemoryWalletRepository();
+        retryWallet.save(new BankAccount("u", 100_000L));
+        FailingCartRepository flakyCart = new FailingCartRepository(false, false);
+        flakyCart.failOnRemoveAttempt = 2;
+        flakyCart.addItem(new CartItem("cart-a", "u", "A", 1, java.time.LocalDateTime.now()));
+        flakyCart.addItem(new CartItem("cart-b", "u", "B", 1, java.time.LocalDateTime.now()));
+        DefaultStoreService checkout = new DefaultStoreService(
+                retryProducts, retryOrders, flakyCart, retryWallet);
+
+        ServiceResult<Void> failed = checkout.checkoutItems(
+                "u", java.util.Arrays.asList("cart-a", "cart-b"));
+
+        assertEquals(StatusCode.CONFLICT, failed.getStatus());
+        assertEquals(2, flakyCart.findByUserId("u").size(),
+                "failed checkout must restore every selected cart item");
+        assertTrue(retryOrders.findByUserId("u").isEmpty());
+        assertEquals(5, retryProducts.findById("A").getStock());
+        assertEquals(5, retryProducts.findById("B").getStock());
+        assertEquals(100_000L, retryWallet.findByUserId("u").getBalanceCents());
+    }
+
+    @Test
+    void checkoutItemsSerializesConcurrentQuantityUpdate() throws Exception {
+        InMemoryProductRepository retryProducts = new InMemoryProductRepository();
+        retryProducts.save(new Product("A", "A", 5, 2.0, "", "test"));
+        InMemoryOrderRepository retryOrders = new InMemoryOrderRepository();
+        InMemoryWalletRepository retryWallet = new InMemoryWalletRepository();
+        retryWallet.save(new BankAccount("u", 100_000L));
+        FailingCartRepository blockingCart = new FailingCartRepository(false, false);
+        blockingCart.beforeBatchRemove = new java.util.concurrent.CountDownLatch(1);
+        blockingCart.continueBatchRemove = new java.util.concurrent.CountDownLatch(1);
+        blockingCart.addItem(new CartItem("cart-a", "u", "A", 1, java.time.LocalDateTime.now()));
+        final DefaultStoreService checkout = new DefaultStoreService(
+                retryProducts, retryOrders, blockingCart, retryWallet);
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+
+        try {
+            java.util.concurrent.Future<ServiceResult<Void>> checkoutFuture = pool.submit(
+                    new java.util.concurrent.Callable<ServiceResult<Void>>() {
+                        @Override
+                        public ServiceResult<Void> call() {
+                            return checkout.checkoutItems("u", java.util.Arrays.asList("cart-a"));
+                        }
+                    });
+            assertTrue(blockingCart.beforeBatchRemove.await(1, java.util.concurrent.TimeUnit.SECONDS));
+            final java.util.concurrent.CountDownLatch updateStarted = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.Future<ServiceResult<Void>> updateFuture = pool.submit(
+                    new java.util.concurrent.Callable<ServiceResult<Void>>() {
+                        @Override
+                        public ServiceResult<Void> call() {
+                            updateStarted.countDown();
+                            return checkout.updateCartQuantity("u", "cart-a", 2);
+                        }
+                    });
+            assertTrue(updateStarted.await(1, java.util.concurrent.TimeUnit.SECONDS));
+            try {
+                assertThrows(java.util.concurrent.TimeoutException.class,
+                        () -> updateFuture.get(200, java.util.concurrent.TimeUnit.MILLISECONDS));
+            } finally {
+                blockingCart.continueBatchRemove.countDown();
+            }
+
+            assertEquals(StatusCode.OK, checkoutFuture.get(1, java.util.concurrent.TimeUnit.SECONDS).getStatus());
+            assertEquals(StatusCode.NOT_FOUND,
+                    updateFuture.get(1, java.util.concurrent.TimeUnit.SECONDS).getStatus());
+            assertEquals(4, retryProducts.findById("A").getStock());
+            assertEquals(99_800L, retryWallet.findByUserId("u").getBalanceCents());
+        } finally {
+            blockingCart.continueBatchRemove.countDown();
+            pool.shutdownNow();
+        }
+    }
+
     // 测试并发加购同一商品
     @Test
     void concurrentAddToCartSameProductKeepsSingleLine() throws Exception {
@@ -1428,7 +1537,8 @@ class StoreServiceTest {
         assertEquals("b-late", all.get(2).getOrderId());// late 排最后
     }
 
-    // DSH A5：findByUserId 原按插入序返回，现同样以时间+订单号双键稳定排序（对齐 Access 版 ORDER BY order_date, order_id）
+    // DSH A5：findByUserId 原按插入序返回，现同样以时间+订单号双键稳定排序（对齐 Access 版 ORDER BY order_date,
+    // order_id）
     @Test
     void testFindOrdersByUserIdSortsByDateThenId() {
         LocalDateTime morning = LocalDateTime.of(2024, 3, 1, 8, 0);
@@ -1519,6 +1629,165 @@ class StoreServiceTest {
         assertEquals(50L, byId.get("00003").getSubtotalCents());
     }
 
+    // 多字段查询：keyword 忽略大小写匹配名称或说明
+    @Test
+    void testSearchProductsByKeywordMatchesNameOrDescription() {
+        ServiceResult<List<Product>> byName = service.searchProducts("APPLE", null, null, null, false);
+        assertEquals(StatusCode.OK, byName.getStatus());
+        assertEquals(1, byName.getData().size());
+        assertEquals("00001", byName.getData().get(0).getProductId());
+
+        ServiceResult<List<Product>> byDesc = service.searchProducts("crunchy", null, null, null, false);
+        assertEquals(1, byDesc.getData().size());
+        assertEquals("00003", byDesc.getData().get(0).getProductId());
+    }
+
+    // 多字段查询：价格闭区间（单边/双边）
+    @Test
+    void testSearchProductsByPriceRangeIsClosedInterval() {
+        ServiceResult<List<Product>> both = service.searchProducts(null, null, 1.5, 2.5, false);
+        assertEquals(StatusCode.OK, both.getStatus());
+        assertEquals(2, both.getData().size());// Banana(1.5) 与 Apple(2.5) 均在闭区间内
+
+        ServiceResult<List<Product>> lowerOnly = service.searchProducts(null, null, 2.0, null, false);
+        assertEquals(2, lowerOnly.getData().size());// Apple(2.5) 与 Toy Car(15)
+
+        ServiceResult<List<Product>> upperOnly = service.searchProducts(null, null, null, 0.5, false);
+        assertEquals(1, upperOnly.getData().size());// 仅 Carrot(0.5)
+    }
+
+    // 多字段查询：keyword + category + 价格区间可叠加
+    @Test
+    void testSearchProductsCombinesKeywordCategoryAndPrice() {
+        ServiceResult<List<Product>> result = service.searchProducts("car", "Toy", 10.0, 20.0, false);
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals(1, result.getData().size());
+        assertEquals("00004", result.getData().get(0).getProductId());
+
+        ServiceResult<List<Product>> fruitMid = service.searchProducts(null, "Fruit", 2.0, null, false);
+        assertEquals(1, fruitMid.getData().size());// 仅 Apple(2.5)，Banana(1.5) 被下界排除
+        assertEquals("00001", fruitMid.getData().get(0).getProductId());
+    }
+
+    // 多字段查询：includeInactive 与 keyword/category/价格叠加时放行下架商品
+    @Test
+    void testSearchProductsIncludeInactiveCombinesWithFilters() {
+        service.deactivateProduct("00001");// Apple(Fruit) 下架
+        ServiceResult<List<Product>> activeOnly = service.searchProducts(null, "Fruit", null, null, false);
+        assertEquals(1, activeOnly.getData().size());// 仅 Banana
+
+        ServiceResult<List<Product>> withInactive = service.searchProducts(null, "Fruit", null, null, true);
+        assertEquals(2, withInactive.getData().size());// Banana + 下架的 Apple
+    }
+
+    // 子集结算成功：仅结算选中条目，未选条目留在购物车，库存/订单只作用于子集
+    @Test
+    void testCheckoutItemsSubsetSuccess() {
+        int appleStock = products.findById("00001").getStock();
+        int bananaStock = products.findById("00002").getStock();
+        service.addToCart("0120", "00001", 2);
+        service.addToCart("0120", "00002", 3);
+        String appleCartId = cartItemIdOf("0120", "00001");
+
+        ServiceResult<Void> result = service.checkoutItems("0120", java.util.Arrays.asList(appleCartId));
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals(appleStock - 2, products.findById("00001").getStock());
+        assertEquals(bananaStock, products.findById("00002").getStock());// 未选条目库存不变
+        assertEquals(1, orders.findByUserId("0120").size());
+        assertEquals("00001", orders.findByUserId("0120").get(0).getProductId());
+        // 购物车仅剩未选中的 Banana
+        assertEquals(1, cartRepo.findByUserId("0120").size());
+        assertEquals("00002", cartRepo.findByUserId("0120").get(0).getProductId());
+    }
+
+    // 子集结算越权：选中条目不属于本人或不存在 → NOT_FOUND
+    @Test
+    void testCheckoutItemsNotOwnedOrMissing() {
+        service.addToCart("0121", "00001", 1);
+        String otherCartId = cartItemIdOf("0121", "00001");
+        assertEquals(StatusCode.NOT_FOUND,
+                service.checkoutItems("0120", java.util.Arrays.asList(otherCartId)).getStatus());
+        assertEquals(StatusCode.NOT_FOUND,
+                service.checkoutItems("0120", java.util.Arrays.asList("no-such-cart-item")).getStatus());
+        assertEquals(1, cartRepo.findByUserId("0121").size());// 他人购物车不受影响
+    }
+
+    // 子集结算空列表 → BAD_REQUEST
+    @Test
+    void testCheckoutItemsEmptyList() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.checkoutItems("0120", java.util.Collections.<String>emptyList()).getStatus());
+    }
+
+    // 子集结算去重：请求中重复的 cartItemId 只结算一次，库存/扣款不重复
+    @Test
+    void testCheckoutItemsDeduplicatesRepeatedIds() {
+        int appleStock = products.findById("00001").getStock();
+        service.addToCart("0120", "00001", 2);
+        String appleCartId = cartItemIdOf("0120", "00001");
+
+        ServiceResult<Void> result = service.checkoutItems("0120",
+                java.util.Arrays.asList(appleCartId, appleCartId, appleCartId));
+        assertEquals(StatusCode.OK, result.getStatus());
+        // 重复 id 只扣一次：库存减 2（而非 6），仅一张订单
+        assertEquals(appleStock - 2, products.findById("00001").getStock());
+        assertEquals(1, orders.findByUserId("0120").size());
+        assertEquals(2, orders.findByUserId("0120").get(0).getQuantity());
+        assertEquals(0, cartRepo.findByUserId("0120").size());
+    }
+
+    // 多字段查询：价格区间拒绝 NaN 与±Infinity（否则会绕过过滤放行全部商品）
+    @Test
+    void testSearchProductsRejectsNonFinitePriceBounds() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.searchProducts(null, null, Double.NaN, null, false).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.searchProducts(null, null, null, Double.NaN, false).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.searchProducts(null, null, Double.NEGATIVE_INFINITY, null, false).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.searchProducts(null, null, null, Double.POSITIVE_INFINITY, false).getStatus());
+    }
+
+    // 批量移除购物车：多条本人条目一次删除
+    @Test
+    void testRemoveFromCartBatchSuccess() {
+        service.addToCart("0120", "00001", 1);
+        service.addToCart("0120", "00002", 1);
+        String id1 = cartItemIdOf("0120", "00001");
+        String id2 = cartItemIdOf("0120", "00002");
+        ServiceResult<Void> result = service.removeFromCart("0120", java.util.Arrays.asList(id1, id2));
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals(0, cartRepo.findByUserId("0120").size());
+    }
+
+    // 批量移除购物车：所有条目都不属于本人 → NOT_FOUND，且不误删他人条目
+    @Test
+    void testRemoveFromCartBatchNoneOwned() {
+        service.addToCart("0121", "00001", 1);
+        String otherCartId = cartItemIdOf("0121", "00001");
+        ServiceResult<Void> result = service.removeFromCart("0120", java.util.Arrays.asList(otherCartId));
+        assertEquals(StatusCode.NOT_FOUND, result.getStatus());
+        assertEquals(1, cartRepo.findByUserId("0121").size());
+    }
+
+    // 批量移除购物车：空列表 → BAD_REQUEST
+    @Test
+    void testRemoveFromCartBatchEmptyList() {
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.removeFromCart("0120", java.util.Collections.<String>emptyList()).getStatus());
+    }
+
+    // 测试辅助：按商品编号取出用户购物车条目 id
+    private String cartItemIdOf(String userId, String productId) {
+        for (CartItem item : service.getCart(userId).getData()) {
+            if (productId.equals(item.getProductId())) {
+                return item.getCartItemId();
+            }
+        }
+        throw new AssertionError("cart item not found for product " + productId);
+    }
+
     private static final class FailingOrderRepository implements OrderRepository {
         private final InMemoryOrderRepository delegate = new InMemoryOrderRepository();
         private int createCount;
@@ -1564,9 +1833,19 @@ class StoreServiceTest {
     private static final class FailingCartRepository implements CartRepository {
         private final InMemoryCartRepository delegate = new InMemoryCartRepository();
         private boolean failOnClear;
+        private boolean failOnRemove;// removeItem 返回 false（模拟子集删除未生效）
+        private int failOnRemoveAttempt = -1;
+        private int removeAttempts;
+        private java.util.concurrent.CountDownLatch beforeBatchRemove;
+        private java.util.concurrent.CountDownLatch continueBatchRemove;
 
         private FailingCartRepository(boolean failOnClear) {
+            this(failOnClear, false);
+        }
+
+        private FailingCartRepository(boolean failOnClear, boolean failOnRemove) {
             this.failOnClear = failOnClear;
+            this.failOnRemove = failOnRemove;
         }
 
         @Override
@@ -1581,7 +1860,28 @@ class StoreServiceTest {
 
         @Override
         public boolean removeItem(String cartItemId) {
+            removeAttempts++;
+            if (failOnRemove || removeAttempts == failOnRemoveAttempt)
+                return false;
             return delegate.removeItem(cartItemId);
+        }
+
+        @Override
+        public boolean removeItems(List<String> cartItemIds) {
+            if (beforeBatchRemove != null) {
+                beforeBatchRemove.countDown();
+                try {
+                    continueBatchRemove.await();
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+            }
+            if (failOnRemove
+                    || (failOnRemoveAttempt > 0 && failOnRemoveAttempt <= cartItemIds.size())) {
+                return false;
+            }
+            return delegate.removeItems(cartItemIds);
         }
 
         @Override

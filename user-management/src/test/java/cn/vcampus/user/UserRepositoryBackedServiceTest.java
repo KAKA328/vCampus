@@ -15,6 +15,40 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class UserRepositoryBackedServiceTest {
     @Test
+    void cannotDisableLastActiveAdministrator() {
+        InMemoryUserRepository users = new InMemoryUserRepository();
+        SessionManager sessions = new SessionManager();
+        DefaultUserManagementService service = new DefaultUserManagementService(
+                users, sessions, new InMemoryAuditLogRepository());
+        UserCredentials admin = new UserCredentials("only_admin", "Admin123", "唯一管理员", Role.ADMIN.name());
+        service.provisionAccount(admin);
+        Session session = service.login(admin).getData();
+
+        ServiceResult<Void> result = service.setAccountActive(
+                new UserStatusCommand(session.getToken(), admin.getUserId(), false));
+
+        assertEquals(StatusCode.CONFLICT, result.getStatus());
+        assertEquals(StatusCode.OK, service.login(admin).getStatus());
+    }
+
+    @Test
+    void cannotUnregisterLastActiveAdministrator() {
+        InMemoryUserRepository users = new InMemoryUserRepository();
+        SessionManager sessions = new SessionManager();
+        DefaultUserManagementService service = new DefaultUserManagementService(
+                users, sessions, new InMemoryAuditLogRepository());
+        UserCredentials admin = new UserCredentials("only_admin_unregister", "Admin123",
+                "唯一管理员", Role.ADMIN.name());
+        service.provisionAccount(admin);
+        Session session = service.login(admin).getData();
+
+        ServiceResult<Void> result = service.unregister(admin.getUserId(), session.getToken());
+
+        assertEquals(StatusCode.CONFLICT, result.getStatus());
+        assertEquals(StatusCode.OK, service.login(admin).getStatus());
+    }
+
+    @Test
     void registeredAccountCanBeUsedByAnotherServiceInstance() {
         UserRepository users = new InMemoryUserRepository();
         AuditLogRepository auditLog = new InMemoryAuditLogRepository();
