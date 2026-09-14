@@ -43,18 +43,10 @@ class LibraryCompensationPanelTest {
     @Test
     void enteringCompensationWhileBusyQueuesAReadInsteadOfDroppingIt() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
-            try {
-                LibraryPanel panel = panel(Role.STUDENT, 19997);
-                java.lang.reflect.Field busy = LibraryPanel.class.getDeclaredField("requestInProgress");
-                busy.setAccessible(true);
-                busy.setBoolean(panel, true);
-                java.lang.reflect.Method load = LibraryPanel.class.getDeclaredMethod("loadCompensations");
-                load.setAccessible(true);
-                load.invoke(panel);
-                java.lang.reflect.Field queued = LibraryPanel.class.getDeclaredField("compensationRefreshQueued");
-                queued.setAccessible(true);
-                assertTrue(queued.getBoolean(panel));
-            } catch (ReflectiveOperationException failure) { throw new AssertionError(failure); }
+            LibraryPanel panel = panel(Role.STUDENT, 19997);
+            panel.state.requestInProgress = true;
+            LibraryCirculationActions.loadCompensations(panel.state);
+            assertTrue(panel.state.compensationRefreshQueued);
         });
     }
 
@@ -257,9 +249,9 @@ class LibraryCompensationPanelTest {
                             ObjectInputStream input = new ObjectInputStream(socket.getInputStream());
                             ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream())) {
                         socket.setSoTimeout(5000);
-                        MessageType[] types = {MessageType.LIBRARY_HISTORY_V3, MessageType.LIBRARY_QUERY_V2,
+                        MessageType[] types = {MessageType.LIBRARY_HISTORY_V4, MessageType.LIBRARY_QUERY_V2,
                                 MessageType.LIBRARY_COMPENSATION_LIST_V3, MessageType.LIBRARY_WALLET_QUERY_V3};
-                        Object[] values = {Collections.singletonList(loan(BorrowStatus.COMPENSATED)),
+                        Object[] values = {Collections.singletonList(new cn.vcampus.library.LibraryLoanSnapshot(loan(BorrowStatus.COMPENSATED), "测试图书", "CP-paid", false)),
                                 Collections.singletonList(new Book("B001", "测试图书", "作者", "", "文学", "", 35.0, 1, 0, "A1")),
                                 Collections.singletonList(paid), Long.valueOf(6500)};
                         for (int index = 0; index < types.length; index++) {

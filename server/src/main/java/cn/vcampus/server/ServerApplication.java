@@ -298,7 +298,9 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.LIBRARY_HISTORY_V3 || type == MessageType.LIBRARY_LOSS_DECLARE_V3
                 || type == MessageType.LIBRARY_COMPENSATION_LIST_V3
                 || type == MessageType.LIBRARY_COMPENSATION_PAY_V3
-                || type == MessageType.LIBRARY_WALLET_QUERY_V3;
+                || type == MessageType.LIBRARY_WALLET_QUERY_V3
+                || type == MessageType.LIBRARY_HISTORY_V4 || type == MessageType.LIBRARY_COPIES_V4
+                || type == MessageType.LIBRARY_BOOK_UPDATE_V4;
     }
 
     public static void main(String[] args) throws IOException {

@@ -105,6 +105,34 @@ class LibraryMessageHandlerTest {
         assertEquals(StatusCode.BAD_REQUEST, response.getStatusCode());
     }
 
+    @Test
+    void zeroPriceCreationPreservesExistingManagementAuthorization() {
+        Book free = new Book("FREE", "捐赠图书", "作者", "", "文学", "", 0, 2, 2, "A");
+        Message denied = handler.handle(Message.request("free-denied", MessageType.LIBRARY_ADD_BOOK_V2,
+                new LibraryAddBookV2Command(student.getToken(), free)));
+        assertEquals(StatusCode.FORBIDDEN, denied.getStatusCode());
+        Message added = handler.handle(Message.request("free-added", MessageType.LIBRARY_ADD_BOOK_V2,
+                new LibraryAddBookV2Command(librarian.getToken(), free)));
+        assertEquals(StatusCode.OK, added.getStatusCode());
+        assertEquals(0.0d, ((Book) added.getPayload()).getPrice());
+    }
+
+    @Test
+    void totalLimitUsesExistingProtocolForBothStudentsAndTeachers() {
+        Session teacher = account("teacher001", Role.TEACHER);
+        for (Session reader : new Session[] {student, teacher}) {
+            Message filled = handler.handle(Message.request("fill", MessageType.LIBRARY_BORROW_V2,
+                    new LibraryBorrowV2Command(reader.getToken(),
+                            java.util.Arrays.asList("B001", "B002", "B003", "B004", "B005"))));
+            assertEquals(StatusCode.OK, filled.getStatusCode());
+            Message rejected = handler.handle(Message.request("exceed", MessageType.LIBRARY_BORROW_V2,
+                    new LibraryBorrowV2Command(reader.getToken(), "B006")));
+            assertEquals(StatusCode.CONFLICT, rejected.getStatusCode());
+            assertTrue(String.valueOf(rejected.getPayload()).contains("5"));
+            assertEquals(5, library.borrowHistory(reader.getUser().getUserId()).getData().size());
+        }
+    }
+
     private Session account(String userId, Role role) {
         UserCredentials credentials = new UserCredentials(userId, "password", userId, role.name());
         users.register(credentials);
