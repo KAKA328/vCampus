@@ -15,6 +15,7 @@ import cn.vcampus.course.CourseOfferingService;
 import cn.vcampus.course.CourseSelectionRecord;
 import cn.vcampus.course.CourseSelectionRecordService;
 import cn.vcampus.course.CourseSelectionQueryV2Command;
+import cn.vcampus.course.CourseSelectionPageSnapshot;
 import cn.vcampus.course.CourseSelectOfferingV2Command;
 import cn.vcampus.course.CourseSelectionService;
 import cn.vcampus.course.CourseTeachingQueryV2Command;
@@ -227,7 +228,10 @@ final class CourseMessageHandler {
     }
 
     private ServiceResult<?> query(CourseSelectionQueryV2Command command) {
-        ServiceResult<StudentSelectionProfile> profile = profile(command.getToken(), Permission.COURSE_READ);
+        boolean roundsOnly = command.getQueryType()
+                == CourseSelectionQueryV2Command.QueryType.AVAILABLE_ROUNDS;
+        ServiceResult<StudentSelectionProfile> profile = profile(command.getToken(),
+                Permission.COURSE_READ, roundsOnly);
         if (profile.getStatus() != StatusCode.OK) return profile;
         if (command.getQueryType() == CourseSelectionQueryV2Command.QueryType.AVAILABLE_ROUNDS) {
             return courses.listAvailableRounds(profile.getData(), LocalDateTime.now());
@@ -235,6 +239,17 @@ final class CourseMessageHandler {
         if (command.getQueryType() == CourseSelectionQueryV2Command.QueryType.AVAILABLE_OFFERINGS) {
             return courses.listAvailableOfferings(profile.getData(), command.getRoundId(),
                     LocalDateTime.now());
+        }
+        if (command.getQueryType() == CourseSelectionQueryV2Command.QueryType.COURSE_PAGE_SNAPSHOT) {
+            ServiceResult<List<cn.vcampus.course.SelectableCourseOffering>> available = courses
+                    .listAvailableOfferings(profile.getData(), command.getRoundId(),
+                            LocalDateTime.now());
+            if (available.getStatus() != StatusCode.OK) return available;
+            ServiceResult<List<cn.vcampus.course.SelectedCourseOffering>> selected = courses
+                    .listSelectedOfferings(profile.getData());
+            if (selected.getStatus() != StatusCode.OK) return selected;
+            return ServiceResult.ok(new CourseSelectionPageSnapshot(available.getData(),
+                    selected.getData()));
         }
         return courses.listSelectedOfferings(profile.getData());
     }
@@ -756,6 +771,11 @@ final class CourseMessageHandler {
     }
 
     private ServiceResult<StudentSelectionProfile> profile(String token, Permission permission) {
+        return profile(token, permission, false);
+    }
+
+    private ServiceResult<StudentSelectionProfile> profile(String token, Permission permission,
+            boolean roundsOnly) {
         ServiceResult<Boolean> authorized = users.authorize(token, permission.getCode());
         if (authorized.getStatus() != StatusCode.OK) return ServiceResult.failure(authorized.getStatus(), authorized.getMessage());
         ServiceResult<Session> session = users.currentSession(token);
@@ -763,7 +783,8 @@ final class CourseMessageHandler {
         if (session.getData().getUser().getRole() != Role.STUDENT) {
             return ServiceResult.failure(StatusCode.FORBIDDEN, "only student can use student course selection");
         }
-        return profiles.findByUserId(session.getData().getUser().getUserId());
+        return roundsOnly ? profiles.findForAvailableRounds(session.getData().getUser().getUserId())
+                : profiles.findByUserId(session.getData().getUser().getUserId());
     }
 
     private ServiceResult<TeacherProfile> teacherProfile(String token) {

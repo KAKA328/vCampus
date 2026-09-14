@@ -13,6 +13,7 @@ public final class CourseSelectionQueryV2Command implements Serializable {
     public enum QueryType {
         AVAILABLE_ROUNDS,
         AVAILABLE_OFFERINGS,
+        COURSE_PAGE_SNAPSHOT,
         SELECTED_OFFERINGS
     }
 
@@ -37,6 +38,12 @@ public final class CourseSelectionQueryV2Command implements Serializable {
 
     public static CourseSelectionQueryV2Command selectedOfferings(String token) {
         return new CourseSelectionQueryV2Command(QueryType.SELECTED_OFFERINGS, token, null);
+    }
+
+    /** 一次读取指定轮次的可选教学班与当前学生的已选课程。 */
+    public static CourseSelectionQueryV2Command coursePageSnapshot(String token, String roundId) {
+        return new CourseSelectionQueryV2Command(QueryType.COURSE_PAGE_SNAPSHOT, token,
+                requireText(roundId, "roundId"));
     }
 
     public QueryType getQueryType() { return queryType; }

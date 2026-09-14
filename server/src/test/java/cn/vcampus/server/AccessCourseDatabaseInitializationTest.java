@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.Course;
+import cn.vcampus.course.StudentSelectionProfile;
+import java.time.LocalDateTime;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -41,6 +43,18 @@ class AccessCourseDatabaseInitializationTest {
                 .findById("offering-java-2026a").getStatus());
         assertEquals("李明远", runtime.getModule().getOfferingService()
                 .findById("offering-java-2026a").getData().getTeacherDisplayName());
+
+        // 并发专项账号必须拥有首修课程资格，且容量基线保持为零，供手工抢课验收复用。
+        cn.vcampus.common.ServiceResult<StudentSelectionProfile> concurrentProfile = runtime
+                .getProfiles().findByUserId("test_student_concurrent_01");
+        assertEquals(StatusCode.OK, concurrentProfile.getStatus());
+        cn.vcampus.common.ServiceResult<java.util.List<cn.vcampus.course.SelectableCourseOffering>>
+                concurrentOfferings = runtime.getModule().getSelectionService()
+                .listAvailableOfferings(concurrentProfile.getData(), "round-2026-initial",
+                        LocalDateTime.now());
+        assertEquals(StatusCode.OK, concurrentOfferings.getStatus());
+        assertTrue(concurrentOfferings.getData().stream().anyMatch(value ->
+                "offering-ai-concurrent-1".equals(value.getOffering().getOfferingId())));
 
         assertEquals(StatusCode.OK, runtime.getModule().getCatalogService()
                 .create(new Course("TEST101", "全新数据库验证课程", 1)).getStatus());

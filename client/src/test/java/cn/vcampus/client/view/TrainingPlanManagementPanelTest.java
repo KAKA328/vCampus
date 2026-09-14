@@ -21,6 +21,8 @@ class TrainingPlanManagementPanelTest {
 
         assertEquals(JTable.AUTO_RESIZE_OFF, plans.getAutoResizeMode());
         assertEquals(JTable.AUTO_RESIZE_OFF, courses.getAutoResizeMode());
+        assertEquals("课程名称", courses.getColumnName(1));
+        assertTrue(courses.getColumnModel().getColumn(1).getPreferredWidth() >= UiMetrics.px(220));
         assertTrue(button(panel, "createButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
         assertTrue(button(panel, "editPlanButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
         assertTrue(button(panel, "saveCourseButton").getUI() instanceof VCampusTheme.ReadableButtonUI);

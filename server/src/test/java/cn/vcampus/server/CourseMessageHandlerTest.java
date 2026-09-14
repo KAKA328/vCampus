@@ -16,6 +16,7 @@ import cn.vcampus.course.CourseSchedule;
 import cn.vcampus.course.CourseSelectionModule;
 import cn.vcampus.course.CourseSelectOfferingV2Command;
 import cn.vcampus.course.CourseSelectionQueryV2Command;
+import cn.vcampus.course.CourseSelectionPageSnapshot;
 import cn.vcampus.course.CourseSelectionDemoFactory;
 import cn.vcampus.course.InMemoryStudentSelectionProfileProvider;
 import cn.vcampus.course.SelectionRound;
@@ -75,6 +76,20 @@ class CourseMessageHandlerTest {
         assertEquals(StatusCode.OK, response.getStatusCode());
         assertTrue(response.getPayload() instanceof List<?>);
         assertTrue(((List<?>) response.getPayload()).isEmpty());
+    }
+
+    @Test
+    void coursePageSnapshotReturnsOfferingsAndSelectedCoursesInOneResponse() {
+        Message response = handler.handle(Message.request("course-page",
+                MessageType.COURSE_SELECTION_QUERY_V2,
+                CourseSelectionQueryV2Command.coursePageSnapshot(session.getToken(),
+                        "ROUND-INITIAL")));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertTrue(response.getPayload() instanceof CourseSelectionPageSnapshot);
+        CourseSelectionPageSnapshot snapshot = (CourseSelectionPageSnapshot) response.getPayload();
+        assertTrue(!snapshot.getAvailableOfferings().isEmpty());
+        assertTrue(snapshot.getSelectedOfferings().isEmpty());
     }
 
     @Test

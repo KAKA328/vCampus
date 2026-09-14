@@ -5,6 +5,7 @@ import cn.vcampus.common.Message;
 import cn.vcampus.common.Role;
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.CourseMeeting;
+import cn.vcampus.course.CourseSelectionPageSnapshot;
 import cn.vcampus.course.SelectableCourseOffering;
 import cn.vcampus.course.SelectedCourseOffering;
 import cn.vcampus.course.SelectionRound;
@@ -12,10 +13,12 @@ import cn.vcampus.user.Session;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.io.IOException;
 import java.time.DayOfWeek;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,6 +27,7 @@ import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
@@ -36,8 +40,9 @@ public final class CourseSelectionPanel extends JPanel {
     private static final String OFFERING_PAGE = "offering";
     private static final String SELECTED_PAGE = "selected";
     private static final int[] COURSE_COLUMN_WIDTHS = { 150, 260, 90, 130 };
-    private static final int[] SELECTED_COLUMN_WIDTHS = { 130, 220, 90, 130, 190, 130 };
-
+    private static final int[] SELECTED_COLUMN_WIDTHS = { 250, 120, 80, 150, 260 };
+    private static final DateTimeFormatter SELECTED_AT_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     private final String host;
     private final int port;
     private final Session session;
@@ -49,12 +54,16 @@ public final class CourseSelectionPanel extends JPanel {
     private final JLabel status = new JLabel();
     private final JLabel selectedRoundLabel = new JLabel();
     private final JLabel selectedCourseLabel = new JLabel();
+    private final JLabel selectedDetailTitle = new JLabel("选择一门课程查看完整上课安排");
+    private final JLabel selectedDetailMeta = new JLabel();
+    private final JPanel selectedMeetingRows = new JPanel();
     private final BatchTableModel courseModel = new BatchTableModel(
             new Object[] { "课程编号", "课程名称", "学分", "选课类别" });
     private final BatchTableModel selectedModel = new BatchTableModel(
-            new Object[] { "课程编号", "课程名称", "学分", "教学班", "上课时间", "地点" });
+            new Object[] { "课程", "教学班", "学分", "任课教师", "上课摘要" });
     private final JTable courseTable = new JTable(courseModel);
     private final JTable selectedTable = new JTable(selectedModel);
+    private JScrollPane selectedTableScroll;
     private final JButton selectedCoursesButton = new JButton("我的已选课程");
     private final JButton backToRoundsButton = new JButton("返回选课轮次");
     private final JButton backToCoursesButton = new JButton("返回课程列表");
@@ -94,7 +103,10 @@ public final class CourseSelectionPanel extends JPanel {
             if (!e.getValueIsAdjusting()) openCourseDetail();
         });
         selectedTable.getSelectionModel().addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting()) updateInteractiveState();
+            if (!e.getValueIsAdjusting()) {
+                renderSelectedCourseDetail();
+                updateInteractiveState();
+            }
         });
         selectedCoursesButton.addActionListener(e -> showSelectedPage());
         backToRoundsButton.addActionListener(e -> showRoundPage());
@@ -205,11 +217,76 @@ public final class CourseSelectionPanel extends JPanel {
         actions.setOpaque(false);
         actions.add(backToCoursesFromSelectedButton);
         actions.add(dropButton);
+        JScrollPane tableScroll = VCampusTheme.scrollPane(selectedTable);
+        selectedTableScroll = tableScroll;
+        selectedTable.setRowHeight(UiMetrics.px(34));
+        tableScroll.addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentResized(java.awt.event.ComponentEvent event) {
+                updateSelectedTableLayout();
+            }
+        });
+        updateSelectedTableLayout();
+        JPanel body = new JPanel(new BorderLayout(0, UiMetrics.px(14)));
+        body.setOpaque(false);
+        body.add(tableScroll, BorderLayout.NORTH);
+        body.add(selectedCourseDetailCard(), BorderLayout.CENTER);
         card.add(header, BorderLayout.NORTH);
-        card.add(VCampusTheme.scrollPane(selectedTable), BorderLayout.CENTER);
+        card.add(body, BorderLayout.CENTER);
         card.add(actions, BorderLayout.SOUTH);
         content.add(card, BorderLayout.NORTH);
         return content;
+    }
+
+    /** 随可用宽度分配列表列宽，并按实际记录数收缩表格高度，避免大窗口出现无意义空白。 */
+    private void updateSelectedTableLayout() {
+        if (selectedTableScroll == null) return;
+        int[] widths = selectedCourseColumnWidths(selectedTableScroll.getViewport().getWidth());
+        int totalWidth = 0;
+        for (int index = 0; index < widths.length; index++) {
+            selectedTable.getColumnModel().getColumn(index).setPreferredWidth(widths[index]);
+            selectedTable.getColumnModel().getColumn(index).setMinWidth(widths[index]);
+            totalWidth += widths[index];
+        }
+        int visibleRows = Math.min(Math.max(selectedModel.getRowCount(), 1), 4);
+        int headerHeight = selectedTable.getTableHeader().getPreferredSize().height;
+        int preferredHeight = headerHeight + visibleRows * selectedTable.getRowHeight()
+                + UiMetrics.px(6);
+        selectedTable.setPreferredScrollableViewportSize(new Dimension(totalWidth, preferredHeight));
+        selectedTableScroll.setPreferredSize(new Dimension(totalWidth, preferredHeight));
+        selectedTableScroll.revalidate();
+    }
+
+    /** 教学班编号保留足够的最小列宽；窗口变宽后课程、教师与摘要按比例扩展。 */
+    static int[] selectedCourseColumnWidths(int viewportWidth) {
+        int minimumWidth = UiMetrics.px(880);
+        int width = Math.max(viewportWidth, minimumWidth);
+        int course = Math.max(UiMetrics.px(250), Math.min(UiMetrics.px(420), width * 28 / 100));
+        int offering = Math.max(UiMetrics.px(170), width * 20 / 100);
+        int credits = Math.max(UiMetrics.px(80), width * 9 / 100);
+        int teacher = Math.max(UiMetrics.px(160), width * 17 / 100);
+        int summary = Math.max(UiMetrics.px(220), width - course - offering - credits - teacher);
+        return new int[] { course, offering, credits, teacher, summary };
+    }
+
+    /** 已选课程列表只承担定位；完整的时间和地点按单个时段展示在详情区。 */
+    private JPanel selectedCourseDetailCard() {
+        JPanel card = new JPanel(new BorderLayout(0, UiMetrics.px(10)));
+        VCampusTheme.surface(card);
+        selectedDetailTitle.setFont(VCampusTheme.font(Font.BOLD, 17));
+        selectedDetailTitle.setForeground(VCampusTheme.PRIMARY_DARK);
+        selectedDetailMeta.setForeground(VCampusTheme.TEXT);
+        JPanel top = new JPanel(new BorderLayout(0, UiMetrics.px(5)));
+        top.setOpaque(false);
+        top.add(selectedDetailTitle, BorderLayout.NORTH);
+        top.add(selectedDetailMeta, BorderLayout.CENTER);
+        selectedMeetingRows.setLayout(new javax.swing.BoxLayout(selectedMeetingRows,
+                javax.swing.BoxLayout.Y_AXIS));
+        selectedMeetingRows.setOpaque(false);
+        card.add(top, BorderLayout.NORTH);
+        card.add(selectedMeetingRows, BorderLayout.CENTER);
+        renderSelectedCourseDetail();
+        return card;
     }
 
     private static JPanel scrollPage() {
@@ -296,7 +373,24 @@ public final class CourseSelectionPanel extends JPanel {
     }
 
     private void loadCourseList() {
-        if (selectedRound != null) fetchRoundOfferings(() -> fetchSelectedOfferings(this::renderCourseList));
+        if (selectedRound != null) fetchCourseListSnapshot(this::renderCourseList);
+    }
+
+    /** 一次请求获得课程页所需的两份数据，避免并行 Access 读取造成页面请求滞留。 */
+    private void fetchCourseListSnapshot(final Runnable afterLoaded) {
+        if (selectedRound == null) return;
+        final String roundId = selectedRound.getRoundId();
+        request(service -> service.coursePageSnapshot(session.getToken(), roundId), response -> {
+            if (response.getStatusCode() != StatusCode.OK
+                    || !(response.getPayload() instanceof CourseSelectionPageSnapshot)) {
+                showFailure(response, "可选课程");
+                return;
+            }
+            CourseSelectionPageSnapshot snapshot = (CourseSelectionPageSnapshot) response.getPayload();
+            replaceRoundOfferings(snapshot.getAvailableOfferings());
+            replaceSelectedOfferings(snapshot.getSelectedOfferings());
+            afterLoaded.run();
+        });
     }
 
     private void fetchRoundOfferings(final Runnable afterLoaded) {
@@ -304,12 +398,7 @@ public final class CourseSelectionPanel extends JPanel {
         final String roundId = selectedRound.getRoundId();
         request(service -> service.availableOfferings(session.getToken(), roundId), response -> {
             if (!requireList(response, "可选课程")) return;
-            currentRoundOfferings.clear();
-            for (Object item : (List<?>) response.getPayload()) {
-                if (item instanceof SelectableCourseOffering) {
-                    currentRoundOfferings.add((SelectableCourseOffering) item);
-                }
-            }
+            replaceRoundOfferings((List<?>) response.getPayload());
             SwingUtilities.invokeLater(afterLoaded);
         });
     }
@@ -317,14 +406,27 @@ public final class CourseSelectionPanel extends JPanel {
     private void fetchSelectedOfferings(final Runnable afterLoaded) {
         request(service -> service.selectedOfferings(session.getToken()), response -> {
             if (!requireList(response, "已选课程")) return;
-            selectedOfferings.clear();
-            for (Object item : (List<?>) response.getPayload()) {
-                if (item instanceof SelectedCourseOffering) {
-                    selectedOfferings.add((SelectedCourseOffering) item);
-                }
-            }
+            replaceSelectedOfferings((List<?>) response.getPayload());
             afterLoaded.run();
         });
+    }
+
+    private void replaceRoundOfferings(List<?> items) {
+        currentRoundOfferings.clear();
+        for (Object item : items) {
+            if (item instanceof SelectableCourseOffering) {
+                currentRoundOfferings.add((SelectableCourseOffering) item);
+            }
+        }
+    }
+
+    private void replaceSelectedOfferings(List<?> items) {
+        selectedOfferings.clear();
+        for (Object item : items) {
+            if (item instanceof SelectedCourseOffering) {
+                selectedOfferings.add((SelectedCourseOffering) item);
+            }
+        }
     }
 
     private void renderCourseList() {
@@ -374,11 +476,11 @@ public final class CourseSelectionPanel extends JPanel {
     private void refreshOfferingDetail() {
         if (selectedCourse == null) return;
         final String courseId = selectedCourse.firstOffering.getCourse().getCourseId();
-        fetchRoundOfferings(() -> fetchSelectedOfferings(() -> {
+        fetchCourseListSnapshot(() -> {
             renderCourseListData();
             selectedCourse = findCourseChoice(courseId);
             renderOfferingCards();
-        }));
+        });
     }
 
     private void renderCourseListData() {
@@ -491,23 +593,79 @@ public final class CourseSelectionPanel extends JPanel {
     private void renderSelectedCourses() {
         List<Object[]> rows = new ArrayList<Object[]>();
         for (SelectedCourseOffering value : selectedOfferings) {
-            rows.add(new Object[] { value.getCourse().getCourseId(), value.getCourse().getName(),
-                    Integer.valueOf(value.getCourse().getCredits()), value.getOffering().getOfferingId(),
-                    value.getOffering().getSchedule(), meetingLocationSummary(value.getOffering()) });
+            rows.add(new Object[] { value.getCourse().getCourseId() + " · "
+                    + value.getCourse().getName(), value.getOffering().getOfferingId(),
+                    Integer.valueOf(value.getCourse().getCredits()),
+                    value.getOffering().getTeacherDisplayName(),
+                    selectedScheduleSummary(value.getOffering()) });
         }
         selectedModel.replaceRows(rows);
+        if (rows.isEmpty()) selectedTable.clearSelection();
+        else selectedTable.setRowSelectionInterval(0, 0);
+        updateSelectedTableLayout();
+        renderSelectedCourseDetail();
         showStatus(rows.isEmpty() ? "当前没有有效选课记录" : "已加载 " + rows.size() + " 条已选课程",
                 rows.isEmpty() ? VCampusTheme.MUTED : VCampusTheme.SUCCESS);
         updateInteractiveState();
     }
 
+    private void renderSelectedCourseDetail() {
+        selectedMeetingRows.removeAll();
+        SelectedCourseOffering selected = selectedOffering();
+        if (selected == null) {
+            selectedDetailTitle.setText("选择一门课程查看完整上课安排");
+            selectedDetailMeta.setText("上方列表仅展示课程摘要；完整时间与地点会按每个上课时段列出。 ");
+            selectedMeetingRows.add(sectionHint("暂未选择课程。"));
+        } else {
+            cn.vcampus.course.CourseOffering offering = selected.getOffering();
+            selectedDetailTitle.setText(selected.getCourse().getCourseId() + " · "
+                    + selected.getCourse().getName());
+            selectedDetailMeta.setText("<html>教学班：" + escape(offering.getOfferingId())
+                    + "　任课教师：" + escape(offering.getTeacherDisplayName())
+                    + "　学分：" + selected.getCourse().getCredits()
+                    + "　选课类别：" + escape(selected.getRecord().getSelectionType().getDisplayName())
+                    + "<br/>选课时间：" + SELECTED_AT_FORMAT.format(selected.getRecord().getSelectedAt())
+                    + "</html>");
+            if (offering.getMeetingSchedule().isEmpty()) {
+                selectedMeetingRows.add(sectionHint("上课安排：" + offering.getSchedule()
+                        + "　地点：" + offering.getLocation()));
+            } else {
+                selectedMeetingRows.add(sectionHint("上课安排"));
+                for (CourseMeeting meeting : offering.getMeetingSchedule().getMeetings()) {
+                    selectedMeetingRows.add(javax.swing.Box.createVerticalStrut(UiMetrics.px(6)));
+                    selectedMeetingRows.add(selectedMeetingRow(meeting));
+                }
+            }
+        }
+        selectedMeetingRows.revalidate();
+        selectedMeetingRows.repaint();
+    }
+
+    private JPanel selectedMeetingRow(CourseMeeting meeting) {
+        JPanel row = new JPanel(new BorderLayout(UiMetrics.px(14), 0));
+        row.setOpaque(true);
+        row.setBackground(VCampusTheme.BACKGROUND);
+        row.setBorder(javax.swing.BorderFactory.createCompoundBorder(
+                VCampusTheme.roundedBorder(VCampusTheme.BORDER, 8),
+                VCampusTheme.padding(8, 10, 8, 10)));
+        JLabel time = new JLabel(meeting.getStartWeek() + "-" + meeting.getEndWeek() + "周 · "
+                + dayLabel(meeting.getDayOfWeek()) + "第" + meeting.getStartPeriod() + "-"
+                + meeting.getEndPeriod() + "节");
+        time.setFont(VCampusTheme.font(Font.BOLD, 14));
+        time.setForeground(VCampusTheme.PRIMARY_DARK);
+        JLabel location = new JLabel("地点：" + meeting.getLocation());
+        location.setForeground(VCampusTheme.TEXT);
+        row.add(time, BorderLayout.CENTER);
+        row.add(location, BorderLayout.EAST);
+        return row;
+    }
+
     private void dropSelectedCourse() {
-        int row = selectedTable.getSelectedRow();
-        if (row < 0 || row >= selectedOfferings.size()) {
+        SelectedCourseOffering target = selectedOffering();
+        if (target == null) {
             showStatus("请先选择一条已选课程", VCampusTheme.DANGER);
             return;
         }
-        SelectedCourseOffering target = selectedOfferings.get(row);
         if (!CourseUiSupport.confirmHighImpact(this, "确认退选",
                 "确定退选课程“" + target.getCourse().getName() + "”吗？",
                 "该课程将不再属于你的当前有效选课记录。")) return;
@@ -523,6 +681,11 @@ public final class CourseSelectionPanel extends JPanel {
             if (courseId.equals(offering.getCourse().getCourseId())) return offering;
         }
         return null;
+    }
+
+    private SelectedCourseOffering selectedOffering() {
+        int row = selectedTable.getSelectedRow();
+        return row >= 0 && row < selectedOfferings.size() ? selectedOfferings.get(row) : null;
     }
 
     private SelectedCourseOffering selectedOfferingForId(String offeringId) {
@@ -636,6 +799,21 @@ public final class CourseSelectionPanel extends JPanel {
                     .append("节：").append(meeting.getLocation());
         }
         return text.toString();
+    }
+
+    /** 表格中只保留时段摘要，完整地点信息在下方详情卡片中按行展示。 */
+    static String selectedScheduleSummary(cn.vcampus.course.CourseOffering offering) {
+        if (offering == null || offering.getMeetingSchedule().isEmpty()) {
+            return offering == null ? "" : offering.getSchedule();
+        }
+        StringBuilder summary = new StringBuilder();
+        for (CourseMeeting meeting : offering.getMeetingSchedule().getMeetings()) {
+            if (summary.length() > 0) summary.append("、");
+            summary.append(dayLabel(meeting.getDayOfWeek())).append(meeting.getStartPeriod())
+                    .append("-").append(meeting.getEndPeriod());
+        }
+        return summary.append("（").append(offering.getMeetingSchedule().getMeetings().size())
+                .append("个时段）").toString();
     }
 
     private static String dayLabel(DayOfWeek day) {
