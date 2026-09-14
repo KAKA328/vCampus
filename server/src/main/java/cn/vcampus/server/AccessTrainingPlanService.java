@@ -80,24 +80,25 @@ public final class AccessTrainingPlanService implements TrainingPlanService {
         String sql = "SELECT plan_id,major_name,enrollment_year,status FROM tblTrainingPlan WHERE plan_id=?";
         try (Connection connection = open(); PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, normalized);
+            PlanHeader header;
             try (ResultSet results = statement.executeQuery()) {
                 if (!results.next()) return ServiceResult.failure(StatusCode.NOT_FOUND, "training plan not found");
-                return ServiceResult.ok(readPlan(connection, results));
+                header = readPlanHeader(results);
             }
+            return ServiceResult.ok(readPlan(connection, header));
         } catch (SQLException failure) { return databaseFailure(failure); }
     }
 
     @Override
     public ServiceResult<List<TrainingPlan>> listAll() {
-        String sql = "SELECT plan_id FROM tblTrainingPlan ORDER BY major_name,enrollment_year,plan_id";
+        String sql = "SELECT plan_id,major_name,enrollment_year,status FROM tblTrainingPlan "
+                + "ORDER BY major_name,enrollment_year,plan_id";
         try (Connection connection = open(); PreparedStatement statement = connection.prepareStatement(sql);
                 ResultSet results = statement.executeQuery()) {
+            List<PlanHeader> headers = new ArrayList<PlanHeader>();
+            while (results.next()) headers.add(readPlanHeader(results));
             List<TrainingPlan> plans = new ArrayList<TrainingPlan>();
-            while (results.next()) {
-                ServiceResult<TrainingPlan> plan = findById(results.getString("plan_id"));
-                if (plan.getStatus() != StatusCode.OK) return ServiceResult.failure(plan.getStatus(), plan.getMessage());
-                plans.add(plan.getData());
-            }
+            for (PlanHeader header : headers) plans.add(readPlan(connection, header));
             return ServiceResult.ok(Collections.unmodifiableList(plans));
         } catch (SQLException failure) { return databaseFailure(failure); }
     }
@@ -108,14 +109,19 @@ public final class AccessTrainingPlanService implements TrainingPlanService {
         if (normalizedMajor == null || !validYear(enrollmentYear)) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "majorName and enrollmentYear are invalid");
         }
-        String sql = "SELECT plan_id FROM tblTrainingPlan WHERE major_name=? AND enrollment_year=?";
+        String sql = "SELECT plan_id,major_name,enrollment_year,status FROM tblTrainingPlan "
+                + "WHERE major_name=? AND enrollment_year=?";
         try (Connection connection = open(); PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, normalizedMajor);
             statement.setInt(2, enrollmentYear);
+            PlanHeader header;
             try (ResultSet results = statement.executeQuery()) {
-                return results.next() ? findById(results.getString("plan_id"))
-                        : ServiceResult.<TrainingPlan>failure(StatusCode.NOT_FOUND, "training plan not found");
+                if (!results.next()) {
+                    return ServiceResult.failure(StatusCode.NOT_FOUND, "training plan not found");
+                }
+                header = readPlanHeader(results);
             }
+            return ServiceResult.ok(readPlan(connection, header));
         } catch (SQLException failure) { return databaseFailure(failure); }
     }
 
@@ -215,33 +221,91 @@ public final class AccessTrainingPlanService implements TrainingPlanService {
     public ServiceResult<List<TrainingPlanCourse>> listCoursesByRecommendedTerm(String majorName,
             int enrollmentYear, int recommendedTerm) {
         if (recommendedTerm <= 0) return ServiceResult.failure(StatusCode.BAD_REQUEST, "recommendedTerm must be positive");
-        ServiceResult<TrainingPlan> plan = findByMajorAndEnrollmentYear(majorName, enrollmentYear);
-        if (plan.getStatus() != StatusCode.OK) return ServiceResult.failure(plan.getStatus(), plan.getMessage());
-        if (plan.getData().getStatus() != TrainingPlanStatus.PUBLISHED) {
-            return ServiceResult.failure(StatusCode.NOT_FOUND, "published training plan not found");
+        String normalizedMajor = normalize(majorName);
+        if (normalizedMajor == null || !validYear(enrollmentYear)) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "majorName and enrollmentYear are invalid");
         }
-        List<TrainingPlanCourse> result = new ArrayList<TrainingPlanCourse>();
-        for (TrainingPlanCourse course : plan.getData().getCourses()) {
-            if (course.getRecommendedTerm() == recommendedTerm) result.add(course);
+        String planSql = "SELECT plan_id,status FROM tblTrainingPlan WHERE major_name=? "
+                + "AND enrollment_year=?";
+        String coursesSql = "SELECT course_id,recommended_term,selection_type,cross_major_allowed "
+                + "FROM tblTrainingPlanCourse WHERE plan_id=? AND recommended_term=? "
+                + "ORDER BY course_id";
+        try (Connection connection = open();
+                PreparedStatement planStatement = connection.prepareStatement(planSql)) {
+            planStatement.setString(1, normalizedMajor);
+            planStatement.setInt(2, enrollmentYear);
+            String planId;
+            TrainingPlanStatus status;
+            try (ResultSet plans = planStatement.executeQuery()) {
+                if (!plans.next()) {
+                    return ServiceResult.failure(StatusCode.NOT_FOUND, "training plan not found");
+                }
+                planId = plans.getString("plan_id");
+                status = TrainingPlanStatus.valueOf(plans.getString("status"));
+            }
+            if (status != TrainingPlanStatus.PUBLISHED) {
+                return ServiceResult.failure(StatusCode.NOT_FOUND, "published training plan not found");
+            }
+            try (PreparedStatement courseStatement = connection.prepareStatement(coursesSql)) {
+                courseStatement.setString(1, planId);
+                courseStatement.setInt(2, recommendedTerm);
+                List<TrainingPlanCourse> result = new ArrayList<TrainingPlanCourse>();
+                try (ResultSet courses = courseStatement.executeQuery()) {
+                    while (courses.next()) result.add(readPlanCourse(courses));
+                }
+                return ServiceResult.ok(Collections.unmodifiableList(result));
+            }
+        } catch (IllegalArgumentException invalidData) {
+            return ServiceResult.failure(StatusCode.SERVER_ERROR,
+                    "training plan data is invalid: " + invalidData.getMessage());
+        } catch (SQLException failure) {
+            return databaseFailure(failure);
         }
-        return ServiceResult.ok(Collections.unmodifiableList(result));
     }
 
     private TrainingPlan readPlan(Connection connection, ResultSet row) throws SQLException {
-        String planId = row.getString("plan_id");
+        return readPlan(connection, readPlanHeader(row));
+    }
+
+    private TrainingPlan readPlan(Connection connection, PlanHeader header) throws SQLException {
         List<TrainingPlanCourse> courses = new ArrayList<TrainingPlanCourse>();
         try (PreparedStatement statement = connection.prepareStatement("SELECT course_id,recommended_term,"
                 + "selection_type,cross_major_allowed FROM tblTrainingPlanCourse WHERE plan_id=? "
                 + "ORDER BY recommended_term,course_id")) {
-            statement.setString(1, planId);
+            statement.setString(1, header.planId);
             try (ResultSet results = statement.executeQuery()) {
-                while (results.next()) courses.add(new TrainingPlanCourse(results.getString("course_id"),
-                        results.getInt("recommended_term"), cn.vcampus.course.SelectionType.valueOf(
-                                results.getString("selection_type")), results.getBoolean("cross_major_allowed")));
+                while (results.next()) courses.add(readPlanCourse(results));
             }
         }
-        return new TrainingPlan(planId, row.getString("major_name"), row.getInt("enrollment_year"),
-                courses, TrainingPlanStatus.valueOf(row.getString("status")));
+        return new TrainingPlan(header.planId, header.majorName, header.enrollmentYear, courses,
+                header.status);
+    }
+
+    private static PlanHeader readPlanHeader(ResultSet row) throws SQLException {
+        return new PlanHeader(row.getString("plan_id"), row.getString("major_name"),
+                row.getInt("enrollment_year"), TrainingPlanStatus.valueOf(row.getString("status")));
+    }
+
+    private static TrainingPlanCourse readPlanCourse(ResultSet row) throws SQLException {
+        return new TrainingPlanCourse(row.getString("course_id"), row.getInt("recommended_term"),
+                cn.vcampus.course.SelectionType.valueOf(row.getString("selection_type")),
+                row.getBoolean("cross_major_allowed"));
+    }
+
+    private static final class PlanHeader {
+        private final String planId;
+        private final String majorName;
+        private final int enrollmentYear;
+        private final TrainingPlanStatus status;
+
+        private PlanHeader(String planId, String majorName, int enrollmentYear,
+                TrainingPlanStatus status) {
+            this.planId = planId;
+            this.majorName = majorName;
+            this.enrollmentYear = enrollmentYear;
+            this.status = status;
+        }
     }
 
     private ServiceResult<Void> requireActiveCourses(List<TrainingPlanCourse> courses) {

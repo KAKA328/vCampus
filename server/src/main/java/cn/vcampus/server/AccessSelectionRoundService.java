@@ -120,16 +120,27 @@ public final class AccessSelectionRoundService implements SelectionRoundService 
 
     @Override
     public ServiceResult<List<SelectionRound>> listOpenRounds(String term, LocalDateTime time) {
-        if (time == null) {
+        String normalizedTerm = normalize(term);
+        if (normalizedTerm == null || time == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "time must not be null");
         }
-        ServiceResult<List<SelectionRound>> listed = listByTerm(term);
-        if (listed.getStatus() != StatusCode.OK) return listed;
-        List<SelectionRound> open = new ArrayList<SelectionRound>();
-        for (SelectionRound round : listed.getData()) {
-            if (round.isOpenAt(time)) open.add(round);
+        String sql = "SELECT round_id,term,round_type,starts_at,ends_at,status "
+                + "FROM tblSelectionRound WHERE term=? AND status=? AND starts_at<=? AND ends_at>=? "
+                + "ORDER BY starts_at,round_id";
+        try (Connection connection = open();
+                PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, normalizedTerm);
+            statement.setString(2, SelectionRoundStatus.OPEN.name());
+            statement.setTimestamp(3, Timestamp.valueOf(time));
+            statement.setTimestamp(4, Timestamp.valueOf(time));
+            try (ResultSet results = statement.executeQuery()) {
+                List<SelectionRound> open = new ArrayList<SelectionRound>();
+                while (results.next()) open.add(readRound(results));
+                return ServiceResult.ok(Collections.unmodifiableList(open));
+            }
+        } catch (SQLException failure) {
+            return databaseFailure(failure);
         }
-        return ServiceResult.ok(Collections.unmodifiableList(open));
     }
 
     @Override

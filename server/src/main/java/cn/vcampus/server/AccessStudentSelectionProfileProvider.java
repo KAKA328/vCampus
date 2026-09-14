@@ -29,6 +29,16 @@ public final class AccessStudentSelectionProfileProvider
 
     @Override
     public ServiceResult<StudentSelectionProfile> findByUserId(String userId) {
+        return find(userId, true);
+    }
+
+    /** 轮次页仅需要学籍状态与当前学期，无需提前扫描学生的全部成绩历史。 */
+    @Override
+    public ServiceResult<StudentSelectionProfile> findForAvailableRounds(String userId) {
+        return find(userId, false);
+    }
+
+    private ServiceResult<StudentSelectionProfile> find(String userId, boolean includePendingRetakes) {
         String normalizedUserId = normalize(userId);
         if (normalizedUserId == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId must not be blank");
@@ -45,7 +55,9 @@ public final class AccessStudentSelectionProfileProvider
                         "no current selection term is configured");
             }
             int recommendedTerm = recommendedTerm(currentTerm, student.enrollmentYear);
-            Set<String> pendingRetakes = findPendingRetakeCourseIds(connection, student.studentId);
+            Set<String> pendingRetakes = includePendingRetakes
+                    ? findPendingRetakeCourseIds(connection, student.studentId)
+                    : java.util.Collections.<String>emptySet();
             return ServiceResult.ok(new StudentSelectionProfile(normalizedUserId, student.studentId,
                     student.majorName, student.enrollmentYear, student.status, currentTerm,
                     recommendedTerm, pendingRetakes));

@@ -210,7 +210,10 @@ final class CourseMessageHandler {
     }
 
     private ServiceResult<?> query(CourseSelectionQueryV2Command command) {
-        ServiceResult<StudentSelectionProfile> profile = profile(command.getToken(), Permission.COURSE_READ);
+        boolean roundsOnly = command.getQueryType()
+                == CourseSelectionQueryV2Command.QueryType.AVAILABLE_ROUNDS;
+        ServiceResult<StudentSelectionProfile> profile = profile(command.getToken(),
+                Permission.COURSE_READ, roundsOnly);
         if (profile.getStatus() != StatusCode.OK) return profile;
         if (command.getQueryType() == CourseSelectionQueryV2Command.QueryType.AVAILABLE_ROUNDS) {
             return courses.listAvailableRounds(profile.getData(), LocalDateTime.now());
@@ -734,6 +737,11 @@ final class CourseMessageHandler {
     }
 
     private ServiceResult<StudentSelectionProfile> profile(String token, Permission permission) {
+        return profile(token, permission, false);
+    }
+
+    private ServiceResult<StudentSelectionProfile> profile(String token, Permission permission,
+            boolean roundsOnly) {
         ServiceResult<Boolean> authorized = users.authorize(token, permission.getCode());
         if (authorized.getStatus() != StatusCode.OK) return ServiceResult.failure(authorized.getStatus(), authorized.getMessage());
         ServiceResult<Session> session = users.currentSession(token);
@@ -741,7 +749,8 @@ final class CourseMessageHandler {
         if (session.getData().getUser().getRole() != Role.STUDENT) {
             return ServiceResult.failure(StatusCode.FORBIDDEN, "only student can use student course selection");
         }
-        return profiles.findByUserId(session.getData().getUser().getUserId());
+        return roundsOnly ? profiles.findForAvailableRounds(session.getData().getUser().getUserId())
+                : profiles.findByUserId(session.getData().getUser().getUserId());
     }
 
     private ServiceResult<TeacherProfile> teacherProfile(String token) {

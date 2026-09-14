@@ -68,6 +68,17 @@ class AccessStudentSelectionProfileProviderTest {
     }
 
     @Test
+    void readsRoundPageProfileWithoutScanningRetakeHistory() {
+        cn.vcampus.common.ServiceResult<StudentSelectionProfile> result =
+                provider.findForAvailableRounds("user-001");
+
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals("S001", result.getData().getStudentId());
+        assertEquals("2026-2027-1", result.getData().getCurrentTerm());
+        assertTrue(result.getData().getPendingRetakeCourseIds().isEmpty());
+    }
+
+    @Test
     void rejectsUserWithoutBoundStudentProfile() {
         assertEquals(StatusCode.NOT_FOUND, provider.findByUserId("unknown-user").getStatus());
     }

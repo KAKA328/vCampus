@@ -20,6 +20,11 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
@@ -37,6 +42,13 @@ public final class CourseSelectionPanel extends JPanel {
     private static final String SELECTED_PAGE = "selected";
     private static final int[] COURSE_COLUMN_WIDTHS = { 150, 260, 90, 130 };
     private static final int[] SELECTED_COLUMN_WIDTHS = { 130, 220, 90, 130, 190, 130 };
+    /** 已选课查询与可选教学班查询互不依赖，使用后台线程并行缩短课程列表首屏等待。 */
+    private static final ExecutorService COURSE_LIST_AUXILIARY_REQUEST =
+            Executors.newSingleThreadExecutor(runnable -> {
+                Thread thread = new Thread(runnable, "course-selection-auxiliary-request");
+                thread.setDaemon(true);
+                return thread;
+            });
 
     private final String host;
     private final int port;
@@ -296,7 +308,63 @@ public final class CourseSelectionPanel extends JPanel {
     }
 
     private void loadCourseList() {
-        if (selectedRound != null) fetchRoundOfferings(() -> fetchSelectedOfferings(this::renderCourseList));
+        if (selectedRound != null) loadCourseListSnapshot();
+    }
+
+    /**
+     * 同时读取当前轮次的教学班和学生已选课。原流程将两次独立 Socket 请求串行等待，
+     * 数据量增大后会把两个正常响应时间直接相加；这里在两份数据均返回后一次性渲染。
+     */
+    private void loadCourseListSnapshot() {
+        if (requestInProgress || selectedRound == null) return;
+        final String roundId = selectedRound.getRoundId();
+        final int requestId = requestLifecycle.begin();
+        requestInProgress = true;
+        updateInteractiveState();
+        showStatus("正在加载可选课程…", VCampusTheme.MUTED);
+        new SwingWorker<CourseListSnapshot, Void>() {
+            @Override
+            protected CourseListSnapshot doInBackground() throws Exception {
+                Future<Message> selected = COURSE_LIST_AUXILIARY_REQUEST.submit(
+                        new Callable<Message>() {
+                            @Override
+                            public Message call() throws Exception {
+                                try (RemoteCourseService service = new RemoteCourseService(host, port)) {
+                                    return service.selectedOfferings(session.getToken());
+                                }
+                            }
+                        });
+                Message offerings;
+                try (RemoteCourseService service = new RemoteCourseService(host, port)) {
+                    offerings = service.availableOfferings(session.getToken(), roundId);
+                }
+                try {
+                    return new CourseListSnapshot(offerings, selected.get());
+                } catch (ExecutionException failed) {
+                    Throwable cause = failed.getCause();
+                    if (cause instanceof Exception) throw (Exception) cause;
+                    throw new IllegalStateException(cause);
+                }
+            }
+
+            @Override
+            protected void done() {
+                if (!requestLifecycle.isCurrent(requestId)) return;
+                try {
+                    CourseListSnapshot snapshot = get();
+                    if (!requireList(snapshot.offerings, "可选课程")
+                            || !requireList(snapshot.selected, "已选课程")) return;
+                    replaceRoundOfferings(snapshot.offerings);
+                    replaceSelectedOfferings(snapshot.selected);
+                    renderCourseList();
+                } catch (Exception failure) {
+                    showStatus("无法连接选课服务器", VCampusTheme.DANGER);
+                } finally {
+                    requestInProgress = false;
+                    updateInteractiveState();
+                }
+            }
+        }.execute();
     }
 
     private void fetchRoundOfferings(final Runnable afterLoaded) {
@@ -304,12 +372,7 @@ public final class CourseSelectionPanel extends JPanel {
         final String roundId = selectedRound.getRoundId();
         request(service -> service.availableOfferings(session.getToken(), roundId), response -> {
             if (!requireList(response, "可选课程")) return;
-            currentRoundOfferings.clear();
-            for (Object item : (List<?>) response.getPayload()) {
-                if (item instanceof SelectableCourseOffering) {
-                    currentRoundOfferings.add((SelectableCourseOffering) item);
-                }
-            }
+            replaceRoundOfferings(response);
             SwingUtilities.invokeLater(afterLoaded);
         });
     }
@@ -317,14 +380,27 @@ public final class CourseSelectionPanel extends JPanel {
     private void fetchSelectedOfferings(final Runnable afterLoaded) {
         request(service -> service.selectedOfferings(session.getToken()), response -> {
             if (!requireList(response, "已选课程")) return;
-            selectedOfferings.clear();
-            for (Object item : (List<?>) response.getPayload()) {
-                if (item instanceof SelectedCourseOffering) {
-                    selectedOfferings.add((SelectedCourseOffering) item);
-                }
-            }
+            replaceSelectedOfferings(response);
             afterLoaded.run();
         });
+    }
+
+    private void replaceRoundOfferings(Message response) {
+        currentRoundOfferings.clear();
+        for (Object item : (List<?>) response.getPayload()) {
+            if (item instanceof SelectableCourseOffering) {
+                currentRoundOfferings.add((SelectableCourseOffering) item);
+            }
+        }
+    }
+
+    private void replaceSelectedOfferings(Message response) {
+        selectedOfferings.clear();
+        for (Object item : (List<?>) response.getPayload()) {
+            if (item instanceof SelectedCourseOffering) {
+                selectedOfferings.add((SelectedCourseOffering) item);
+            }
+        }
     }
 
     private void renderCourseList() {
@@ -675,6 +751,16 @@ public final class CourseSelectionPanel extends JPanel {
 
         private CourseChoice(SelectableCourseOffering firstOffering) {
             this.firstOffering = firstOffering;
+        }
+    }
+
+    private static final class CourseListSnapshot {
+        private final Message offerings;
+        private final Message selected;
+
+        private CourseListSnapshot(Message offerings, Message selected) {
+            this.offerings = offerings;
+            this.selected = selected;
         }
     }
 
