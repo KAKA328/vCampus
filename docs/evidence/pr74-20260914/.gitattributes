@@ -1,0 +1,4 @@
+# Preserve raw test evidence bytes so SHA256SUMS.txt also verifies after checkout.
+# Raw Windows console output includes CRLF and Maven trailing spaces; do not format it.
+*.txt -text -whitespace
+*.json -text -whitespace
