@@ -13,7 +13,10 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -21,6 +24,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -111,6 +118,29 @@ class AccessUserManagementIntegrationTest {
         assertEquals(StatusCode.UNAUTHORIZED, accessService().login(new UserCredentials(
                 "access_disable", "Access123", "ignored", Role.ADMIN.name())).getStatus());
         assertFalse(accountActive("access_disable"));
+    }
+
+    @Test
+    void adminDeactivationWaitsForCrossProcessDatabaseLock() throws Exception {
+        UserManagementService service = accessService();
+        assertEquals(StatusCode.OK, service.register(new UserCredentials(
+                "access_second_admin", "Access123", "Second Admin", Role.ADMIN.name())).getStatus());
+        Session admin = service.login(new UserCredentials(
+                "demo_admin", "Demo123", "ignored", Role.ADMIN.name())).getData();
+        Path lockPath = database.resolveSibling(database.getFileName().toString() + ".admin.lock");
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try (FileChannel channel = FileChannel.open(lockPath, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+             FileLock lock = channel.lock()) {
+            Future<ServiceResult<Void>> pending = executor.submit(() -> service.setAccountActive(
+                    new UserStatusCommand(admin.getToken(), "access_second_admin", false)));
+            Thread.sleep(250L);
+            assertFalse(pending.isDone(), "deactivation must wait for another process holding the lock");
+            lock.release();
+            assertEquals(StatusCode.OK, pending.get(5, TimeUnit.SECONDS).getStatus());
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @Test
