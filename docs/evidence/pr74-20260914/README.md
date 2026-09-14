@@ -140,7 +140,7 @@ d89935add5f24d982ab21a37b6a8cc35f9a82ce57a11e9ab2df6dd2d8452eb94
 mvn -B -pl client -am "-Dtest=StoreWalletRefreshTest" "-Dsurefire.failIfNoSpecifiedTests=false" "-DforkCount=0" package
 ```
 
-实际退出码 0，**5 项，失败 0、错误 0、跳过 0**：[原始输出](wallet-refresh-test.txt)、[该次 Surefire 报告](wallet-refresh-test-report.txt)。
+单独执行的实际退出码 0，**5 项，失败 0、错误 0、跳过 0**，耗时 1.690 s，见 [单独执行原始输出](wallet-refresh-test.txt)。随后完整回归又执行同一类，耗时 1.279 s；[归档 Surefire 报告](wallet-refresh-test-report.txt) 来自这次完整回归，不是前一次单独执行的报告。
 
 修复提交完整回归结果在独立 [修复回归记录](fixed-regression.md) 中提供。任何后续证据提交都不替代对业务代码提交的测试。
 
