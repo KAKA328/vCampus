@@ -31,7 +31,7 @@ class AccessAcademicAdministrationTest {
         assertTrue(students.stream().anyMatch(item ->
                 item instanceof StudentRecord
                         && "20260006".equals(((StudentRecord) item).getStudentId())));
-        assertEquals(3, ((List<?>) execute(Action.TEACHERS, 0, null).getData()).size());
+        assertEquals(8, ((List<?>) execute(Action.TEACHERS, 0, null).getData()).size());
         AcademicAssessment review = review();
         assertEquals(6, review.getCredits().getEarnedCredits());
         assertEquals(StatusCode.OK, execute(Action.GRADUATE, 0, review.getId()).getStatus());
