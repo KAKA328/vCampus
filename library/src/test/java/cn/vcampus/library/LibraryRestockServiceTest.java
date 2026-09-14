@@ -49,13 +49,16 @@ class LibraryRestockServiceTest {
     }
 
     @Test
-    void overflowIsRejectedAtomicallyAndMaximumRepresentableStockIsAllowed() {
+    void overflowAndUnboundedPhysicalCopyBatchesAreRejectedAtomically() {
         assertEquals(StatusCode.BAD_REQUEST, library.restock("TEST", Integer.MAX_VALUE).getStatus());
         assertEquals(original, library.getBook("TEST").getData());
-        assertEquals(StatusCode.OK, library.restock("TEST", Integer.MAX_VALUE - 3).getStatus());
-        assertEquals(Integer.MAX_VALUE, library.getBook("TEST").getData().getTotalCopies());
-        assertEquals(StatusCode.BAD_REQUEST, library.restock("TEST", 1).getStatus());
-        assertEquals(Integer.MAX_VALUE, library.getBook("TEST").getData().getAvailableCopies());
+        assertEquals(StatusCode.BAD_REQUEST, library.restock("TEST", Integer.MAX_VALUE - 3).getStatus());
+        assertEquals(StatusCode.BAD_REQUEST, library.restock("TEST", LibraryCopyRules.MAX_BATCH + 1).getStatus());
+        assertEquals(original, library.getBook("TEST").getData());
+        // 数值模型仍校验整数溢出；实体册业务另有有界批次约束，不能分配数十亿个对象。
+        Book maximum = original.withAdditionalCopies(Integer.MAX_VALUE - 3);
+        assertEquals(Integer.MAX_VALUE, maximum.getTotalCopies());
+        assertThrows(IllegalArgumentException.class, () -> maximum.withAdditionalCopies(1));
     }
 
     @Test

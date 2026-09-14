@@ -1,0 +1,1171 @@
+Access is denied.
+[INFO] Scanning for projects...
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Build Order:
+[INFO] 
+[INFO] vCampus                                                            [pom]
+[INFO] vCampus Common                                                     [jar]
+[INFO] user-management                                                    [jar]
+[INFO] student-management                                                 [jar]
+[INFO] course-selection                                                   [jar]
+[INFO] library                                                            [jar]
+[INFO] store                                                              [jar]
+[INFO] server                                                             [jar]
+[INFO] client                                                             [jar]
+[INFO] 
+[INFO] ---------------------< cn.vcampus:vcampus-parent >----------------------
+[INFO] Building vCampus 0.1.0-SNAPSHOT                                    [1/9]
+[INFO]   from pom.xml
+[INFO] --------------------------------[ pom ]---------------------------------
+[INFO] 
+[INFO] -------------------------< cn.vcampus:common >--------------------------
+[INFO] Building vCampus Common 0.1.0-SNAPSHOT                             [2/9]
+[INFO]   from common\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.4.0:resources (default-resources) @ common ---
+[INFO] skip non existing resourceDirectory C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\common\src\main\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ common ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.4.0:testResources (default-testResources) @ common ---
+[INFO] skip non existing resourceDirectory C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\common\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ common ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- surefire:3.2.5:test (default-test) @ common ---
+[WARNING] useSystemClassLoader setting has no effect when not forking
+[WARNING] The parameter forkCount should likely not be 0. Forking a JVM for tests improves test accuracy. Ensure to have a <forkCount> >= 1.
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] Running cn.vcampus.common.MessageTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.025 s -- in cn.vcampus.common.MessageTest
+[INFO] Running cn.vcampus.common.UserTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s -- in cn.vcampus.common.UserTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] 
+[INFO] --- jar:3.5.0:jar (default-jar) @ common ---
+[INFO] 
+[INFO] ---------------------< cn.vcampus:user-management >---------------------
+[INFO] Building user-management 0.1.0-SNAPSHOT                            [3/9]
+[INFO]   from user-management\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.4.0:resources (default-resources) @ user-management ---
+[INFO] skip non existing resourceDirectory C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\user-management\src\main\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ user-management ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.4.0:testResources (default-testResources) @ user-management ---
+[INFO] skip non existing resourceDirectory C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\user-management\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ user-management ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- surefire:3.2.5:test (default-test) @ user-management ---
+[WARNING] useSystemClassLoader setting has no effect when not forking
+[WARNING] The parameter forkCount should likely not be 0. Forking a JVM for tests improves test accuracy. Ensure to have a <forkCount> >= 1.
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] Running cn.vcampus.user.InMemoryUserManagementServiceTest
+[INFO] Tests run: 18, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 12.18 s -- in cn.vcampus.user.InMemoryUserManagementServiceTest
+[INFO] Running cn.vcampus.user.SessionManagerTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s -- in cn.vcampus.user.SessionManagerTest
+[INFO] Running cn.vcampus.user.UserCredentialsValidationTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s -- in cn.vcampus.user.UserCredentialsValidationTest
+[INFO] Running cn.vcampus.user.UserRepositoryBackedServiceTest
+[INFO] Tests run: 22, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 8.681 s -- in cn.vcampus.user.UserRepositoryBackedServiceTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 44, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] 
+[INFO] --- jar:3.5.0:jar (default-jar) @ user-management ---
+[INFO] 
+[INFO] -------------------< cn.vcampus:student-management >--------------------
+[INFO] Building student-management 0.1.0-SNAPSHOT                         [4/9]
+[INFO]   from student-management\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.4.0:resources (default-resources) @ student-management ---
+[INFO] skip non existing resourceDirectory C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\student-management\src\main\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ student-management ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.4.0:testResources (default-testResources) @ student-management ---
+[INFO] skip non existing resourceDirectory C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\student-management\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ student-management ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- surefire:3.2.5:test (default-test) @ student-management ---
+[WARNING] useSystemClassLoader setting has no effect when not forking
+[WARNING] The parameter forkCount should likely not be 0. Forking a JVM for tests improves test accuracy. Ensure to have a <forkCount> >= 1.
+[INFO] Using auto detected provider org.apache.maven.surefire.junit4.JUnit4Provider
+[INFO] Running cn.vcampus.student.DefaultStudentManagementServiceTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.020 s -- in cn.vcampus.student.DefaultStudentManagementServiceTest
+[INFO] Running cn.vcampus.student.DefaultTeacherProfileServiceTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in cn.vcampus.student.DefaultTeacherProfileServiceTest
+[INFO] Running cn.vcampus.student.InMemoryAcademicReviewServiceTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s -- in cn.vcampus.student.InMemoryAcademicReviewServiceTest
+[INFO] Running cn.vcampus.student.StudentProfileValidationTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s -- in cn.vcampus.student.StudentProfileValidationTest
+[INFO] Running cn.vcampus.student.StudentRecordTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in cn.vcampus.student.StudentRecordTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 22, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] 
+[INFO] --- jar:3.5.0:jar (default-jar) @ student-management ---
+[INFO] 
+[INFO] --------------------< cn.vcampus:course-selection >---------------------
+[INFO] Building course-selection 0.1.0-SNAPSHOT                           [5/9]
+[INFO]   from course-selection\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.4.0:resources (default-resources) @ course-selection ---
+[INFO] skip non existing resourceDirectory C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\course-selection\src\main\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ course-selection ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.4.0:testResources (default-testResources) @ course-selection ---
+[INFO] skip non existing resourceDirectory C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\course-selection\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ course-selection ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- surefire:3.2.5:test (default-test) @ course-selection ---
+[WARNING] useSystemClassLoader setting has no effect when not forking
+[WARNING] The parameter forkCount should likely not be 0. Forking a JVM for tests improves test accuracy. Ensure to have a <forkCount> >= 1.
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] Running cn.vcampus.course.CourseMeetingTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.022 s -- in cn.vcampus.course.CourseMeetingTest
+[INFO] Running cn.vcampus.course.CourseOfferingTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s -- in cn.vcampus.course.CourseOfferingTest
+[INFO] Running cn.vcampus.course.CourseSelectionRecordTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in cn.vcampus.course.CourseSelectionRecordTest
+[INFO] Running cn.vcampus.course.CourseTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in cn.vcampus.course.CourseTest
+[INFO] Running cn.vcampus.course.DefaultCourseOfferingCapacityServiceTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s -- in cn.vcampus.course.DefaultCourseOfferingCapacityServiceTest
+[INFO] Running cn.vcampus.course.DefaultCourseSelectionServiceTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.010 s -- in cn.vcampus.course.DefaultCourseSelectionServiceTest
+[INFO] Running cn.vcampus.course.GradeImportFileParserTest
+ERROR StatusLogger Log4j2 could not find a logging implementation. Please add log4j-core to the classpath. Using SimpleLogger to log to the console...
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.473 s -- in cn.vcampus.course.GradeImportFileParserTest
+[INFO] Running cn.vcampus.course.InMemoryCourseCatalogServiceTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in cn.vcampus.course.InMemoryCourseCatalogServiceTest
+[INFO] Running cn.vcampus.course.InMemoryCourseOfferingServiceTest
+[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s -- in cn.vcampus.course.InMemoryCourseOfferingServiceTest
+[INFO] Running cn.vcampus.course.InMemoryCourseSelectionRecordServiceTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in cn.vcampus.course.InMemoryCourseSelectionRecordServiceTest
+[INFO] Running cn.vcampus.course.InMemoryGradeSubmissionServiceTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s -- in cn.vcampus.course.InMemoryGradeSubmissionServiceTest
+[INFO] Running cn.vcampus.course.InMemorySelectionRoundServiceTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in cn.vcampus.course.InMemorySelectionRoundServiceTest
+[INFO] Running cn.vcampus.course.InMemoryTrainingPlanServiceTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in cn.vcampus.course.InMemoryTrainingPlanServiceTest
+[INFO] Running cn.vcampus.course.ScheduleConflictDetectorTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in cn.vcampus.course.ScheduleConflictDetectorTest
+[INFO] Running cn.vcampus.course.SelectionRoundTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in cn.vcampus.course.SelectionRoundTest
+[INFO] Running cn.vcampus.course.SelectionTypeTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in cn.vcampus.course.SelectionTypeTest
+[INFO] Running cn.vcampus.course.TrainingPlanManagementCommandTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in cn.vcampus.course.TrainingPlanManagementCommandTest
+[INFO] Running cn.vcampus.course.TrainingPlanTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in cn.vcampus.course.TrainingPlanTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 78, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] 
+[INFO] --- jar:3.5.0:jar (default-jar) @ course-selection ---
+[INFO] 
+[INFO] -------------------------< cn.vcampus:library >-------------------------
+[INFO] Building library 0.1.0-SNAPSHOT                                    [6/9]
+[INFO]   from library\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.4.0:resources (default-resources) @ library ---
+[INFO] skip non existing resourceDirectory C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\library\src\main\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ library ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.4.0:testResources (default-testResources) @ library ---
+[INFO] skip non existing resourceDirectory C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\library\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ library ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- surefire:3.2.5:test (default-test) @ library ---
+[WARNING] useSystemClassLoader setting has no effect when not forking
+[WARNING] The parameter forkCount should likely not be 0. Forking a JVM for tests improves test accuracy. Ensure to have a <forkCount> >= 1.
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] Running cn.vcampus.library.DemoCatalogTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.033 s -- in cn.vcampus.library.DemoCatalogTest
+[INFO] Running cn.vcampus.library.InMemoryLibraryServiceTest
+[INFO] Tests run: 16, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s -- in cn.vcampus.library.InMemoryLibraryServiceTest
+[INFO] Running cn.vcampus.library.LibraryBorrowConcurrencyTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.015 s -- in cn.vcampus.library.LibraryBorrowConcurrencyTest
+[INFO] Running cn.vcampus.library.LibraryBorrowLimitTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s -- in cn.vcampus.library.LibraryBorrowLimitTest
+[INFO] Running cn.vcampus.library.LibraryCatalogV4Test
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s -- in cn.vcampus.library.LibraryCatalogV4Test
+[INFO] Running cn.vcampus.library.LibraryCommandV2Test
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s -- in cn.vcampus.library.LibraryCommandV2Test
+[INFO] Running cn.vcampus.library.LibraryCompensationCommandTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s -- in cn.vcampus.library.LibraryCompensationCommandTest
+[INFO] Running cn.vcampus.library.LibraryRestockServiceTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s -- in cn.vcampus.library.LibraryRestockServiceTest
+[INFO] Running cn.vcampus.library.LibraryV4ContractTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s -- in cn.vcampus.library.LibraryV4ContractTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 49, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] 
+[INFO] --- jar:3.5.0:jar (default-jar) @ library ---
+[INFO] 
+[INFO] --------------------------< cn.vcampus:store >--------------------------
+[INFO] Building store 0.1.0-SNAPSHOT                                      [7/9]
+[INFO]   from store\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.4.0:resources (default-resources) @ store ---
+[INFO] skip non existing resourceDirectory C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\store\src\main\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ store ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.4.0:testResources (default-testResources) @ store ---
+[INFO] skip non existing resourceDirectory C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\store\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ store ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- surefire:3.2.5:test (default-test) @ store ---
+[WARNING] useSystemClassLoader setting has no effect when not forking
+[WARNING] The parameter forkCount should likely not be 0. Forking a JVM for tests improves test accuracy. Ensure to have a <forkCount> >= 1.
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] Running cn.vcampus.store.BankAccountTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.022 s -- in cn.vcampus.store.BankAccountTest
+[INFO] Running cn.vcampus.store.InMemoryProductRepositoryTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s -- in cn.vcampus.store.InMemoryProductRepositoryTest
+[INFO] Running cn.vcampus.store.InMemoryWalletRepositoryTest
+[INFO] Tests run: 17, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s -- in cn.vcampus.store.InMemoryWalletRepositoryTest
+[INFO] Running cn.vcampus.store.MoneyTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in cn.vcampus.store.MoneyTest
+[INFO] Running cn.vcampus.store.ProductTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s -- in cn.vcampus.store.ProductTest
+[INFO] Running cn.vcampus.store.StoreAccountLedgerV2CommandTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in cn.vcampus.store.StoreAccountLedgerV2CommandTest
+[INFO] Running cn.vcampus.store.StoreConcurrencyTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.024 s -- in cn.vcampus.store.StoreConcurrencyTest
+[INFO] Running cn.vcampus.store.StoreProductCommandTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in cn.vcampus.store.StoreProductCommandTest
+[INFO] Running cn.vcampus.store.StoreServiceTest
+[COMPENSATION-FAILURE] operation=purchase user=u order=9c42ee7b-bfe6-48a5-8aa9-9eae7a8ee482 product=A qty=2 amountCents=400 step=restore_stock reason=addStock returned false after debit rejected at=2026-09-14T16:53:36.041
+[COMPENSATION-FAILURE] operation=checkout user=u order=null product=null qty=0 amountCents=400 step=refund reason=credit returned applied=false at=2026-09-14T16:53:36.044
+[COMPENSATION-FAILURE] operation=purchase user=u order=ad070803-4451-496c-b9e5-6e97cbf8db01 product=A qty=2 amountCents=400 step=refund reason=credit returned applied=false at=2026-09-14T16:53:36.053
+[INFO] Tests run: 121, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.255 s -- in cn.vcampus.store.StoreServiceTest
+[INFO] Running cn.vcampus.store.WalletTransactionTest
+[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in cn.vcampus.store.WalletTransactionTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 180, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] 
+[INFO] --- jar:3.5.0:jar (default-jar) @ store ---
+[INFO] 
+[INFO] -------------------------< cn.vcampus:server >--------------------------
+[INFO] Building server 0.1.0-SNAPSHOT                                     [8/9]
+[INFO]   from server\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.4.0:resources (default-resources) @ server ---
+[INFO] skip non existing resourceDirectory C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\server\src\main\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ server ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 58 source files with javac [debug target 1.8] to target\classes
+[INFO] 
+[INFO] --- resources:3.4.0:testResources (default-testResources) @ server ---
+[INFO] skip non existing resourceDirectory C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\server\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ server ---
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 52 source files with javac [debug target 1.8] to target\test-classes
+[INFO] 
+[INFO] --- surefire:3.2.5:test (default-test) @ server ---
+[WARNING] useSystemClassLoader setting has no effect when not forking
+[WARNING] The parameter forkCount should likely not be 0. Forking a JVM for tests improves test accuracy. Ensure to have a <forkCount> >= 1.
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] Running cn.vcampus.server.AcademicAdministrationTest
+[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 7.048 s -- in cn.vcampus.server.AcademicAdministrationTest
+[INFO] Running cn.vcampus.server.AccessAcademicAdministrationTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 20.08 s -- in cn.vcampus.server.AccessAcademicAdministrationTest
+[INFO] Running cn.vcampus.server.AccessAcademicReviewServiceTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.930 s -- in cn.vcampus.server.AccessAcademicReviewServiceTest
+[INFO] Running cn.vcampus.server.AccessCourseCatalogServiceTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.243 s -- in cn.vcampus.server.AccessCourseCatalogServiceTest
+[INFO] Running cn.vcampus.server.AccessCourseDatabaseInitializationTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.928 s -- in cn.vcampus.server.AccessCourseDatabaseInitializationTest
+[INFO] Running cn.vcampus.server.AccessCourseOfferingServiceTest
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 10.48 s -- in cn.vcampus.server.AccessCourseOfferingServiceTest
+[INFO] Running cn.vcampus.server.AccessCourseSelectionRecordServiceTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.608 s -- in cn.vcampus.server.AccessCourseSelectionRecordServiceTest
+[INFO] Running cn.vcampus.server.AccessCourseStudentProfileIntegrationTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.875 s -- in cn.vcampus.server.AccessCourseStudentProfileIntegrationTest
+[INFO] Running cn.vcampus.server.AccessDatabaseSchemaTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.259 s -- in cn.vcampus.server.AccessDatabaseSchemaTest
+[INFO] Running cn.vcampus.server.AccessGradeApprovalWorkflowTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.460 s -- in cn.vcampus.server.AccessGradeApprovalWorkflowTest
+[INFO] Running cn.vcampus.server.AccessGradeSubmissionServiceTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.598 s -- in cn.vcampus.server.AccessGradeSubmissionServiceTest
+[INFO] Running cn.vcampus.server.AccessLibraryBorrowConcurrencyTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.916 s -- in cn.vcampus.server.AccessLibraryBorrowConcurrencyTest
+[INFO] Running cn.vcampus.server.AccessLibraryBorrowLimitTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.444 s -- in cn.vcampus.server.AccessLibraryBorrowLimitTest
+[INFO] Running cn.vcampus.server.AccessLibraryCatalogV4Test
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 5.067 s -- in cn.vcampus.server.AccessLibraryCatalogV4Test
+[INFO] Running cn.vcampus.server.AccessLibraryCompensationServiceTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.943 s -- in cn.vcampus.server.AccessLibraryCompensationServiceTest
+[INFO] Running cn.vcampus.server.AccessLibraryCopyLossTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.477 s -- in cn.vcampus.server.AccessLibraryCopyLossTest
+[INFO] Running cn.vcampus.server.AccessLibraryRepositoryTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.791 s -- in cn.vcampus.server.AccessLibraryRepositoryTest
+[INFO] Running cn.vcampus.server.AccessSelectionRoundServiceTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.830 s -- in cn.vcampus.server.AccessSelectionRoundServiceTest
+[INFO] Running cn.vcampus.server.AccessStoreRepositoryTest
+[INFO] Tests run: 47, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 31.46 s -- in cn.vcampus.server.AccessStoreRepositoryTest
+[INFO] Running cn.vcampus.server.AccessStudentMessageHandlerTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.261 s -- in cn.vcampus.server.AccessStudentMessageHandlerTest
+[INFO] Running cn.vcampus.server.AccessStudentRepositoryTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.502 s -- in cn.vcampus.server.AccessStudentRepositoryTest
+[INFO] Running cn.vcampus.server.AccessStudentSelectionProfileProviderTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.893 s -- in cn.vcampus.server.AccessStudentSelectionProfileProviderTest
+[INFO] Running cn.vcampus.server.AccessTeacherRepositoryTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.338 s -- in cn.vcampus.server.AccessTeacherRepositoryTest
+[INFO] Running cn.vcampus.server.AccessTeacherStudentAccessPolicyTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.256 s -- in cn.vcampus.server.AccessTeacherStudentAccessPolicyTest
+[INFO] Running cn.vcampus.server.AccessTrainingPlanServiceTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.044 s -- in cn.vcampus.server.AccessTrainingPlanServiceTest
+[INFO] Running cn.vcampus.server.AccessUserManagementIntegrationTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 27.07 s -- in cn.vcampus.server.AccessUserManagementIntegrationTest
+[INFO] Running cn.vcampus.server.CourseMessageHandlerTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.538 s -- in cn.vcampus.server.CourseMessageHandlerTest
+[INFO] Running cn.vcampus.server.CourseServiceFactoryTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in cn.vcampus.server.CourseServiceFactoryTest
+[INFO] Running cn.vcampus.server.CourseStudentProfileIntegrationTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.759 s -- in cn.vcampus.server.CourseStudentProfileIntegrationTest
+[INFO] Running cn.vcampus.server.CourseTeachingQueryMessageHandlerTest
+[INFO] Tests run: 16, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 29.10 s -- in cn.vcampus.server.CourseTeachingQueryMessageHandlerTest
+[INFO] Running cn.vcampus.server.InMemoryLibraryCompensationServiceTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.011 s -- in cn.vcampus.server.InMemoryLibraryCompensationServiceTest
+[INFO] Running cn.vcampus.server.LibraryAcceptanceDataTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 13.86 s -- in cn.vcampus.server.LibraryAcceptanceDataTest
+[INFO] Running cn.vcampus.server.LibraryCompensationMessageHandlerTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 10.46 s -- in cn.vcampus.server.LibraryCompensationMessageHandlerTest
+[INFO] Running cn.vcampus.server.LibraryCopyMigrationTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.761 s -- in cn.vcampus.server.LibraryCopyMigrationTest
+[INFO] Running cn.vcampus.server.LibraryMessageHandlerTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 9.088 s -- in cn.vcampus.server.LibraryMessageHandlerTest
+[INFO] Running cn.vcampus.server.LibraryRestockMessageHandlerTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.885 s -- in cn.vcampus.server.LibraryRestockMessageHandlerTest
+[INFO] Running cn.vcampus.server.LibrarySocketConcurrencyTest
+vCampus server listening on port 0
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 17.09 s -- in cn.vcampus.server.LibrarySocketConcurrencyTest
+[INFO] Running cn.vcampus.server.LibraryV4MessageHandlerTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.079 s -- in cn.vcampus.server.LibraryV4MessageHandlerTest
+[INFO] Running cn.vcampus.server.ServerApplicationDispatchTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.376 s -- in cn.vcampus.server.ServerApplicationDispatchTest
+[INFO] Running cn.vcampus.server.StoreMessageHandlerTest
+store handler unexpected failure for STORE_QUERY: java.lang.IllegalStateException: database unavailable
+java.lang.IllegalStateException: database unavailable
+	at cn.vcampus.server.StoreMessageHandlerTest.testStorageFailureReturnsServerError(StoreMessageHandlerTest.java:651)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at org.junit.platform.commons.util.ReflectionUtils.invokeMethod(ReflectionUtils.java:728)
+	at org.junit.jupiter.engine.execution.MethodInvocation.proceed(MethodInvocation.java:60)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$ValidatingInvocation.proceed(InvocationInterceptorChain.java:131)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.intercept(TimeoutExtension.java:156)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestableMethod(TimeoutExtension.java:147)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestMethod(TimeoutExtension.java:86)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker$ReflectiveInterceptorCall.lambda$ofVoidMethod$0(InterceptingExecutableInvoker.java:103)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.lambda$invoke$0(InterceptingExecutableInvoker.java:93)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$InterceptedInvocation.proceed(InvocationInterceptorChain.java:106)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.proceed(InvocationInterceptorChain.java:64)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.chainAndInvoke(InvocationInterceptorChain.java:45)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.invoke(InvocationInterceptorChain.java:37)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:92)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:86)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.lambda$invokeTestMethod$7(TestMethodTestDescriptor.java:218)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.invokeTestMethod(TestMethodTestDescriptor.java:214)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:139)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:69)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:151)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:141)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:139)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:138)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:95)
+	at java.util.ArrayList.forEach(ArrayList.java:1259)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:155)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:141)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:139)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:138)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:95)
+	at java.util.ArrayList.forEach(ArrayList.java:1259)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:155)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:141)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:139)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:138)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:95)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.submit(SameThreadHierarchicalTestExecutorService.java:35)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestExecutor.execute(HierarchicalTestExecutor.java:57)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestEngine.execute(HierarchicalTestEngine.java:54)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:198)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:169)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:93)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.lambda$execute$0(EngineExecutionOrchestrator.java:58)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.withInterceptedStreams(EngineExecutionOrchestrator.java:141)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:57)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:103)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:85)
+	at org.junit.platform.launcher.core.DelegatingLauncher.execute(DelegatingLauncher.java:47)
+	at org.apache.maven.surefire.junitplatform.LazyLauncher.execute(LazyLauncher.java:56)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.execute(JUnitPlatformProvider.java:184)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invokeAllTests(JUnitPlatformProvider.java:148)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invoke(JUnitPlatformProvider.java:122)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at org.apache.maven.surefire.api.util.ReflectionUtils.invokeMethodWithArray2(ReflectionUtils.java:137)
+	at org.apache.maven.surefire.booter.ProviderFactory$ProviderProxy.invoke(ProviderFactory.java:148)
+	at org.apache.maven.surefire.booter.ProviderFactory.invokeProvider(ProviderFactory.java:88)
+	at org.apache.maven.plugin.surefire.InPluginVMSurefireStarter.runSuitesInProcess(InPluginVMSurefireStarter.java:91)
+	at org.apache.maven.plugin.surefire.AbstractSurefireMojo.executeProvider(AbstractSurefireMojo.java:1212)
+	at org.apache.maven.plugin.surefire.AbstractSurefireMojo.executeAfterPreconditionsChecked(AbstractSurefireMojo.java:1090)
+	at org.apache.maven.plugin.surefire.AbstractSurefireMojo.execute(AbstractSurefireMojo.java:910)
+	at org.apache.maven.plugin.DefaultBuildPluginManager.executeMojo(DefaultBuildPluginManager.java:126)
+	at org.apache.maven.lifecycle.internal.MojoExecutor.doExecute2(MojoExecutor.java:328)
+	at org.apache.maven.lifecycle.internal.MojoExecutor.doExecute(MojoExecutor.java:316)
+	at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:212)
+	at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:174)
+	at org.apache.maven.lifecycle.internal.MojoExecutor.access$000(MojoExecutor.java:75)
+	at org.apache.maven.lifecycle.internal.MojoExecutor$1.run(MojoExecutor.java:162)
+	at org.apache.maven.plugin.DefaultMojosExecutionStrategy.execute(DefaultMojosExecutionStrategy.java:39)
+	at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:159)
+	at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject(LifecycleModuleBuilder.java:105)
+	at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject(LifecycleModuleBuilder.java:73)
+	at org.apache.maven.lifecycle.internal.builder.singlethreaded.SingleThreadedBuilder.build(SingleThreadedBuilder.java:53)
+	at org.apache.maven.lifecycle.internal.LifecycleStarter.execute(LifecycleStarter.java:118)
+	at org.apache.maven.DefaultMaven.doExecute(DefaultMaven.java:261)
+	at org.apache.maven.DefaultMaven.doExecute(DefaultMaven.java:173)
+	at org.apache.maven.DefaultMaven.execute(DefaultMaven.java:101)
+	at org.apache.maven.cli.MavenCli.execute(MavenCli.java:919)
+	at org.apache.maven.cli.MavenCli.doMain(MavenCli.java:285)
+	at org.apache.maven.cli.MavenCli.main(MavenCli.java:207)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at org.codehaus.plexus.classworlds.launcher.Launcher.launchEnhanced(Launcher.java:255)
+	at org.codehaus.plexus.classworlds.launcher.Launcher.launch(Launcher.java:201)
+	at org.codehaus.plexus.classworlds.launcher.Launcher.mainWithExitCode(Launcher.java:362)
+	at org.codehaus.plexus.classworlds.launcher.Launcher.main(Launcher.java:314)
+store handler unexpected failure for STORE_PURCHASE: java.lang.IllegalStateException: database unavailable
+java.lang.IllegalStateException: database unavailable
+	at cn.vcampus.server.StoreMessageHandlerTest.testPurchaseStorageFailureReturnsServerError(StoreMessageHandlerTest.java:663)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at org.junit.platform.commons.util.ReflectionUtils.invokeMethod(ReflectionUtils.java:728)
+	at org.junit.jupiter.engine.execution.MethodInvocation.proceed(MethodInvocation.java:60)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$ValidatingInvocation.proceed(InvocationInterceptorChain.java:131)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.intercept(TimeoutExtension.java:156)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestableMethod(TimeoutExtension.java:147)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestMethod(TimeoutExtension.java:86)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker$ReflectiveInterceptorCall.lambda$ofVoidMethod$0(InterceptingExecutableInvoker.java:103)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.lambda$invoke$0(InterceptingExecutableInvoker.java:93)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$InterceptedInvocation.proceed(InvocationInterceptorChain.java:106)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.proceed(InvocationInterceptorChain.java:64)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.chainAndInvoke(InvocationInterceptorChain.java:45)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.invoke(InvocationInterceptorChain.java:37)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:92)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:86)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.lambda$invokeTestMethod$7(TestMethodTestDescriptor.java:218)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.invokeTestMethod(TestMethodTestDescriptor.java:214)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:139)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:69)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:151)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:141)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:139)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:138)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:95)
+	at java.util.ArrayList.forEach(ArrayList.java:1259)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:155)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:141)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:139)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:138)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:95)
+	at java.util.ArrayList.forEach(ArrayList.java:1259)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:155)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:141)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:139)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:138)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:95)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.submit(SameThreadHierarchicalTestExecutorService.java:35)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestExecutor.execute(HierarchicalTestExecutor.java:57)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestEngine.execute(HierarchicalTestEngine.java:54)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:198)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:169)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:93)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.lambda$execute$0(EngineExecutionOrchestrator.java:58)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.withInterceptedStreams(EngineExecutionOrchestrator.java:141)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:57)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:103)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:85)
+	at org.junit.platform.launcher.core.DelegatingLauncher.execute(DelegatingLauncher.java:47)
+	at org.apache.maven.surefire.junitplatform.LazyLauncher.execute(LazyLauncher.java:56)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.execute(JUnitPlatformProvider.java:184)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invokeAllTests(JUnitPlatformProvider.java:148)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invoke(JUnitPlatformProvider.java:122)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at org.apache.maven.surefire.api.util.ReflectionUtils.invokeMethodWithArray2(ReflectionUtils.java:137)
+	at org.apache.maven.surefire.booter.ProviderFactory$ProviderProxy.invoke(ProviderFactory.java:148)
+	at org.apache.maven.surefire.booter.ProviderFactory.invokeProvider(ProviderFactory.java:88)
+	at org.apache.maven.plugin.surefire.InPluginVMSurefireStarter.runSuitesInProcess(InPluginVMSurefireStarter.java:91)
+	at org.apache.maven.plugin.surefire.AbstractSurefireMojo.executeProvider(AbstractSurefireMojo.java:1212)
+	at org.apache.maven.plugin.surefire.AbstractSurefireMojo.executeAfterPreconditionsChecked(AbstractSurefireMojo.java:1090)
+	at org.apache.maven.plugin.surefire.AbstractSurefireMojo.execute(AbstractSurefireMojo.java:910)
+	at org.apache.maven.plugin.DefaultBuildPluginManager.executeMojo(DefaultBuildPluginManager.java:126)
+	at org.apache.maven.lifecycle.internal.MojoExecutor.doExecute2(MojoExecutor.java:328)
+	at org.apache.maven.lifecycle.internal.MojoExecutor.doExecute(MojoExecutor.java:316)
+	at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:212)
+	at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:174)
+	at org.apache.maven.lifecycle.internal.MojoExecutor.access$000(MojoExecutor.java:75)
+	at org.apache.maven.lifecycle.internal.MojoExecutor$1.run(MojoExecutor.java:162)
+	at org.apache.maven.plugin.DefaultMojosExecutionStrategy.execute(DefaultMojosExecutionStrategy.java:39)
+	at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:159)
+	at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject(LifecycleModuleBuilder.java:105)
+	at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject(LifecycleModuleBuilder.java:73)
+	at org.apache.maven.lifecycle.internal.builder.singlethreaded.SingleThreadedBuilder.build(SingleThreadedBuilder.java:53)
+	at org.apache.maven.lifecycle.internal.LifecycleStarter.execute(LifecycleStarter.java:118)
+	at org.apache.maven.DefaultMaven.doExecute(DefaultMaven.java:261)
+	at org.apache.maven.DefaultMaven.doExecute(DefaultMaven.java:173)
+	at org.apache.maven.DefaultMaven.execute(DefaultMaven.java:101)
+	at org.apache.maven.cli.MavenCli.execute(MavenCli.java:919)
+	at org.apache.maven.cli.MavenCli.doMain(MavenCli.java:285)
+	at org.apache.maven.cli.MavenCli.main(MavenCli.java:207)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at org.codehaus.plexus.classworlds.launcher.Launcher.launchEnhanced(Launcher.java:255)
+	at org.codehaus.plexus.classworlds.launcher.Launcher.launch(Launcher.java:201)
+	at org.codehaus.plexus.classworlds.launcher.Launcher.mainWithExitCode(Launcher.java:362)
+	at org.codehaus.plexus.classworlds.launcher.Launcher.main(Launcher.java:314)
+[INFO] Tests run: 48, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 83.79 s -- in cn.vcampus.server.StoreMessageHandlerTest
+[INFO] Running cn.vcampus.server.StudentAcademicMessageHandlerTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.475 s -- in cn.vcampus.server.StudentAcademicMessageHandlerTest
+[INFO] Running cn.vcampus.server.StudentConditionalWriteTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.978 s -- in cn.vcampus.server.StudentConditionalWriteTest
+[INFO] Running cn.vcampus.server.StudentGraduationConcurrencyTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 12.15 s -- in cn.vcampus.server.StudentGraduationConcurrencyTest
+[INFO] Running cn.vcampus.server.StudentMessageHandlerTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.933 s -- in cn.vcampus.server.StudentMessageHandlerTest
+[INFO] Running cn.vcampus.server.StudentProfileFormatIntegrationTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.879 s -- in cn.vcampus.server.StudentProfileFormatIntegrationTest
+[INFO] Running cn.vcampus.server.StudentSelectionProfileAdapterTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in cn.vcampus.server.StudentSelectionProfileAdapterTest
+[INFO] Running cn.vcampus.server.TeacherSelfMessageHandlerTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.408 s -- in cn.vcampus.server.TeacherSelfMessageHandlerTest
+[INFO] Running cn.vcampus.server.UserMessageHandlerTest
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 5.483 s -- in cn.vcampus.server.UserMessageHandlerTest
+[INFO] Running cn.vcampus.server.UserServiceFactoryTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.045 s -- in cn.vcampus.server.UserServiceFactoryTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 339, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] 
+[INFO] --- jar:3.5.0:jar (default-jar) @ server ---
+[INFO] Building jar: C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\server\target\vCampusServer.jar
+[INFO] 
+[INFO] --- shade:3.5.3:shade (default) @ server ---
+[INFO] Including cn.vcampus:store:jar:0.1.0-SNAPSHOT in the shaded jar.
+[INFO] Including cn.vcampus:common:jar:0.1.0-SNAPSHOT in the shaded jar.
+[INFO] Including cn.vcampus:user-management:jar:0.1.0-SNAPSHOT in the shaded jar.
+[INFO] Including cn.vcampus:course-selection:jar:0.1.0-SNAPSHOT in the shaded jar.
+[INFO] Including org.apache.poi:poi-ooxml:jar:5.2.5 in the shaded jar.
+[INFO] Including org.apache.poi:poi:jar:5.2.5 in the shaded jar.
+[INFO] Including commons-codec:commons-codec:jar:1.16.0 in the shaded jar.
+[INFO] Including org.apache.commons:commons-math3:jar:3.6.1 in the shaded jar.
+[INFO] Including com.zaxxer:SparseBitSet:jar:1.3 in the shaded jar.
+[INFO] Including org.apache.poi:poi-ooxml-lite:jar:5.2.5 in the shaded jar.
+[INFO] Including org.apache.xmlbeans:xmlbeans:jar:5.2.0 in the shaded jar.
+[INFO] Including xml-apis:xml-apis:jar:1.4.01 in the shaded jar.
+[INFO] Including org.apache.commons:commons-compress:jar:1.25.0 in the shaded jar.
+[INFO] Including commons-io:commons-io:jar:2.15.0 in the shaded jar.
+[INFO] Including com.github.virtuald:curvesapi:jar:1.08 in the shaded jar.
+[INFO] Including org.apache.logging.log4j:log4j-api:jar:2.21.1 in the shaded jar.
+[INFO] Including org.apache.commons:commons-collections4:jar:4.4 in the shaded jar.
+[INFO] Including cn.vcampus:library:jar:0.1.0-SNAPSHOT in the shaded jar.
+[INFO] Including cn.vcampus:student-management:jar:0.1.0-SNAPSHOT in the shaded jar.
+[INFO] Including net.sf.ucanaccess:ucanaccess:jar:4.0.4 in the shaded jar.
+[INFO] Including org.hsqldb:hsqldb:jar:2.3.1 in the shaded jar.
+[INFO] Including com.healthmarketscience.jackcess:jackcess:jar:2.1.11 in the shaded jar.
+[INFO] Including commons-lang:commons-lang:jar:2.6 in the shaded jar.
+[INFO] Including commons-logging:commons-logging:jar:1.1.3 in the shaded jar.
+[WARNING] Discovered module-info.class. Shading will break its strong encapsulation.
+[WARNING] poi-5.2.5.jar, poi-ooxml-5.2.5.jar define 3 overlapping resources: 
+[WARNING]   - META-INF/services/org.apache.poi.extractor.ExtractorProvider
+[WARNING]   - META-INF/services/org.apache.poi.sl.draw.ImageRenderer
+[WARNING]   - META-INF/services/org.apache.poi.ss.usermodel.WorkbookProvider
+[WARNING] commons-codec-1.16.0.jar, commons-collections4-4.4.jar, commons-compress-1.25.0.jar, commons-io-2.15.0.jar, commons-lang-2.6.jar, commons-logging-1.1.3.jar, commons-math3-3.6.1.jar, ucanaccess-4.0.4.jar, xmlbeans-5.2.0.jar define 2 overlapping resources: 
+[WARNING]   - META-INF/LICENSE.txt
+[WARNING]   - META-INF/NOTICE.txt
+[WARNING] commons-compress-1.25.0.jar, commons-io-2.15.0.jar, poi-5.2.5.jar, poi-ooxml-5.2.5.jar, poi-ooxml-lite-5.2.5.jar, xmlbeans-5.2.0.jar define 1 overlapping classes: 
+[WARNING]   - META-INF.versions.9.module-info
+[WARNING] SparseBitSet-1.3.jar, common-0.1.0-SNAPSHOT.jar, commons-codec-1.16.0.jar, commons-collections4-4.4.jar, commons-compress-1.25.0.jar, commons-io-2.15.0.jar, commons-lang-2.6.jar, commons-logging-1.1.3.jar, commons-math3-3.6.1.jar, course-selection-0.1.0-SNAPSHOT.jar, curvesapi-1.08.jar, hsqldb-2.3.1.jar, jackcess-2.1.11.jar, library-0.1.0-SNAPSHOT.jar, log4j-api-2.21.1.jar, poi-5.2.5.jar, poi-ooxml-5.2.5.jar, poi-ooxml-lite-5.2.5.jar, store-0.1.0-SNAPSHOT.jar, student-management-0.1.0-SNAPSHOT.jar, ucanaccess-4.0.4.jar, user-management-0.1.0-SNAPSHOT.jar, vCampusServer.jar, xml-apis-1.4.01.jar, xmlbeans-5.2.0.jar define 1 overlapping resource: 
+[WARNING]   - META-INF/MANIFEST.MF
+[WARNING] hsqldb-2.3.1.jar, ucanaccess-4.0.4.jar define 1 overlapping resource: 
+[WARNING]   - META-INF/services/java.sql.Driver
+[WARNING] log4j-api-2.21.1.jar, poi-5.2.5.jar, poi-ooxml-5.2.5.jar, poi-ooxml-lite-5.2.5.jar define 2 overlapping resources: 
+[WARNING]   - META-INF/LICENSE
+[WARNING]   - META-INF/NOTICE
+[WARNING] maven-shade-plugin has detected that some files are
+[WARNING] present in two or more JARs. When this happens, only one
+[WARNING] single version of the file is copied to the uber jar.
+[WARNING] Usually this is not harmful and you can skip these warnings,
+[WARNING] otherwise try to manually exclude artifacts based on
+[WARNING] mvn dependency:tree -Ddetail=true and the above output.
+[WARNING] See https://maven.apache.org/plugins/maven-shade-plugin/
+[INFO] Replacing original artifact with shaded artifact.
+[INFO] Replacing C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\server\target\vCampusServer.jar with C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\server\target\server-0.1.0-SNAPSHOT-shaded.jar
+[INFO] 
+[INFO] -------------------------< cn.vcampus:client >--------------------------
+[INFO] Building client 0.1.0-SNAPSHOT                                     [9/9]
+[INFO]   from client\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.4.0:resources (default-resources) @ client ---
+[INFO] Copying 5 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ client ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.4.0:testResources (default-testResources) @ client ---
+[INFO] skip non existing resourceDirectory C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\client\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ client ---
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 47 source files with javac [debug target 1.8] to target\test-classes
+[INFO] 
+[INFO] --- surefire:3.2.5:test (default-test) @ client ---
+[WARNING] useSystemClassLoader setting has no effect when not forking
+[WARNING] The parameter forkCount should likely not be 0. Forking a JVM for tests improves test accuracy. Ensure to have a <forkCount> >= 1.
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] Running cn.vcampus.client.ClientApplicationTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.027 s -- in cn.vcampus.client.ClientApplicationTest
+[INFO] Running cn.vcampus.client.service.RemoteLibraryCompensationTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.013 s -- in cn.vcampus.client.service.RemoteLibraryCompensationTest
+[INFO] Running cn.vcampus.client.service.RemoteLibraryServiceTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in cn.vcampus.client.service.RemoteLibraryServiceTest
+[INFO] Running cn.vcampus.client.service.RemoteLibraryV4Test
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s -- in cn.vcampus.client.service.RemoteLibraryV4Test
+[INFO] Running cn.vcampus.client.service.RemoteStudentAcademicServiceTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s -- in cn.vcampus.client.service.RemoteStudentAcademicServiceTest
+[INFO] Running cn.vcampus.client.view.AcademicAdministrationPanelTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.556 s -- in cn.vcampus.client.view.AcademicAdministrationPanelTest
+[INFO] Running cn.vcampus.client.view.AssistantPanelTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.225 s -- in cn.vcampus.client.view.AssistantPanelTest
+[INFO] Running cn.vcampus.client.view.BatchTableModelTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in cn.vcampus.client.view.BatchTableModelTest
+[INFO] Running cn.vcampus.client.view.CourseFormDialogSupportTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.015 s -- in cn.vcampus.client.view.CourseFormDialogSupportTest
+[INFO] Running cn.vcampus.client.view.CourseManagementPanelTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.064 s -- in cn.vcampus.client.view.CourseManagementPanelTest
+[INFO] Running cn.vcampus.client.view.CourseScheduleEditorDialogTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s -- in cn.vcampus.client.view.CourseScheduleEditorDialogTest
+[INFO] Running cn.vcampus.client.view.CourseSelectionPanelTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.022 s -- in cn.vcampus.client.view.CourseSelectionPanelTest
+[INFO] Running cn.vcampus.client.view.CourseUiSupportTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in cn.vcampus.client.view.CourseUiSupportTest
+[INFO] Running cn.vcampus.client.view.CredentialInputGuidanceTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in cn.vcampus.client.view.CredentialInputGuidanceTest
+[INFO] Running cn.vcampus.client.view.DashboardWorkbenchPanelTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.095 s -- in cn.vcampus.client.view.DashboardWorkbenchPanelTest
+[INFO] Running cn.vcampus.client.view.FeaturePanelScrollTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.176 s -- in cn.vcampus.client.view.FeaturePanelScrollTest
+[INFO] Running cn.vcampus.client.view.GradeReviewPanelTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s -- in cn.vcampus.client.view.GradeReviewPanelTest
+[INFO] Running cn.vcampus.client.view.LibraryBookInputTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in cn.vcampus.client.view.LibraryBookInputTest
+[INFO] Running cn.vcampus.client.view.LibraryCatalogV4PanelTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.152 s -- in cn.vcampus.client.view.LibraryCatalogV4PanelTest
+[INFO] Running cn.vcampus.client.view.LibraryCompensationPanelTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.230 s -- in cn.vcampus.client.view.LibraryCompensationPanelTest
+[INFO] Running cn.vcampus.client.view.LibraryHistoryTitleTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.182 s -- in cn.vcampus.client.view.LibraryHistoryTitleTest
+[INFO] Running cn.vcampus.client.view.LibraryInteractionTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.332 s -- in cn.vcampus.client.view.LibraryInteractionTest
+[INFO] Running cn.vcampus.client.view.LibraryPanelTest
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.183 s -- in cn.vcampus.client.view.LibraryPanelTest
+[INFO] Running cn.vcampus.client.view.LibraryReminderStateTest
+[INFO] Tests run: 15, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.030 s -- in cn.vcampus.client.view.LibraryReminderStateTest
+[INFO] Running cn.vcampus.client.view.LoginFrameTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s -- in cn.vcampus.client.view.LoginFrameTest
+[INFO] Running cn.vcampus.client.view.ModuleCardPanelTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.024 s -- in cn.vcampus.client.view.ModuleCardPanelTest
+[INFO] Running cn.vcampus.client.view.ModuleNavigationModelTest
+[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s -- in cn.vcampus.client.view.ModuleNavigationModelTest
+[INFO] Running cn.vcampus.client.view.ProductImportFileReaderTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s -- in cn.vcampus.client.view.ProductImportFileReaderTest
+[INFO] Running cn.vcampus.client.view.RequestLifecycleTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in cn.vcampus.client.view.RequestLifecycleTest
+[INFO] Running cn.vcampus.client.view.ResponsiveCardRowPanelTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in cn.vcampus.client.view.ResponsiveCardRowPanelTest
+[INFO] Running cn.vcampus.client.view.ResponsiveModuleGridPanelTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in cn.vcampus.client.view.ResponsiveModuleGridPanelTest
+[INFO] Running cn.vcampus.client.view.SelectionRoundManagementPanelTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.019 s -- in cn.vcampus.client.view.SelectionRoundManagementPanelTest
+[INFO] Running cn.vcampus.client.view.StorePanelTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in cn.vcampus.client.view.StorePanelTest
+[INFO] Running cn.vcampus.client.view.StoreRowMapperTest
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s -- in cn.vcampus.client.view.StoreRowMapperTest
+[INFO] Running cn.vcampus.client.view.StudentAcademicPanelTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.670 s -- in cn.vcampus.client.view.StudentAcademicPanelTest
+[INFO] Running cn.vcampus.client.view.StudentManagementPanelTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.059 s -- in cn.vcampus.client.view.StudentManagementPanelTest
+[INFO] Running cn.vcampus.client.view.StudentProfileFormValidationTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.042 s -- in cn.vcampus.client.view.StudentProfileFormValidationTest
+[INFO] Running cn.vcampus.client.view.StudentTestDataImportIntegrationTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 15.07 s -- in cn.vcampus.client.view.StudentTestDataImportIntegrationTest
+[INFO] Running cn.vcampus.client.view.TeacherSelfPanelTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.067 s -- in cn.vcampus.client.view.TeacherSelfPanelTest
+[INFO] Running cn.vcampus.client.view.TeacherTeachingPanelTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.023 s -- in cn.vcampus.client.view.TeacherTeachingPanelTest
+[INFO] Running cn.vcampus.client.view.TrainingPlanManagementPanelTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s -- in cn.vcampus.client.view.TrainingPlanManagementPanelTest
+[INFO] Running cn.vcampus.client.view.UiMetricsTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in cn.vcampus.client.view.UiMetricsTest
+[INFO] Running cn.vcampus.client.view.UserImportFileReaderTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s -- in cn.vcampus.client.view.UserImportFileReaderTest
+[INFO] Running cn.vcampus.client.view.UserImportTableModelTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in cn.vcampus.client.view.UserImportTableModelTest
+[INFO] Running cn.vcampus.client.view.UserManagementPanelTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.046 s -- in cn.vcampus.client.view.UserManagementPanelTest
+[INFO] Running cn.vcampus.client.view.VCampusThemeTest
+[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.014 s -- in cn.vcampus.client.view.VCampusThemeTest
+[INFO] Running cn.vcampus.client.view.WrappingFlowLayoutTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in cn.vcampus.client.view.WrappingFlowLayoutTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 208, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] 
+[INFO] --- jar:3.5.0:jar (default-jar) @ client ---
+[INFO] 
+[INFO] --- shade:3.5.3:shade (default) @ client ---
+[INFO] Including cn.vcampus:common:jar:0.1.0-SNAPSHOT in the shaded jar.
+[INFO] Including cn.vcampus:library:jar:0.1.0-SNAPSHOT in the shaded jar.
+[INFO] Including cn.vcampus:user-management:jar:0.1.0-SNAPSHOT in the shaded jar.
+[INFO] Including cn.vcampus:course-selection:jar:0.1.0-SNAPSHOT in the shaded jar.
+[INFO] Including org.apache.poi:poi-ooxml:jar:5.2.5 in the shaded jar.
+[INFO] Including org.apache.poi:poi:jar:5.2.5 in the shaded jar.
+[INFO] Including commons-codec:commons-codec:jar:1.16.0 in the shaded jar.
+[INFO] Including org.apache.commons:commons-math3:jar:3.6.1 in the shaded jar.
+[INFO] Including com.zaxxer:SparseBitSet:jar:1.3 in the shaded jar.
+[INFO] Including org.apache.poi:poi-ooxml-lite:jar:5.2.5 in the shaded jar.
+[INFO] Including org.apache.xmlbeans:xmlbeans:jar:5.2.0 in the shaded jar.
+[INFO] Including xml-apis:xml-apis:jar:1.4.01 in the shaded jar.
+[INFO] Including org.apache.commons:commons-compress:jar:1.25.0 in the shaded jar.
+[INFO] Including commons-io:commons-io:jar:2.15.0 in the shaded jar.
+[INFO] Including com.github.virtuald:curvesapi:jar:1.08 in the shaded jar.
+[INFO] Including org.apache.logging.log4j:log4j-api:jar:2.21.1 in the shaded jar.
+[INFO] Including org.apache.commons:commons-collections4:jar:4.4 in the shaded jar.
+[INFO] Including cn.vcampus:student-management:jar:0.1.0-SNAPSHOT in the shaded jar.
+[INFO] Including cn.vcampus:store:jar:0.1.0-SNAPSHOT in the shaded jar.
+[INFO] Including net.sf.ucanaccess:ucanaccess:jar:4.0.4 in the shaded jar.
+[INFO] Including org.hsqldb:hsqldb:jar:2.3.1 in the shaded jar.
+[INFO] Including com.healthmarketscience.jackcess:jackcess:jar:2.1.11 in the shaded jar.
+[INFO] Including commons-lang:commons-lang:jar:2.6 in the shaded jar.
+[INFO] Including commons-logging:commons-logging:jar:1.1.3 in the shaded jar.
+[WARNING] Discovered module-info.class. Shading will break its strong encapsulation.
+[WARNING] vCampusClient.jar, xml-apis-1.4.01.jar define 353 overlapping classes and resources: 
+[WARNING]   - javax.xml.XMLConstants
+[WARNING]   - javax.xml.datatype.DatatypeConfigurationException
+[WARNING]   - javax.xml.datatype.DatatypeConstants
+[WARNING]   - javax.xml.datatype.DatatypeConstants$1
+[WARNING]   - javax.xml.datatype.DatatypeConstants$Field
+[WARNING]   - javax.xml.datatype.DatatypeFactory
+[WARNING]   - javax.xml.datatype.Duration
+[WARNING]   - javax.xml.datatype.FactoryFinder
+[WARNING]   - javax.xml.datatype.FactoryFinder$ConfigurationError
+[WARNING]   - javax.xml.datatype.SecuritySupport
+[WARNING]   - 343 more...
+[WARNING] commons-logging-1.1.3.jar, vCampusClient.jar define 30 overlapping classes and resources: 
+[WARNING]   - META-INF/maven/commons-logging/commons-logging/pom.properties
+[WARNING]   - META-INF/maven/commons-logging/commons-logging/pom.xml
+[WARNING]   - org.apache.commons.logging.Log
+[WARNING]   - org.apache.commons.logging.LogConfigurationException
+[WARNING]   - org.apache.commons.logging.LogFactory
+[WARNING]   - org.apache.commons.logging.LogFactory$1
+[WARNING]   - org.apache.commons.logging.LogFactory$2
+[WARNING]   - org.apache.commons.logging.LogFactory$3
+[WARNING]   - org.apache.commons.logging.LogFactory$4
+[WARNING]   - org.apache.commons.logging.LogFactory$5
+[WARNING]   - 20 more...
+[WARNING] library-0.1.0-SNAPSHOT.jar, vCampusClient.jar define 42 overlapping classes and resources: 
+[WARNING]   - META-INF/maven/cn.vcampus/library/pom.properties
+[WARNING]   - META-INF/maven/cn.vcampus/library/pom.xml
+[WARNING]   - cn.vcampus.library.Book
+[WARNING]   - cn.vcampus.library.BorrowRecord
+[WARNING]   - cn.vcampus.library.BorrowStatus
+[WARNING]   - cn.vcampus.library.CompensationStatus
+[WARNING]   - cn.vcampus.library.DefaultLibraryService
+[WARNING]   - cn.vcampus.library.InMemoryLibraryCatalogV4
+[WARNING]   - cn.vcampus.library.InMemoryLibraryCompensations
+[WARNING]   - cn.vcampus.library.InMemoryLibraryCopies
+[WARNING]   - 32 more...
+[WARNING] poi-5.2.5.jar, vCampusClient.jar define 1685 overlapping classes and resources: 
+[WARNING]   - font_metrics.properties
+[WARNING]   - org.apache.poi.EmptyFileException
+[WARNING]   - org.apache.poi.EncryptedDocumentException
+[WARNING]   - org.apache.poi.OldFileFormatException
+[WARNING]   - org.apache.poi.POIDocument
+[WARNING]   - org.apache.poi.POIReadOnlyDocument
+[WARNING]   - org.apache.poi.UnsupportedFileFormatException
+[WARNING]   - org.apache.poi.Version
+[WARNING]   - org.apache.poi.common.Duplicatable
+[WARNING]   - org.apache.poi.common.usermodel.GenericRecord
+[WARNING]   - 1675 more...
+[WARNING] poi-ooxml-lite-5.2.5.jar, vCampusClient.jar define 4110 overlapping classes and resources: 
+[WARNING]   - com.microsoft.schemas.compatibility.AlternateContentDocument
+[WARNING]   - com.microsoft.schemas.compatibility.AlternateContentDocument$AlternateContent
+[WARNING]   - com.microsoft.schemas.compatibility.AlternateContentDocument$AlternateContent$Choice
+[WARNING]   - com.microsoft.schemas.compatibility.AlternateContentDocument$AlternateContent$Fallback
+[WARNING]   - com.microsoft.schemas.compatibility.impl.AlternateContentDocumentImpl
+[WARNING]   - com.microsoft.schemas.compatibility.impl.AlternateContentDocumentImpl$AlternateContentImpl
+[WARNING]   - com.microsoft.schemas.compatibility.impl.AlternateContentDocumentImpl$AlternateContentImpl$ChoiceImpl
+[WARNING]   - com.microsoft.schemas.compatibility.impl.AlternateContentDocumentImpl$AlternateContentImpl$FallbackImpl
+[WARNING]   - com.microsoft.schemas.office.drawing.x2008.diagram.CTDrawing
+[WARNING]   - com.microsoft.schemas.office.drawing.x2008.diagram.CTGroupShape
+[WARNING]   - 4100 more...
+[WARNING] course-selection-0.1.0-SNAPSHOT.jar, vCampusClient.jar define 79 overlapping classes and resources: 
+[WARNING]   - META-INF/maven/cn.vcampus/course-selection/pom.properties
+[WARNING]   - META-INF/maven/cn.vcampus/course-selection/pom.xml
+[WARNING]   - cn.vcampus.course.CapacityBucket
+[WARNING]   - cn.vcampus.course.CapacityBucketUsage
+[WARNING]   - cn.vcampus.course.Course
+[WARNING]   - cn.vcampus.course.CourseCatalogService
+[WARNING]   - cn.vcampus.course.CourseDropRecordV2Command
+[WARNING]   - cn.vcampus.course.CourseGradeDraftV2Command
+[WARNING]   - cn.vcampus.course.CourseGradeDraftV2Command$Operation
+[WARNING]   - cn.vcampus.course.CourseGradeImportV2Command
+[WARNING]   - 69 more...
+[WARNING] ucanaccess-4.0.4.jar, vCampusClient.jar define 288 overlapping classes and resources: 
+[WARNING]   - META-INF/maven/net.sf.ucanaccess/ucanaccess/pom.properties
+[WARNING]   - META-INF/maven/net.sf.ucanaccess/ucanaccess/pom.xml
+[WARNING]   - net.ucanaccess.commands.AbstractCursorCommand
+[WARNING]   - net.ucanaccess.commands.AddColumnCommand
+[WARNING]   - net.ucanaccess.commands.AlterRenameCommand
+[WARNING]   - net.ucanaccess.commands.AutoNumberAction
+[WARNING]   - net.ucanaccess.commands.AutoNumberAction$1
+[WARNING]   - net.ucanaccess.commands.BlobAction
+[WARNING]   - net.ucanaccess.commands.CompositeCommand
+[WARNING]   - net.ucanaccess.commands.CompositeFeedbackAction
+[WARNING]   - 278 more...
+[WARNING] hsqldb-2.3.1.jar, vCampusClient.jar define 620 overlapping classes and resources: 
+[WARNING]   - META-INF/hsqldb_lic.txt
+[WARNING]   - META-INF/hypersonic_lic.txt
+[WARNING]   - org.hsqldb.ClientConnection
+[WARNING]   - org.hsqldb.ClientConnectionHTTP
+[WARNING]   - org.hsqldb.ColumnBase
+[WARNING]   - org.hsqldb.ColumnSchema
+[WARNING]   - org.hsqldb.Constraint
+[WARNING]   - org.hsqldb.ConstraintCore
+[WARNING]   - org.hsqldb.Database
+[WARNING]   - org.hsqldb.Database$CheckpointRunner
+[WARNING]   - 610 more...
+[WARNING] common-0.1.0-SNAPSHOT.jar, vCampusClient.jar define 8 overlapping classes and resources: 
+[WARNING]   - META-INF/maven/cn.vcampus/common/pom.properties
+[WARNING]   - META-INF/maven/cn.vcampus/common/pom.xml
+[WARNING]   - cn.vcampus.common.Message
+[WARNING]   - cn.vcampus.common.MessageType
+[WARNING]   - cn.vcampus.common.Role
+[WARNING]   - cn.vcampus.common.ServiceResult
+[WARNING]   - cn.vcampus.common.StatusCode
+[WARNING]   - cn.vcampus.common.User
+[WARNING] student-management-0.1.0-SNAPSHOT.jar, vCampusClient.jar define 39 overlapping classes and resources: 
+[WARNING]   - META-INF/maven/cn.vcampus/student-management/pom.properties
+[WARNING]   - META-INF/maven/cn.vcampus/student-management/pom.xml
+[WARNING]   - cn.vcampus.student.AcademicAdminCommandV1
+[WARNING]   - cn.vcampus.student.AcademicAdminCommandV1$Action
+[WARNING]   - cn.vcampus.student.AcademicAdminService
+[WARNING]   - cn.vcampus.student.AcademicAdminService$1
+[WARNING]   - cn.vcampus.student.AcademicAdminStore
+[WARNING]   - cn.vcampus.student.AcademicAdminStore$Context
+[WARNING]   - cn.vcampus.student.AcademicAdminStore$Work
+[WARNING]   - cn.vcampus.student.AcademicAssessment
+[WARNING]   - 29 more...
+[WARNING] curvesapi-1.08.jar, vCampusClient.jar define 103 overlapping classes and resources: 
+[WARNING]   - META-INF/maven/com.github.virtuald/curvesapi/pom.properties
+[WARNING]   - META-INF/maven/com.github.virtuald/curvesapi/pom.xml
+[WARNING]   - com.graphbuilder.curve.BSpline
+[WARNING]   - com.graphbuilder.curve.BSpline$1
+[WARNING]   - com.graphbuilder.curve.BSpline$SharedData
+[WARNING]   - com.graphbuilder.curve.BezierCurve
+[WARNING]   - com.graphbuilder.curve.BezierCurve$1
+[WARNING]   - com.graphbuilder.curve.BezierCurve$SharedData
+[WARNING]   - com.graphbuilder.curve.BinaryCurveApproximationAlgorithm
+[WARNING]   - com.graphbuilder.curve.CardinalSpline
+[WARNING]   - 93 more...
+[WARNING] poi-5.2.5.jar, poi-ooxml-5.2.5.jar, vCampusClient.jar define 3 overlapping resources: 
+[WARNING]   - META-INF/services/org.apache.poi.extractor.ExtractorProvider
+[WARNING]   - META-INF/services/org.apache.poi.sl.draw.ImageRenderer
+[WARNING]   - META-INF/services/org.apache.poi.ss.usermodel.WorkbookProvider
+[WARNING] jackcess-2.1.11.jar, vCampusClient.jar define 393 overlapping classes and resources: 
+[WARNING]   - META-INF/maven/com.healthmarketscience.jackcess/jackcess/pom.properties
+[WARNING]   - META-INF/maven/com.healthmarketscience.jackcess/jackcess/pom.xml
+[WARNING]   - com.healthmarketscience.jackcess.BatchUpdateException
+[WARNING]   - com.healthmarketscience.jackcess.Column
+[WARNING]   - com.healthmarketscience.jackcess.ColumnBuilder
+[WARNING]   - com.healthmarketscience.jackcess.ConstraintViolationException
+[WARNING]   - com.healthmarketscience.jackcess.Cursor
+[WARNING]   - com.healthmarketscience.jackcess.Cursor$Id
+[WARNING]   - com.healthmarketscience.jackcess.Cursor$Position
+[WARNING]   - com.healthmarketscience.jackcess.Cursor$Savepoint
+[WARNING]   - 383 more...
+[WARNING] commons-collections4-4.4.jar, vCampusClient.jar define 526 overlapping classes and resources: 
+[WARNING]   - META-INF/maven/org.apache.commons/commons-collections4/pom.properties
+[WARNING]   - META-INF/maven/org.apache.commons/commons-collections4/pom.xml
+[WARNING]   - org.apache.commons.collections4.ArrayStack
+[WARNING]   - org.apache.commons.collections4.ArrayUtils
+[WARNING]   - org.apache.commons.collections4.Bag
+[WARNING]   - org.apache.commons.collections4.BagUtils
+[WARNING]   - org.apache.commons.collections4.BidiMap
+[WARNING]   - org.apache.commons.collections4.BoundedCollection
+[WARNING]   - org.apache.commons.collections4.BoundedMap
+[WARNING]   - org.apache.commons.collections4.Closure
+[WARNING]   - 516 more...
+[WARNING] store-0.1.0-SNAPSHOT.jar, vCampusClient.jar define 46 overlapping classes and resources: 
+[WARNING]   - META-INF/maven/cn.vcampus/store/pom.properties
+[WARNING]   - META-INF/maven/cn.vcampus/store/pom.xml
+[WARNING]   - cn.vcampus.store.BankAccount
+[WARNING]   - cn.vcampus.store.CartAddCommand
+[WARNING]   - cn.vcampus.store.CartCheckoutCommand
+[WARNING]   - cn.vcampus.store.CartCheckoutSelectedCommand
+[WARNING]   - cn.vcampus.store.CartItem
+[WARNING]   - cn.vcampus.store.CartLine
+[WARNING]   - cn.vcampus.store.CartQueryCommand
+[WARNING]   - cn.vcampus.store.CartRemoveBatchCommand
+[WARNING]   - 36 more...
+[WARNING] log4j-api-2.21.1.jar, poi-5.2.5.jar, poi-ooxml-5.2.5.jar, poi-ooxml-lite-5.2.5.jar, vCampusClient.jar define 2 overlapping resources: 
+[WARNING]   - META-INF/LICENSE
+[WARNING]   - META-INF/NOTICE
+[WARNING] commons-compress-1.25.0.jar, vCampusClient.jar define 564 overlapping classes and resources: 
+[WARNING]   - META-INF/maven/org.apache.commons/commons-compress/pom.properties
+[WARNING]   - META-INF/maven/org.apache.commons/commons-compress/pom.xml
+[WARNING]   - org.apache.commons.compress.MemoryLimitException
+[WARNING]   - org.apache.commons.compress.PasswordRequiredException
+[WARNING]   - org.apache.commons.compress.archivers.ArchiveEntry
+[WARNING]   - org.apache.commons.compress.archivers.ArchiveException
+[WARNING]   - org.apache.commons.compress.archivers.ArchiveInputStream
+[WARNING]   - org.apache.commons.compress.archivers.ArchiveOutputStream
+[WARNING]   - org.apache.commons.compress.archivers.ArchiveStreamFactory
+[WARNING]   - org.apache.commons.compress.archivers.ArchiveStreamProvider
+[WARNING]   - 554 more...
+[WARNING] vCampusClient.jar, xmlbeans-5.2.0.jar define 1597 overlapping classes and resources: 
+[WARNING]   - META-INF.versions.9.org.apache.xmlbeans.impl.tool.MavenPluginResolver
+[WARNING]   - META-INF/maven/org.apache.xmlbeans/xmlbeans/pom.xml
+[WARNING]   - META-INF/maven/plugin.xml
+[WARNING]   - org.apache.xmlbeans.BindingConfig
+[WARNING]   - org.apache.xmlbeans.CDataBookmark
+[WARNING]   - org.apache.xmlbeans.DelegateXmlObject
+[WARNING]   - org.apache.xmlbeans.Filer
+[WARNING]   - org.apache.xmlbeans.FilterXmlObject
+[WARNING]   - org.apache.xmlbeans.GDate
+[WARNING]   - org.apache.xmlbeans.GDateBuilder
+[WARNING]   - 1587 more...
+[WARNING] commons-codec-1.16.0.jar, commons-collections4-4.4.jar, commons-compress-1.25.0.jar, commons-io-2.15.0.jar, commons-lang-2.6.jar, commons-logging-1.1.3.jar, commons-math3-3.6.1.jar, ucanaccess-4.0.4.jar, vCampusClient.jar, xmlbeans-5.2.0.jar define 2 overlapping resources: 
+[WARNING]   - META-INF/LICENSE.txt
+[WARNING]   - META-INF/NOTICE.txt
+[WARNING] SparseBitSet-1.3.jar, common-0.1.0-SNAPSHOT.jar, commons-codec-1.16.0.jar, commons-collections4-4.4.jar, commons-compress-1.25.0.jar, commons-io-2.15.0.jar, commons-lang-2.6.jar, commons-logging-1.1.3.jar, commons-math3-3.6.1.jar, course-selection-0.1.0-SNAPSHOT.jar, curvesapi-1.08.jar, hsqldb-2.3.1.jar, jackcess-2.1.11.jar, library-0.1.0-SNAPSHOT.jar, log4j-api-2.21.1.jar, poi-5.2.5.jar, poi-ooxml-5.2.5.jar, poi-ooxml-lite-5.2.5.jar, store-0.1.0-SNAPSHOT.jar, student-management-0.1.0-SNAPSHOT.jar, ucanaccess-4.0.4.jar, user-management-0.1.0-SNAPSHOT.jar, vCampusClient.jar, xml-apis-1.4.01.jar, xmlbeans-5.2.0.jar define 1 overlapping resource: 
+[WARNING]   - META-INF/MANIFEST.MF
+[WARNING] commons-math3-3.6.1.jar, vCampusClient.jar define 1305 overlapping classes and resources: 
+[WARNING]   - META-INF/maven/org.apache.commons/commons-math3/pom.properties
+[WARNING]   - META-INF/maven/org.apache.commons/commons-math3/pom.xml
+[WARNING]   - assets/org/apache/commons/math3/exception/util/LocalizedFormats_fr.properties
+[WARNING]   - assets/org/apache/commons/math3/random/new-joe-kuo-6.1000
+[WARNING]   - org.apache.commons.math3.Field
+[WARNING]   - org.apache.commons.math3.FieldElement
+[WARNING]   - org.apache.commons.math3.RealFieldElement
+[WARNING]   - org.apache.commons.math3.analysis.BivariateFunction
+[WARNING]   - org.apache.commons.math3.analysis.DifferentiableMultivariateFunction
+[WARNING]   - org.apache.commons.math3.analysis.DifferentiableMultivariateVectorFunction
+[WARNING]   - 1295 more...
+[WARNING] hsqldb-2.3.1.jar, ucanaccess-4.0.4.jar, vCampusClient.jar define 1 overlapping resource: 
+[WARNING]   - META-INF/services/java.sql.Driver
+[WARNING] log4j-api-2.21.1.jar, vCampusClient.jar define 197 overlapping classes and resources: 
+[WARNING]   - Log4j-charsets.properties
+[WARNING]   - META-INF.versions.9.org.apache.logging.log4j.util.Base64Util
+[WARNING]   - META-INF.versions.9.org.apache.logging.log4j.util.ProcessIdUtil
+[WARNING]   - META-INF.versions.9.org.apache.logging.log4j.util.StackLocator
+[WARNING]   - META-INF.versions.9.org.apache.logging.log4j.util.internal.DefaultObjectInputFilter
+[WARNING]   - META-INF/DEPENDENCIES
+[WARNING]   - META-INF/maven/org.apache.logging.log4j/log4j-api/pom.properties
+[WARNING]   - META-INF/maven/org.apache.logging.log4j/log4j-api/pom.xml
+[WARNING]   - META-INF/services/org.apache.logging.log4j.util.PropertySource
+[WARNING]   - org.apache.logging.log4j.BridgeAware
+[WARNING]   - 187 more...
+[WARNING] user-management-0.1.0-SNAPSHOT.jar, vCampusClient.jar define 45 overlapping classes and resources: 
+[WARNING]   - META-INF/maven/cn.vcampus/user-management/pom.properties
+[WARNING]   - META-INF/maven/cn.vcampus/user-management/pom.xml
+[WARNING]   - cn.vcampus.user.AccountDeactivationResult
+[WARNING]   - cn.vcampus.user.AuditEvent
+[WARNING]   - cn.vcampus.user.AuditLogRepository
+[WARNING]   - cn.vcampus.user.AuthorizationRequest
+[WARNING]   - cn.vcampus.user.DefaultUserManagementService
+[WARNING]   - cn.vcampus.user.DefaultUserManagementService$1
+[WARNING]   - cn.vcampus.user.DefaultUserManagementService$2
+[WARNING]   - cn.vcampus.user.DefaultUserManagementService$ImportFailure
+[WARNING]   - 35 more...
+[WARNING] commons-io-2.15.0.jar, vCampusClient.jar define 340 overlapping classes and resources: 
+[WARNING]   - META-INF/maven/commons-io/commons-io/pom.properties
+[WARNING]   - META-INF/maven/commons-io/commons-io/pom.xml
+[WARNING]   - org.apache.commons.io.ByteOrderMark
+[WARNING]   - org.apache.commons.io.ByteOrderParser
+[WARNING]   - org.apache.commons.io.Charsets
+[WARNING]   - org.apache.commons.io.CloseableURLConnection
+[WARNING]   - org.apache.commons.io.CopyUtils
+[WARNING]   - org.apache.commons.io.DirectoryWalker
+[WARNING]   - org.apache.commons.io.DirectoryWalker$CancelException
+[WARNING]   - org.apache.commons.io.EndianUtils
+[WARNING]   - 330 more...
+[WARNING] commons-compress-1.25.0.jar, commons-io-2.15.0.jar, poi-5.2.5.jar, poi-ooxml-5.2.5.jar, poi-ooxml-lite-5.2.5.jar, vCampusClient.jar, xmlbeans-5.2.0.jar define 1 overlapping classes: 
+[WARNING]   - META-INF.versions.9.module-info
+[WARNING] SparseBitSet-1.3.jar, vCampusClient.jar define 17 overlapping classes and resources: 
+[WARNING]   - META-INF/maven/com.zaxxer/SparseBitSet/pom.properties
+[WARNING]   - META-INF/maven/com.zaxxer/SparseBitSet/pom.xml
+[WARNING]   - com.zaxxer.sparsebits.SparseBitSet
+[WARNING]   - com.zaxxer.sparsebits.SparseBitSet$AbstractStrategy
+[WARNING]   - com.zaxxer.sparsebits.SparseBitSet$AndNotStrategy
+[WARNING]   - com.zaxxer.sparsebits.SparseBitSet$AndStrategy
+[WARNING]   - com.zaxxer.sparsebits.SparseBitSet$Cache
+[WARNING]   - com.zaxxer.sparsebits.SparseBitSet$ClearStrategy
+[WARNING]   - com.zaxxer.sparsebits.SparseBitSet$CopyStrategy
+[WARNING]   - com.zaxxer.sparsebits.SparseBitSet$EqualsStrategy
+[WARNING]   - 7 more...
+[WARNING] commons-codec-1.16.0.jar, vCampusClient.jar define 239 overlapping classes and resources: 
+[WARNING]   - META-INF/maven/commons-codec/commons-codec/pom.properties
+[WARNING]   - META-INF/maven/commons-codec/commons-codec/pom.xml
+[WARNING]   - org.apache.commons.codec.BinaryDecoder
+[WARNING]   - org.apache.commons.codec.BinaryEncoder
+[WARNING]   - org.apache.commons.codec.CharEncoding
+[WARNING]   - org.apache.commons.codec.Charsets
+[WARNING]   - org.apache.commons.codec.CodecPolicy
+[WARNING]   - org.apache.commons.codec.Decoder
+[WARNING]   - org.apache.commons.codec.DecoderException
+[WARNING]   - org.apache.commons.codec.Encoder
+[WARNING]   - 229 more...
+[WARNING] poi-ooxml-5.2.5.jar, vCampusClient.jar define 879 overlapping classes and resources: 
+[WARNING]   - META-INF/services/org.apache.poi.sl.usermodel.MetroShapeProvider
+[WARNING]   - META-INF/services/org.apache.poi.sl.usermodel.SlideShowProvider
+[WARNING]   - org.apache.poi.ooxml.POIXMLDocument
+[WARNING]   - org.apache.poi.ooxml.POIXMLDocumentPart
+[WARNING]   - org.apache.poi.ooxml.POIXMLDocumentPart$RelationPart
+[WARNING]   - org.apache.poi.ooxml.POIXMLException
+[WARNING]   - org.apache.poi.ooxml.POIXMLFactory
+[WARNING]   - org.apache.poi.ooxml.POIXMLProperties
+[WARNING]   - org.apache.poi.ooxml.POIXMLProperties$1
+[WARNING]   - org.apache.poi.ooxml.POIXMLProperties$CoreProperties
+[WARNING]   - 869 more...
+[WARNING] commons-lang-2.6.jar, vCampusClient.jar define 135 overlapping classes and resources: 
+[WARNING]   - META-INF/maven/commons-lang/commons-lang/pom.properties
+[WARNING]   - META-INF/maven/commons-lang/commons-lang/pom.xml
+[WARNING]   - org.apache.commons.lang.ArrayUtils
+[WARNING]   - org.apache.commons.lang.BitField
+[WARNING]   - org.apache.commons.lang.BooleanUtils
+[WARNING]   - org.apache.commons.lang.CharEncoding
+[WARNING]   - org.apache.commons.lang.CharRange
+[WARNING]   - org.apache.commons.lang.CharRange$1
+[WARNING]   - org.apache.commons.lang.CharRange$CharacterIterator
+[WARNING]   - org.apache.commons.lang.CharSet
+[WARNING]   - 125 more...
+[WARNING] maven-shade-plugin has detected that some files are
+[WARNING] present in two or more JARs. When this happens, only one
+[WARNING] single version of the file is copied to the uber jar.
+[WARNING] Usually this is not harmful and you can skip these warnings,
+[WARNING] otherwise try to manually exclude artifacts based on
+[WARNING] mvn dependency:tree -Ddetail=true and the above output.
+[WARNING] See https://maven.apache.org/plugins/maven-shade-plugin/
+[INFO] Replacing original artifact with shaded artifact.
+[INFO] Replacing C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\client\target\vCampusClient.jar with C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\client\target\client-0.1.0-SNAPSHOT-shaded.jar
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Summary for vCampus 0.1.0-SNAPSHOT:
+[INFO] 
+[INFO] vCampus ............................................ SUCCESS [  0.002 s]
+[INFO] vCampus Common ..................................... SUCCESS [  1.163 s]
+[INFO] user-management .................................... SUCCESS [ 21.117 s]
+[INFO] student-management ................................. SUCCESS [  0.142 s]
+[INFO] course-selection ................................... SUCCESS [  0.906 s]
+[INFO] library ............................................ SUCCESS [  0.389 s]
+[INFO] store .............................................. SUCCESS [  0.599 s]
+[INFO] server ............................................. SUCCESS [06:33 min]
+[INFO] client ............................................. SUCCESS [ 23.464 s]
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  07:21 min
+[INFO] Finished at: 2026-09-14T17:00:33+08:00
+[INFO] ------------------------------------------------------------------------

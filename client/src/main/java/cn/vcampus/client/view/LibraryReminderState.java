@@ -3,16 +3,10 @@ package cn.vcampus.client.view;
 import cn.vcampus.library.BorrowRecord;
 import cn.vcampus.library.BorrowStatus;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
@@ -22,7 +16,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Properties;
 
 /**
  * 保存本机读者的“今日已读”状态；不修改借阅记录或归还状态。
@@ -30,13 +23,18 @@ import java.util.Properties;
  * 使用普通本地文件，不访问可能因注册表权限问题阻塞的 Windows 偏好设置 API。
  */
 final class LibraryReminderState {
+    /** 按服务器和用户隔离的进程内提醒缓存。 */
     private static final Map<String, Map<String, String>> MEMORY =
             new HashMap<String, Map<String, String>>();
 
+    /** 提醒状态存储；不可用时退化为进程内缓存。 */
     private Storage storage;
+    /** 是否已尝试加载本机提醒文件。 */
     private boolean storageLoaded;
+    /** 当前用户今日已读提醒的内存状态。 */
     private final Map<String, String> memory;
 
+    /** 绑定已按读者隔离的缓存和可选文件存储，延迟加载持久化内容。 */
     private LibraryReminderState(Storage storage, Map<String, String> memory) {
         this.storage = storage;
         this.memory = memory;
@@ -80,7 +78,7 @@ final class LibraryReminderState {
             }
         }
         return new LibraryReminderState(root == null ? null
-                : new FileStorage(root.resolve(scope + ".properties")), memory);
+                : new LibraryReminderFileStorage(root.resolve(scope + ".properties")), memory);
     }
 
     /** 故障测试入口：允许注入失败存储及可跨实例共享的内存后备。 */
@@ -130,6 +128,7 @@ final class LibraryReminderState {
         }
     }
 
+    /** 最多尝试一次读取磁盘状态，不覆盖本进程刚更新的值。 */
     private void loadOnce() {
         if (storageLoaded || storage == null) return;
         storageLoaded = true;
@@ -143,6 +142,7 @@ final class LibraryReminderState {
         }
     }
 
+    /** 移除非当天的已读标记，使新一天重新提醒。 */
     private void removeOldMemory(String day) {
         Iterator<Map.Entry<String, String>> entries = memory.entrySet().iterator();
         while (entries.hasNext()) {
@@ -150,6 +150,7 @@ final class LibraryReminderState {
         }
     }
 
+    /** 结合用户、借阅、期限和提醒阶段生成稳定标识。 */
     private static String reminderSignature(BorrowRecord record, LocalDate today) {
         if (record == null || record.getStatus() != BorrowStatus.BORROWED
                 || record.getDueDate().isAfter(today.plusDays(LibraryDueReminder.WARNING_DAYS))) {
@@ -160,12 +161,14 @@ final class LibraryReminderState {
                 record.getBookId(), record.getDueDate().toString(), phase);
     }
 
+    /** 拒绝空记录集合或空日期。 */
     private static void requireArguments(List<BorrowRecord> records, LocalDate today) {
         if (records == null || today == null) {
             throw new IllegalArgumentException("records and today must not be null");
         }
     }
 
+    /** 使用 SHA-256 生成本机状态键，不把用户编号直接写入文件名。 */
     private static String digest(String... parts) {
         StringBuilder value = new StringBuilder();
         for (String part : parts) value.append(part.length()).append(':').append(part);
@@ -185,49 +188,10 @@ final class LibraryReminderState {
 
     /** 提醒文件的最小存储边界，允许测试读写异常而不访问系统配置。 */
     interface Storage {
+        /** 读取本机提醒状态；文件不存在时返回空状态。 */
         Map<String, String> load() throws IOException;
+        /** 通过同目录临时文件原子替换提醒状态，完成后清理临时文件。 */
         void save(Map<String, String> values) throws IOException;
     }
 
-    private static final class FileStorage implements Storage {
-        private final Path file;
-
-        FileStorage(Path file) {
-            this.file = file;
-        }
-
-        @Override public Map<String, String> load() throws IOException {
-            Properties properties = new Properties();
-            try (InputStream input = Files.newInputStream(file)) {
-                properties.load(input);
-            } catch (NoSuchFileException firstUse) {
-                return new HashMap<String, String>();
-            } catch (IllegalArgumentException malformed) {
-                throw new IOException("Invalid reminder file", malformed);
-            }
-            Map<String, String> values = new HashMap<String, String>();
-            for (String key : properties.stringPropertyNames()) values.put(key, properties.getProperty(key));
-            return values;
-        }
-
-        @Override public void save(Map<String, String> values) throws IOException {
-            Path directory = file.toAbsolutePath().getParent();
-            Files.createDirectories(directory);
-            Path temporary = Files.createTempFile(directory, ".reminders-", ".tmp");
-            try {
-                Properties properties = new Properties();
-                properties.putAll(values);
-                try (OutputStream output = Files.newOutputStream(temporary)) {
-                    properties.store(output, "vCampus library reminder acknowledgements");
-                }
-                try {
-                    Files.move(temporary, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-                } catch (AtomicMoveNotSupportedException unsupported) {
-                    Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING);
-                }
-            } finally {
-                Files.deleteIfExists(temporary);
-            }
-        }
-    }
 }

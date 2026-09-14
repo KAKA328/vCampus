@@ -7,10 +7,13 @@ import java.util.List;
 
 /** Calculates presentation-ready due-date reminders from authenticated borrowing history. */
 final class LibraryDueReminder {
+    /** 提前提醒的天数。 */
     static final int WARNING_DAYS = 3;
 
+    /** 工具类不需要实例。 */
     private LibraryDueReminder() { }
 
+    /** 统计有效借阅中的逾期、临期数量及最近应还日期。 */
     static Summary summarize(List<BorrowRecord> records, LocalDate today) {
         if (records == null || today == null) {
             throw new IllegalArgumentException("records and today must not be null");
@@ -36,6 +39,7 @@ final class LibraryDueReminder {
         return new Summary(active, overdue, dueSoon, nearestDueDate);
     }
 
+    /** 根据读者或管理员范围生成中文到期提醒。 */
     static String message(Summary summary, boolean manager) {
         if (summary == null) throw new IllegalArgumentException("summary must not be null");
         String scope = manager ? "全校" : "你";
@@ -57,12 +61,18 @@ final class LibraryDueReminder {
                 + summary.getNearestDueDate() + "，暂无临期记录。";
     }
 
+    /** 临期与逾期提醒的不可变统计结果。 */
     static final class Summary {
+        /** 仍在借的图书总数。 */
         private final int activeCount;
+        /** 已逾期的在借数量。 */
         private final int overdueCount;
+        /** 即将到期的在借数量。 */
         private final int dueSoonCount;
+        /** 最近应还日期。 */
         private final LocalDate nearestDueDate;
 
+        /** 保存本次计算的在借、逾期、临期数量和最近到期日。 */
         Summary(int activeCount, int overdueCount, int dueSoonCount, LocalDate nearestDueDate) {
             this.activeCount = activeCount;
             this.overdueCount = overdueCount;
@@ -70,9 +80,13 @@ final class LibraryDueReminder {
             this.nearestDueDate = nearestDueDate;
         }
 
+        /** 返回仍在借的图书总数。 */
         int getActiveCount() { return activeCount; }
+        /** 返回已逾期的在借数量。 */
         int getOverdueCount() { return overdueCount; }
+        /** 返回即将到期的在借数量。 */
         int getDueSoonCount() { return dueSoonCount; }
+        /** 返回最近应还日期。 */
         LocalDate getNearestDueDate() { return nearestDueDate; }
     }
 }

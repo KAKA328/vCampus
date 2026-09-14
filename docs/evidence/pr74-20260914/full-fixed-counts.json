@@ -1,0 +1,58 @@
+[
+  {
+    "Module": "common",
+    "Tests": 4,
+    "Failures": 0,
+    "Errors": 0,
+    "Skipped": 0
+  },
+  {
+    "Module": "user-management",
+    "Tests": 44,
+    "Failures": 0,
+    "Errors": 0,
+    "Skipped": 0
+  },
+  {
+    "Module": "student-management",
+    "Tests": 22,
+    "Failures": 0,
+    "Errors": 0,
+    "Skipped": 0
+  },
+  {
+    "Module": "course-selection",
+    "Tests": 78,
+    "Failures": 0,
+    "Errors": 0,
+    "Skipped": 0
+  },
+  {
+    "Module": "library",
+    "Tests": 49,
+    "Failures": 0,
+    "Errors": 0,
+    "Skipped": 0
+  },
+  {
+    "Module": "store",
+    "Tests": 180,
+    "Failures": 0,
+    "Errors": 0,
+    "Skipped": 0
+  },
+  {
+    "Module": "server",
+    "Tests": 339,
+    "Failures": 0,
+    "Errors": 0,
+    "Skipped": 0
+  },
+  {
+    "Module": "client",
+    "Tests": 213,
+    "Failures": 0,
+    "Errors": 0,
+    "Skipped": 0
+  }
+]

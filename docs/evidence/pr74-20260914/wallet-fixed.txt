@@ -1,0 +1,6 @@
+BEFORE storeLabel=余额：100.00 元 libraryCents=10000 ledgerRows=0
+AFTER storeLabel=余额：60.50 元 libraryCents=6050 ledgerRows=1
+STORE_LEDGER type=图书赔偿 amountCents=-3950 balanceAfterCents=6050 note=library compensation 44fde743-f1c1-4b41-983f-57ebb34dcded
+TCP_STORE_BALANCE_CENTS=6050 TCP_LEDGER_ROWS=1 REPEAT_PAYMENT_NO_EXTRA_DEBIT=true
+STORE_PAGE_BALANCE_MATCHES_LEDGER=true
+WALLET_UI_EVIDENCE=PASS

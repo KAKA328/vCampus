@@ -11,11 +11,16 @@ import java.nio.file.Path;
 
 /** One shared wallet and library repository for all client connections and both modules. */
 final class LibraryWalletRuntime {
+    /** 共享图书仓库或业务服务。 */
     final LibraryService library;
+    /** 赔偿记录或赔偿服务。 */
     final LibraryCompensationService compensations;
+    /** 商店服务使用的共享钱包上下文。 */
     final StoreService store;
+    /** 与商店共用的钱包访问对象或查询结果。 */
     final WalletRepository wallet;
 
+    /** 保存由同一组图书仓库和钱包组装的服务实例，供所有客户端连接复用。 */
     private LibraryWalletRuntime(LibraryService library, LibraryCompensationService compensations,
             StoreService store, WalletRepository wallet) {
         this.library = library;
@@ -24,6 +29,7 @@ final class LibraryWalletRuntime {
         this.wallet = wallet;
     }
 
+    /** 按数据库路径创建内存或 Access 业务实现。 */
     static LibraryWalletRuntime create(Path databasePath, boolean demoLoans) {
         if (databasePath == null) {
             InMemoryLibraryRepository repository = demoLoans

@@ -1,0 +1,4 @@
+Library V4 upgraded COPY: C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\target\pr74-evidence\migration\upgraded.accdb
+Source database was not modified. Point the matching new server at this output after verification.
+Verified upgraded copy: C:\Users\ASUS\Documents\Codex\2026-08-31\zhe\work\vCampus-library-finalization\target\pr74-evidence\migration\upgraded.accdb
+Use the new matching server with this copy; the source has NOT been replaced.

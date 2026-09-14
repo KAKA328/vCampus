@@ -8,7 +8,8 @@ import cn.vcampus.common.User;
 import cn.vcampus.library.Book;
 import cn.vcampus.library.BorrowRecord;
 import cn.vcampus.library.BorrowStatus;
-import cn.vcampus.library.LibraryHistoryV3Command;
+import cn.vcampus.library.LibraryHistoryV4Command;
+import cn.vcampus.library.LibraryLoanSnapshot;
 import cn.vcampus.library.LibraryQueryV2Command;
 import cn.vcampus.library.LibraryReturnV2Command;
 import cn.vcampus.user.Session;
@@ -51,22 +52,22 @@ class LibraryHistoryTitleTest {
 
     @Test
     void catalogErrorDoesNotDiscardHistoryOrDisableReturn() throws Exception {
-        exercise(Role.STUDENT, StatusCode.SERVER_ERROR, "temporarily unavailable", false, "书名暂不可用", false);
+        exercise(Role.STUDENT, StatusCode.SERVER_ERROR, "temporarily unavailable", false, "红楼梦", false);
     }
 
     @Test
     void invalidCatalogPayloadDoesNotDiscardHistory() throws Exception {
-        exercise(Role.TEACHER, StatusCode.OK, Arrays.asList(TITLE, "invalid book"), false, "书名暂不可用", false);
+        exercise(Role.TEACHER, StatusCode.OK, Arrays.asList(TITLE, "invalid book"), false, "红楼梦", false);
     }
 
     @Test
     void disconnectedCatalogRequestDoesNotDiscardHistory() throws Exception {
-        exercise(Role.STUDENT, StatusCode.OK, null, true, "书名暂不可用", false);
+        exercise(Role.STUDENT, StatusCode.OK, null, true, "红楼梦", false);
     }
 
     @Test
     void missingCatalogEntryHasAnExplicitFallback() throws Exception {
-        exercise(Role.LIBRARIAN, StatusCode.OK, Collections.emptyList(), false, "书名暂不可用", false);
+        exercise(Role.LIBRARIAN, StatusCode.OK, Collections.emptyList(), false, "红楼梦", false);
     }
 
     @Test
@@ -86,11 +87,11 @@ class LibraryHistoryTitleTest {
                         try (ObjectInputStream input = new ObjectInputStream(socket.getInputStream());
                                 ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream())) {
                             Message history = (Message) input.readObject();
-                            assertEquals(MessageType.LIBRARY_HISTORY_V3, history.getType());
-                            LibraryHistoryV3Command historyCommand = (LibraryHistoryV3Command) history.getPayload();
+                            assertEquals(MessageType.LIBRARY_HISTORY_V4, history.getType());
+                            LibraryHistoryV4Command historyCommand = (LibraryHistoryV4Command) history.getPayload();
                             assertEquals("history-test", historyCommand.getToken());
                             assertEquals(LibraryPanel.canManage(role), historyCommand.isAllUsers());
-                            output.writeObject(Message.response(history, StatusCode.OK, Collections.singletonList(LOAN)));
+                            output.writeObject(Message.response(history, StatusCode.OK, Collections.singletonList(new LibraryLoanSnapshot(LOAN, TITLE.getTitle(), "CP-history", false))));
                             output.flush();
                             Message query = (Message) input.readObject();
                             assertEquals(MessageType.LIBRARY_QUERY_V2, query.getType());

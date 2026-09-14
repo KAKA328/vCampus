@@ -198,3 +198,6 @@ StudentManagementService提供服务端内部`updateContacts(userId, expected, p
 
 ## 学籍档案格式校验
 STUDENT_UPDATE普通管理员档案修改与学生联系方式修改新增输入校验，非法状态、手机号、邮箱、年份及超长字段返回BAD_REQUEST且不写入。手机号可空，填写时须11位ASCII数字；界面状态改为固定下拉选项，毕业仍须专用流程。StudentProfileValidation在客户端、Handler及条件写入Service复用，命令序列化字段不变。详见[学籍档案输入规范](STUDENT_PROFILE_VALIDATION.md)。
+# 图书馆 V4 增补
+
+实体册、历史书名快照和资料编辑采用独立的 `LIBRARY_COPIES_V4`、`LIBRARY_HISTORY_V4`、`LIBRARY_BOOK_UPDATE_V4` 消息与 `LibraryCatalogV4` 服务边界。既有 V2/V3 DTO 字段及方法签名保留；新客户端、服务端和四张图书馆扩展表应配套升级。完整请求/响应、权限及兼容策略见 [图书馆 V4 对接](LIBRARY_V4_CATALOG.md)。

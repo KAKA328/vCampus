@@ -15,29 +15,36 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
+import static cn.vcampus.server.LibraryCompensationSql.*;
 
 /** Loss inventory, borrowing status, bill, balance and ledger use one Access transaction. */
 public final class AccessLibraryCompensationService implements LibraryCompensationService {
-    private static final String COLUMNS = "compensation_id,record_id,user_id,book_id,book_title,amount_cents,"
-            + "status,created_by,created_at,paid_at";
+    /** Access 数据库文件路径。 */
     private final Path databasePath;
+    /** 共享图书仓库或业务服务。 */
     private final AccessLibraryRepository library;
+    /** 与商店共用的钱包访问对象或查询结果。 */
     private final AccessWalletRepository wallet;
+    /** 可替换的数据库连接来源。 */
     private final ConnectionFactory connections;
 
-    interface ConnectionFactory { Connection open() throws SQLException; }
+    /** 仅用于隔离数据库与故障回滚测试的连接工厂。 */
+    interface ConnectionFactory {
+        /** 打开属于本次操作的连接。 */
+        Connection open() throws SQLException;
+    }
 
+    /** 绑定共享图书与钱包仓库，确保赔偿和商店使用同一钱包上下文。 */
     public AccessLibraryCompensationService(Path databasePath, AccessLibraryRepository library,
             AccessWalletRepository wallet) {
         this(databasePath, library, wallet, null);
     }
 
+    /** 额外注入可替换连接来源，用于验证付款事务失败时的完整回滚。 */
     AccessLibraryCompensationService(Path databasePath, AccessLibraryRepository library,
             AccessWalletRepository wallet, ConnectionFactory connections) {
         this.databasePath = Objects.requireNonNull(databasePath, "databasePath").toAbsolutePath().normalize();
@@ -46,69 +53,15 @@ public final class AccessLibraryCompensationService implements LibraryCompensati
         this.connections = connections;
     }
 
+    /** 在共享图书锁下登记遗失；重复请求返回原账单。 */
     @Override
     public ServiceResult<LibraryCompensation> declareLoss(String operatorId, String recordId) {
-        if (blank(operatorId) || blank(recordId)) {
-            return ServiceResult.failure(StatusCode.BAD_REQUEST, "operatorId and recordId are required");
-        }
         synchronized (library) {
-            Connection connection = null;
-            try {
-                connection = open();
-                connection.setAutoCommit(false);
-                LibraryCompensation existing = findBill(connection, "record_id", recordId.trim());
-                if (existing != null) { rollback(connection); return ServiceResult.ok(existing); }
-                String userId;
-                String bookId;
-                try (PreparedStatement statement = connection.prepareStatement(
-                        "SELECT user_id,book_id,status FROM tblBorrowRecord WHERE record_id=?")) {
-                    statement.setString(1, recordId.trim());
-                    try (ResultSet result = statement.executeQuery()) {
-                        if (!result.next()) return fail(connection, StatusCode.NOT_FOUND, "borrowing record not found");
-                        if (!"BORROWED".equals(result.getString("status"))) {
-                            return fail(connection, StatusCode.CONFLICT, "only an active loan can be declared lost");
-                        }
-                        userId = result.getString("user_id");
-                        bookId = result.getString("book_id");
-                    }
-                }
-                String title;
-                long cents;
-                try (PreparedStatement statement = connection.prepareStatement(
-                        "SELECT title,price FROM tblBook WHERE book_id=?")) {
-                    statement.setString(1, bookId);
-                    try (ResultSet result = statement.executeQuery()) {
-                        if (!result.next()) return fail(connection, StatusCode.NOT_FOUND, "book not found");
-                        title = result.getString("title");
-                        try {
-                            cents = LibraryCompensation.originalPriceCents(result.getDouble("price"));
-                        } catch (IllegalArgumentException invalidPrice) {
-                            return fail(connection, StatusCode.BAD_REQUEST, invalidPrice.getMessage());
-                        }
-                    }
-                }
-                LibraryCompensation bill = new LibraryCompensation(UUID.randomUUID().toString(), recordId.trim(),
-                        userId, bookId, title, cents, CompensationStatus.PENDING, operatorId.trim(), LocalDateTime.now(), null);
-                if (updateBorrowStatus(connection, recordId.trim(), userId, "BORROWED", "LOST") != 1) {
-                    return fail(connection, StatusCode.CONFLICT, "borrowing state changed");
-                }
-                try (PreparedStatement statement = connection.prepareStatement(
-                        "UPDATE tblBook SET total_copies=total_copies-1 WHERE book_id=? AND total_copies>available_copies")) {
-                    statement.setString(1, bookId);
-                    if (statement.executeUpdate() != 1) {
-                        return fail(connection, StatusCode.CONFLICT, "book inventory is inconsistent");
-                    }
-                }
-                insertBill(connection, bill);
-                connection.commit();
-                return ServiceResult.ok(bill);
-            } catch (SQLException | RuntimeException storageFailure) {
-                rollback(connection);
-                return ServiceResult.failure(StatusCode.SERVER_ERROR, "failed to declare library loss");
-            } finally { close(connection); }
+            return LibraryLossDeclaration.execute(this::open, operatorId, recordId);
         }
     }
 
+    /** 校验账单归属后结清赔偿；账单、借阅、扣款和流水保持一致。 */
     @Override
     public ServiceResult<LibraryCompensation> pay(String userId, String compensationId) {
         if (blank(userId) || blank(compensationId)) {
@@ -158,6 +111,7 @@ public final class AccessLibraryCompensationService implements LibraryCompensati
         }
     }
 
+    /** 根据授权范围读取本人或全部赔偿／借阅记录。 */
     @Override
     public ServiceResult<List<LibraryCompensation>> history(String userId) {
         if (userId != null && blank(userId)) return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId is blank");
@@ -177,6 +131,7 @@ public final class AccessLibraryCompensationService implements LibraryCompensati
         }
     }
 
+    /** 读取同一校园钱包的余额，单位为分。 */
     @Override
     public ServiceResult<Long> balance(String userId) {
         if (blank(userId)) return ServiceResult.failure(StatusCode.BAD_REQUEST, "userId is required");
@@ -190,53 +145,7 @@ public final class AccessLibraryCompensationService implements LibraryCompensati
         }
     }
 
-    private static int updateBorrowStatus(Connection connection, String recordId, String userId,
-            String oldStatus, String newStatus) throws SQLException {
-        try (PreparedStatement statement = connection.prepareStatement(
-                "UPDATE tblBorrowRecord SET status=? WHERE record_id=? AND user_id=? AND status=?")) {
-            statement.setString(1, newStatus);
-            statement.setString(2, recordId);
-            statement.setString(3, userId);
-            statement.setString(4, oldStatus);
-            return statement.executeUpdate();
-        }
-    }
-
-    private static LibraryCompensation findBill(Connection connection, String key, String value) throws SQLException {
-        // key is an internal constant, never a request parameter.
-        try (PreparedStatement statement = connection.prepareStatement(
-                "SELECT " + COLUMNS + " FROM tblLibraryCompensation WHERE " + key + "=?")) {
-            statement.setString(1, value);
-            try (ResultSet result = statement.executeQuery()) { return result.next() ? readBill(result) : null; }
-        }
-    }
-
-    private static LibraryCompensation readBill(ResultSet result) throws SQLException {
-        Timestamp paid = result.getTimestamp("paid_at");
-        return new LibraryCompensation(result.getString("compensation_id"), result.getString("record_id"),
-                result.getString("user_id"), result.getString("book_id"), result.getString("book_title"),
-                result.getLong("amount_cents"), CompensationStatus.valueOf(result.getString("status")),
-                result.getString("created_by"), result.getTimestamp("created_at").toLocalDateTime(),
-                paid == null ? null : paid.toLocalDateTime());
-    }
-
-    private static void insertBill(Connection connection, LibraryCompensation bill) throws SQLException {
-        try (PreparedStatement statement = connection.prepareStatement(
-                "INSERT INTO tblLibraryCompensation(" + COLUMNS + ") VALUES(?,?,?,?,?,?,?,?,?,?)")) {
-            statement.setString(1, bill.getCompensationId());
-            statement.setString(2, bill.getRecordId());
-            statement.setString(3, bill.getUserId());
-            statement.setString(4, bill.getBookId());
-            statement.setString(5, bill.getBookTitle());
-            statement.setLong(6, bill.getAmountCents());
-            statement.setString(7, bill.getStatus().name());
-            statement.setString(8, bill.getCreatedBy());
-            statement.setTimestamp(9, Timestamp.valueOf(bill.getCreatedAt()));
-            statement.setNull(10, Types.TIMESTAMP);
-            statement.executeUpdate();
-        }
-    }
-
+    /** 打开可替换的短生命周期 Access 连接。 */
     private Connection open() throws SQLException {
         if (connections != null) return connections.open();
         try { Class.forName("net.ucanaccess.jdbc.UcanaccessDriver"); }
@@ -244,15 +153,4 @@ public final class AccessLibraryCompensationService implements LibraryCompensati
         return DriverManager.getConnection("jdbc:ucanaccess://" + databasePath + ";immediatelyReleaseResources=true");
     }
 
-    private static <T> ServiceResult<T> fail(Connection connection, StatusCode status, String message) {
-        rollback(connection);
-        return ServiceResult.failure(status, message);
-    }
-    private static boolean blank(String value) { return value == null || value.trim().isEmpty(); }
-    private static void rollback(Connection connection) {
-        if (connection != null) try { connection.rollback(); } catch (SQLException ignored) { }
-    }
-    private static void close(Connection connection) {
-        if (connection != null) try { connection.close(); } catch (SQLException ignored) { }
-    }
 }

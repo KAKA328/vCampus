@@ -1,0 +1,31 @@
+<!DOCTYPE HTML>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><title>vCampus 图书馆子系统</title></head>
+<body>
+<p>本帮助文档包含图书馆实体、现有通信命令、业务接口、内存与 Access 实现，以及客户端内部协作者。
+使用 JDK JavaDoc 生成，包含内部实现说明，便于课程代码讲解。</p>
+<h2>功能范围</h2>
+<ul>
+<li>学生和教师共享读者界面：查询、详情、批量借阅、归还、历史、到期提醒与本人原价赔偿。</li>
+<li>馆员管理界面：新增图书、补库存、全校借阅流通、代还、确认遗失和查看赔偿。</li>
+<li>价格允许为零；参考价格使用元，赔偿金额和共享钱包使用整数分。</li>
+<li>同时在借默认上限为5本；以服务端配置为准，逾期在借也占额度，归还后释放额度。</li>
+</ul>
+<h2>内部职责</h2>
+<ul>
+<li>LibraryPanel 只负责入口和生命周期，LibraryViewState 保存每个页面独立状态。</li>
+<li>LibraryPageLayout / LibraryWorkspaceLayout 负责布局；Catalog、Circulation、Compensation 协作者负责交互。</li>
+<li>RemoteLibraryService 使用已有 V2/V3 命令；LibraryMessageHandler 校验会话和权限。</li>
+<li>DefaultLibraryService 规范化输入；共享仓库在同一锁内校验额度、库存和借阅状态。</li>
+<li>AccessLibraryRepository 保留原子事务；SQL、馆藏维护和行映射由内部协作者承担。</li>
+<li>遗失及支付沿用同一 Access 连接事务与共享钱包，重复支付不能再次扣款。</li>
+</ul>
+<h2>本轮未改变的接口与业务边界</h2>
+<p>V4 新增实体册管理、借阅书名快照和元数据编辑，并提供独立命令、响应和扩展服务。
+保留既有 V2/V3 消息与旧 DTO 字段，数据库增加四张图书馆表，升级只处理新复制的副本。
+今日已读仍是本机状态，不自动跨设备同步；未增加续借、预约、罚金、退款或欠款禁借。</p>
+<h2>验证</h2>
+<p>图书馆生产 Java 文件含注释均不超过200行。并发及钱包故障测试使用独立临时数据，
+不清空或覆盖正在演示的 Access 数据库。最终验证命令及结果见仓库 docs/LIBRARY_V4_CATALOG.md。</p>
+</body>
+</html>
