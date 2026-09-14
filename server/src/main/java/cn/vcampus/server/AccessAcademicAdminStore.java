@@ -81,7 +81,7 @@ final class AccessAcademicAdminStore implements AcademicAdminStore {
                 insert.setInt(3, row.getCredits().getEarnedCredits()); insert.setInt(4, row.getCredits().getPassedCourses());
                 insert.setInt(5, row.getCredits().getPendingRetakes()); insert.setInt(6, row.getCredits().getHistoricalRetakes());
                 insert.setInt(7, row.getRequiredCredits()); insert.setString(8, row.getEvidence());
-                insert.setString(9, row.getReviewedBy()); insert.setTimestamp(10, Timestamp.from(row.getReviewedAt()));
+                insert.setString(9, row.getReviewedBy()); insert.setTimestamp(10, accessTimestamp(row.getReviewedAt()));
                 insert.setString(11, row.getBasis()); insert.executeUpdate();
             }
         }
@@ -96,12 +96,14 @@ final class AccessAcademicAdminStore implements AcademicAdminStore {
                     "UPDATE tblAcademicAssessment SET graduated_by=?,graduated_at=?,graduation_note=? "
                     + "WHERE assessment_id=? AND student_id=? AND graduated_at IS NULL")) {
                 update.setString(1, assessment.getGraduatedBy());
-                update.setTimestamp(2, Timestamp.from(assessment.getGraduatedAt()));
+                update.setTimestamp(2, accessTimestamp(assessment.getGraduatedAt()));
                 update.setString(3, assessment.getGraduationNote());
                 update.setString(4, assessment.getId()); update.setString(5, assessment.getStudentId());
                 if (update.executeUpdate() != 1) throw new SQLException("assessment already processed");
             }
         }
+        // Access persists millisecond precision; sub-millisecond values can break UCanAccess row matching on later updates.
+        private static Timestamp accessTimestamp(Instant value) { return new Timestamp(value.toEpochMilli()); }
         private static Instant instant(Timestamp timestamp) { return timestamp == null ? null : timestamp.toInstant(); }
     }
 }

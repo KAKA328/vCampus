@@ -324,6 +324,12 @@ public final class ServerApplication implements Closeable {
     }
 
     public static void main(String[] args) throws IOException {
+        try (AccessDatabaseLease databaseLease = AccessDatabaseLease.open(UserServiceFactory.databasePath(args))) {
+            runServer(args);
+        }
+    }
+
+    private static void runServer(String[] args) throws IOException {
         int port = parsePort(args);
         Path databasePath = UserServiceFactory.databasePath(args);
         LibraryWalletRuntime libraryWallet = LibraryWalletRuntime.create(databasePath, true);
@@ -341,7 +347,7 @@ public final class ServerApplication implements Closeable {
                         studentServices.results)
                 : new AccessGradeApprovalWorkflow(databasePath);
         CourseSelectionModule module = courses.getModule();
-        new ServerApplication(port, UserServiceFactory.create(args), module.getSelectionService(),
+        try (ServerApplication server = new ServerApplication(port, UserServiceFactory.create(args), module.getSelectionService(),
                 module.getCatalogService(), module.getOfferingService(), module.getSelectionRoundService(),
                 module.getSelectionRecordService(), module.getGradeSubmissionService(),
                 studentServices.results, gradeApprovals, courses.getProfiles(),
@@ -350,7 +356,9 @@ public final class ServerApplication implements Closeable {
                 UserServiceFactory.createStoreAuditLog(args), studentServices.academics,
                 teachers, administration, module.getTrainingPlanService(), libraryWallet.compensations,
                 databasePath == null ? cn.vcampus.student.InMemoryMajorDirectoryService.demo()
-                        : new AccessMajorDirectoryService(databasePath)).start();
+                        : new AccessMajorDirectoryService(databasePath))) {
+            server.start();
+        }
     }
 
     /** 教师档案与教学班教师编号使用同一资料源，避免教师登录后找不到自己的教学班。 */
