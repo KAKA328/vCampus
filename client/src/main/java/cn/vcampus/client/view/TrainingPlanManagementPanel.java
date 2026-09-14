@@ -176,8 +176,15 @@ final class TrainingPlanManagementPanel extends JPanel {
         });
     }
 
+    private Message loadMajorDirectory() throws Exception {
+        try (cn.vcampus.client.service.RemoteStudentService remote =
+                new cn.vcampus.client.service.RemoteStudentService(host, port)) {
+            return remote.activeMajors(session.getToken());
+        }
+    }
+
     private void createPlan() {
-        TrainingPlan plan = TrainingPlanEditorDialog.create(this);
+        TrainingPlan plan = TrainingPlanEditorDialog.create(this, this::loadMajorDirectory);
         if (plan == null) return;
         request(service -> service.createTrainingPlan(session.getToken(), plan),
                 response -> showSuccessThenReload(response, "培养方案已新建，可进入详情维护课程"));
@@ -214,7 +221,7 @@ final class TrainingPlanManagementPanel extends JPanel {
 
     private void editPlan() {
         if (currentPlan == null) return;
-        TrainingPlan changed = TrainingPlanEditorDialog.edit(this, currentPlan);
+        TrainingPlan changed = TrainingPlanEditorDialog.edit(this, currentPlan, this::loadMajorDirectory);
         if (changed == null) return;
         request(service -> service.updateTrainingPlanBasicInfo(session.getToken(), changed),
                 response -> showSuccessThenReload(response, "培养方案基本信息已更新"));

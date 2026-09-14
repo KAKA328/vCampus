@@ -71,8 +71,8 @@ class StudentGraduationConcurrencyTest {
         ExecutorService worker = Executors.newSingleThreadExecutor(r -> new Thread(r, "stale-profile-save"));
         try {
             Future<Message> save = worker.submit(() -> handler.handle(Message.request("save",
-                    MessageType.STUDENT_UPDATE, new StudentUpdateCommand(token,
-                            StudentProfileSnapshot.withContacts(before, "13800000001", "new@example.test")))));
+                    MessageType.STUDENT_UPDATE_V2, new StudentUpdateV2Command(token,
+                            StudentProfileSnapshot.withContacts(before, "13800000001", "new@example.test"), before))));
             assertTrue(snapshotRead.await(15, TimeUnit.SECONDS), "request must read old profile first");
             ServiceResult<?> graduated = administration.execute(
                     command(studentId, AcademicAdminCommandV1.Action.GRADUATE, assessment.getId()), "academic");

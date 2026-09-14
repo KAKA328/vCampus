@@ -20,6 +20,8 @@
 
 校验位置：StudentProfileValidation为统一规则；StudentManagementPanel提交前调用；StudentMessageHandler与DefaultStudentManagementService.saveIfUnchanged/updateContacts再次校验。失败返回BAD_REQUEST，不写数据库。学生只校验可修改的联系方式，不因旧档案中只读字段缺失阻止其修正联系方式。
 
+2026-09-14 更新：页面保存改用 STUDENT_UPDATE_V2，携带加载时原始档案快照。发生冲突时保留编辑内容，须重新查询/刷新后才能保存；旧客户端无快照更新返回冲突提示升级。详见[旧表单覆盖修复](STUDENT_STALE_FORM_UPDATE.md)。
+
 底层Repository及旧内部save保留初始化/内部调用兼容，不在此次直接改动其他模块的账号导入、选课规则或数据迁移；这些入口若接收新的外部档案数据，应另行对接同一校验。现有条件写入与毕业并发检查保留，格式正确不代表绕过身份权限或毕业流程。
 
 无需数据库结构变更。本次已适配最新 main `63be10f`：主线新增成绩审核闭环、验收数据库和 `UiMetrics` 客户端缩放规范；本页面将间距、断点和表格宽度转换为 `UiMetrics` 逻辑尺寸。首页、选课及其他子系统未改动。此次未提交或推送。

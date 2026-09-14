@@ -92,6 +92,8 @@
 
 ## 全新数据库验证
 
+培养方案专业下拉框使用学籍只读目录表 `tblMajor`（编号、唯一名称、院系、有效标志）；schema/seed 已包含 CS、SE、CN 演示条目。旧数据库缺此表时目录查询返回明确错误，不回退到自由输入。请在独立测试库按最新 schema/seed 重建，详情见 `docs/MAJOR_DIRECTORY_INTEGRATION.md`。
+
 在仓库根目录执行：
 
 ```powershell
@@ -101,6 +103,9 @@ mvn -q -pl server -am "-Dtest=AccessDatabaseSchemaTest" "-Dsurefire.failIfNoSpec
 该测试会创建临时 `.accdb`，执行完整 `schema.sql` 和 `seed.sql`，并检查演示账号、学生档案、教师档案和商品已经写入。当前 UCanAccess 4.0.4 不支持独立 `CREATE INDEX` DDL，因此正式 schema 使用主键和建表内联 `CONSTRAINT ... UNIQUE`，普通性能索引需另行确认驱动版本后再增加。
 
 ## 教务完整审查与毕业办理表
+
+Issue #64 默认库验收：最新 seed 已有 `20260006` 至 `20260009` 四个未绑定在读档案。通过用户管理导入 `test-data/默认验收库学生导入示例.csv`，无需附加专项 SQL；四个账号密码均为 `Test123`。`20260007/20260008` 已预置教学班选课，`20260006` 可能被 `--demo` 占用，应使用独立新建验收库。详见 [Issue #64 验收步骤](../docs/ISSUE_64_ACCEPTANCE.md)。
+
 新增 tblAcademicAssessment：保存完整学分统计、要求学分、依据、档案/成绩指纹、审查人和时间，以及毕业确认人、时间、说明。新教务页面使用此表；旧 tblAcademicReview 仅保留兼容。毕业状态与该记录在同一 JDBC 事务写入，失败回滚。旧库没有新表，本轮验收仍使用最新 schema.sql + seed.sql 重建临时/验收库；先保留原数据，不直接覆盖现有库。详见 ../docs/ACADEMIC_ADMIN_GRADUATION_INTEGRATION.md。
 
 学籍专项测试数据见 `database/student-test-data.sql`。在仓库根目录执行 `.\database\rebuild.ps1 -DatabasePath database\student-test.accdb -AdditionalScript database\student-test-data.sql`，即可创建独立测试库，并按顺序执行 `schema.sql`、`seed.sql` 和专项脚本。它补充在读、休学、退学学生、在职/非在职教师及首修/重修成绩场景；不创建登录账号，也不覆盖默认演示数据。服务端测试时使用 `--db database/student-test.accdb`。

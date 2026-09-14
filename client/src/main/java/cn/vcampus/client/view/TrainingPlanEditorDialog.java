@@ -32,7 +32,8 @@ final class TrainingPlanEditorDialog extends JDialog {
     private final TrainingPlan initial;
     private final boolean courseRequirementMode;
     private final JTextField planId = new JTextField(14);
-    private final JTextField majorName = new JTextField(14);
+    private final MajorDirectorySelector majorSelector;
+    private final JButton confirmButton = new JButton();
     private final JSpinner enrollmentYear = new JSpinner(new SpinnerNumberModel(2026, 1900, 9999, 1));
     private final JComboBox<Course> course = new JComboBox<Course>();
     private final JSpinner recommendedTerm = new JSpinner(new SpinnerNumberModel(1, 1, 16, 1));
@@ -44,15 +45,18 @@ final class TrainingPlanEditorDialog extends JDialog {
     private TrainingPlanCourse courseResult;
 
     private TrainingPlanEditorDialog(Component owner, TrainingPlan initial,
-            TrainingPlanCourse initialCourse, List<Course> courses, boolean courseRequirementMode) {
+            TrainingPlanCourse initialCourse, List<Course> courses, boolean courseRequirementMode,
+            MajorDirectorySelector.Loader majorLoader) {
         super(ownerWindow(owner), title(initial, initialCourse, courseRequirementMode),
                 Dialog.ModalityType.APPLICATION_MODAL);
         this.initial = initial;
         this.courseRequirementMode = courseRequirementMode;
+        this.majorSelector = courseRequirementMode ? null : new MajorDirectorySelector(majorLoader,
+                this::updateConfirmState);
         planId.setEditable(initial == null);
         if (initial != null) {
             planId.setText(initial.getPlanId());
-            majorName.setText(initial.getMajorName());
+            majorSelector.selectName(initial.getMajorName());
             enrollmentYear.setValue(Integer.valueOf(initial.getEnrollmentYear()));
         }
         if (courseRequirementMode) {
@@ -64,26 +68,32 @@ final class TrainingPlanEditorDialog extends JDialog {
             }
         }
         build();
+        updateConfirmState();
+        if (majorSelector != null) majorSelector.load();
     }
 
-    static TrainingPlan create(Component owner) {
+    private void updateConfirmState() {
+        confirmButton.setEnabled(courseRequirementMode || (majorSelector != null && majorSelector.canSave()));
+    }
+
+    static TrainingPlan create(Component owner, MajorDirectorySelector.Loader loader) {
         TrainingPlanEditorDialog dialog = new TrainingPlanEditorDialog(owner, null, null,
-                Collections.<Course>emptyList(), false);
+                Collections.<Course>emptyList(), false, loader);
         dialog.setVisible(true);
         return dialog.planResult;
     }
 
-    static TrainingPlan edit(Component owner, TrainingPlan plan) {
+    static TrainingPlan edit(Component owner, TrainingPlan plan, MajorDirectorySelector.Loader loader) {
         if (plan == null) return null;
         TrainingPlanEditorDialog dialog = new TrainingPlanEditorDialog(owner, plan, null,
-                Collections.<Course>emptyList(), false);
+                Collections.<Course>emptyList(), false, loader);
         dialog.setVisible(true);
         return dialog.planResult;
     }
 
     static TrainingPlanCourse editCourse(Component owner, TrainingPlanCourse initial,
             List<Course> courses) {
-        TrainingPlanEditorDialog dialog = new TrainingPlanEditorDialog(owner, null, initial, courses, true);
+        TrainingPlanEditorDialog dialog = new TrainingPlanEditorDialog(owner, null, initial, courses, true, null);
         dialog.setVisible(true);
         return dialog.courseResult;
     }
@@ -123,13 +133,10 @@ final class TrainingPlanEditorDialog extends JDialog {
     }
 
     private void addPlanFields(JPanel form) {
-        style(planId, 380); style(majorName); style(enrollmentYear);
+        style(planId, 380); style(enrollmentYear);
         addRow(form, "方案编号", planId);
-        addRow(form, "专业", majorName);
+        addRow(form, "专业", majorSelector);
         addRow(form, "入学年份", enrollmentYear);
-        JLabel hint = new JLabel("学籍模块目前未提供专业目录查询，暂使用专业名称录入。 ");
-        hint.setForeground(VCampusTheme.MUTED);
-        addHint(form, hint);
     }
 
     private void addCourseFields(JPanel form) {
@@ -150,7 +157,8 @@ final class TrainingPlanEditorDialog extends JDialog {
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiMetrics.px(8), 0));
         actions.setOpaque(false);
         JButton cancel = new JButton("取消");
-        JButton confirm = new JButton(confirmText());
+        JButton confirm = confirmButton;
+        confirm.setText(confirmText());
         VCampusTheme.secondaryButton(cancel); VCampusTheme.primaryButton(confirm);
         cancel.addActionListener(e -> dispose()); confirm.addActionListener(e -> confirm());
         actions.add(cancel); actions.add(confirm); bottom.add(actions, BorderLayout.SOUTH);
@@ -162,9 +170,9 @@ final class TrainingPlanEditorDialog extends JDialog {
         try {
             if (courseRequirementMode) courseResult = courseRequirement();
             else if (initial == null) planResult = new TrainingPlan(text(planId, "方案编号"),
-                    text(majorName, "专业"), ((Integer) enrollmentYear.getValue()).intValue(),
+                    majorSelector.selectedName(), ((Integer) enrollmentYear.getValue()).intValue(),
                     Collections.<TrainingPlanCourse>emptyList());
-            else planResult = initial.withBasicInfo(text(majorName, "专业"),
+            else planResult = initial.withBasicInfo(majorSelector.selectedName(),
                     ((Integer) enrollmentYear.getValue()).intValue());
             dispose();
         } catch (IllegalArgumentException invalid) { error.setText(invalid.getMessage()); }

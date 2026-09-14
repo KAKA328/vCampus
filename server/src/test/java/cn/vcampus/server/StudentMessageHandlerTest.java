@@ -9,6 +9,7 @@ import cn.vcampus.student.StudentManagementService;
 import cn.vcampus.student.StudentQueryCommand;
 import cn.vcampus.student.StudentRecord;
 import cn.vcampus.student.StudentUpdateCommand;
+import cn.vcampus.student.StudentUpdateV2Command;
 import cn.vcampus.user.InMemoryUserManagementService;
 import cn.vcampus.user.UserCredentials;
 import java.util.ArrayList;
@@ -82,11 +83,11 @@ class StudentMessageHandlerTest {
         StudentRecord original = students.records.get(0);
         StudentRecord contactChanged = student("S001", "stu001", "张三", "13900000000");
         assertEquals(StatusCode.OK, handler.handle(request(
-                new StudentUpdateCommand(studentToken, contactChanged))).getStatusCode());
+                new StudentUpdateV2Command(studentToken, contactChanged, original))).getStatusCode());
 
         StudentRecord nameChanged = student("S001", "stu001", "张三改名", "13900000000");
         assertEquals(StatusCode.FORBIDDEN, handler.handle(request(
-                new StudentUpdateCommand(studentToken, nameChanged))).getStatusCode());
+                new StudentUpdateV2Command(studentToken, nameChanged, contactChanged))).getStatusCode());
         assertEquals("张三", original.getName());
     }
 
@@ -103,8 +104,8 @@ class StudentMessageHandlerTest {
     }
 
     private static Message request(Object payload) {
-        MessageType type = payload instanceof StudentUpdateCommand
-                ? MessageType.STUDENT_UPDATE : MessageType.STUDENT_QUERY;
+        MessageType type = payload instanceof StudentUpdateV2Command ? MessageType.STUDENT_UPDATE_V2
+                : payload instanceof StudentUpdateCommand ? MessageType.STUDENT_UPDATE : MessageType.STUDENT_QUERY;
         return Message.request("student-request", type, payload);
     }
 

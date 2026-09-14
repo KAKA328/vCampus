@@ -1,5 +1,7 @@
 # 模块接口基线
 
+培养方案专业目录使用 `STUDENT_MAJOR_DIRECTORY_QUERY_V1 + MajorDirectoryQueryV1Command(token)`，返回有效的稳定编号、名称及院系，仅教务/系统管理员可读。培养方案仍保存专业名称，新建/基本信息编辑前验证有效目录；详见 [专业目录对接](MAJOR_DIRECTORY_INTEGRATION.md)。
+
 接口位于各业务模块的 `api` 等价包（当前使用模块根包，后续可按团队约定细分）。接口只描述业务能力，不直接依赖 Swing、Socket 或 Access。
 
 | 模块 | 核心接口 | 初始操作 |
@@ -188,7 +190,7 @@ ACADEMIC_ADMIN_V1 提供全部学生/教师目录、学生历史/学分、审查
 
 ## 普通学籍更新的并发契约
 
-StudentManagementService新增服务端内部`updateContacts(userId, expected, phone, email)`与`saveIfUnchanged(record, expected)`。STUDENT_UPDATE命令格式保持原状；学生更新只写联系方式，教务更新在存储层核对预期档案。更新期间档案已变化则返回CONFLICT，需刷新重试；新建学生仅INSERT，不覆盖并发出现的同学号档案。详见ACADEMIC_ADMIN_GRADUATION_INTEGRATION.md。
+StudentManagementService提供服务端内部`updateContacts(userId, expected, phone, email)`与`saveIfUnchanged(record, expected)`。页面更新使用`STUDENT_UPDATE_V2 + StudentUpdateV2Command(token, record, expected)`，expected必须是页面加载时保存的原始完整档案，不得以提交时重新读取的数据替换。学生只写联系方式，教务更新在存储层核对旧快照；不匹配返回CONFLICT，重新加载后才可保存。旧STUDENT_UPDATE的序列化字段不变，但更新已有档案会返回CONFLICT并提示升级；旧管理员新建路径仅INSERT，不覆盖并发出现的同学号档案。无需数据库结构变更，客户端和服务端配套升级。详见[旧表单覆盖修复](STUDENT_STALE_FORM_UPDATE.md)。
 
 教师本人协议先检查USER_SELF_READ统一授权，强制改密期间不能读取业务档案。
 
