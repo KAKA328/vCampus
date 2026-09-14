@@ -21,7 +21,8 @@ INSERT INTO tblProduct(product_id, name, stock, price, description, category, ac
 ('P906', '已下架限量海报', 10, 15.0, '边界测试 已下架商品 默认列表不可见 直购与结算均按商品不存在处理', '文创纪念品', 0, 0),
 ('P907', '竞态结算矿泉水 三瓶', 3, 2.0, '竞态测试 购物车子集批量结算 重复条目去重 以及结算时库存被他人抢走的回滚', '零食饮料', 1, 0),
 ('P908', '压测小饼干 二十包', 20, 0.5, '竞态测试 多人各买一包高频齐射 成功订单数必须等于库存扣减量', '零食饮料', 1, 0),
-('P909', '半分糖果 金额换算边界', 2, 0.004, '边界测试 单价低于半分 买一件换算为零分应被拒绝 买两件换算为一分可成交', '零食饮料', 1, 0);
+('P909', '半分糖果 金额换算边界', 2, 0.004, '边界测试 单价低于半分 买一件换算为零分应被拒绝 买两件换算为一分可成交', '零食饮料', 1, 0),
+('P910', '一元面包 余额边界专用', 5, 1.0, '余额边界测试 单价适中 供余额刚好买得起一次的账号做预检通过与拒绝的分界对照', '零食饮料', 1, 0);
 
 -- 二、并发买家钱包
 -- seed.sql 只为 demo_student、demo_teacher、demo_admin、demo_store_manager 预置了账户；
@@ -30,8 +31,10 @@ INSERT INTO tblBankAccount(user_id, balance_cents) VALUES
 ('demo_student_new', 50000),
 ('demo_student_retake', 50000);
 
--- 低余额买家：用于「库存够但余额不足」的预检拒绝，以及并发把钱花光后的扣款失败回滚。
--- 1.50 元买得起三包 P908（单价 0.50 元），买不起 P904（9999 元）。
+-- 低余额买家：用于「库存够但余额不足」的预检拒绝，以及余额边界的可重复演示。
+-- 1.50 元与 1.00 元配合 P910（单价 1.00 元）：demo_student_cross 刚好买得起一次，买完余额为 0，
+-- 再买即 PAYMENT_REQUIRED；demo_student_elective 买一次后剩 0.50 元，同样买不起第二次。
+-- 两位都买不起 P904（9999 元），用于纯预检拒绝场景。
 INSERT INTO tblBankAccount(user_id, balance_cents) VALUES
 ('demo_student_elective', 150),
 ('demo_student_cross', 100);
@@ -41,9 +44,17 @@ INSERT INTO tblBankAccount(user_id, balance_cents) VALUES
 -- P901 一人买两件 + 一人买一件：买两件者恒 CONFLICT（预检 1 小于 2），买一件者视先后可能 OK。
 -- P902 买两件与买一件同时提交：至多一人成功；若买一件者先成功则库存剩一件，买两件者仍 CONFLICT。
 -- P903 三人各买两双：最多两人成功，订单数 2，库存最终为 1。
--- P904 低余额买家直购：PAYMENT_REQUIRED；若库存在并发中被扣走则 CONFLICT 且库存回补。
+-- P904 低余额买家直购：PAYMENT_REQUIRED（预检即拦下，不会进入扣款与回滚路径）。
+-- P910 余额刚好买得起一次的账号：首次 OK，第二次 PAYMENT_REQUIRED；库存与流水逐笔可对账。
 -- P905 任意数量直购或结算：CONFLICT（库存不足）；加入购物车仍可成功，结算时被预检拦下。
 -- P906 默认列表不可见（需勾选显示已下架），直购与结算均 NOT_FOUND。
 -- P907 子集批量结算：重复 cartItemId 只结算一次；购物车清理失败时整单回滚并返回 CONFLICT。
 -- P908 多人齐射：成功订单数 = 20 减去剩余库存，不超卖。
 -- P909 买一件 BAD_REQUEST（换算为零分），买两件 OK（换算为一分）。
+--
+-- 关于「预检通过但原子扣款失败 → 跨资源回滚」这条路径：
+-- checkoutInternal 整体运行在 DefaultStoreService 的同一把锁内，预检估算金额与逐项扣款金额完全相同，
+-- 单进程下并发请求无法在预检与扣款之间插入，因此该路径属于防御性代码（面向多进程共用同一库或直接改库的情形），
+-- 无法用手工点击复现。它由故障注入自动化测试确定触发：
+--   server/src/test/java/cn/vcampus/server/AccessStoreConcurrencyTest.java
+--   → walletDebitRejectionAfterStockDeductionRollsBackStockOrderAndLedger
