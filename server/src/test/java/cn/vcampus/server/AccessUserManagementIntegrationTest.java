@@ -121,6 +121,30 @@ class AccessUserManagementIntegrationTest {
     }
 
     @Test
+    void concurrentRegistrationOfSameAccountHasOneWinnerAndOneConflict() throws Exception {
+        UserManagementService first = accessService();
+        UserManagementService second = accessService();
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<ServiceResult<Void>> left = executor.submit(() -> first.register(new UserCredentials(
+                    "access_race", "Access123", "Race Account", Role.ADMIN.name())));
+            Future<ServiceResult<Void>> right = executor.submit(() -> second.register(new UserCredentials(
+                    "access_race", "Access123", "Race Account", Role.ADMIN.name())));
+
+            ServiceResult<Void> leftResult = left.get(10, TimeUnit.SECONDS);
+            ServiceResult<Void> rightResult = right.get(10, TimeUnit.SECONDS);
+            assertEquals(1, (leftResult.getStatus() == StatusCode.OK ? 1 : 0)
+                    + (rightResult.getStatus() == StatusCode.OK ? 1 : 0));
+            assertTrue((leftResult.getStatus() == StatusCode.CONFLICT
+                    && rightResult.getStatus() == StatusCode.OK)
+                    || (leftResult.getStatus() == StatusCode.OK
+                    && rightResult.getStatus() == StatusCode.CONFLICT));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
     void adminDeactivationWaitsForCrossProcessDatabaseLock() throws Exception {
         UserManagementService service = accessService();
         assertEquals(StatusCode.OK, service.register(new UserCredentials(

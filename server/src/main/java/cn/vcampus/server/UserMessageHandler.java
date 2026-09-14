@@ -86,7 +86,9 @@ final class UserMessageHandler {
                 default:
                     return Message.response(request, StatusCode.NOT_FOUND, "user handler does not support this message");
             }
-            return Message.response(request, result.getStatus(), result.getData());
+            Object responsePayload = result.getStatus() == StatusCode.OK
+                    ? result.getData() : result.getMessage();
+            return Message.response(request, result.getStatus(), responsePayload);
         } catch (IllegalArgumentException invalidPayload) {
             return Message.response(request, StatusCode.BAD_REQUEST, "request payload is invalid");
         }
