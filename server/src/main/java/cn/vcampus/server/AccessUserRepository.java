@@ -6,6 +6,10 @@ import cn.vcampus.user.AccountDeactivationResult;
 import cn.vcampus.user.UserAccount;
 import cn.vcampus.user.UserRepository;
 import java.nio.file.Path;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.channels.OverlappingFileLockException;
+import java.nio.file.StandardOpenOption;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -90,7 +94,10 @@ public final class AccessUserRepository implements UserRepository {
     @Override public AccountDeactivationResult deactivateByIdIfNotLastActiveAdministrator(String userId) {
         Object lock = ADMIN_MUTATION_LOCKS.computeIfAbsent(databasePath, ignored -> new Object());
         synchronized (lock) {
-            try (Connection connection = open()) {
+            try (FileChannel lockChannel = FileChannel.open(adminLockPath(),
+                    StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+                 FileLock ignored = acquireAdminFileLock(lockChannel);
+                 Connection connection = open()) {
                 connection.setAutoCommit(false);
                 try {
                     UserAccount target = findById(connection, userId);
@@ -115,7 +122,10 @@ public final class AccessUserRepository implements UserRepository {
                     connection.rollback();
                     throw failure;
                 }
-            } catch (SQLException failure) {
+            } catch (SQLException | java.io.IOException | InterruptedException failure) {
+                if (failure instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
                 throw new IllegalStateException("failed to atomically deactivate user account", failure);
             }
         }
@@ -216,6 +226,22 @@ public final class AccessUserRepository implements UserRepository {
                 rs.next();
                 return rs.getInt(1);
             }
+        }
+    }
+
+    private Path adminLockPath() {
+        return databasePath.resolveSibling(databasePath.getFileName().toString() + ".admin.lock");
+    }
+
+    private FileLock acquireAdminFileLock(FileChannel channel) throws java.io.IOException, InterruptedException {
+        while (true) {
+            try {
+                FileLock lock = channel.tryLock();
+                if (lock != null) return lock;
+            } catch (OverlappingFileLockException ignored) {
+                // Another service instance in this JVM currently owns the lock.
+            }
+            Thread.sleep(25L);
         }
     }
 }
