@@ -1,0 +1,5 @@
+账号,姓名,初始密码,角色,档案编号
+qa_bad_missing,验收不存在档案,Test123,STUDENT,QA_NOT_EXISTS
+qa_bad_bound,验收已绑定档案,Test123,STUDENT,QA_EMPTY
+qa_bad_password,验收错误密码长度,x,STUDENT,QA_BIND
+qa_bad_role,验收无效角色,Test123,INVALID,QA_BIND

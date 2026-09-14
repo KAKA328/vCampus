@@ -295,7 +295,8 @@ public final class DefaultUserManagementService implements UserManagementService
         return createAccount(c, role, null, null, null);
     }
 
-    private ServiceResult<Void> createAccount(UserCredentials c, Role role,
+    // Keep validation, creation, profile binding and compensation in one single-server critical section.
+    private synchronized ServiceResult<Void> createAccount(UserCredentials c, Role role,
                                               String createdBy, Instant createdAt, String importBatchId) {
         final User user;
         try {

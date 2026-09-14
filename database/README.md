@@ -92,6 +92,8 @@
 
 ## 全新数据库验证
 
+完整学籍边界/并发验收使用 `student-acceptance-data.sql`（11 个学生、2 个教师、12 条成绩）和 `test-data/学籍完整验收账号.csv`（12 个账号）。命令：`.\database\rebuild.ps1 -DatabasePath database\student-network-test.accdb -AdditionalScript database\student-acceptance-data.sql`。正常 CSV 导入后再使用 `test-data/学籍验收错误账号.csv` 验证拒绝情况。流程、真实 TCP 并发自检及局域网待验收项见 [学籍联机验收](../docs/STUDENT_NETWORK_ACCEPTANCE.md)。
+
 培养方案专业下拉框使用学籍只读目录表 `tblMajor`（编号、唯一名称、院系、有效标志）；schema/seed 已包含 CS、SE、CN 演示条目。旧数据库缺此表时目录查询返回明确错误，不回退到自由输入。请在独立测试库按最新 schema/seed 重建，详情见 `docs/MAJOR_DIRECTORY_INTEGRATION.md`。
 
 在仓库根目录执行：

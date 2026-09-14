@@ -1,0 +1,13 @@
+账号,姓名,初始密码,角色,档案编号
+qa_empty,验收空成绩,Test123,STUDENT,QA_EMPTY
+qa_exact,验收恰好达标,Test123,STUDENT,QA_EXACT
+qa_short,验收学分不足,Test123,STUDENT,QA_SHORT
+qa_pending,验收学分够但待重修,Test123,STUDENT,QA_PENDING
+qa_retake,验收重修通过,Test123,STUDENT,QA_RETAKE
+qa_dup,验收重复通过去重,Test123,STUDENT,QA_DUP
+qa_leave,验收休学,Test123,STUDENT,QA_LEAVE
+qa_withdrawn,验收退学,Test123,STUDENT,QA_WITHDRAWN
+qa_edit,验收并发编辑,Test123,STUDENT,QA_EDIT
+qa_grad,验收并发毕业,Test123,STUDENT,QA_GRAD
+qa_teacher,验收在职教师,Test123,TEACHER,QA_T_ACTIVE
+qa_inactive_teacher,验收非在职教师,Test123,TEACHER,QA_T_INACTIVE

@@ -50,13 +50,18 @@ public final class AccessProfileBindingRepository implements ProfileBindingRepos
             return validation;
         }
         BindingTable table = table(role);
-        String sql = "UPDATE " + table.tableName + " SET user_id=? WHERE " + table.profileColumn + "=?";
+        // The earlier validation is only a precheck; another account may bind before this write.
+        String sql = "UPDATE " + table.tableName + " SET user_id=? WHERE " + table.profileColumn
+                + "=? AND (user_id IS NULL OR user_id='' OR user_id=?)";
         try (Connection connection = open();
              PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, userId);
             statement.setString(2, profileId.trim());
-            return statement.executeUpdate() > 0 ? ProfileBindingResult.OK
-                    : ProfileBindingResult.PROFILE_NOT_FOUND;
+            statement.setString(3, userId);
+            if (statement.executeUpdate() > 0) return ProfileBindingResult.OK;
+            String existingUser = existingUserForProfile(connection, table, profileId.trim());
+            return existingUser == null ? ProfileBindingResult.PROFILE_NOT_FOUND
+                    : ProfileBindingResult.PROFILE_ALREADY_BOUND;
         } catch (SQLException failure) {
             throw new IllegalStateException("failed to bind profile", failure);
         }
