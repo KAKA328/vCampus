@@ -87,7 +87,7 @@ mvn -pl client -am "-Dtest=StudentNetworkAcceptanceTest" `
     "-DargLine=-Djdk.net.URLClassPath.disableClassPathURLCheck=true" test
 ```
 
-测试在 `client/src/test/java/cn/vcampus/client/view/StudentNetworkAcceptanceTest.java`。失败日志、诊断信息保存在 `client/target/network-acceptance`（如诊断工具可用），测试断言报告位于 `client/target/surefire-reports`。本机使用 JDK 17 运行。
+测试在 `client/src/test/java/cn/vcampus/client/view/StudentNetworkAcceptanceTest.java`。失败服务端日志保存在 `client/target/network-acceptance`，断言报告位于 `client/target/surefire-reports`；保存日志失败不会掩盖原始失败。线程栈由维护人员需要时另行采集，不在测试中调用 Java 9 的 Process.pid()。本机使用 JDK 17 运行，CI 使用 Java 8；提交前新增 `-Dmaven.compiler.release=8` 的 API 兼容编译检查。
 
 ## 自检发现及修复
 

@@ -168,15 +168,14 @@ class StudentNetworkAcceptanceTest {
             assertEquals(StatusCode.UNAUTHORIZED, call(MessageType.STUDENT_QUERY, StudentQueryCommand.self(academic)).getStatusCode());
             System.out.println("NETWORK ACCEPTANCE PASS: 12 imports; 5 x 4 admin-write races; 2 student writers; 2 graduation contenders; 2 binding contenders; restart persistence.");
         } catch (Throwable failure) {
-            if (server != null && server.isAlive()) {
-                Path dump = temporary.resolve("threads.txt");
-                Process diagnostic = new ProcessBuilder(Paths.get(System.getProperty("java.home"), "bin", "jcmd").toString(),
-                        Long.toString(server.pid()), "Thread.print").redirectErrorStream(true).redirectOutput(dump.toFile()).start();
-                if (!diagnostic.waitFor(10, TimeUnit.SECONDS)) diagnostic.destroyForcibly();
+            try {
                 Path evidence = Paths.get("target", "network-acceptance");
                 Files.createDirectories(evidence);
-                if (Files.exists(dump)) Files.copy(dump, evidence.resolve("threads-" + UUID.randomUUID() + ".txt"));
-                if (serverLog != null) Files.copy(serverLog, evidence.resolve("server-" + UUID.randomUUID() + ".log"));
+                if (serverLog != null && Files.exists(serverLog)) {
+                    Files.copy(serverLog, evidence.resolve("server-" + UUID.randomUUID() + ".log"));
+                }
+            } catch (java.io.IOException loggingFailure) {
+                failure.addSuppressed(loggingFailure);
             }
             throw failure;
         } finally { stop(); }
