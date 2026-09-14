@@ -67,6 +67,7 @@ final class CourseMessageHandler {
     private final UserManagementService users;
     private final TeacherProfileService teachers;
     private final StudentManagementService students;
+    private final cn.vcampus.student.MajorDirectoryService majors;
 
     CourseMessageHandler(CourseSelectionService courses, StudentSelectionProfileProvider profiles,
             UserManagementService users) {
@@ -138,6 +139,18 @@ final class CourseMessageHandler {
             TrainingPlanService trainingPlans, StudentSelectionProfileProvider profiles,
             UserManagementService users, TeacherProfileService teachers,
             StudentManagementService students) {
+        this(courses, catalog, offerings, selectionRounds, records, gradeSubmissions, formalResults,
+                gradeApprovals, trainingPlans, profiles, users, teachers, students,
+                cn.vcampus.student.InMemoryMajorDirectoryService.demo());
+    }
+
+    CourseMessageHandler(CourseSelectionService courses, CourseCatalogService catalog,
+            CourseOfferingService offerings, SelectionRoundService selectionRounds,
+            CourseSelectionRecordService records, GradeSubmissionService gradeSubmissions,
+            CourseResultRecordingService formalResults, GradeApprovalWorkflow gradeApprovals,
+            TrainingPlanService trainingPlans, StudentSelectionProfileProvider profiles,
+            UserManagementService users, TeacherProfileService teachers,
+            StudentManagementService students, cn.vcampus.student.MajorDirectoryService majors) {
         if (courses == null || profiles == null || users == null) {
             throw new IllegalArgumentException("course handler dependencies must not be null");
         }
@@ -156,6 +169,7 @@ final class CourseMessageHandler {
         this.users = users;
         this.teachers = teachers;
         this.students = students;
+        this.majors = java.util.Objects.requireNonNull(majors);
     }
 
     Message handle(Message request) {
@@ -203,7 +217,10 @@ final class CourseMessageHandler {
                     return Message.response(request, StatusCode.NOT_FOUND,
                             "course handler does not support this message");
             }
-            return Message.response(request, result.getStatus(), result.getData());
+            Object responseData = result.getStatus() == StatusCode.OK ? result.getData()
+                    : request.getType() == MessageType.COURSE_TRAINING_PLAN_MANAGE_V2
+                    ? result.getMessage() : result.getData();
+            return Message.response(request, result.getStatus(), responseData);
         } catch (IllegalArgumentException invalidPayload) {
             return Message.response(request, StatusCode.BAD_REQUEST, "request payload is invalid");
         }
@@ -692,6 +709,11 @@ final class CourseMessageHandler {
         }
         if (trainingPlans == null) {
             return managementServiceUnavailable();
+        }
+        if (command.getOperation() == TrainingPlanManagementCommand.Operation.CREATE
+                || command.getOperation() == TrainingPlanManagementCommand.Operation.UPDATE_BASIC_INFO) {
+            ServiceResult<Void> validMajor = majors.requireActiveName(command.getPlan().getMajorName());
+            if (validMajor.getStatus() != StatusCode.OK) return validMajor;
         }
         switch (command.getOperation()) {
             case LIST:

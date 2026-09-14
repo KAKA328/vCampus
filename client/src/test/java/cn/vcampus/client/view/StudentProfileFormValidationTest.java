@@ -72,6 +72,25 @@ class StudentProfileFormValidationTest {
             } catch (Exception e) { throw new RuntimeException(e); }
         });
     }
+    @Test void conflictKeepsInputAndRequiresReload() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                for (Role role : new Role[] {Role.STUDENT, Role.ACADEMIC_ADMIN}) {
+                    StudentManagementPanel panel = panel(role);
+                    load(panel, "在读", "13800000000");
+                    field(panel, "phone", JTextField.class).setText("13800000001");
+                    panel.showSaveResponse(Message.response(Message.request("save", MessageType.STUDENT_UPDATE_V2, null),
+                            StatusCode.CONFLICT, "档案已变更"));
+                    assertEquals("13800000001", field(panel, "phone", JTextField.class).getText());
+                    assertFalse(field(panel, "saveButton", JButton.class).isEnabled());
+                    assertTrue(field(panel, "status", JLabel.class).getText().contains("重新查询/刷新"));
+                    load(panel, "在读", "13800000002");
+                    assertEquals("13800000002", field(panel, "phone", JTextField.class).getText());
+                    assertTrue(field(panel, "saveButton", JButton.class).isEnabled());
+                }
+            } catch (Exception failure) { throw new AssertionError(failure); }
+        });
+    }
     private static StudentManagementPanel panel(Role role) {
         return new StudentManagementPanel("127.0.0.1", 1, new Session("token", new User("student", "测试", role)));
     }

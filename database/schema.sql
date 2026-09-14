@@ -75,6 +75,15 @@ CREATE TABLE tblCourseOfferingCapacityUsage (
 -- 学籍审查与后续教务管理规划表。
 -- 账号由系统管理员开户注册或由初始化脚本预置；学生/教师账号应同步创建或绑定对应档案。
 -- 学生历史选课、首修/重修和学分通过情况由教务维护或演示数据导入，不由开户注册流程凭空生成。
+CREATE TABLE tblMajor (
+    major_id VARCHAR(32) NOT NULL,
+    major_name VARCHAR(64) NOT NULL,
+    department_name VARCHAR(64) NOT NULL,
+    active BIT NOT NULL,
+    PRIMARY KEY (major_id),
+    CONSTRAINT uk_tblMajor_name UNIQUE (major_name)
+);
+
 CREATE TABLE tblClass (
     class_id VARCHAR(32) NOT NULL,
     class_name VARCHAR(64) NOT NULL,

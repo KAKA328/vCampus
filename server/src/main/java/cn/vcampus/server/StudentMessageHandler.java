@@ -9,6 +9,8 @@ import cn.vcampus.student.StudentManagementService;
 import cn.vcampus.student.StudentQueryCommand;
 import cn.vcampus.student.StudentRecord;
 import cn.vcampus.student.StudentUpdateCommand;
+import cn.vcampus.student.StudentUpdateV2Command;
+import cn.vcampus.student.StudentProfileSnapshot;
 import cn.vcampus.user.Permission;
 import cn.vcampus.user.Session;
 import cn.vcampus.user.UserManagementService;
@@ -43,13 +45,20 @@ final class StudentMessageHandler {
                     result = query(payload(request, StudentQueryCommand.class));
                     break;
                 case STUDENT_UPDATE:
-                    result = update(payload(request, StudentUpdateCommand.class));
+                    StudentUpdateCommand legacy = payload(request, StudentUpdateCommand.class);
+                    result = update(legacy.getToken(), legacy.getRecord(), null, true);
+                    break;
+                case STUDENT_UPDATE_V2:
+                    StudentUpdateV2Command update = payload(request, StudentUpdateV2Command.class);
+                    update.validate();
+                    result = update(update.getToken(), update.getRecord(), update.getExpected(), false);
                     break;
                 default:
                     return Message.response(request, StatusCode.NOT_FOUND,
                             "student handler does not support this message");
             }
-            return Message.response(request, result.getStatus(), result.getData());
+            return Message.response(request, result.getStatus(), result.getStatus() == StatusCode.OK
+                    ? result.getData() : result.getMessage());
         } catch (IllegalArgumentException invalidPayload) {
             return Message.response(request, StatusCode.BAD_REQUEST, invalidPayload.getMessage());
         }
@@ -90,8 +99,9 @@ final class StudentMessageHandler {
         return record;
     }
 
-    private ServiceResult<StudentRecord> update(StudentUpdateCommand command) {
-        ServiceResult<Session> scope = authorize(command.getToken(), Permission.STUDENT_READ);
+    private ServiceResult<StudentRecord> update(String token, StudentRecord record,
+            StudentRecord expected, boolean legacy) {
+        ServiceResult<Session> scope = authorize(token, Permission.STUDENT_READ);
         if (scope.getStatus() != StatusCode.OK) {
             return ServiceResult.failure(scope.getStatus(), scope.getMessage());
         }
@@ -99,35 +109,49 @@ final class StudentMessageHandler {
         if (role == Role.TEACHER) {
             return ServiceResult.failure(StatusCode.FORBIDDEN, "teachers cannot update student profiles");
         }
-        StudentRecord record = command.getRecord();
         if (record == null) return ServiceResult.failure(StatusCode.BAD_REQUEST, "学生档案不能为空");
         if (role == Role.STUDENT) {
             ServiceResult<StudentRecord> existing = students.findById(record.getStudentId());
             if (existing.getStatus() != StatusCode.OK) {
                 return existing;
             }
-            if (!owns(scope.getData(), existing.getData()) || !contactOnly(existing.getData(), record)) {
+            if (!owns(scope.getData(), existing.getData())) {
+                return ServiceResult.failure(StatusCode.FORBIDDEN, "student update scope denied");
+            }
+            if (!legacy && !StudentProfileSnapshot.matches(existing.getData(), expected)) return staleProfile();
+            if (!contactOnly(existing.getData(), record)) {
                 return ServiceResult.failure(StatusCode.FORBIDDEN, "student update scope denied");
             }
             cn.vcampus.student.StudentProfileValidation.contacts(record.getPhone(), record.getEmail());
+            if (legacy) return legacyUpdate();
             return students.updateContacts(scope.getData().getUser().getUserId(),
-                    existing.getData(), record.getPhone(), record.getEmail());
+                    expected, record.getPhone(), record.getEmail());
         } else {
             ServiceResult<Boolean> writePermission = users.authorize(
-                    command.getToken(), Permission.STUDENT_WRITE.getCode());
+                    token, Permission.STUDENT_WRITE.getCode());
             if (writePermission.getStatus() != StatusCode.OK) {
                 return ServiceResult.failure(writePermission.getStatus(), writePermission.getMessage());
             }
             cn.vcampus.student.StudentProfileValidation.profile(record);
             ServiceResult<StudentRecord> existing = students.findById(record.getStudentId());
             if (existing.getStatus() != StatusCode.OK && existing.getStatus() != StatusCode.NOT_FOUND) return existing;
+            if (!legacy && !StudentProfileSnapshot.matches(existing.getData(), expected)) return staleProfile();
             String oldStatus = existing.getStatus() == StatusCode.OK ? existing.getData().getStatus() : null;
             if (!equals(oldStatus, record.getStatus())
                     && ("毕业".equals(oldStatus) || "毕业".equals(record.getStatus()))) {
                 return ServiceResult.failure(StatusCode.FORBIDDEN, "毕业状态须通过教务毕业管理办理");
             }
-            return students.saveIfUnchanged(record, existing.getStatus() == StatusCode.OK ? existing.getData() : null);
+            if (legacy && existing.getStatus() == StatusCode.OK) return legacyUpdate();
+            return students.saveIfUnchanged(record, expected);
         }
+    }
+
+    private static ServiceResult<StudentRecord> staleProfile() {
+        return ServiceResult.failure(StatusCode.CONFLICT, "档案已被修改，请重新加载档案后再保存");
+    }
+
+    private static ServiceResult<StudentRecord> legacyUpdate() {
+        return ServiceResult.failure(StatusCode.CONFLICT, "当前客户端缺少档案快照，请升级客户端并重新加载档案后再保存");
     }
 
     private ServiceResult<Session> authorize(String token, Permission permission) {

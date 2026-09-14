@@ -45,6 +45,13 @@ public final class RemoteStudentService implements Closeable {
         return send(MessageType.STUDENT_UPDATE, new StudentUpdateCommand(token, record));
     }
 
+    /** Sends the original query snapshot without replacing it with freshly fetched server data. */
+    public Message save(String token, StudentRecord record, StudentRecord expected)
+            throws IOException, ClassNotFoundException {
+        return send(MessageType.STUDENT_UPDATE_V2,
+                new cn.vcampus.student.StudentUpdateV2Command(token, record, expected));
+    }
+
     public Message academicQuery(String token, StudentAcademicQueryV1Command.QueryType queryType)
             throws IOException, ClassNotFoundException {
         return send(MessageType.STUDENT_ACADEMIC_QUERY_V1,
@@ -54,6 +61,11 @@ public final class RemoteStudentService implements Closeable {
     public Message currentTeacher(String token) throws IOException, ClassNotFoundException {
         return send(MessageType.TEACHER_SELF_QUERY_V1,
                 new cn.vcampus.student.TeacherSelfQueryV1Command(token));
+    }
+
+    public Message activeMajors(String token) throws IOException, ClassNotFoundException {
+        return send(MessageType.STUDENT_MAJOR_DIRECTORY_QUERY_V1,
+                new cn.vcampus.student.MajorDirectoryQueryV1Command(token));
     }
 
     public Message administer(cn.vcampus.student.AcademicAdminCommandV1 command)
