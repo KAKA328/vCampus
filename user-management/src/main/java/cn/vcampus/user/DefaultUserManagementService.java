@@ -114,14 +114,17 @@ public final class DefaultUserManagementService implements UserManagementService
         if (current.getStatus() != StatusCode.OK) {
             return ServiceResult.failure(current.getStatus(), current.getMessage());
         }
-        UserAccount target = users.findById(command.getUserId());
-        if (target == null) {
-            return ServiceResult.failure(StatusCode.NOT_FOUND, "user not found");
-        }
-        if (!command.isActive() && isLastActiveAdministrator(target)) {
-            return ServiceResult.failure(StatusCode.CONFLICT, "cannot disable the last active administrator");
-        }
-        if (!users.setActive(command.getUserId(), command.isActive())) {
+        if (!command.isActive()) {
+            AccountDeactivationResult deactivation = users
+                    .deactivateByIdIfNotLastActiveAdministrator(command.getUserId());
+            if (deactivation == AccountDeactivationResult.NOT_FOUND) {
+                return ServiceResult.failure(StatusCode.NOT_FOUND, "user not found");
+            }
+            if (deactivation == AccountDeactivationResult.LAST_ACTIVE_ADMINISTRATOR) {
+                return ServiceResult.failure(StatusCode.CONFLICT,
+                        "cannot disable the last active administrator");
+            }
+        } else if (!users.setActive(command.getUserId(), true)) {
             return ServiceResult.failure(StatusCode.NOT_FOUND, "user not found");
         }
         if (!command.isActive()) {
@@ -359,12 +362,14 @@ public final class DefaultUserManagementService implements UserManagementService
         boolean self = session.getUser().getUserId().equals(userId);
         boolean admin = permissionPolicy.isAllowed(session.getUser().getRole(), Permission.USER_MANAGE);
         if (!self && !admin) return ServiceResult.failure(StatusCode.UNAUTHORIZED, "invalid session");
-        UserAccount target = users.findById(userId);
-        if (target == null) return ServiceResult.failure(StatusCode.NOT_FOUND, "user not found");
-        if (isLastActiveAdministrator(target)) {
-            return ServiceResult.failure(StatusCode.CONFLICT, "cannot disable the last active administrator");
+        AccountDeactivationResult deactivation = users.deactivateByIdIfNotLastActiveAdministrator(userId);
+        if (deactivation == AccountDeactivationResult.NOT_FOUND) {
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "user not found");
         }
-        if (!users.deactivateById(userId)) return ServiceResult.failure(StatusCode.NOT_FOUND, "user not found");
+        if (deactivation == AccountDeactivationResult.LAST_ACTIVE_ADMINISTRATOR) {
+            return ServiceResult.failure(StatusCode.CONFLICT,
+                    "cannot disable the last active administrator");
+        }
         sessions.invalidateUser(userId);
         auditLog.record(new AuditEvent(session.getUser().getUserId(), "UNREGISTER_USER", "USER", userId, Instant.now()));
         return ServiceResult.ok(null);
@@ -434,20 +439,6 @@ public final class DefaultUserManagementService implements UserManagementService
             return "账号已绑定其他档案";
         }
         return "档案绑定失败";
-    }
-
-    private int activeAdminCount() {
-        int count = 0;
-        for (UserAccount account : users.findAll()) {
-            if (account.isActive() && account.getUser().getRole() == Role.ADMIN) count++;
-        }
-        return count;
-    }
-
-    private boolean isLastActiveAdministrator(UserAccount account) {
-        return account.isActive()
-                && account.getUser().getRole() == Role.ADMIN
-                && activeAdminCount() <= 1;
     }
 
     private void rollbackCreatedAccount(String userId, RuntimeException cause) {

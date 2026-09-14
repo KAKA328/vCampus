@@ -6,6 +6,11 @@ import cn.vcampus.common.StatusCode;
 import cn.vcampus.common.User;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -46,6 +51,46 @@ class UserRepositoryBackedServiceTest {
 
         assertEquals(StatusCode.CONFLICT, result.getStatus());
         assertEquals(StatusCode.OK, service.login(admin).getStatus());
+    }
+
+    @Test
+    void concurrentServicesCannotDisableAllActiveAdministrators() throws Exception {
+        InMemoryUserRepository storage = new InMemoryUserRepository();
+        DefaultUserManagementService bootstrap = new DefaultUserManagementService(
+                storage, new SessionManager(), new InMemoryAuditLogRepository());
+        UserCredentials firstAdmin = new UserCredentials(
+                "concurrent_admin_1", "Admin123", "并发管理员一", Role.ADMIN.name());
+        UserCredentials secondAdmin = new UserCredentials(
+                "concurrent_admin_2", "Admin123", "并发管理员二", Role.ADMIN.name());
+        bootstrap.provisionAccount(firstAdmin);
+        bootstrap.provisionAccount(secondAdmin);
+
+        BarrierUserRepository users = new BarrierUserRepository(storage, 2);
+        DefaultUserManagementService firstService = new DefaultUserManagementService(
+                users, new SessionManager(), new InMemoryAuditLogRepository());
+        DefaultUserManagementService secondService = new DefaultUserManagementService(
+                users, new SessionManager(), new InMemoryAuditLogRepository());
+        Session firstSession = firstService.login(firstAdmin).getData();
+        Session secondSession = secondService.login(secondAdmin).getData();
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<ServiceResult<Void>> first = executor.submit(() -> firstService.setAccountActive(
+                    new UserStatusCommand(firstSession.getToken(), firstAdmin.getUserId(), false)));
+            Future<ServiceResult<Void>> second = executor.submit(() -> secondService.setAccountActive(
+                    new UserStatusCommand(secondSession.getToken(), secondAdmin.getUserId(), false)));
+
+            ServiceResult<Void> firstResult = first.get(2, TimeUnit.SECONDS);
+            ServiceResult<Void> secondResult = second.get(2, TimeUnit.SECONDS);
+
+            assertEquals(1, countActiveAdministrators(storage));
+            assertTrue((firstResult.getStatus() == StatusCode.OK
+                    && secondResult.getStatus() == StatusCode.CONFLICT)
+                    || (firstResult.getStatus() == StatusCode.CONFLICT
+                    && secondResult.getStatus() == StatusCode.OK));
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @Test
@@ -453,5 +498,75 @@ class UserRepositoryBackedServiceTest {
                 new PasswordResetRequestCommand("reset_duplicate", "忘记密码", "13800000000")).getStatus());
         assertEquals(StatusCode.CONFLICT, service.requestPasswordReset(
                 new PasswordResetRequestCommand("reset_duplicate", "再次申请", "13800000000")).getStatus());
+    }
+
+    private static int countActiveAdministrators(UserRepository users) {
+        int count = 0;
+        for (UserAccount account : users.findAll()) {
+            if (account.isActive() && account.getUser().getRole() == Role.ADMIN) count++;
+        }
+        return count;
+    }
+
+    private static final class BarrierUserRepository implements UserRepository {
+        private final UserRepository delegate;
+        private final CountDownLatch checksStarted;
+        private final CountDownLatch releaseChecks = new CountDownLatch(1);
+
+        private BarrierUserRepository(UserRepository delegate, int expectedChecks) {
+            this.delegate = delegate;
+            this.checksStarted = new CountDownLatch(expectedChecks);
+        }
+
+        @Override public boolean create(UserAccount account) { return delegate.create(account); }
+
+        @Override public UserAccount findById(String userId) { return delegate.findById(userId); }
+
+        @Override public boolean deleteById(String userId) { return delegate.deleteById(userId); }
+
+        @Override public boolean deactivateById(String userId) { return delegate.deactivateById(userId); }
+
+        @Override public AccountDeactivationResult deactivateByIdIfNotLastActiveAdministrator(String userId) {
+            awaitConcurrentAccess();
+            return delegate.deactivateByIdIfNotLastActiveAdministrator(userId);
+        }
+
+        @Override public boolean setActive(String userId, boolean active) {
+            return delegate.setActive(userId, active);
+        }
+
+        @Override public boolean updatePasswordHash(String userId, String passwordHash) {
+            return delegate.updatePasswordHash(userId, passwordHash);
+        }
+
+        @Override public boolean updatePasswordHash(String userId, String passwordHash,
+                                                    boolean forcePasswordChange) {
+            return delegate.updatePasswordHash(userId, passwordHash, forcePasswordChange);
+        }
+
+        @Override public boolean changeRole(String userId, Role role) {
+            return delegate.changeRole(userId, role);
+        }
+
+        @Override public List<UserAccount> findAll() {
+            awaitConcurrentAccess();
+            return delegate.findAll();
+        }
+
+        private void awaitConcurrentAccess() {
+            checksStarted.countDown();
+            try {
+                if (!checksStarted.await(2, TimeUnit.SECONDS)) {
+                    throw new AssertionError("concurrent admin operations did not start");
+                }
+                releaseChecks.countDown();
+                if (!releaseChecks.await(2, TimeUnit.SECONDS)) {
+                    throw new AssertionError("concurrent admin operations were not released");
+                }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError("concurrent admin operation was interrupted", interrupted);
+            }
+        }
     }
 }
