@@ -260,6 +260,8 @@ public final class MainFrame extends JFrame {
         if (storePanel == null) {
             storePanel = new StorePanel(host, port, session, mode);
             storePanels.put(mode, storePanel);
+        } else {
+            storePanel.refreshWalletOnEntry();
         }
         return storePanel;
     }

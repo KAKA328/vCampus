@@ -174,6 +174,10 @@ public final class StorePanel extends JPanel {
     private final JButton allOrdersButton = new JButton("刷新全部订单");
 
     private int activeMutationRequests;
+    /** 钱包只读请求代次，防止跨模块付款前的迟到响应覆盖新余额或流水。 */
+    private long balanceRequestVersion;
+    /** 流水刷新独立计数，所有代次只在 Swing 事件线程访问。 */
+    private long ledgerRequestVersion;
     private boolean hotViewVisible;
     private boolean inactiveViewVisible;// 管理端「含下架」视图开关；与热销视图互斥
     private int initialProductRetryAttempts = 1;
@@ -1546,7 +1550,16 @@ public final class StorePanel extends JPanel {
     }
 
     private void loadBalance() {
-        runReadRequest("正在查询余额…", service -> service.balance(session.getToken()), this::showBalance);
+        final long version = ++balanceRequestVersion;
+        runReadRequest("正在查询余额…", service -> service.balance(session.getToken()), response -> {
+            if (version == balanceRequestVersion) showBalance(response);
+        });
+    }
+
+    /** 从其他模块返回缓存商店页时重查共享钱包；不重建商品页、不新增写接口。 */
+    void refreshWalletOnEntry() {
+        if (mode == Mode.CONSUMER) loadLedger();
+        else loadBalance();
     }
 
     private void showBalance(Message response) {
@@ -1560,7 +1573,12 @@ public final class StorePanel extends JPanel {
     }
 
     private void loadLedger() {
-        runReadRequest("正在查询钱包流水…", service -> service.ledger(session.getToken()), this::showLedger);
+        // 图书馆赔偿可在本页缓存期间改变同一个账户，刷新流水也必须刷新页头余额。
+        loadBalance();
+        final long version = ++ledgerRequestVersion;
+        runReadRequest("正在查询钱包流水…", service -> service.ledger(session.getToken()), response -> {
+            if (version == ledgerRequestVersion) showLedger(response);
+        });
     }
 
     private void showLedger(Message response) {
