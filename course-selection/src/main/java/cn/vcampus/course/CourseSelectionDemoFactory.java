@@ -157,14 +157,23 @@ public final class CourseSelectionDemoFactory {
         return new CourseOffering(offeringId, courseId, DEMO_TERM, teacherId, schedule, location,
                 requiredCapacity, electiveCapacity, crossMajorCapacity, CourseOfferingStatus.OPEN)
                 .withMeetingSchedule(new CourseSchedule(Arrays.asList(
-                        new CourseMeeting(day, startPeriod, endPeriod, location))));
+                        new CourseMeeting(day, startPeriod, endPeriod, location))))
+                .withTeacherName(demoTeacherName(teacherId));
     }
 
     private static CourseOffering closedOffering(String offeringId, String courseId, String teacherId,
             String schedule, String location, DayOfWeek day, int startPeriod, int endPeriod) {
         return new CourseOffering(offeringId, courseId, DEMO_TERM, teacherId, schedule, location,
                 30, 10, 5, CourseOfferingStatus.DRAFT).withMeetingSchedule(new CourseSchedule(
-                        Arrays.asList(new CourseMeeting(day, startPeriod, endPeriod, location))));
+                        Arrays.asList(new CourseMeeting(day, startPeriod, endPeriod, location))))
+                .withTeacherName(demoTeacherName(teacherId));
+    }
+
+    private static String demoTeacherName(String teacherId) {
+        if ("教师001".equals(teacherId)) return "李明远";
+        if ("教师002".equals(teacherId)) return "周雨桐";
+        if ("教师003".equals(teacherId)) return "陈思涵";
+        return teacherId;
     }
 
     /** 预置一份待审核成绩和一份已退回草稿，覆盖教师与教务两端的完整联调。 */

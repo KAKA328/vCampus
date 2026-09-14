@@ -8,6 +8,7 @@ import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class DefaultCourseOfferingCapacityServiceTest {
@@ -72,6 +73,28 @@ class DefaultCourseOfferingCapacityServiceTest {
 
         assertEquals(StatusCode.BAD_REQUEST, service.snapshotFor(" ").getStatus());
         assertEquals(StatusCode.NOT_FOUND, service.snapshotFor("UNKNOWN").getStatus());
+    }
+
+    @Test
+    void calculatesManyOfferingSnapshotsWithOneBatchRecordLookup() {
+        CourseOffering first = offering("OFFER-001", 2, 1, 1);
+        CourseOffering second = offering("OFFER-002", 1, 2, 1);
+        DefaultCourseOfferingCapacityService service = service(Arrays.asList(first, second),
+                Arrays.asList(
+                        record("RECORD-001", "STUDENT-001", "OFFER-001",
+                                SelectionType.REQUIRED),
+                        record("RECORD-002", "STUDENT-002", "OFFER-002",
+                                SelectionType.ELECTIVE),
+                        record("RECORD-003", "STUDENT-003", "OFFER-002",
+                                SelectionType.RETAKE)));
+
+        ServiceResult<Map<String, CourseOfferingCapacitySnapshot>> result =
+                service.snapshotForOfferings(Arrays.asList(first, second));
+
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals(1, result.getData().get("OFFER-001").getRequiredUsage().getUsedCapacity());
+        assertEquals(1, result.getData().get("OFFER-002").getRequiredUsage().getUsedCapacity());
+        assertEquals(1, result.getData().get("OFFER-002").getElectiveUsage().getUsedCapacity());
     }
 
     private static DefaultCourseOfferingCapacityService service(

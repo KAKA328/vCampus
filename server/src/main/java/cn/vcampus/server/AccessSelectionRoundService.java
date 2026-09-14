@@ -149,6 +149,10 @@ public final class AccessSelectionRoundService implements SelectionRoundService 
         }
         ServiceResult<SelectionRound> existing = findById(normalizedRoundId);
         if (existing.getStatus() != StatusCode.OK) return existing;
+        if (existing.getData().getStatus() == SelectionRoundStatus.OPEN) {
+            return ServiceResult.failure(StatusCode.CONFLICT,
+                    "enabled selection round must be disabled before changing time");
+        }
         final SelectionRound changed;
         try {
             changed = existing.getData().withTimeWindow(startsAt, endsAt);

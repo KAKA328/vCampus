@@ -116,21 +116,66 @@ public final class AccessCourseCatalogService implements CourseCatalogService {
         if (existing.getStatus() != StatusCode.OK) {
             return existing;
         }
-        final Course changed;
         try {
-            changed = existing.getData().withDetails(name, credits);
+            return updateDetails(normalizedCourseId,
+                    existing.getData().withDetails(name, credits));
         } catch (IllegalArgumentException invalid) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, invalid.getMessage());
         }
+    }
 
-        String sql = "UPDATE tblCourse SET course_name=?,credits=? WHERE course_id=?";
-        try (Connection connection = open();
-                PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, changed.getName());
-            statement.setInt(2, changed.getCredits());
-            statement.setString(3, changed.getCourseId());
-            return statement.executeUpdate() == 1 ? ServiceResult.ok(changed)
-                    : ServiceResult.<Course>failure(StatusCode.NOT_FOUND, "course not found");
+    @Override
+    public synchronized ServiceResult<Course> updateDetails(String originalCourseId, Course course) {
+        String normalizedOriginalId = normalize(originalCourseId);
+        if (normalizedOriginalId == null || course == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "originalCourseId and course must not be null");
+        }
+        ServiceResult<Course> existing = findById(normalizedOriginalId);
+        if (existing.getStatus() != StatusCode.OK) {
+            return existing;
+        }
+        if (!normalizedOriginalId.equals(course.getCourseId())) {
+            ServiceResult<Course> duplicate = findById(course.getCourseId());
+            if (duplicate.getStatus() == StatusCode.OK) {
+                return ServiceResult.failure(StatusCode.CONFLICT, "course already exists");
+            }
+            if (duplicate.getStatus() != StatusCode.NOT_FOUND) {
+                return ServiceResult.failure(duplicate.getStatus(), duplicate.getMessage());
+            }
+        }
+
+        String sql = "UPDATE tblCourse SET course_id=?,course_name=?,credits=?,status=? WHERE course_id=?";
+        try (Connection connection = open()) {
+            connection.setAutoCommit(false);
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                if (!normalizedOriginalId.equals(course.getCourseId())
+                        && hasCourseReferences(connection, normalizedOriginalId)) {
+                    rollback(connection);
+                    return ServiceResult.failure(StatusCode.CONFLICT,
+                            "课程已有教学、培养方案或成绩关联，不能修改课程编号");
+                }
+                statement.setString(1, course.getCourseId());
+                statement.setString(2, course.getName());
+                statement.setInt(3, course.getCredits());
+                statement.setString(4, course.getStatus().name());
+                statement.setString(5, normalizedOriginalId);
+                if (statement.executeUpdate() != 1) {
+                    rollback(connection);
+                    return ServiceResult.failure(StatusCode.NOT_FOUND, "course not found");
+                }
+                updateCourseReference(connection, "tblCourseOffering", normalizedOriginalId,
+                        course.getCourseId());
+                updateCourseReference(connection, "tblTrainingPlanCourse", normalizedOriginalId,
+                        course.getCourseId());
+                updateCourseReference(connection, "tblCourseResult", normalizedOriginalId,
+                        course.getCourseId());
+                connection.commit();
+                return ServiceResult.ok(course);
+            } catch (SQLException failure) {
+                rollback(connection);
+                return databaseFailure(failure);
+            }
         } catch (SQLException failure) {
             return databaseFailure(failure);
         }
@@ -198,6 +243,53 @@ public final class AccessCourseCatalogService implements CourseCatalogService {
     private Connection open() throws SQLException {
         return DriverManager.getConnection("jdbc:ucanaccess://" + databasePath
                 + ";immediatelyReleaseResources=true");
+    }
+
+    /** 更新引用课程编号的表；精简测试数据库可能未创建所有关联表。 */
+    private static void updateCourseReference(Connection connection, String tableName,
+            String originalCourseId, String updatedCourseId) throws SQLException {
+        if (!tableExists(connection, tableName)) return;
+        String sql = "UPDATE " + tableName + " SET course_id=? WHERE course_id=?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, updatedCourseId);
+            statement.setString(2, originalCourseId);
+            statement.executeUpdate();
+        }
+    }
+
+    private static boolean tableExists(Connection connection, String tableName) throws SQLException {
+        try (ResultSet tables = connection.getMetaData().getTables(null, null, tableName,
+                new String[] { "TABLE" })) {
+            return tables.next();
+        }
+    }
+
+    /** 编号一旦被教学、培养或成绩数据引用，禁止重命名以保留历史业务语义。 */
+    private static boolean hasCourseReferences(Connection connection, String courseId)
+            throws SQLException {
+        return hasCourseRows(connection, "tblCourseOffering", courseId)
+                || hasCourseRows(connection, "tblTrainingPlanCourse", courseId)
+                || hasCourseRows(connection, "tblCourseResult", courseId);
+    }
+
+    private static boolean hasCourseRows(Connection connection, String tableName, String courseId)
+            throws SQLException {
+        if (!tableExists(connection, tableName)) return false;
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT * FROM " + tableName + " WHERE course_id=?")) {
+            statement.setString(1, courseId);
+            try (ResultSet results = statement.executeQuery()) {
+                return results.next();
+            }
+        }
+    }
+
+    private static void rollback(Connection connection) {
+        try {
+            connection.rollback();
+        } catch (SQLException ignored) {
+            // 原始数据库异常会作为本次操作失败的原因返回。
+        }
     }
 
     private static String normalize(String value) {

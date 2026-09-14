@@ -14,6 +14,7 @@ import cn.vcampus.course.CourseSelectionRecord;
 import cn.vcampus.course.CourseGradeDraftV2Command;
 import cn.vcampus.course.CourseGradeImportV2Command;
 import cn.vcampus.course.CourseGradeReviewV2Command;
+import cn.vcampus.course.CourseTeacherDirectoryV1Command;
 import cn.vcampus.course.CourseTeachingQueryV2Command;
 import cn.vcampus.course.GradeSubmissionStatus;
 import cn.vcampus.course.GradeSubmissionAuditAction;
@@ -52,6 +53,7 @@ class CourseTeachingQueryMessageHandlerTest {
     private Session academicAdmin;
     private InMemoryAcademicReviewService formalResults;
     private GradeSubmissionService gradeSubmissions;
+    private TeacherProfileService teachers;
 
     @BeforeEach
     void setUp() {
@@ -76,7 +78,7 @@ class CourseTeachingQueryMessageHandlerTest {
         studentRepository.save(new StudentRecord("STU-002", "student_002", "李四", "女", "计算机学院",
                 "软件工程", "SE2023-01", 2023, "在读", "", ""));
 
-        TeacherProfileService teachers = new DefaultTeacherProfileService(
+        teachers = new DefaultTeacherProfileService(
                 new InMemoryTeacherRepository());
         teachers.save(new TeacherProfile("教师001", "teacher_001", "王老师", "计算机学院", "讲师", true));
         teachers.save(new TeacherProfile("教师002", "teacher_002", "赵老师", "计算机学院", "讲师", true));
@@ -101,6 +103,30 @@ class CourseTeachingQueryMessageHandlerTest {
         TeachingOffering teachingOffering = (TeachingOffering) offerings.get(0);
         assertEquals("OFFER-JAVA-01", teachingOffering.getOffering().getOfferingId());
         assertEquals("Java 程序设计", teachingOffering.getCourse().getName());
+    }
+
+    /** 教学班编辑依赖此目录；仅教务可查询，且停用教师不能出现在可选项中。 */
+    @Test
+    void academicAdminCanLoadOnlyActiveTeachersForOfferingEditor() {
+        teachers.save(new TeacherProfile("教师002", "teacher_002", "赵老师", "计算机学院", "讲师", false));
+
+        Message response = handler.handle(Message.request("active-teachers",
+                MessageType.COURSE_TEACHER_DIRECTORY_V1,
+                new CourseTeacherDirectoryV1Command(academicAdmin.getToken())));
+
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        List<?> profiles = (List<?>) response.getPayload();
+        assertEquals(1, profiles.size());
+        assertEquals("教师001", ((TeacherProfile) profiles.get(0)).getTeacherId());
+    }
+
+    @Test
+    void studentCannotLoadTeacherDirectoryForOfferingEditor() {
+        Message response = handler.handle(Message.request("active-teachers-forbidden",
+                MessageType.COURSE_TEACHER_DIRECTORY_V1,
+                new CourseTeacherDirectoryV1Command(student.getToken())));
+
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
     }
 
     @Test

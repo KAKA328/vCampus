@@ -23,7 +23,7 @@ class MessageTest {
 
     @Test
     void messageTypesExposeUnifiedCourseManagementContract() {
-        assertEquals("COURSE_MANAGE", MessageType.valueOf("COURSE_MANAGE").name());
+        assertEquals("COURSE_MANAGE_V2", MessageType.valueOf("COURSE_MANAGE_V2").name());
     }
 
     @Test

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
+import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
@@ -92,6 +93,43 @@ class InMemoryCourseOfferingServiceTest {
     }
 
     @Test
+    void replacesStructuredScheduleAndRejectsEmptySchedule() {
+        InMemoryCourseOfferingService service = new InMemoryCourseOfferingService(Arrays.asList(
+                offering("OFFER-001", "CS101", CourseOfferingStatus.DRAFT, 50, 20, 10)));
+        CourseSchedule schedule = new CourseSchedule(Arrays.asList(
+                new CourseMeeting(DayOfWeek.TUESDAY, 3, 4, 1, 8, "教学楼 B301"),
+                new CourseMeeting(DayOfWeek.THURSDAY, 5, 6, 9, 16, "教学楼 B301")));
+
+        ServiceResult<CourseOffering> result = service.updateSchedule("OFFER-001",
+                "1-8周 星期二 第3-4节；9-16周 星期四 第5-6节", schedule);
+
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals(2, result.getData().getMeetingSchedule().getMeetings().size());
+        assertEquals(DayOfWeek.TUESDAY,
+                result.getData().getMeetingSchedule().getMeetings().get(0).getDayOfWeek());
+        assertEquals(StatusCode.BAD_REQUEST, service.updateSchedule("OFFER-001", "未排课",
+                CourseSchedule.empty()).getStatus());
+    }
+
+    @Test
+    void updatesOfferingDetailsAsOneOperation() {
+        InMemoryCourseOfferingService service = new InMemoryCourseOfferingService(Arrays.asList(
+                offering("OFFER-001", "CS101", CourseOfferingStatus.DRAFT, 50, 20, 10)));
+        CourseOffering changed = new CourseOffering("OFFER-001", "CS101", "2026-2027-1",
+                "TEACHER-002", "1-16周 星期二第3-4节", "教学楼 B301", 40, 30, 5,
+                CourseOfferingStatus.DRAFT).withMeetingSchedule(new CourseSchedule(Arrays.asList(
+                        new CourseMeeting(DayOfWeek.TUESDAY, 3, 4, "教学楼 B301"))));
+
+        ServiceResult<CourseOffering> result = service.updateDetails(changed);
+
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals("TEACHER-002", result.getData().getTeacherId());
+        assertEquals(75, result.getData().getTotalCapacity());
+        assertEquals(DayOfWeek.TUESDAY,
+                result.getData().getMeetingSchedule().getMeetings().get(0).getDayOfWeek());
+    }
+
+    @Test
     void rejectsInvalidOrUnknownManagementRequests() {
         InMemoryCourseOfferingService service = new InMemoryCourseOfferingService(Arrays.asList(
                 offering("OFFER-001", "CS101", CourseOfferingStatus.DRAFT, 50, 20, 10)));
@@ -154,11 +192,30 @@ class InMemoryCourseOfferingServiceTest {
                 service.changeCapacities("OFFER-001", 0, 1, 1).getStatus());
     }
 
+    @Test
+    void rejectsOfferingOrCourseIdChangeWhenSelectionRecordsExist() {
+        InMemoryCourseSelectionRecordService records = new InMemoryCourseSelectionRecordService(
+                Arrays.asList(new CourseSelectionRecord("RECORD-001", "STU-001", "OFFER-001",
+                        "ROUND-001", SelectionType.REQUIRED,
+                        LocalDateTime.of(2026, 9, 1, 8, 0))));
+        InMemoryCourseOfferingService service = new InMemoryCourseOfferingService(Arrays.asList(
+                offering("OFFER-001", "CS101", CourseOfferingStatus.OPEN, 10, 1, 1)), null,
+                records);
+
+        assertEquals(StatusCode.CONFLICT, service.updateDetails("OFFER-001",
+                offering("OFFER-009", "CS101", CourseOfferingStatus.OPEN, 10, 1, 1)).getStatus());
+        assertEquals(StatusCode.CONFLICT, service.updateDetails("OFFER-001",
+                offering("OFFER-001", "CS102", CourseOfferingStatus.OPEN, 10, 1, 1)).getStatus());
+        assertEquals(StatusCode.OK, service.findById("OFFER-001").getStatus());
+    }
+
     private static CourseOffering offering(String offeringId, String courseId,
             CourseOfferingStatus status, int requiredCapacity, int electiveCapacity,
             int crossMajorCapacity) {
         return new CourseOffering(offeringId, courseId, "2026-2027-1", "TEACHER-001",
                 "周一 1-2 节", "教学楼 A201", requiredCapacity, electiveCapacity,
-                crossMajorCapacity, status);
+                crossMajorCapacity, status).withMeetingSchedule(new CourseSchedule(
+                        Arrays.asList(new CourseMeeting(DayOfWeek.MONDAY, 1, 2,
+                                "教学楼 A201"))));
     }
 }

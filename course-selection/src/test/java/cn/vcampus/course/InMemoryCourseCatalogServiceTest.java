@@ -50,4 +50,15 @@ class InMemoryCourseCatalogServiceTest {
         assertEquals(StatusCode.NOT_FOUND, service.updateDetails("UNKNOWN", "课程", 3).getStatus());
         assertEquals(StatusCode.BAD_REQUEST, service.updateDetails("CS101", "", 3).getStatus());
     }
+
+    @Test
+    void rejectsCourseIdRenameBecauseInMemoryReferencesCannotBeMigrated() {
+        InMemoryCourseCatalogService service = new InMemoryCourseCatalogService();
+        service.create(new Course("CS101", "程序设计基础", 3));
+
+        assertEquals(StatusCode.CONFLICT, service.updateDetails("CS101",
+                new Course("CS201", "程序设计进阶", 4)).getStatus());
+        assertEquals(StatusCode.OK, service.findById("CS101").getStatus());
+        assertEquals(StatusCode.NOT_FOUND, service.findById("CS201").getStatus());
+    }
 }

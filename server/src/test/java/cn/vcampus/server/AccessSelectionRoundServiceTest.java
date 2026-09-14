@@ -138,6 +138,16 @@ class AccessSelectionRoundServiceTest {
         assertTrue(service.listOpenRounds(TERM, changedStart.plusHours(1)).getData().size() == 1);
     }
 
+    @Test
+    void requiresDisablingRoundBeforeChangingTimeWindow() {
+        assertEquals(StatusCode.OK, service.create(round("ROUND-INITIAL",
+                SelectionRoundType.INITIAL, SelectionRoundStatus.OPEN)).getStatus());
+
+        assertEquals(StatusCode.CONFLICT, service.updateTimeWindow("ROUND-INITIAL",
+                LocalDateTime.of(2026, 9, 3, 8, 0), LocalDateTime.of(2026, 9, 9, 18, 0))
+                .getStatus());
+    }
+
     private static SelectionRound round(String roundId, SelectionRoundType type,
             SelectionRoundStatus status) {
         return new SelectionRound(roundId, TERM, type, LocalDateTime.of(2026, 9, 1, 8, 0),

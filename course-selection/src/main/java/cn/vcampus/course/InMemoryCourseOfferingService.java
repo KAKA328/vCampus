@@ -72,6 +72,10 @@ public final class InMemoryCourseOfferingService implements CourseOfferingServic
         if (offering == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "offering must not be null");
         }
+        ServiceResult<Void> scheduleResult = requireStructuredSchedule(offering.getMeetingSchedule());
+        if (scheduleResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(scheduleResult.getStatus(), scheduleResult.getMessage());
+        }
         ServiceResult<Void> courseResult = requireActiveCourse(offering.getCourseId());
         if (courseResult.getStatus() != StatusCode.OK) {
             return ServiceResult.failure(courseResult.getStatus(), courseResult.getMessage());
@@ -204,6 +208,112 @@ public final class InMemoryCourseOfferingService implements CourseOfferingServic
         return ServiceResult.ok(changed);
     }
 
+    @Override
+    public synchronized ServiceResult<CourseOffering> updateSchedule(String offeringId,
+            String schedule, CourseSchedule meetingSchedule) {
+        String normalizedOfferingId = normalize(offeringId);
+        String normalizedSchedule = normalize(schedule);
+        if (normalizedOfferingId == null || normalizedSchedule == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "offeringId and schedule must not be blank");
+        }
+        ServiceResult<Void> scheduleResult = requireStructuredSchedule(meetingSchedule);
+        if (scheduleResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(scheduleResult.getStatus(), scheduleResult.getMessage());
+        }
+        CourseOffering existing = offeringsById.get(normalizedOfferingId);
+        if (existing == null) {
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "course offering not found");
+        }
+        CourseOffering changed = existing.withSchedule(normalizedSchedule, meetingSchedule);
+        offeringsById.put(normalizedOfferingId, changed);
+        return ServiceResult.ok(changed);
+    }
+
+    @Override
+    public synchronized ServiceResult<CourseOffering> updateDetails(CourseOffering offering) {
+        if (offering == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, "offering must not be null");
+        }
+        ServiceResult<Void> scheduleResult = requireStructuredSchedule(offering.getMeetingSchedule());
+        if (scheduleResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(scheduleResult.getStatus(), scheduleResult.getMessage());
+        }
+        CourseOffering existing = offeringsById.get(offering.getOfferingId());
+        if (existing == null) {
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "course offering not found");
+        }
+        if (!existing.getCourseId().equals(offering.getCourseId())
+                || !existing.getTerm().equals(offering.getTerm())) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "courseId and term cannot be changed for an existing offering");
+        }
+        ServiceResult<Void> capacityResult = verifyCapacityNotBelowActiveSelections(existing,
+                offering.getRequiredCapacity(), offering.getElectiveCapacity(),
+                offering.getCrossMajorCapacity());
+        if (capacityResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(capacityResult.getStatus(), capacityResult.getMessage());
+        }
+        CourseOffering changed = existing.withTeachingInfo(offering.getTeacherId(), offering.getLocation())
+                .withCapacities(offering.getRequiredCapacity(), offering.getElectiveCapacity(),
+                        offering.getCrossMajorCapacity())
+                .withSchedule(offering.getSchedule(), offering.getMeetingSchedule());
+        offeringsById.put(changed.getOfferingId(), changed);
+        return ServiceResult.ok(changed);
+    }
+
+    @Override
+    public synchronized ServiceResult<CourseOffering> updateDetails(String originalOfferingId,
+            CourseOffering offering) {
+        String normalizedOriginalId = normalize(originalOfferingId);
+        if (normalizedOriginalId == null || offering == null) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "originalOfferingId and offering must not be null");
+        }
+        CourseOffering existing = offeringsById.get(normalizedOriginalId);
+        if (existing == null) {
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "course offering not found");
+        }
+        if (!normalizedOriginalId.equals(offering.getOfferingId())
+                && offeringsById.containsKey(offering.getOfferingId())) {
+            return ServiceResult.failure(StatusCode.CONFLICT, "course offering already exists");
+        }
+        if (!existing.getCourseId().equals(offering.getCourseId())) {
+            ServiceResult<Void> courseResult = requireActiveCourse(offering.getCourseId());
+            if (courseResult.getStatus() != StatusCode.OK) {
+                return ServiceResult.failure(courseResult.getStatus(), courseResult.getMessage());
+            }
+        }
+        if ((!existing.getCourseId().equals(offering.getCourseId())
+                || !normalizedOriginalId.equals(offering.getOfferingId()))
+                && hasSelectionRecords(existing.getOfferingId())) {
+            return ServiceResult.failure(StatusCode.CONFLICT,
+                    "教学班已有选课记录，不能修改课程编号或教学班编号");
+        }
+        ServiceResult<Void> scheduleResult = requireStructuredSchedule(offering.getMeetingSchedule());
+        if (scheduleResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(scheduleResult.getStatus(), scheduleResult.getMessage());
+        }
+        try {
+            CourseOffering changed = new CourseOffering(offering.getOfferingId(),
+                    offering.getCourseId(), existing.getTerm(), offering.getTeacherId(),
+                    offering.getSchedule(), offering.getLocation(), offering.getRequiredCapacity(),
+                    offering.getElectiveCapacity(), offering.getCrossMajorCapacity(),
+                    existing.getStatus()).withMeetingSchedule(offering.getMeetingSchedule());
+            ServiceResult<Void> capacityResult = verifyCapacityNotBelowActiveSelections(existing,
+                    changed.getRequiredCapacity(), changed.getElectiveCapacity(),
+                    changed.getCrossMajorCapacity());
+            if (capacityResult.getStatus() != StatusCode.OK) {
+                return ServiceResult.failure(capacityResult.getStatus(), capacityResult.getMessage());
+            }
+            offeringsById.remove(normalizedOriginalId);
+            offeringsById.put(changed.getOfferingId(), changed);
+            return ServiceResult.ok(changed);
+        } catch (IllegalArgumentException invalid) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, invalid.getMessage());
+        }
+    }
+
     private ServiceResult<List<CourseOffering>> listByCourseAndStatus(String courseId,
             String term, CourseOfferingStatus requiredStatus) {
         String normalizedCourseId = normalize(courseId);
@@ -241,6 +351,14 @@ public final class InMemoryCourseOfferingService implements CourseOfferingServic
                 : ServiceResult.<Void>failure(courseResult.getStatus(), courseResult.getMessage());
     }
 
+    private static ServiceResult<Void> requireStructuredSchedule(CourseSchedule meetingSchedule) {
+        if (meetingSchedule == null || meetingSchedule.isEmpty()) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "meeting schedule must contain at least one meeting");
+        }
+        return ServiceResult.ok(null);
+    }
+
     private ServiceResult<Void> verifyCapacityNotBelowActiveSelections(CourseOffering offering,
             int requiredCapacity, int electiveCapacity, int crossMajorCapacity) {
         if (selectionRecords == null) {
@@ -268,5 +386,12 @@ public final class InMemoryCourseOfferingService implements CourseOfferingServic
                     "capacity must not be lower than active selection count");
         }
         return ServiceResult.ok(null);
+    }
+
+    /** 内存实现不迁移选课记录，存在记录时与持久化实现一样保护教学班身份。 */
+    private boolean hasSelectionRecords(String offeringId) {
+        if (selectionRecords == null) return false;
+        ServiceResult<List<CourseSelectionRecord>> records = selectionRecords.listByOffering(offeringId);
+        return records.getStatus() == StatusCode.OK && !records.getData().isEmpty();
     }
 }

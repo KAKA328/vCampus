@@ -42,6 +42,7 @@ class AccessCourseOfferingServiceTest {
             createCurrentOfferingTable(statement);
             createCurrentMeetingTable(statement);
             createCurrentSelectionRecordTable(statement);
+            createGradeSubmissionTable(statement);
             createTeacherTable(statement);
         }
         catalog = new AccessCourseCatalogService(database);
@@ -60,6 +61,7 @@ class AccessCourseOfferingServiceTest {
 
         assertEquals(StatusCode.OK, open.getStatus());
         assertEquals(1, open.getData().size());
+        assertEquals("教师一", open.getData().get(0).getTeacherDisplayName());
         assertEquals("教学楼A201", open.getData().get(0).getLocation());
         assertEquals(30, open.getData().get(0).getRequiredCapacity());
         assertEquals(2, open.getData().get(0).getMeetingSchedule().getMeetings().size());
@@ -104,6 +106,92 @@ class AccessCourseOfferingServiceTest {
         assertEquals(CourseOfferingStatus.OPEN, saved.getStatus());
         assertEquals(StatusCode.CONFLICT,
                 service.changeCapacities("OFFER-001", 0, 6, 4).getStatus());
+    }
+
+    @Test
+    void replacesStructuredScheduleAndPersistsItAfterRestart() {
+        service.create(offering("OFFER-001", CourseOfferingStatus.DRAFT));
+        CourseSchedule schedule = new CourseSchedule(Arrays.asList(
+                new CourseMeeting(DayOfWeek.TUESDAY, 3, 4, 1, 8, "教学楼B302"),
+                new CourseMeeting(DayOfWeek.THURSDAY, 5, 6, 9, 16, "教学楼B302")));
+
+        assertEquals(StatusCode.OK, service.updateSchedule("OFFER-001",
+                "1-8周 星期二第3-4节；9-16周 星期四第5-6节", schedule).getStatus());
+        AccessCourseOfferingService restarted = new AccessCourseOfferingService(
+                temporaryDirectory.resolve("course-offering-test.accdb"), catalog);
+        CourseOffering saved = restarted.findById("OFFER-001").getData();
+
+        assertEquals("1-8周 星期二第3-4节；9-16周 星期四第5-6节", saved.getSchedule());
+        assertEquals(2, saved.getMeetingSchedule().getMeetings().size());
+        assertEquals(8, saved.getMeetingSchedule().getMeetings().get(0).getEndWeek());
+        assertEquals(StatusCode.BAD_REQUEST,
+                service.updateSchedule("OFFER-001", "未排课", CourseSchedule.empty()).getStatus());
+    }
+
+    @Test
+    void updatesOfferingDetailsInOneTransaction() {
+        service.create(offering("OFFER-001", CourseOfferingStatus.DRAFT));
+        CourseOffering changed = new CourseOffering("OFFER-001", "CS101", TERM, "T002",
+                "1-16周 星期二第3-4节", "教学楼B302", 35, 15, 5,
+                CourseOfferingStatus.DRAFT).withMeetingSchedule(new CourseSchedule(Arrays.asList(
+                        new CourseMeeting(DayOfWeek.TUESDAY, 3, 4, "教学楼B302"))));
+
+        assertEquals(StatusCode.OK, service.updateDetails(changed).getStatus());
+        CourseOffering saved = service.findById("OFFER-001").getData();
+        assertEquals("T002", saved.getTeacherId());
+        assertEquals(55, saved.getTotalCapacity());
+        assertEquals(DayOfWeek.TUESDAY,
+                saved.getMeetingSchedule().getMeetings().get(0).getDayOfWeek());
+    }
+
+    @Test
+    void rejectsOfferingRenameWhenActiveSelectionsExist() {
+        service.create(offering("OFFER-001", CourseOfferingStatus.OPEN));
+        AccessCourseSelectionRecordService records = new AccessCourseSelectionRecordService(
+                temporaryDirectory.resolve("course-offering-test.accdb"), service);
+        assertEquals(StatusCode.OK, records.create(new CourseSelectionRecord("RECORD-001", "S001",
+                "OFFER-001", "ROUND-001", SelectionType.REQUIRED,
+                LocalDateTime.of(2026, 9, 1, 8, 0))).getStatus());
+        CourseOffering updated = new CourseOffering("OFFER-009", "CS101", TERM, "T002",
+                "1-16周 星期二第3-4节", "教学楼B302", 35, 15, 5,
+                CourseOfferingStatus.OPEN).withMeetingSchedule(new CourseSchedule(Arrays.asList(
+                        new CourseMeeting(DayOfWeek.TUESDAY, 3, 4, "教学楼B302"))));
+
+        assertEquals(StatusCode.CONFLICT, service.updateDetails("OFFER-001", updated).getStatus());
+        assertEquals(StatusCode.OK, service.findById("OFFER-001").getStatus());
+        assertEquals(StatusCode.NOT_FOUND, service.findById("OFFER-009").getStatus());
+        assertEquals(1, records.listActiveByOffering("OFFER-001").getData().size());
+    }
+
+    @Test
+    void rejectsTeacherChangeWhenGradeSubmissionAlreadyExists() throws Exception {
+        service.create(offering("OFFER-001", CourseOfferingStatus.DRAFT));
+        Path database = temporaryDirectory.resolve("course-offering-test.accdb");
+        try (Connection connection = DriverManager.getConnection("jdbc:ucanaccess://" + database
+                + ";immediatelyReleaseResources=true"); Statement statement = connection.createStatement()) {
+            statement.execute("INSERT INTO tblGradeSubmission(submission_id,offering_id,teacher_id) "
+                    + "VALUES('GRADE-001','OFFER-001','T001')");
+        }
+
+        assertEquals(StatusCode.CONFLICT,
+                service.updateTeachingInfo("OFFER-001", "T002", "教学楼B302").getStatus());
+        CourseOffering changed = offering("OFFER-001", "CS101", "T002", CourseOfferingStatus.DRAFT);
+        assertEquals(StatusCode.CONFLICT, service.updateDetails(changed).getStatus());
+        assertEquals("T001", service.findById("OFFER-001").getData().getTeacherId());
+    }
+
+    @Test
+    void rejectsCourseChangeWhenActiveSelectionsExist() {
+        catalog.create(new Course("CS102", "数据结构", 3));
+        service.create(offering("OFFER-001", CourseOfferingStatus.OPEN));
+        AccessCourseSelectionRecordService records = new AccessCourseSelectionRecordService(
+                temporaryDirectory.resolve("course-offering-test.accdb"), service);
+        records.create(new CourseSelectionRecord("RECORD-001", "S001", "OFFER-001", "ROUND-001",
+                SelectionType.REQUIRED, LocalDateTime.of(2026, 9, 1, 8, 0)));
+
+        CourseOffering changed = offering("OFFER-001", "CS102", CourseOfferingStatus.OPEN);
+        assertEquals(StatusCode.CONFLICT, service.updateDetails(changed).getStatus());
+        assertEquals("CS101", service.findById("OFFER-001").getData().getCourseId());
     }
 
     @Test
@@ -187,6 +275,12 @@ class AccessCourseOfferingServiceTest {
         statement.execute("CREATE TABLE tblCourseOfferingCapacityUsage ("
                 + "offering_id VARCHAR(36) NOT NULL,capacity_bucket VARCHAR(16) NOT NULL,"
                 + "used_count INTEGER NOT NULL,PRIMARY KEY (offering_id,capacity_bucket))");
+    }
+
+    private static void createGradeSubmissionTable(Statement statement) throws Exception {
+        statement.execute("CREATE TABLE tblGradeSubmission (submission_id VARCHAR(36) NOT NULL,"
+                + "offering_id VARCHAR(36) NOT NULL,teacher_id VARCHAR(32) NOT NULL,"
+                + "PRIMARY KEY (submission_id))");
     }
 
     private static void createCurrentMeetingTable(Statement statement) throws Exception {

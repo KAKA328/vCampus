@@ -88,7 +88,7 @@ class InMemorySelectionRoundServiceTest {
     }
 
     @Test
-    void updatesRoundTimeWindowWithoutChangingItsTypeOrStatus() {
+    void requiresDisablingRoundBeforeUpdatingTimeWindow() {
         SelectionRound round = round("ROUND-INITIAL", SelectionRoundType.INITIAL,
                 SelectionRoundStatus.OPEN);
         InMemorySelectionRoundService service = new InMemorySelectionRoundService(
@@ -96,6 +96,12 @@ class InMemorySelectionRoundServiceTest {
         LocalDateTime changedStart = STARTS_AT.plusDays(2);
         LocalDateTime changedEnd = ENDS_AT.plusDays(2);
 
+        ServiceResult<SelectionRound> enabledResult = service.updateTimeWindow("ROUND-INITIAL",
+                changedStart, changedEnd);
+        assertEquals(StatusCode.CONFLICT, enabledResult.getStatus());
+
+        assertEquals(StatusCode.OK, service.changeStatus("ROUND-INITIAL",
+                SelectionRoundStatus.CLOSED).getStatus());
         ServiceResult<SelectionRound> result = service.updateTimeWindow("ROUND-INITIAL",
                 changedStart, changedEnd);
 
@@ -103,7 +109,7 @@ class InMemorySelectionRoundServiceTest {
         assertEquals(changedStart, result.getData().getStartsAt());
         assertEquals(changedEnd, result.getData().getEndsAt());
         assertEquals(SelectionRoundType.INITIAL, result.getData().getType());
-        assertEquals(SelectionRoundStatus.OPEN, result.getData().getStatus());
+        assertEquals(SelectionRoundStatus.CLOSED, result.getData().getStatus());
     }
 
     @Test

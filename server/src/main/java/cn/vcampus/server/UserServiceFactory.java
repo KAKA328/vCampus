@@ -64,9 +64,9 @@ final class UserServiceFactory {
                 new UserCredentials("demo_student_retake", "Demo123", "演示重修学生", Role.STUDENT.name()),
                 new UserCredentials("demo_student_elective", "Demo123", "演示选修学生", Role.STUDENT.name()),
                 new UserCredentials("demo_student_cross", "Demo123", "演示跨专业学生", Role.STUDENT.name()),
-                new UserCredentials("demo_teacher", "Demo123", "演示任课教师一", Role.TEACHER.name()),
-                new UserCredentials("demo_teacher_002", "Demo123", "演示任课教师二", Role.TEACHER.name()),
-                new UserCredentials("demo_teacher_003", "Demo123", "演示任课教师三", Role.TEACHER.name()));
+                new UserCredentials("demo_teacher", "Demo123", "李明远", Role.TEACHER.name()),
+                new UserCredentials("demo_teacher_002", "Demo123", "周雨桐", Role.TEACHER.name()),
+                new UserCredentials("demo_teacher_003", "Demo123", "陈思涵", Role.TEACHER.name()));
         for (UserCredentials credentials : demos) {
             ServiceResult<Void> result = service.provisionAccount(credentials);
             if (result.getStatus() != StatusCode.OK && result.getStatus() != StatusCode.CONFLICT) {

@@ -72,6 +72,10 @@ public final class InMemorySelectionRoundService implements SelectionRoundServic
         if (existing == null) {
             return ServiceResult.failure(StatusCode.NOT_FOUND, "selection round not found");
         }
+        if (existing.getStatus() == SelectionRoundStatus.OPEN) {
+            return ServiceResult.failure(StatusCode.CONFLICT,
+                    "enabled selection round must be disabled before changing time");
+        }
         try {
             SelectionRound changed = existing.withTimeWindow(startsAt, endsAt);
             roundsById.put(normalizedRoundId, changed);
