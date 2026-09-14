@@ -8,6 +8,7 @@ public interface UserRepository {
     UserAccount findById(String userId);
     boolean deleteById(String userId);
     boolean deactivateById(String userId);
+    AccountDeactivationResult deactivateByIdIfNotLastActiveAdministrator(String userId);
     boolean setActive(String userId, boolean active);
     boolean updatePasswordHash(String userId, String passwordHash);
     boolean updatePasswordHash(String userId, String passwordHash, boolean forcePasswordChange);
