@@ -15,6 +15,7 @@ import cn.vcampus.course.CourseOfferingService;
 import cn.vcampus.course.CourseSelectionRecord;
 import cn.vcampus.course.CourseSelectionRecordService;
 import cn.vcampus.course.CourseSelectionQueryV2Command;
+import cn.vcampus.course.CourseSelectionPageSnapshot;
 import cn.vcampus.course.CourseSelectOfferingV2Command;
 import cn.vcampus.course.CourseSelectionService;
 import cn.vcampus.course.CourseTeachingQueryV2Command;
@@ -221,6 +222,17 @@ final class CourseMessageHandler {
         if (command.getQueryType() == CourseSelectionQueryV2Command.QueryType.AVAILABLE_OFFERINGS) {
             return courses.listAvailableOfferings(profile.getData(), command.getRoundId(),
                     LocalDateTime.now());
+        }
+        if (command.getQueryType() == CourseSelectionQueryV2Command.QueryType.COURSE_PAGE_SNAPSHOT) {
+            ServiceResult<List<cn.vcampus.course.SelectableCourseOffering>> available = courses
+                    .listAvailableOfferings(profile.getData(), command.getRoundId(),
+                            LocalDateTime.now());
+            if (available.getStatus() != StatusCode.OK) return available;
+            ServiceResult<List<cn.vcampus.course.SelectedCourseOffering>> selected = courses
+                    .listSelectedOfferings(profile.getData());
+            if (selected.getStatus() != StatusCode.OK) return selected;
+            return ServiceResult.ok(new CourseSelectionPageSnapshot(available.getData(),
+                    selected.getData()));
         }
         return courses.listSelectedOfferings(profile.getData());
     }

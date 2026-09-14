@@ -30,6 +30,7 @@ public final class RemoteCourseService implements Closeable {
     public RemoteCourseService(String host, int port) throws IOException { messages = new SocketMessageClient(host, port); }
     public Message availableRounds(String token) throws IOException, ClassNotFoundException { return send(MessageType.COURSE_SELECTION_QUERY_V2, CourseSelectionQueryV2Command.availableRounds(token)); }
     public Message availableOfferings(String token, String roundId) throws IOException, ClassNotFoundException { return send(MessageType.COURSE_SELECTION_QUERY_V2, CourseSelectionQueryV2Command.availableOfferings(token, roundId)); }
+    public Message coursePageSnapshot(String token, String roundId) throws IOException, ClassNotFoundException { return send(MessageType.COURSE_SELECTION_QUERY_V2, CourseSelectionQueryV2Command.coursePageSnapshot(token, roundId)); }
     public Message selectedOfferings(String token) throws IOException, ClassNotFoundException { return send(MessageType.COURSE_SELECTION_QUERY_V2, CourseSelectionQueryV2Command.selectedOfferings(token)); }
     public Message select(String token, String roundId, String offeringId) throws IOException, ClassNotFoundException { return send(MessageType.COURSE_SELECT_OFFERING_V2, new CourseSelectOfferingV2Command(token, roundId, offeringId)); }
     public Message drop(String token, String recordId) throws IOException, ClassNotFoundException { return send(MessageType.COURSE_DROP_RECORD_V2, new CourseDropRecordV2Command(token, recordId)); }

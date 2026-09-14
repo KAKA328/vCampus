@@ -111,6 +111,30 @@ class CourseSelectionPanelTest {
                 CourseSelectionPanel.meetingLocationSummary(offering));
     }
 
+    @Test
+    void compressesSelectedCourseScheduleInTheListAndKeepsFullDetailsForTheDetailCard() {
+        CourseOffering offering = new CourseOffering("OFFER-001", "CS101", "2026-2027-1",
+                "教师001", "1-8周，周一1-2节；9-16周，周三3-4节", "教学楼A201", 30, 5, 5,
+                CourseOfferingStatus.OPEN).withMeetingSchedule(new CourseSchedule(Arrays.asList(
+                        new CourseMeeting(DayOfWeek.MONDAY, 1, 2, 1, 8, "教学楼A201"),
+                        new CourseMeeting(DayOfWeek.WEDNESDAY, 3, 4, 9, 16, "教学楼B302"))));
+
+        assertEquals("周一1-2、周三3-4（2个时段）",
+                CourseSelectionPanel.selectedScheduleSummary(offering));
+    }
+
+    @Test
+    void givesTeachingClassNumberEnoughSpaceAndExpandsColumnsOnWideWindows() {
+        int[] compact = CourseSelectionPanel.selectedCourseColumnWidths(UiMetrics.px(880));
+        int[] wide = CourseSelectionPanel.selectedCourseColumnWidths(UiMetrics.px(1400));
+
+        assertEquals(5, compact.length);
+        assertTrue(compact[1] >= UiMetrics.px(170));
+        assertTrue(wide[0] > compact[0]);
+        assertTrue(wide[1] > compact[1]);
+        assertTrue(wide[4] > compact[4]);
+    }
+
     private static AbstractButton button(CourseSelectionPanel panel, String fieldName) throws Exception {
         Field field = CourseSelectionPanel.class.getDeclaredField(fieldName);
         field.setAccessible(true);
