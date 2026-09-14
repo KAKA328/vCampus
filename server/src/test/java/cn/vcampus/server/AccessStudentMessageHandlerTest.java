@@ -82,8 +82,9 @@ class AccessStudentMessageHandlerTest {
 
         StudentRecord changed = new StudentRecord("STU-001", "login_001", "张三", "男",
                 "计算机学院", "软件工程", "SE2023-01", 2023, "休学", "", "");
-        Message update = Message.request("update", MessageType.STUDENT_UPDATE,
-                new StudentUpdateCommand(academicAdminToken, changed));
+        StudentRecord expected = (StudentRecord) request(StudentQueryCommand.byId(academicAdminToken, "STU-001")).getPayload();
+        Message update = Message.request("update", MessageType.STUDENT_UPDATE_V2,
+                new cn.vcampus.student.StudentUpdateV2Command(academicAdminToken, changed, expected));
         assertEquals(StatusCode.OK, handler.handle(update).getStatusCode());
         assertEquals("休学", ((StudentRecord) request(
                 StudentQueryCommand.byId(academicAdminToken, "STU-001"))

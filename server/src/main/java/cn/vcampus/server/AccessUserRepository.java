@@ -2,9 +2,14 @@ package cn.vcampus.server;
 
 import cn.vcampus.common.Role;
 import cn.vcampus.common.User;
+import cn.vcampus.user.AccountDeactivationResult;
 import cn.vcampus.user.UserAccount;
 import cn.vcampus.user.UserRepository;
 import java.nio.file.Path;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.channels.OverlappingFileLockException;
+import java.nio.file.StandardOpenOption;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -14,9 +19,13 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** Access-backed user repository using parameterized JDBC statements. */
 public final class AccessUserRepository implements UserRepository {
+    private static final Map<Path, Object> ADMIN_MUTATION_LOCKS =
+            new ConcurrentHashMap<Path, Object>();
     private final Path databasePath;
 
     public AccessUserRepository(Path databasePath) {
@@ -80,6 +89,46 @@ public final class AccessUserRepository implements UserRepository {
 
     @Override public boolean deactivateById(String userId) {
         return setActive(userId, false);
+    }
+
+    @Override public AccountDeactivationResult deactivateByIdIfNotLastActiveAdministrator(String userId) {
+        Object lock = ADMIN_MUTATION_LOCKS.computeIfAbsent(databasePath, ignored -> new Object());
+        synchronized (lock) {
+            try (FileChannel lockChannel = FileChannel.open(adminLockPath(),
+                    StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+                 FileLock ignored = acquireAdminFileLock(lockChannel);
+                 Connection connection = open()) {
+                connection.setAutoCommit(false);
+                try {
+                    UserAccount target = findById(connection, userId);
+                    if (target == null) {
+                        connection.rollback();
+                        return AccountDeactivationResult.NOT_FOUND;
+                    }
+                    if (target.isActive() && target.getUser().getRole() == Role.ADMIN
+                            && activeAdministratorCount(connection) <= 1) {
+                        connection.rollback();
+                        return AccountDeactivationResult.LAST_ACTIVE_ADMINISTRATOR;
+                    }
+                    try (PreparedStatement statement = connection.prepareStatement(
+                            "UPDATE tblUser SET active=? WHERE user_id=?")) {
+                        statement.setBoolean(1, false);
+                        statement.setString(2, userId);
+                        statement.executeUpdate();
+                    }
+                    connection.commit();
+                    return AccountDeactivationResult.SUCCESS;
+                } catch (SQLException failure) {
+                    connection.rollback();
+                    throw failure;
+                }
+            } catch (SQLException | java.io.IOException | InterruptedException failure) {
+                if (failure instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+                throw new IllegalStateException("failed to atomically deactivate user account", failure);
+            }
+        }
     }
 
     @Override public boolean setActive(String userId, boolean active) {
@@ -148,5 +197,51 @@ public final class AccessUserRepository implements UserRepository {
     private Connection open() throws SQLException {
         return DriverManager.getConnection(
                 "jdbc:ucanaccess://" + databasePath + ";immediatelyReleaseResources=true");
+    }
+
+    private UserAccount findById(Connection connection, String userId) throws SQLException {
+        String sql = "SELECT user_id,password_hash,display_name,role_code,active,force_password_change,"
+                + "created_by,created_at,import_batch_id FROM tblUser WHERE user_id=?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, userId);
+            try (ResultSet rs = statement.executeQuery()) {
+                if (!rs.next()) return null;
+                User user = new User(rs.getString("user_id"), rs.getString("display_name"),
+                        Role.valueOf(rs.getString("role_code")));
+                Timestamp createdAt = rs.getTimestamp("created_at");
+                Instant createdInstant = createdAt == null ? null : createdAt.toInstant();
+                return new UserAccount(user, rs.getString("password_hash"), rs.getBoolean("active"),
+                        rs.getBoolean("force_password_change"), rs.getString("created_by"),
+                        createdInstant, rs.getString("import_batch_id"));
+            }
+        }
+    }
+
+    private int activeAdministratorCount(Connection connection) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM tblUser WHERE active=? AND role_code=?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setBoolean(1, true);
+            statement.setString(2, Role.ADMIN.name());
+            try (ResultSet rs = statement.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
+    }
+
+    private Path adminLockPath() {
+        return databasePath.resolveSibling(databasePath.getFileName().toString() + ".admin.lock");
+    }
+
+    private FileLock acquireAdminFileLock(FileChannel channel) throws java.io.IOException, InterruptedException {
+        while (true) {
+            try {
+                FileLock lock = channel.tryLock();
+                if (lock != null) return lock;
+            } catch (OverlappingFileLockException ignored) {
+                // Another service instance in this JVM currently owns the lock.
+            }
+            Thread.sleep(25L);
+        }
     }
 }

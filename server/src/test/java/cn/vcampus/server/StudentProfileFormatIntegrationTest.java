@@ -10,12 +10,12 @@ import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.*;
 
 class StudentProfileFormatIntegrationTest {
+    private StudentRepository repository;
     @TempDir Path directory;
     @Test void memoryRejectsInvalidWritesForBothRoles() throws Exception { verify(false); }
     @Test void accessRejectsInvalidWritesForBothRoles() throws Exception { verify(true); }
 
     private void verify(boolean access) throws Exception {
-        StudentRepository repository;
         if (access) {
             Class.forName("net.ucanaccess.jdbc.UcanaccessDriver");
             Path database = directory.resolve("format.accdb");
@@ -62,8 +62,9 @@ class StudentProfileFormatIntegrationTest {
         assertEquals(StatusCode.BAD_REQUEST, service.saveIfUnchanged(
                 row("学生", "男", 2026, "INVALID", null, null), repository.findById("S001")).getStatus());
     }
-    private static Message update(StudentMessageHandler handler, String token, StudentRecord row) {
-        return handler.handle(Message.request("edit", MessageType.STUDENT_UPDATE, new StudentUpdateCommand(token, row)));
+    private Message update(StudentMessageHandler handler, String token, StudentRecord row) {
+        return handler.handle(Message.request("edit", MessageType.STUDENT_UPDATE_V2,
+                new StudentUpdateV2Command(token, row, repository.findById(row.getStudentId()))));
     }
     private static String login(InMemoryUserManagementService service, String id, Role role) {
         UserCredentials credentials = new UserCredentials(id, "Demo123", "测试", role.name());

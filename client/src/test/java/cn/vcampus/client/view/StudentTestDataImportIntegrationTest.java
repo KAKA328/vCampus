@@ -36,6 +36,67 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 class StudentTestDataImportIntegrationTest {
     @TempDir Path temporaryDirectory;
 
+    @Test void defaultSeedAccountsBindAndDriveCourseSelection() throws Exception {
+        Path root = repositoryRoot();
+        Path database = temporaryDirectory.resolve("issue64.accdb");
+        Class.forName("net.ucanaccess.jdbc.UcanaccessDriver");
+        execute(database, root.resolve("database/schema.sql"), true);
+        execute(database, root.resolve("database/seed.sql"), false);
+        List<UserImportRow> rows = new UserImportFileReader().read(
+                root.resolve("test-data/默认验收库学生导入示例.csv"));
+        assertEquals(4, rows.size());
+        AccessStudentRepository students = new AccessStudentRepository(database);
+        for (UserImportRow row : rows) {
+            assertEquals(null, students.findById(row.getProfileId()).getUserId());
+        }
+        DefaultUserManagementService users = new DefaultUserManagementService(
+                new AccessUserRepository(database), new SessionManager(), new AccessAuditLogRepository(database),
+                new AccessPasswordResetApplicationRepository(database), new AccessProfileBindingRepository(database));
+        Session admin = users.login(new UserCredentials("demo_admin", "Demo123", "ignored", Role.ADMIN.name())).getData();
+        assertEquals(4, users.importUsers(admin.getToken(), rows).getData().getSuccessCount());
+        cn.vcampus.server.AccessStudentSelectionProfileProvider profiles =
+                new cn.vcampus.server.AccessStudentSelectionProfileProvider(database);
+        cn.vcampus.course.CourseCatalogService catalog = new cn.vcampus.server.AccessCourseCatalogService(database);
+        cn.vcampus.course.CourseOfferingService offerings = new cn.vcampus.server.AccessCourseOfferingService(database, catalog);
+        cn.vcampus.course.CourseSelectionRecordService records =
+                new cn.vcampus.server.AccessCourseSelectionRecordService(database, offerings);
+        cn.vcampus.course.CourseSelectionService selection = new cn.vcampus.course.DefaultCourseSelectionService(
+                catalog, new cn.vcampus.server.AccessTrainingPlanService(database, catalog),
+                new cn.vcampus.server.AccessSelectionRoundService(database), offerings, records,
+                new cn.vcampus.course.DefaultCourseOfferingCapacityService(offerings, records),
+                new cn.vcampus.course.ScheduleConflictDetector());
+        for (UserImportRow row : rows) {
+            ServiceResult<Session> login = users.login(new UserCredentials(row.getUserId(), row.getPassword(),
+                    "ignored", row.getRoleCode()));
+            assertEquals(StatusCode.OK, login.getStatus());
+            String userId = users.currentSession(login.getData().getToken()).getData().getUser().getUserId();
+            assertEquals(row.getProfileId(), students.findByUserId(userId).getStudentId());
+            cn.vcampus.course.StudentSelectionProfile profile = profiles.findByUserId(userId).getData();
+            assertNotNull(profile);
+            assertEquals(row.getProfileId(), profile.getStudentId());
+            assertEquals("计算机科学与技术", profile.getMajorName());
+            ServiceResult<?> available = selection.listAvailableOfferings(profile, "round-2026-initial", java.time.LocalDateTime.now());
+            assertEquals(StatusCode.OK, available.getStatus());
+            org.junit.jupiter.api.Assertions.assertFalse(((List<?>) available.getData()).isEmpty());
+        }
+        cn.vcampus.course.StudentSelectionProfile profile = profiles.findByUserId("student_import_01").getData();
+        ServiceResult<cn.vcampus.course.CourseSelectionRecord> selected = selection.select(
+                profile, "round-2026-initial", "offering-java-2026b", java.time.LocalDateTime.now());
+        assertEquals(StatusCode.OK, selected.getStatus(), selected.getMessage());
+        try (Connection connection = DriverManager.getConnection("jdbc:ucanaccess://" + database + ";immediatelyReleaseResources=true");
+                Statement statement = connection.createStatement()) {
+            statement.executeUpdate("UPDATE tblStudent SET status='休学' WHERE student_id='20260006'");
+        }
+        cn.vcampus.course.StudentSelectionProfile paused = profiles.findByUserId("student_import_01").getData();
+        org.junit.jupiter.api.Assertions.assertNotEquals(StatusCode.OK, selection.select(
+                paused, "round-2026-initial", "offering-net-2026a", java.time.LocalDateTime.now()).getStatus());
+        org.junit.jupiter.api.Assertions.assertNotEquals(StatusCode.OK, selection.drop(
+                paused, selected.getData().getRecordId(), java.time.LocalDateTime.now()).getStatus());
+        ServiceResult<UserImportResult> repeat = users.importUsers(admin.getToken(), rows);
+        assertEquals(0, repeat.getData().getSuccessCount());
+        assertEquals(4, repeat.getData().getFailureCount());
+    }
+
     @Test void suppliedSqlAndCsvCreateLoginReadyProfiles() throws Exception {
         Path root = repositoryRoot();
         Path database = temporaryDirectory.resolve("student-import.accdb");

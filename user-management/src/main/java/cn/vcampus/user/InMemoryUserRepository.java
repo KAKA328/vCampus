@@ -1,5 +1,6 @@
 package cn.vcampus.user;
 
+import cn.vcampus.common.Role;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,20 @@ public final class InMemoryUserRepository implements UserRepository {
 
     @Override public boolean deactivateById(String userId) {
         return setActive(userId, false);
+    }
+
+    @Override public synchronized AccountDeactivationResult deactivateByIdIfNotLastActiveAdministrator(
+            String userId) {
+        UserAccount account = accounts.get(userId);
+        if (account == null) {
+            return AccountDeactivationResult.NOT_FOUND;
+        }
+        if (account.isActive() && account.getUser().getRole() == Role.ADMIN
+                && activeAdministratorCount() <= 1) {
+            return AccountDeactivationResult.LAST_ACTIVE_ADMINISTRATOR;
+        }
+        accounts.put(userId, account.withActive(false));
+        return AccountDeactivationResult.SUCCESS;
     }
 
     @Override public boolean setActive(String userId, boolean active) {
@@ -58,5 +73,13 @@ public final class InMemoryUserRepository implements UserRepository {
 
     @Override public List<UserAccount> findAll() {
         return new ArrayList<UserAccount>(accounts.values());
+    }
+
+    private int activeAdministratorCount() {
+        int count = 0;
+        for (UserAccount account : accounts.values()) {
+            if (account.isActive() && account.getUser().getRole() == Role.ADMIN) count++;
+        }
+        return count;
     }
 }

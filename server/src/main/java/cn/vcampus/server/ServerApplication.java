@@ -58,6 +58,7 @@ public final class ServerApplication implements Closeable {
     private final StudentAcademicMessageHandler academicMessages;
     private final TeacherSelfMessageHandler teacherMessages;
     private final AcademicAdminMessageHandler adminMessages;
+    private final MajorDirectoryMessageHandler majorMessages;
     private final LibraryMessageHandler libraryMessages;
     private final ExecutorService clients = Executors.newCachedThreadPool();
     private ServerSocket serverSocket;
@@ -150,6 +151,22 @@ public final class ServerApplication implements Closeable {
             AcademicReviewService academics, TeacherProfileService teachers,
             AcademicAdminService administration, TrainingPlanService trainingPlans,
             LibraryCompensationService compensations) {
+        this(port, users, courses, catalog, offerings, selectionRounds, records, gradeSubmissions,
+                formalResults, gradeApprovals, profiles, store, students, library, teacherAccess, storeAudit,
+                academics, teachers, administration, trainingPlans, compensations,
+                cn.vcampus.student.InMemoryMajorDirectoryService.demo());
+    }
+
+    ServerApplication(int port, UserManagementService users, CourseSelectionService courses,
+            CourseCatalogService catalog, CourseOfferingService offerings,
+            SelectionRoundService selectionRounds, CourseSelectionRecordService records,
+            GradeSubmissionService gradeSubmissions, CourseResultRecordingService formalResults,
+            GradeApprovalWorkflow gradeApprovals, StudentSelectionProfileProvider profiles,
+            StoreService store, StudentManagementService students, LibraryService library,
+            TeacherStudentAccessPolicy teacherAccess, AuditLogRepository storeAudit,
+            AcademicReviewService academics, TeacherProfileService teachers,
+            AcademicAdminService administration, TrainingPlanService trainingPlans,
+            LibraryCompensationService compensations, cn.vcampus.student.MajorDirectoryService majors) {
         InMemoryAcademicReviewService fallbackAcademics = null;
         if (academics == null) {
             fallbackAcademics = new InMemoryAcademicReviewService();
@@ -170,12 +187,13 @@ public final class ServerApplication implements Closeable {
         this.userMessages = new UserMessageHandler(users);
         this.courseMessages = new CourseMessageHandler(courses, catalog, offerings, selectionRounds,
                 records, gradeSubmissions, formalResults, gradeApprovals, trainingPlans, profiles, users,
-                teachers, students);
+                teachers, students, majors);
         this.storeMessages = new StoreMessageHandler(store, users, storeAudit);
         this.studentMessages = new StudentMessageHandler(students, users, teacherAccess);
         this.academicMessages = new StudentAcademicMessageHandler(students, academics, users);
         this.teacherMessages = new TeacherSelfMessageHandler(teachers, users);
         this.adminMessages = new AcademicAdminMessageHandler(administration, users);
+        this.majorMessages = new MajorDirectoryMessageHandler(majors, users);
         this.libraryMessages = new LibraryMessageHandler(library, users, compensations);
     }
 
@@ -231,6 +249,9 @@ public final class ServerApplication implements Closeable {
     }
 
     Message dispatch(Message request) {
+        if (request != null && request.getType() == MessageType.STUDENT_MAJOR_DIRECTORY_QUERY_V1) {
+            return majorMessages.handle(request);
+        }
         if (request != null && request.getType() == MessageType.ACADEMIC_ADMIN_V1) {
             return adminMessages.handle(request);
         }
@@ -287,7 +308,8 @@ public final class ServerApplication implements Closeable {
     }
 
     private static boolean isStudentMessage(MessageType type) {
-        return type == MessageType.STUDENT_QUERY || type == MessageType.STUDENT_UPDATE;
+        return type == MessageType.STUDENT_QUERY || type == MessageType.STUDENT_UPDATE
+                || type == MessageType.STUDENT_UPDATE_V2;
     }
 
     private static boolean isLibraryMessage(MessageType type) {
@@ -326,7 +348,9 @@ public final class ServerApplication implements Closeable {
                 libraryWallet.store, studentServices.students,
                 libraryWallet.library, teacherAccess(databasePath),
                 UserServiceFactory.createStoreAuditLog(args), studentServices.academics,
-                teachers, administration, module.getTrainingPlanService(), libraryWallet.compensations).start();
+                teachers, administration, module.getTrainingPlanService(), libraryWallet.compensations,
+                databasePath == null ? cn.vcampus.student.InMemoryMajorDirectoryService.demo()
+                        : new AccessMajorDirectoryService(databasePath)).start();
     }
 
     /** 教师档案与教学班教师编号使用同一资料源，避免教师登录后找不到自己的教学班。 */

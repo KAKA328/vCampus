@@ -400,8 +400,19 @@ public final class StudentManagementPanel extends JPanel {
             showStatus(failure.getMessage(), VCampusTheme.DANGER);
             return;
         }
-        runRequest("正在保存学生档案…", service -> service.save(session.getToken(), record),
-                response -> showSingle(response, "学生档案保存成功"));
+        final StudentRecord expected = loadedProfile;
+        runRequest("正在保存学生档案…", service -> service.save(session.getToken(), record, expected),
+                this::showSaveResponse);
+    }
+
+    void showSaveResponse(Message response) {
+        if (response.getStatusCode() == StatusCode.CONFLICT) {
+            loadedRecord = false;
+            showStatus("档案已发生变化，输入内容已保留；请重新查询/刷新档案后再保存", VCampusTheme.DANGER);
+            updateButtons();
+            return;
+        }
+        showSingle(response, "学生档案保存成功");
     }
 
     private StudentRecord readRecord() {

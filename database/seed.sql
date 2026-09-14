@@ -55,6 +55,13 @@ INSERT INTO tblCourse(course_id, course_name, credits, status)
 VALUES ('ENG101', '大学英语', 2, 'ACTIVE');
 
 -- 学籍与学业审查演示数据：每个选课联调账号都预先绑定档案。
+INSERT INTO tblMajor(major_id, major_name, department_name, active)
+VALUES ('CS', '计算机科学与技术', '计算机科学与工程学院', 1);
+INSERT INTO tblMajor(major_id, major_name, department_name, active)
+VALUES ('SE', '软件工程', '计算机科学与工程学院', 1);
+INSERT INTO tblMajor(major_id, major_name, department_name, active)
+VALUES ('CN', '汉语言文学', '通识教育学院', 1);
+
 INSERT INTO tblClass(class_id, class_name, department_name, major_name, grade_year)
 VALUES ('CS2026-01', '计算机科学与技术2026级1班', '计算机科学与工程学院', '计算机科学与技术', 2026);
 INSERT INTO tblClass(class_id, class_name, department_name, major_name, grade_year)
