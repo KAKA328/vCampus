@@ -11,9 +11,12 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** Repository-backed user service shared by memory and Access deployments. */
 public final class DefaultUserManagementService implements UserManagementService {
+    private static final Map<String, Object> PASSWORD_RESET_LOCKS = new ConcurrentHashMap<String, Object>();
     private final UserRepository users;
     private final SessionManager sessions;
     private final AuditLogRepository auditLog;
@@ -238,6 +241,13 @@ public final class DefaultUserManagementService implements UserManagementService
         if (command == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "password reset review is required");
         }
+        Object resetLock = PASSWORD_RESET_LOCKS.computeIfAbsent(command.getUserId(), ignored -> new Object());
+        synchronized (resetLock) {
+            return reviewPasswordResetLocked(command);
+        }
+    }
+
+    private ServiceResult<PasswordResetReviewResult> reviewPasswordResetLocked(PasswordResetReviewCommand command) {
         ServiceResult<Session> current = requireUserManager(command.getToken());
         if (current.getStatus() != StatusCode.OK) {
             return ServiceResult.failure(current.getStatus(), current.getMessage());

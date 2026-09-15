@@ -132,6 +132,15 @@ class UserMessageHandlerTest {
     }
 
     @Test
+    void failedUserOperationResponseContainsServiceMessage() {
+        InMemoryUserManagementService service = new InMemoryUserManagementService();
+        UserMessageHandler handler = new UserMessageHandler(service);
+        Message response = handler.handle(Message.request("bad-list", MessageType.USER_LIST, "invalid-token"));
+        assertEquals(StatusCode.UNAUTHORIZED, response.getStatusCode());
+        assertEquals("invalid session", response.getPayload());
+    }
+
+    @Test
     void adminCanChangeAnotherUsersRoleThroughMessages() {
         Session adminSession = loginAsAdmin();
         UserCredentials target = new UserCredentials("srv_role001", "Demo123", "Role User", Role.STUDENT.name());

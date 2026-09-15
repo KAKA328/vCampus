@@ -51,6 +51,9 @@ public final class AccessUserRepository implements UserRepository {
             statement.executeUpdate();
             return true;
         } catch (SQLException failure) {
+            // A concurrent insert may win the unique key race after the initial
+            // existence check. Surface that outcome as the normal conflict result.
+            if (findById(account.getUser().getUserId()) != null) return false;
             throw new IllegalStateException("failed to create user account", failure);
         }
     }

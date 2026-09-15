@@ -500,6 +500,39 @@ class UserRepositoryBackedServiceTest {
                 new PasswordResetRequestCommand("reset_duplicate", "再次申请", "13800000000")).getStatus());
     }
 
+    @Test
+    void concurrentPasswordResetApprovalOnlyOneTemporaryPasswordRemainsValid() throws Exception {
+        InMemoryUserRepository users = new InMemoryUserRepository();
+        InMemoryPasswordResetApplicationRepository passwordResets = new InMemoryPasswordResetApplicationRepository();
+        SessionManager sessions = new SessionManager();
+        DefaultUserManagementService serviceA = new DefaultUserManagementService(
+                users, sessions, new InMemoryAuditLogRepository(), passwordResets);
+        DefaultUserManagementService serviceB = new DefaultUserManagementService(
+                users, sessions, new InMemoryAuditLogRepository(), passwordResets);
+        UserCredentials student = new UserCredentials("reset_race", "Old123", "并发重置用户", Role.STUDENT.name());
+        assertEquals(StatusCode.OK, serviceA.register(student).getStatus());
+        Session admin = sessions.create(new User("reset_admin", "管理员", Role.ADMIN));
+        assertEquals(StatusCode.OK, serviceA.requestPasswordReset(
+                new PasswordResetRequestCommand("reset_race", "忘记密码")).getStatus());
+
+        ExecutorService workers = Executors.newFixedThreadPool(2);
+        try {
+            Future<ServiceResult<PasswordResetReviewResult>> first = workers.submit(() -> serviceA.reviewPasswordReset(
+                    new PasswordResetReviewCommand(admin.getToken(), "reset_race", true)));
+            Future<ServiceResult<PasswordResetReviewResult>> second = workers.submit(() -> serviceB.reviewPasswordReset(
+                    new PasswordResetReviewCommand(admin.getToken(), "reset_race", true)));
+            ServiceResult<PasswordResetReviewResult> left = first.get(5, TimeUnit.SECONDS);
+            ServiceResult<PasswordResetReviewResult> right = second.get(5, TimeUnit.SECONDS);
+            assertEquals(1, (left.getStatus() == StatusCode.OK ? 1 : 0)
+                    + (right.getStatus() == StatusCode.OK ? 1 : 0));
+            PasswordResetReviewResult approved = left.getStatus() == StatusCode.OK ? left.getData() : right.getData();
+            assertEquals(StatusCode.OK, serviceA.login(new UserCredentials(
+                    "reset_race", approved.getTemporaryPassword(), "并发重置用户", Role.STUDENT.name())).getStatus());
+        } finally {
+            workers.shutdownNow();
+        }
+    }
+
     private static int countActiveAdministrators(UserRepository users) {
         int count = 0;
         for (UserAccount account : users.findAll()) {
@@ -569,4 +602,5 @@ class UserRepositoryBackedServiceTest {
             }
         }
     }
+
 }
