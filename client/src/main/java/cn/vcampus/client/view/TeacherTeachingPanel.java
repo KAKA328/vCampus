@@ -67,6 +67,7 @@ final class TeacherTeachingPanel extends JPanel {
     private final JButton chooseGradeFileButton = new JButton("选择成绩文件");
     private final JButton importGradesButton = new JButton("导入文件成绩");
     private final JLabel selectedGradeFile = new JLabel("未选择成绩文件（支持 CSV、XLS、XLSX）");
+    private final JLabel importFeedback = new JLabel(" ");
     private final BatchTableModel tableModel = new BatchTableModel(new Object[] { "教学班编号", "课程名称" });
     private final JTable table = new JTable(tableModel);
     private final BatchTableModel rosterModel = new BatchTableModel(new Object[] {
@@ -89,6 +90,8 @@ final class TeacherTeachingPanel extends JPanel {
     private boolean fillingScore;
     private boolean gradeInputDirty;
     private TeachingGradeDraft currentDraft;
+    /** 名单页只展示原始名单，不混入成绩草稿数据。 */
+    private TeachingRoster currentRoster;
     private Path gradeImportFile;
 
     TeacherTeachingPanel(String host, int port, Session session) {
@@ -328,9 +331,14 @@ final class TeacherTeachingPanel extends JPanel {
         actions.add(importGradesButton);
         actions.add(submitGradesButton);
         selectedGradeFile.setForeground(VCampusTheme.MUTED);
+        importFeedback.setForeground(VCampusTheme.MUTED);
+        JPanel importStatus = new JPanel(new java.awt.GridLayout(0, 1, 0, UiMetrics.px(2)));
+        importStatus.setOpaque(false);
+        importStatus.add(selectedGradeFile);
+        importStatus.add(importFeedback);
         panel.add(title, BorderLayout.NORTH);
         panel.add(actions, BorderLayout.CENTER);
-        panel.add(selectedGradeFile, BorderLayout.SOUTH);
+        panel.add(importStatus, BorderLayout.SOUTH);
         return panel;
     }
 
@@ -404,6 +412,10 @@ final class TeacherTeachingPanel extends JPanel {
     }
 
     private void showRosterPage() {
+        if (currentRoster != null) {
+            // 名单页始终按未录入状态渲染，不能展示成绩草稿中的分数。
+            renderRoster(currentRoster, null);
+        }
         pageLayout.show(pages, ROSTER_PAGE);
         showStatus("已返回学生名单", VCampusTheme.MUTED);
     }
@@ -422,9 +434,10 @@ final class TeacherTeachingPanel extends JPanel {
                         return;
                     }
                     currentDraft = null;
+                    currentRoster = (TeachingRoster) response.getPayload();
                     clearGradeImportFile();
                     auditModel.replaceRows(new ArrayList<Object[]>());
-                    renderRoster((TeachingRoster) response.getPayload(), null);
+                    renderRoster(currentRoster, null);
                     int count = rosterStudents.size();
                     showStatus(count == 0 ? "该教学班当前没有有效选课学生" : "已加载 "
                             + count + " 名学生", count == 0 ? VCampusTheme.MUTED
@@ -446,6 +459,7 @@ final class TeacherTeachingPanel extends JPanel {
                         return;
                     }
                     currentDraft = (TeachingGradeDraft) response.getPayload();
+                    currentRoster = currentDraft.getRoster();
                     renderRoster(currentDraft.getRoster(), currentDraft);
                     pageLayout.show(pages, DRAFT_PAGE);
                     GradeSubmissionStatus draftStatus = currentDraft.getSubmission().getStatus();
@@ -579,6 +593,8 @@ final class TeacherTeachingPanel extends JPanel {
             }
             gradeImportFile = selected;
             selectedGradeFile.setText(selected.getFileName() + "（" + bytes + " 字节，待导入）");
+            showImportFeedback("文件已选择，导入前将校验表头、成绩范围和本教学班名单。",
+                    VCampusTheme.MUTED);
             showStatus("文件已选择。服务器会校验“学号、成绩”列及本教学班名单。", VCampusTheme.SUCCESS);
             updateInteractiveState();
         } catch (IOException failure) {
@@ -612,16 +628,19 @@ final class TeacherTeachingPanel extends JPanel {
                 currentDraft.getSubmission().getOfferingId(), fileName, content), response -> {
                     if (response.getStatusCode() != StatusCode.OK
                             || !(response.getPayload() instanceof GradeImportResult)) {
-                        showFailure(response);
+                        showImportFailure(response);
                         return;
                     }
                     GradeImportResult result = (GradeImportResult) response.getPayload();
                     currentDraft = result.getDraft();
+                    currentRoster = currentDraft.getRoster();
                     renderRoster(currentDraft.getRoster(), currentDraft);
-                    showStatus("已从 “" + fileName + "” 导入 " + result.getImportedCount()
-                            + " 条成绩。确认全班完整后可提交教务审核。", VCampusTheme.SUCCESS);
+                    String feedback = "导入成功：文件“" + fileName + "”已写入 "
+                            + result.getImportedCount() + " 条成绩。";
+                    showImportFeedback(feedback + "确认全班完整后可提交教务审核。", VCampusTheme.SUCCESS);
+                    showStatus(feedback, VCampusTheme.SUCCESS);
                     SwingUtilities.invokeLater(this::loadDraftAudit);
-                });
+                }, failure -> showImportTransportFailure());
     }
 
     private TeachingOffering selectedOffering() {
@@ -630,6 +649,10 @@ final class TeacherTeachingPanel extends JPanel {
     }
 
     private void request(Request request, Response response) {
+        request(request, response, null);
+    }
+
+    private void request(Request request, Response response, FailureResponse failureResponse) {
         if (requestInProgress) {
             return;
         }
@@ -653,7 +676,11 @@ final class TeacherTeachingPanel extends JPanel {
                 try {
                     response.handle(get());
                 } catch (Exception failure) {
-                    showStatus("无法连接选课服务器", VCampusTheme.DANGER);
+                    if (failureResponse == null) {
+                        showStatus("无法连接选课服务器", VCampusTheme.DANGER);
+                    } else {
+                        failureResponse.handle(failure);
+                    }
                 } finally {
                     requestInProgress = false;
                     updateInteractiveState();
@@ -666,6 +693,37 @@ final class TeacherTeachingPanel extends JPanel {
         String fallback = "服务器未能完成操作：" + response.getStatusCode();
         String message = response.getPayload() instanceof String ? (String) response.getPayload() : fallback;
         showStatus(message, VCampusTheme.DANGER);
+    }
+
+    /** 导入失败需区分文件数据问题、业务状态限制和服务器通信故障。 */
+    private void showImportFailure(Message response) {
+        String detail = response.getPayload() instanceof String
+                ? ((String) response.getPayload()).trim() : "未返回具体原因";
+        String prefix;
+        if (response.getStatusCode() == StatusCode.BAD_REQUEST
+                || response.getStatusCode() == StatusCode.NOT_FOUND) {
+            prefix = "导入失败：文件或成绩数据不符合要求。";
+        } else if (response.getStatusCode() == StatusCode.CONFLICT
+                || response.getStatusCode() == StatusCode.FORBIDDEN
+                || response.getStatusCode() == StatusCode.UNAUTHORIZED) {
+            prefix = "导入失败：当前成绩草稿状态不允许导入。";
+        } else {
+            prefix = "导入失败：服务器未能处理该文件。";
+        }
+        String feedback = prefix + "原因：" + detail;
+        showImportFeedback(feedback, VCampusTheme.DANGER);
+        showStatus(feedback, VCampusTheme.DANGER);
+    }
+
+    private void showImportTransportFailure() {
+        String feedback = "导入失败：无法连接选课服务器，请检查服务器状态或网络后重试。";
+        showImportFeedback(feedback, VCampusTheme.DANGER);
+        showStatus(feedback, VCampusTheme.DANGER);
+    }
+
+    private void showImportFeedback(String message, Color color) {
+        importFeedback.setText(message == null || message.trim().isEmpty() ? " " : message.trim());
+        importFeedback.setForeground(color);
     }
 
     private void showStatus(String message, Color color) {
@@ -755,6 +813,7 @@ final class TeacherTeachingPanel extends JPanel {
 
     private void clearRosterAndDraft() {
         currentDraft = null;
+        currentRoster = null;
         rosterStudents.clear();
         rosterModel.replaceRows(new ArrayList<Object[]>());
         auditModel.replaceRows(new ArrayList<Object[]>());
@@ -770,6 +829,7 @@ final class TeacherTeachingPanel extends JPanel {
     private void clearGradeImportFile() {
         gradeImportFile = null;
         selectedGradeFile.setText("未选择成绩文件（支持 CSV、XLS、XLSX）");
+        showImportFeedback(" ", VCampusTheme.MUTED);
     }
 
     private void markGradeInputChanged() {
@@ -855,5 +915,9 @@ final class TeacherTeachingPanel extends JPanel {
 
     private interface Response {
         void handle(Message response);
+    }
+
+    private interface FailureResponse {
+        void handle(Exception failure);
     }
 }

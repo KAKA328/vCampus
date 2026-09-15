@@ -40,12 +40,12 @@ final class TrainingPlanManagementPanel extends JPanel {
     private final BatchTableModel planModel = new BatchTableModel(new Object[] {
             "培养方案编号", "专业", "入学年份", "课程数", "状态" });
     private final BatchTableModel courseModel = new BatchTableModel(new Object[] {
-            "课程编号", "课程名称", "建议学期", "课程类别", "允许跨专业" });
+            "课程编号", "课程名称", "学分", "建议学期", "课程类别", "允许跨专业" });
     private final JTable planTable = new JTable(planModel);
     private final JTable courseTable = new JTable(courseModel);
     private final List<TrainingPlan> plans = new ArrayList<TrainingPlan>();
-    /** 方案详情展示用的课程目录快照，避免将课程名称重复存入培养方案。 */
-    private final Map<String, String> courseNames = new LinkedHashMap<String, String>();
+    /** 方案详情展示用的课程目录快照，避免将名称和学分重复存入培养方案。 */
+    private final Map<String, Course> coursesById = new LinkedHashMap<String, Course>();
     private final JButton refreshButton = new JButton("刷新培养方案");
     private final JButton createButton = new JButton("新建方案");
     private final JButton viewDetailButton = new JButton("查看方案详情");
@@ -138,7 +138,7 @@ final class TrainingPlanManagementPanel extends JPanel {
         page.add(header, BorderLayout.NORTH);
 
         JPanel courses = card("方案课程维护", "课程、建议学期和类别均使用受控输入。", courseTable);
-        configureTable(courseTable, 180, 220, 110, 120, 140);
+        configureTable(courseTable, 160, 220, 80, 110, 120, 140);
         JPanel courseActions = new JPanel(new WrappingFlowLayout(FlowLayout.LEFT, UiMetrics.px(8), UiMetrics.px(4)));
         courseActions.setOpaque(false);
         addPrimary(courseActions, saveCourseButton);
@@ -222,7 +222,7 @@ final class TrainingPlanManagementPanel extends JPanel {
         List<Object[]> rows = new ArrayList<Object[]>();
         for (TrainingPlanCourse course : currentPlan.getCourses()) {
             rows.add(new Object[] { course.getCourseId(), courseName(course.getCourseId()),
-                    Integer.valueOf(course.getRecommendedTerm()), categoryText(course),
+                    courseCredits(course.getCourseId()), Integer.valueOf(course.getRecommendedTerm()), categoryText(course),
                     course.isCrossMajorAllowed() ? "是" : "否" });
         }
         courseModel.replaceRows(rows);
@@ -231,24 +231,30 @@ final class TrainingPlanManagementPanel extends JPanel {
     /** 课程名称来自课程目录，培养方案仅保存课程编号，避免两处数据出现不一致。 */
     private void loadCourseNames(Runnable afterLoaded) {
         request(service -> service.manage(CourseManagementCommand.listCourses(session.getToken())), response -> {
-            courseNames.clear();
+            coursesById.clear();
             if (response.getStatusCode() == StatusCode.OK && response.getPayload() instanceof List<?>) {
                 for (Object item : (List<?>) response.getPayload()) {
                     if (item instanceof Course) {
                         Course course = (Course) item;
-                        courseNames.put(course.getCourseId(), course.getName());
+                        coursesById.put(course.getCourseId(), course);
                     }
                 }
             } else {
-                showStatus("课程目录加载失败，暂时无法展示课程名称", VCampusTheme.DANGER);
+                showStatus("课程目录加载失败，暂时无法展示课程名称和学分", VCampusTheme.DANGER);
             }
             afterLoaded.run();
         });
     }
 
     private String courseName(String courseId) {
-        String name = courseNames.get(courseId);
+        Course course = coursesById.get(courseId);
+        String name = course == null ? null : course.getName();
         return name == null || name.trim().isEmpty() ? "—" : name;
+    }
+
+    private Object courseCredits(String courseId) {
+        Course course = coursesById.get(courseId);
+        return course == null ? "—" : Integer.valueOf(course.getCredits());
     }
 
     private void editPlan() {
