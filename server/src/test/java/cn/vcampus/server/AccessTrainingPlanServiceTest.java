@@ -2,6 +2,7 @@ package cn.vcampus.server;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.Course;
@@ -88,6 +89,20 @@ class AccessTrainingPlanServiceTest {
             assertThrows(java.sql.SQLException.class, () -> statement.executeUpdate(
                     "INSERT INTO tblTrainingPlan(plan_id,major_name,enrollment_year,status) "
                             + "VALUES('PLAN-002','软件工程',2026,'DRAFT')"));
+        }
+    }
+
+    @Test
+    void recognizesDatabaseScopeConstraintViolations() throws Exception {
+        assertEquals(StatusCode.OK, service.create(new TrainingPlan("PLAN-001", "软件工程", 2026,
+                Arrays.asList(new TrainingPlanCourse("CS101", 1, SelectionType.REQUIRED, false)))).getStatus());
+
+        try (Connection connection = DriverManager.getConnection("jdbc:ucanaccess://" + database
+                + ";immediatelyReleaseResources=true"); Statement statement = connection.createStatement()) {
+            java.sql.SQLException violation = assertThrows(java.sql.SQLException.class, () -> statement.executeUpdate(
+                    "INSERT INTO tblTrainingPlan(plan_id,major_name,enrollment_year,status) "
+                            + "VALUES('PLAN-002','软件工程',2026,'DRAFT')"));
+            assertTrue(AccessTrainingPlanService.isScopeConstraintViolation(violation));
         }
     }
 }

@@ -174,7 +174,13 @@ public final class AccessTrainingPlanService implements TrainingPlanService {
             statement.setString(3, changed.getPlanId());
             return statement.executeUpdate() == 1 ? ServiceResult.ok(changed)
                     : ServiceResult.<TrainingPlan>failure(StatusCode.NOT_FOUND, "training plan not found");
-        } catch (SQLException failure) { return databaseFailure(failure); }
+        } catch (SQLException failure) {
+            if (isScopeConstraintViolation(failure)) {
+                return ServiceResult.failure(StatusCode.CONFLICT,
+                        "training plan already exists for major and enrollment year");
+            }
+            return databaseFailure(failure);
+        }
     }
 
     @Override
@@ -342,6 +348,15 @@ public final class AccessTrainingPlanService implements TrainingPlanService {
                         && target == TrainingPlanStatus.DRAFT);
     }
     private static boolean validYear(int value) { return value >= 1900 && value <= 9999; }
+    static boolean isScopeConstraintViolation(SQLException failure) {
+        for (SQLException current = failure; current != null; current = current.getNextException()) {
+            if ("23505".equals(current.getSQLState())) return true;
+            String message = current.getMessage();
+            if (message != null && message.toLowerCase(java.util.Locale.ROOT)
+                    .contains("uk_tbltrainingplan_scope")) return true;
+        }
+        return false;
+    }
     private static String normalize(String value) { if (value == null) return null; String normalized = value.trim(); return normalized.isEmpty() ? null : normalized; }
     private static <T> ServiceResult<T> databaseFailure(SQLException failure) { return ServiceResult.failure(StatusCode.SERVER_ERROR, "training plan database operation failed: " + failure.getMessage()); }
 }
