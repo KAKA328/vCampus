@@ -3,14 +3,67 @@ package cn.vcampus.client.view;
 import cn.vcampus.common.*;
 import cn.vcampus.student.*;
 import cn.vcampus.student.AcademicAdminCommandV1.Action;
+import java.awt.Component;
+import java.awt.Container;
 import java.lang.reflect.Field;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.*;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class AcademicAdministrationPanelTest {
+    @Test void labelsUseShorterSearchAndReviewWording() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                AcademicAdministrationPanel panel = new AcademicAdministrationPanel("token", command -> null);
+                assertNotNull(findLabel(panel, "搜索"));
+                assertEquals("学分审查", field(panel, "review", JButton.class).getText());
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
+    }
+
+    @Test void switchingFromTeacherDirectoryToReviewLoadsStudents() throws Exception {
+        CountDownLatch requested = new CountDownLatch(1);
+        AtomicReference<Action> action = new AtomicReference<Action>();
+        AtomicReference<AcademicAdministrationPanel> panelRef =
+                new AtomicReference<AcademicAdministrationPanel>();
+        SwingUtilities.invokeAndWait(() -> {
+            AcademicAdministrationPanel panel = new AcademicAdministrationPanel("token", command -> {
+                action.set(command.getAction());
+                requested.countDown();
+                return response(Collections.emptyList());
+            });
+            panel.display(Action.TEACHERS, response(Collections.singletonList(
+                    new TeacherProfile("T001", "teacher", "教师", "院系", "教授", true))));
+            try {
+                field(panel, "operations", JTabbedPane.class).setSelectedIndex(1);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            panelRef.set(panel);
+        });
+
+        assertTrue(requested.await(5, TimeUnit.SECONDS));
+        awaitIdle(panelRef.get());
+        assertEquals(Action.STUDENTS, action.get());
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                JTable table = field(panelRef.get(), "table", JTable.class);
+                assertEquals(11, table.getColumnCount());
+                assertEquals(0, table.getRowCount());
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
+    }
+
+    @Test void manualRequiredCreditInputIsAbsent() {
+        assertThrows(NoSuchFieldException.class,
+                () -> AcademicAdministrationPanel.class.getDeclaredField("required"));
+    }
+
     @Test void historyAttemptNumbersSortNumerically() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             try {
@@ -96,10 +149,30 @@ class AcademicAdministrationPanelTest {
             } catch (Exception e) { throw new RuntimeException(e); }
         });
     }
-    private static Message request() { return Message.request("admin", MessageType.ACADEMIC_ADMIN_V1, null); }
+    private static Message request() { return Message.request("admin", MessageType.ACADEMIC_ADMIN_V2, null); }
     private static Message response(Object data) { return Message.response(request(), StatusCode.OK, data); }
     private static <T> T field(Object object, String name, Class<T> type) throws Exception {
         Field field = object.getClass().getDeclaredField(name); field.setAccessible(true);
         return type.cast(field.get(object));
+    }
+    private static JLabel findLabel(Container root, String text) {
+        for (Component component : root.getComponents()) {
+            if (component instanceof JLabel && text.equals(((JLabel) component).getText())) {
+                return (JLabel) component;
+            }
+            if (component instanceof Container) {
+                JLabel found = findLabel((Container) component, text);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+    private static void awaitIdle(AcademicAdministrationPanel panel) throws Exception {
+        for (int i = 0; i < 100; i++) {
+            SwingUtilities.invokeAndWait(() -> { });
+            if (!field(panel, "busy", Boolean.class)) return;
+            Thread.sleep(20);
+        }
+        fail("panel request did not finish");
     }
 }

@@ -14,24 +14,36 @@ import javax.swing.event.DocumentListener;
 
 /** Academic administrators read the whole directory and record explicit graduation decisions. */
 final class AcademicAdministrationPanel extends JPanel {
-    interface Loader { Message load(AcademicAdminCommandV1 command) throws Exception; }
+    interface Loader { Message load(AcademicAdminCommandV2 command) throws Exception; }
     private final Loader loader;
     private final String token;
     private final JTextField studentId = new JTextField(14);
-    private final JTextField required = new JTextField(7);
     private final JTextField note = new JTextField(30);
-    private final JCheckBox confirmed = new JCheckBox("已核查培养方案、必修/选修及其他毕业条件");
+    private final JCheckBox confirmed = new JCheckBox("已核查选修课程及其他毕业条件");
     private final JTextField filter = new JTextField(16);
+    private final JTabbedPane operations = new JTabbedPane() {
+        @Override public Dimension getPreferredSize() {
+            Dimension size = super.getPreferredSize();
+            Component selected = getSelectedComponent();
+            if (selected != null) {
+                size.height = selected.getPreferredSize().height
+                        + getFontMetrics(getFont()).getHeight() + 18;
+            }
+            return size;
+        }
+    };
     private final JLabel resultTitle = new JLabel("查询结果 · 尚未加载");
     private final JLabel status = new JLabel("先查询学生或教师目录；选中学生后可办理学分审查。");
     private final BatchTableModel model = new BatchTableModel(new Object[] {"信息"});
     private final JTable table = new JTable(model);
     private final List<JButton> buttons = new ArrayList<JButton>();
     private final JButton graduate = new JButton("确认毕业");
-    private final JButton review = new JButton("保存学分审查");
+    private final JButton review = new JButton("学分审查");
     private final JLabel assessmentInfo = new JLabel("尚未加载该学生最新审查记录");
     private AcademicAssessment assessment;
     private List<StudentRecord> studentRows = Collections.emptyList();
+    private Action displayedAction;
+    private Action activeAction;
     private boolean busy;
     private long generation;
 
@@ -54,33 +66,35 @@ final class AcademicAdministrationPanel extends JPanel {
         addButton(target, "当前学分", Action.CREDITS);
         addButton(target, "课程历史", Action.HISTORY);
         controls.add(target, BorderLayout.NORTH);
-        JTabbedPane operations = new JTabbedPane() {
-            @Override public Dimension getPreferredSize() {
-                Dimension size = super.getPreferredSize();
-                Component selected = getSelectedComponent();
-                if (selected != null) {
-                    size.height = selected.getPreferredSize().height
-                            + getFontMetrics(getFont()).getHeight() + 18;
+        operations.addChangeListener(event -> {
+            page.revalidate();
+            page.repaint();
+            if (operations.getSelectedIndex() == 1
+                    && (displayedAction == Action.TEACHERS || activeAction == Action.TEACHERS)) {
+                if (busy) {
+                    generation++;
+                    busy = false;
+                    activeAction = null;
                 }
-                return size;
+                submit(Action.STUDENTS);
             }
-        };
-        operations.addChangeListener(event -> { page.revalidate(); page.repaint(); });
+        });
         VCampusTheme.tabs(operations);
         JPanel directory = row();
         addButton(directory, "全部学生", Action.STUDENTS);
         addButton(directory, "全部教师", Action.TEACHERS);
-        directory.add(new JLabel("筛选结果")); directory.add(filter);
+        directory.add(new JLabel("搜索")); directory.add(filter);
         VCampusTheme.field(filter);
         filter.setToolTipText("在已加载结果中筛选学号、工号、姓名、院系等");
         operations.addTab("人员查询", AcademicViewComponents.section("全员档案", directory));
         JPanel reviewBody = new JPanel(new BorderLayout(0, 8)); reviewBody.setOpaque(false);
         JPanel assessmentRow = row();
-        required.setColumns(5); note.setColumns(23);
-        VCampusTheme.field(required); VCampusTheme.field(note);
-        assessmentRow.add(new JLabel("要求学分")); assessmentRow.add(required);
+        note.setColumns(23);
+        VCampusTheme.field(note);
+        JLabel requirement = new JLabel("要求学分由已发布培养方案的必修课学分自动计算");
+        requirement.setForeground(VCampusTheme.MUTED);
+        assessmentRow.add(requirement);
         assessmentRow.add(new JLabel("审查说明（选填）")); assessmentRow.add(note);
-        required.setToolTipText("填写适用培养方案要求的总学分");
         note.setToolTipText("可留空；如需备注，最多255字");
         reviewBody.add(assessmentRow, BorderLayout.NORTH);
         JPanel actions = row();
@@ -150,7 +164,7 @@ final class AcademicAdministrationPanel extends JPanel {
     }
     private void updateButtons() {
         for (JButton button : buttons) button.setEnabled(!busy);
-        studentId.setEnabled(!busy); required.setEnabled(!busy); note.setEnabled(!busy); filter.setEnabled(!busy);
+        studentId.setEnabled(!busy); note.setEnabled(!busy); filter.setEnabled(!busy);
         confirmed.setEnabled(!busy); table.setEnabled(!busy);
         graduate.setEnabled(!busy && assessment != null && assessment.isCreditRequirementMet()
                 && !assessment.isGraduated() && confirmed.isSelected()
@@ -168,24 +182,23 @@ final class AcademicAdministrationPanel extends JPanel {
     }
     void submit(Action action) {
         if (busy) return;
-        final AcademicAdminCommandV1 command;
+        final AcademicAdminCommandV2 command;
         try {
-            command = new AcademicAdminCommandV1(token, action, studentId.getText(),
-                    action == Action.REVIEW ? Integer.parseInt(required.getText().trim()) : 0,
+            command = new AcademicAdminCommandV2(token, action, studentId.getText(),
                     assessment == null ? null : assessment.getId(), note.getText(), confirmed.isSelected());
         } catch (IllegalArgumentException invalid) {
-            status.setText("输入有误：" + (invalid instanceof NumberFormatException
-                    ? "要求学分须填写正整数。" : invalid.getMessage()));
+            status.setText("输入有误：" + invalid.getMessage());
             return;
         }
         final long current = ++generation;
+        activeAction = action; displayedAction = null;
         busy = true; updateButtons(); studentRows = Collections.emptyList();
         model.replaceRows(Collections.<Object[]>emptyList()); status.setText("正在办理…");
         new SwingWorker<Message, Void>() {
             protected Message doInBackground() throws Exception { return loader.load(command); }
             protected void done() {
                 if (current != generation) return;
-                busy = false;
+                busy = false; activeAction = null;
                 try { display(action, get()); }
                 catch (InterruptedException interrupted) {
                     Thread.currentThread().interrupt(); invalidateAssessment(); status.setText("操作中断，请重新查询记录。");
@@ -202,12 +215,14 @@ final class AcademicAdministrationPanel extends JPanel {
         filter.setText("");
         model.replaceRows(Collections.<Object[]>emptyList());
         if (response == null || response.getStatusCode() != StatusCode.OK) {
+            displayedAction = null;
             invalidateAssessment();
             status.setText(response == null ? "无响应，请重试" : response.getStatusCode() + "："
                     + (response.getPayload() instanceof String ? response.getPayload() : "操作未完成"));
             resultTitle.setText("查询结果 · 暂不可用");
             return;
         }
+        displayedAction = action;
         Object data = response.getPayload();
         List<Object[]> rows = new ArrayList<Object[]>();
         String[] columns;

@@ -2,6 +2,8 @@ package cn.vcampus.server;
 
 import cn.vcampus.common.Message;
 import cn.vcampus.common.MessageType;
+import cn.vcampus.common.ServiceResult;
+import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.CourseCatalogService;
 import cn.vcampus.course.CourseOfferingService;
 import cn.vcampus.course.CourseSelectionDemoFactory;
@@ -23,6 +25,7 @@ import cn.vcampus.student.CourseHistoryRecord;
 import cn.vcampus.student.CourseResultRecordingService;
 import cn.vcampus.student.DefaultStudentManagementService;
 import cn.vcampus.student.DefaultTeacherProfileService;
+import cn.vcampus.student.GraduationCreditRequirementProvider;
 import cn.vcampus.student.InMemoryAcademicAdminStore;
 import cn.vcampus.student.InMemoryAcademicReviewService;
 import cn.vcampus.student.InMemoryStudentRepository;
@@ -180,7 +183,8 @@ public final class ServerApplication implements Closeable {
         }
         if (administration == null) {
             administration = new AcademicAdminService(new InMemoryAcademicAdminStore(
-                    students, teachers, academics));
+                    students, teachers, academics),
+                    graduationRequirements(trainingPlans, catalog));
         }
 
         this.port = port;
@@ -252,7 +256,8 @@ public final class ServerApplication implements Closeable {
         if (request != null && request.getType() == MessageType.STUDENT_MAJOR_DIRECTORY_QUERY_V1) {
             return majorMessages.handle(request);
         }
-        if (request != null && request.getType() == MessageType.ACADEMIC_ADMIN_V1) {
+        if (request != null && (request.getType() == MessageType.ACADEMIC_ADMIN_V1
+                || request.getType() == MessageType.ACADEMIC_ADMIN_V2)) {
             return adminMessages.handle(request);
         }
         if (request != null && request.getType() == MessageType.TEACHER_SELF_QUERY_V1) {
@@ -287,6 +292,15 @@ public final class ServerApplication implements Closeable {
                 || type == MessageType.COURSE_GRADE_IMPORT_V2
                 || type == MessageType.COURSE_GRADE_REVIEW_V2
                 || type == MessageType.COURSE_TRAINING_PLAN_MANAGE_V2;
+    }
+
+    private static GraduationCreditRequirementProvider graduationRequirements(
+            TrainingPlanService trainingPlans, CourseCatalogService catalog) {
+        if (trainingPlans == null || catalog == null) {
+            return student -> ServiceResult.failure(StatusCode.SERVER_ERROR,
+                    "毕业审查未配置培养方案与课程目录服务");
+        }
+        return new TrainingPlanGraduationCreditRequirementProvider(trainingPlans, catalog);
     }
 
     // 商店消息白名单必须覆盖全部 STORE_* 类型，由守护测试锁定。
@@ -340,15 +354,17 @@ public final class ServerApplication implements Closeable {
                 ? memoryStudentServices(true)
                 : accessStudentServices(databasePath);
         TeacherProfileService teachers = teacherProfiles(databasePath);
+        CourseSelectionModule module = courses.getModule();
         AcademicAdminService administration = new AcademicAdminService(databasePath == null
                 ? new InMemoryAcademicAdminStore(studentServices.students, teachers,
                         studentServices.academics)
-                : new AccessAcademicAdminStore(databasePath));
+                : new AccessAcademicAdminStore(databasePath),
+                new TrainingPlanGraduationCreditRequirementProvider(
+                        module.getTrainingPlanService(), module.getCatalogService()));
         GradeApprovalWorkflow gradeApprovals = databasePath == null
                 ? new InMemoryGradeApprovalWorkflow(courses.getModule().getGradeSubmissionService(),
                         studentServices.results)
                 : new AccessGradeApprovalWorkflow(databasePath);
-        CourseSelectionModule module = courses.getModule();
         try (ServerApplication server = new ServerApplication(port, UserServiceFactory.create(args), module.getSelectionService(),
                 module.getCatalogService(), module.getOfferingService(), module.getSelectionRoundService(),
                 module.getSelectionRecordService(), module.getGradeSubmissionService(),
@@ -430,7 +446,9 @@ public final class ServerApplication implements Closeable {
         StudentServices students = memoryStudentServices();
         TeacherProfileService teachers = teacherProfiles(null);
         AcademicAdminService administration = new AcademicAdminService(new InMemoryAcademicAdminStore(
-                students.students, teachers, students.academics));
+                students.students, teachers, students.academics),
+                new TrainingPlanGraduationCreditRequirementProvider(
+                        module.getTrainingPlanService(), module.getCatalogService()));
         return new DemoBootstrap(module, students, LibraryWalletRuntime.create(null, false), teachers, administration,
                 new InMemoryGradeApprovalWorkflow(module.getGradeSubmissionService(), students.results));
     }

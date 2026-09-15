@@ -34,7 +34,11 @@ VALUES ('QA_T_INACTIVE',NULL,'验收非在职教师','计算机科学与工程�
 INSERT INTO tblCourseResult(result_id,student_id,course_id,offering_id,semester,attempt_no,attempt_type,score,passed,earned_credits,recorded_at)
 VALUES ('qa-exact-java','QA_EXACT','JAVA101',NULL,'2026-2027-1',1,'首修',60,1,3,NOW());
 INSERT INTO tblCourseResult(result_id,student_id,course_id,offering_id,semester,attempt_no,attempt_type,score,passed,earned_credits,recorded_at)
-VALUES ('qa-exact-db','QA_EXACT','DB101',NULL,'2026-2027-1',1,'首修',100,1,3,NOW());
+VALUES ('qa-exact-ds','QA_EXACT','DS101',NULL,'2026-2027-1',1,'首修',100,1,3,NOW());
+INSERT INTO tblCourseResult(result_id,student_id,course_id,offering_id,semester,attempt_no,attempt_type,score,passed,earned_credits,recorded_at)
+VALUES ('qa-exact-net','QA_EXACT','NET101',NULL,'2026-2027-1',1,'首修',85,1,3,NOW());
+INSERT INTO tblCourseResult(result_id,student_id,course_id,offering_id,semester,attempt_no,attempt_type,score,passed,earned_credits,recorded_at)
+VALUES ('qa-exact-ai','QA_EXACT','AI101',NULL,'2026-2027-1',1,'首修',88,1,2,NOW());
 INSERT INTO tblCourseResult(result_id,student_id,course_id,offering_id,semester,attempt_no,attempt_type,score,passed,earned_credits,recorded_at)
 VALUES ('qa-short-java','QA_SHORT','JAVA101',NULL,'2026-2027-1',1,'首修',60,1,3,NOW());
 INSERT INTO tblCourseResult(result_id,student_id,course_id,offering_id,semester,attempt_no,attempt_type,score,passed,earned_credits,recorded_at)
@@ -42,7 +46,11 @@ VALUES ('qa-pending-java','QA_PENDING','JAVA101',NULL,'2026-2027-1',1,'首修',8
 INSERT INTO tblCourseResult(result_id,student_id,course_id,offering_id,semester,attempt_no,attempt_type,score,passed,earned_credits,recorded_at)
 VALUES ('qa-pending-db','QA_PENDING','DB101',NULL,'2026-2027-1',1,'首修',80,1,3,NOW());
 INSERT INTO tblCourseResult(result_id,student_id,course_id,offering_id,semester,attempt_no,attempt_type,score,passed,earned_credits,recorded_at)
-VALUES ('qa-pending-zero','QA_PENDING','NET101',NULL,'2026-2027-1',1,'首修',0,0,0,NOW());
+VALUES ('qa-pending-net','QA_PENDING','NET101',NULL,'2026-2027-1',1,'首修',85,1,3,NOW());
+INSERT INTO tblCourseResult(result_id,student_id,course_id,offering_id,semester,attempt_no,attempt_type,score,passed,earned_credits,recorded_at)
+VALUES ('qa-pending-ai','QA_PENDING','AI101',NULL,'2026-2027-1',1,'首修',88,1,2,NOW());
+INSERT INTO tblCourseResult(result_id,student_id,course_id,offering_id,semester,attempt_no,attempt_type,score,passed,earned_credits,recorded_at)
+VALUES ('qa-pending-zero','QA_PENDING','OS101',NULL,'2026-2027-1',1,'首修',0,0,0,NOW());
 INSERT INTO tblCourseResult(result_id,student_id,course_id,offering_id,semester,attempt_no,attempt_type,score,passed,earned_credits,recorded_at)
 VALUES ('qa-retake-fail','QA_RETAKE','JAVA101',NULL,'2026-2027-1',1,'首修',59,0,0,NOW());
 INSERT INTO tblCourseResult(result_id,student_id,course_id,offering_id,semester,attempt_no,attempt_type,score,passed,earned_credits,recorded_at)
@@ -54,7 +62,11 @@ VALUES ('qa-dup-two','QA_DUP','JAVA101',NULL,'2026-2027-1',2,'重修',90,1,3,NOW
 INSERT INTO tblCourseResult(result_id,student_id,course_id,offering_id,semester,attempt_no,attempt_type,score,passed,earned_credits,recorded_at)
 VALUES ('qa-grad-java','QA_GRAD','JAVA101',NULL,'2026-2027-1',1,'首修',80,1,3,NOW());
 INSERT INTO tblCourseResult(result_id,student_id,course_id,offering_id,semester,attempt_no,attempt_type,score,passed,earned_credits,recorded_at)
-VALUES ('qa-grad-db','QA_GRAD','DB101',NULL,'2026-2027-1',1,'首修',90,1,3,NOW());
+VALUES ('qa-grad-ds','QA_GRAD','DS101',NULL,'2026-2027-1',1,'首修',90,1,3,NOW());
+INSERT INTO tblCourseResult(result_id,student_id,course_id,offering_id,semester,attempt_no,attempt_type,score,passed,earned_credits,recorded_at)
+VALUES ('qa-grad-net','QA_GRAD','NET101',NULL,'2026-2027-1',1,'首修',85,1,3,NOW());
+INSERT INTO tblCourseResult(result_id,student_id,course_id,offering_id,semester,attempt_no,attempt_type,score,passed,earned_credits,recorded_at)
+VALUES ('qa-grad-ai','QA_GRAD','AI101',NULL,'2026-2027-1',1,'首修',88,1,2,NOW());
 
 -- QA_GRAD starts enrolled: create its review and graduate through the actual API/UI.
 -- QA_BIND is intentionally absent from the normal account CSV, for simultaneous binding attempts.

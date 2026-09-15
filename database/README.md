@@ -38,6 +38,8 @@
 
 使用 `--db` 启动时，选课服务会从 `tblStudent` 按登录 `user_id` 读取学生资料，从 `tblCourseResult` 计算待重修课程，并从 `tblSelectionRound` 确定当前学期。最新版 `seed.sql` 已预置当前学期的首修和重修开放轮次、课程目录、教学班、培养方案、选课记录和成绩审核演示数据；使用全新数据库执行脚本后即可直接演示。正式部署仍应由教务人员维护真实学生档案、培养方案、教学班和选课轮次。
 
+默认学生 `20260001 / demo_student` 作为“培养方案必修课恰好完成”的毕业审查样例：其适用的 `plan-cs-2026` 必修课为 `JAVA101`、`NET101`、`AI101`、`DS101`，`tblCourseResult` 中的已通过课程与该集合完全一致，合计 11 学分。当前 Java 教学班与待审成绩演示改由 `20260009` 承载，避免 `20260001` 重复选择已通过课程。`DemoStudentTrainingPlanAlignmentTest` 会在每次建库回归中锁定这一关联。
+
 选课联调账号均使用初始密码 `Demo123`：`demo_student_new` 用于空列表和首修选课，`demo_student_retake` 用于待重修课程，`demo_student_elective` 用于选修容量，`demo_student_cross` 用于跨专业容量；`demo_teacher`、`demo_teacher_002`、`demo_teacher_003` 分别绑定到 Java、数据库、大学写作教学班。`20260006` 是专门供 `ClientApplication --demo` 进行管理员开户注册演示的未绑定学生档案，成功运行后会绑定到 `demo_registration_student`。演示数据库中还包含一份待审核 Java 成绩单和一份已退回的数据库成绩单。
 
 ## 学籍审查规划表

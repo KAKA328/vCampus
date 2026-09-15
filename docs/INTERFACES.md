@@ -186,7 +186,7 @@ StudentManagementService.findByIds(List<String> studentIds)
 教师学籍入口使用 TEACHER_SELF_QUERY_V1 + TeacherSelfQueryV1Command(token)，仅返回会话绑定的 TeacherProfile，包含非在职状态，无修改功能。具体状态码和跨模块要求见 [教师本人档案对接](TEACHER_SELF_PROFILE_INTEGRATION.md)。
 
 ## 教务目录、学分审查与毕业管理
-ACADEMIC_ADMIN_V1 提供全部学生/教师目录、学生历史/学分、审查记录、保存审查和人工确认毕业，仅限 ADMIN/ACADEMIC_ADMIN。学生本人查询新增 CREDITS，返回 CreditSummary。统一学分聚合由 CreditSummary.from 执行。新审查完整保存到 tblAcademicAssessment，确认毕业与更新学籍状态在同一事务完成。详见 [教务审查与毕业对接](ACADEMIC_ADMIN_GRADUATION_INTEGRATION.md)。
+ACADEMIC_ADMIN_V2 提供全部学生/教师目录、学生历史/学分、审查记录、保存审查和人工确认毕业，仅限 ACADEMIC_ADMIN。REVIEW 不接收要求学分；服务端以学生专业和入学年份定位已发布培养方案，汇总 REQUIRED 课程目录学分。ACADEMIC_ADMIN_V1 保留查询兼容，旧的手填审查/毕业写操作返回 BAD_REQUEST。学生本人查询的 CREDITS 返回 CreditSummary。新审查完整保存到 tblAcademicAssessment，确认毕业与更新学籍状态在同一事务完成。详见 [教务审查与毕业对接](ACADEMIC_ADMIN_GRADUATION_INTEGRATION.md)。
 
 ## 普通学籍更新的并发契约
 

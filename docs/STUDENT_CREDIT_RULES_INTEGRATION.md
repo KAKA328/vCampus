@@ -1,6 +1,6 @@
 # 学籍与选课模块：学分及学业审查对接文档
 
-本文档用于和选课负责人、组长确认学分、重修、毕业审查及 Access 数据责任。文档分为“当前已经实现”“建议采用的统一规则”和“必须确认的事项”，未确认内容不作为最终代码依据。
+本文档用于和选课负责人、组长确认学分、重修、毕业审查及 Access 数据责任。已确认并实现的规则是：毕业审查的要求学分取学生适用已发布培养方案中全部必修课程的目录学分总和。其他未确认内容仍不作为最终代码依据。
 
 ## 1. 对接目标
 
@@ -136,9 +136,19 @@ passed = true   -> earned_credits <= tblCourse.credits
 creditShortfall = max(0, requiredCredits - totalEarnedCredits)
 ```
 
-### 5.2 最终毕业审查
+### 5.2 教务毕业审查
 
-如果 `graduationReady` 表示最终毕业资格，仅检查总学分和挂科是不够的，还应增加：
+已落地的自动部分仅是要求学分来源：
+
+```text
+requiredCredits = SUM(tblCourse.credits)
+WHERE 课程属于学生 majorName + enrollmentYear 的 PUBLISHED 培养方案
+  AND TrainingPlanCourse.selectionType = REQUIRED
+```
+
+服务端在保存审查和确认毕业时都重新计算，并把方案编号、必修课程及其学分纳入审查指纹。客户端不能传入或覆盖要求学分。
+
+仅检查总学分和挂科仍不足以表示全部毕业资格，以下规则尚未自动化：
 
 - 培养方案中的必修课程是否全部通过；
 - 选修课程学分是否达到要求；
@@ -146,7 +156,7 @@ creditShortfall = max(0, requiredCredits - totalEarnedCredits)
 - 是否存在待重修课程；
 - 学籍状态是否允许毕业审核。
 
-建议本阶段先将 `review(...)` 定义为“阶段性审查”，待选课模块完成培养方案 Access 后，再扩展为最终毕业审查，避免当前字段语义过重。
+因此页面仍要求教务勾选“已核查选修课程及其他毕业条件”，不将学分达标自动扩大为所有毕业条件已满足。
 
 ## 6. `AcademicReview` 与快照表
 
@@ -232,7 +242,7 @@ student_id = 20230001
 
 ## 10. 待确认事项
 
-请组长和选课负责人确认以下三项后再进行代码重构：
+要求学分来源已确认为“已发布培养方案必修课学分总和”。以下事项仍待组长和选课负责人确认：
 
 1. `earned_credits` 是否始终以 `tblCourse.credits` 为上限，是否存在部分学分或特殊成绩；
 2. `graduationReady` 表示阶段性审查结果，还是最终毕业资格；
@@ -243,7 +253,7 @@ student_id = 20230001
 ## 11. 当前实现缺口
 
 - 内存和 Access 目前均使用同课程最高 `earned_credits` 的临时口径，最终规则仍需确认；
-- `AcademicReview.getCreditShortfall()` 已实现，阶段审查的要求学分来源与客户端接口仍待落定；
+- `AcademicReview.getCreditShortfall()` 已实现；教务毕业审查已改用 ACADEMIC_ADMIN_V2，要求学分由服务端自动读取培养方案；
 - `tblAcademicReview` 快照字段不完整；
 - 课程历史对象已有课程编号、学期和尝试类型的非空校验；NULL 分数的正式业务语义仍待确认，当前 Access 查询拒绝将其转换成 0；
 - 状态文档和运行数据的中英文编码尚未统一；
@@ -252,4 +262,4 @@ student_id = 20230001
 
 学生本人课程历史与待重修已接入页面，具体协议和剩余对接事项见 [成绩查询对接要求](STUDENT_ACADEMIC_QUERY_INTEGRATION.md)。
 
-在上述事项确认前，不建议直接修改公共接口或数据库字段，以免和选课模块的 Access 实现产生二次冲突。
+未确认的必修完成、选修下限、跨专业和特殊学分规则不应直接扩展公共接口或数据库字段，以免和选课模块的 Access 实现产生二次冲突。
