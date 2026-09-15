@@ -1,5 +1,6 @@
 package cn.vcampus.client.view;
 
+import java.awt.event.HierarchyEvent;
 import javax.swing.JButton;
 import javax.swing.JOptionPane;
 
@@ -57,11 +58,16 @@ final class LibraryViewBindings {
         v.keywordField.addActionListener(event -> LibraryCatalogActions.loadBooks(v));
         v.compensationTable.getSelectionModel().addListSelectionListener(event -> LibraryRequestRunner.updateButtonState(v));
         v.workspaceTabs.addChangeListener(event -> {
+            v.catalogRefresh.visibilityChanged();
             // 仅在实际展示后进入赔偿页时查询，不干扰初始借阅加载或纯布局测试。
             if (v.panel.isShowing() && v.workspaceTabs.getSelectedIndex() == 2) {
                 LibraryCirculationActions.loadCompensations(v);
             }
         });
+        v.panel.addHierarchyListener(event -> {
+            if ((event.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0) v.catalogRefresh.visibilityChanged();
+        });
+        v.catalogSyncStatus.getAccessibleContext().setAccessibleName("馆藏库存同步状态");
         LibraryViewBindings.configureAccessibility(v);
         LibraryRequestRunner.updateButtonState(v);
     }

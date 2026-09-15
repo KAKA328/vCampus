@@ -23,6 +23,7 @@ final class LibraryRequestRunner {
     static void runRequest(LibraryViewState v, String loadingMessage, final LibraryRequestRunner.LibraryRequest request,
             final LibraryRequestRunner.ResponseHandler responseHandler, final String failureMessage) {
         if (v.requestInProgress) return;
+        v.catalogRefresh.foregroundStarted();
         final int requestId = v.requestLifecycle.begin();
         v.requestInProgress = true;
         LibraryRequestRunner.updateButtonState(v);
@@ -53,6 +54,7 @@ final class LibraryRequestRunner {
                         SwingUtilities.invokeLater(() -> {
                             if (v.compensationRefreshQueued && v.panel.isShowing()
                                     && v.workspaceTabs.getSelectedIndex() == 2) LibraryCirculationActions.loadCompensations(v);
+                            v.catalogRefresh.drain();
                         });
                     }
                 }

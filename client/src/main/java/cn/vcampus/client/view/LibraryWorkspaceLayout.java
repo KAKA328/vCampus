@@ -70,6 +70,10 @@ final class LibraryWorkspaceLayout {
         top.add(actions, BorderLayout.SOUTH);
         panel.add(top, BorderLayout.NORTH);
         panel.add(VCampusTheme.scrollPane(v.bookTable), BorderLayout.CENTER);
+        v.catalogSyncStatus.setName("libraryCatalogSyncStatus");
+        v.catalogSyncStatus.setFont(VCampusTheme.font(Font.PLAIN, 12));
+        v.catalogSyncStatus.setForeground(VCampusTheme.MUTED);
+        panel.add(v.catalogSyncStatus, BorderLayout.SOUTH);
         return panel;
     }
 

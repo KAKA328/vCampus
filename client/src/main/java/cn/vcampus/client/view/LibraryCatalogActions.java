@@ -45,13 +45,15 @@ final class LibraryCatalogActions {
         });
     }
 
-    /** 提交选中图书的批量借阅请求，成功后刷新馆藏与记录。 */
+    /** 提交一次批量借阅；失败也核对库存，不自动重试借阅。 */
     static void borrowSelected(LibraryViewState v) {
+        if (v.requestInProgress) return;
         final List<String> bookIds = LibraryCatalogActions.selectedBookIds(v);
         if (bookIds.isEmpty()) {
             LibraryRequestRunner.showStatus(v, "请先选择一本或多本图书", VCampusTheme.DANGER);
             return;
         }
+        v.catalogRefresh.borrowStarted();
         LibraryRequestRunner.runRequest(v, "正在提交借阅请求…", service -> service.borrow(v.session.getToken(), bookIds), response -> {
             if (!LibraryRequestRunner.isSuccessful(v, response)) return;
             int count = response.getPayload() instanceof List<?> ? ((List<?>) response.getPayload()).size() : bookIds.size();

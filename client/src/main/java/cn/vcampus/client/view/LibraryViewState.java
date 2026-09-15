@@ -109,6 +109,10 @@ final class LibraryViewState {
     final JLabel catalogCountValue = LibraryWidgets.metricValue();
     /** 当前查询的可借册数合计。 */
     final JLabel availableCountValue = LibraryWidgets.metricValue();
+    /** 独立的库存同步提示，不覆盖业务操作结果。 */
+    final JLabel catalogSyncStatus = new LibraryWrappingLabel("本页库存每5秒自动刷新；借阅后立即核对余量。");
+    /** 本页面的只读馆藏轮询与迟到响应控制。 */
+    final LibraryCatalogRefresh catalogRefresh;
     /** 当前查看范围内的在借数量。 */
     final JLabel activeLoanCountValue = LibraryWidgets.metricValue();
     /** 临期及逾期提醒内容。 */
@@ -151,5 +155,6 @@ final class LibraryViewState {
         this.manager = LibraryRowMapper.canManage(session.getUser().getRole());
         this.reminderState = reminders == null
                 ? LibraryReminderState.forReader(this.host, port, session.getUser().getUserId()) : reminders;
+        this.catalogRefresh = new LibraryCatalogRefresh(this);
     }
 }
