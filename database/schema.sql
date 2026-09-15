@@ -146,12 +146,14 @@ CREATE TABLE tblCourseMeeting (
     PRIMARY KEY (offering_id, day_of_week, start_period, start_week)
 );
 
+-- 同一专业、同一入学年份始终只保留一份方案；归档方案也继续占用该业务范围。
 CREATE TABLE tblTrainingPlan (
     plan_id VARCHAR(36) NOT NULL,
     major_name VARCHAR(64) NOT NULL,
     enrollment_year INTEGER NOT NULL,
     status VARCHAR(16) NOT NULL,
-    PRIMARY KEY (plan_id)
+    PRIMARY KEY (plan_id),
+    CONSTRAINT uk_tblTrainingPlan_scope UNIQUE (major_name, enrollment_year)
 );
 
 CREATE TABLE tblTrainingPlanCourse (

@@ -219,6 +219,7 @@ final class TrainingPlanManagementPanel extends JPanel {
         detailTitle.setText("方案详情：" + currentPlan.getPlanId());
         detailSummary.setText(currentPlan.getMajorName() + " · " + currentPlan.getEnrollmentYear() + " 级 · "
                 + planStatusText(currentPlan.getStatus()) + " · " + currentPlan.getCourses().size() + " 门课程");
+        changeStatusButton.setText(statusActionText(currentPlan.getStatus()));
         List<Object[]> rows = new ArrayList<Object[]>();
         for (TrainingPlanCourse course : currentPlan.getCourses()) {
             rows.add(new Object[] { course.getCourseId(), courseName(course.getCourseId()),
@@ -309,16 +310,29 @@ final class TrainingPlanManagementPanel extends JPanel {
 
     private void changeStatus() {
         if (currentPlan == null) return;
-        TrainingPlanStatus target = nextStatus(currentPlan.getStatus());
+        TrainingPlanStatus target = resolveStatusTarget(currentPlan);
         if (target == null) {
-            showStatus("已归档方案不可再变更状态", VCampusTheme.DANGER);
             return;
         }
         if (!CourseUiSupport.confirmHighImpact(this, "确认修改方案状态",
                 "确定将培养方案“" + currentPlan.getPlanId() + "”设为“" + planStatusText(target) + "”吗？",
-                "发布后会影响对应专业和入学年份学生可见的课程要求。")) return;
+                statusChangeImpact(target))) return;
         request(service -> service.changeTrainingPlanStatus(session.getToken(), currentPlan.getPlanId(), target),
-                response -> showSuccessThenReload(response, "培养方案状态已更新"));
+                response -> showSuccessThenReload(response, statusChangeSuccessText(target)));
+    }
+
+    /** 已发布方案可按实际需要撤回编辑或归档，避免把两个业务动作混为一次线性流转。 */
+    private TrainingPlanStatus resolveStatusTarget(TrainingPlan plan) {
+        if (plan.getStatus() == TrainingPlanStatus.DRAFT) return TrainingPlanStatus.PUBLISHED;
+        if (plan.getStatus() == TrainingPlanStatus.ARCHIVED) return TrainingPlanStatus.DRAFT;
+        Object[] options = { "撤回为草稿", "归档方案", "取消" };
+        int selected = JOptionPane.showOptionDialog(this,
+                "已发布方案可撤回为草稿后继续维护，或归档保留历史记录。",
+                "选择状态变更", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
+                null, options, options[0]);
+        if (selected == 0) return TrainingPlanStatus.DRAFT;
+        if (selected == 1) return TrainingPlanStatus.ARCHIVED;
+        return null;
     }
 
     private TrainingPlanCourse selectedCourse() {
@@ -397,9 +411,21 @@ final class TrainingPlanManagementPanel extends JPanel {
     private static String planStatusText(TrainingPlanStatus value) {
         return value == TrainingPlanStatus.DRAFT ? "草稿" : value == TrainingPlanStatus.PUBLISHED ? "已发布" : "已归档";
     }
-    private static TrainingPlanStatus nextStatus(TrainingPlanStatus value) {
-        return value == TrainingPlanStatus.DRAFT ? TrainingPlanStatus.PUBLISHED
-                : value == TrainingPlanStatus.PUBLISHED ? TrainingPlanStatus.ARCHIVED : null;
+    static String statusActionText(TrainingPlanStatus value) {
+        return value == TrainingPlanStatus.DRAFT ? "发布方案"
+                : value == TrainingPlanStatus.PUBLISHED ? "撤回或归档" : "恢复为草稿";
+    }
+    private static String statusChangeImpact(TrainingPlanStatus target) {
+        return target == TrainingPlanStatus.PUBLISHED
+                ? "发布后，对应专业和入学年份的学生将看到此方案的课程要求。"
+                : target == TrainingPlanStatus.DRAFT
+                        ? "方案恢复为草稿后，学生暂时无法查看其课程要求，您可继续编辑后再次发布。"
+                        : "归档后学生无法查看其课程要求；方案仍保留，并继续占用该专业和入学年份。";
+    }
+    private static String statusChangeSuccessText(TrainingPlanStatus target) {
+        return target == TrainingPlanStatus.PUBLISHED ? "培养方案已发布"
+                : target == TrainingPlanStatus.DRAFT ? "培养方案已恢复为草稿"
+                : "培养方案已归档";
     }
     private static String categoryText(TrainingPlanCourse course) {
         return course.getSelectionType() == cn.vcampus.course.SelectionType.REQUIRED ? "必修" : "选修";

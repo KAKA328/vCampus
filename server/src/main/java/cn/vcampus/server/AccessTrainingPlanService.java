@@ -66,6 +66,13 @@ public final class AccessTrainingPlanService implements TrainingPlanService {
                 return ServiceResult.ok(plan);
             } catch (SQLException failure) {
                 rollbackQuietly(connection);
+                // 服务端预校验之外，数据库唯一约束还会兜住多实例并发创建。
+                ServiceResult<TrainingPlan> occupied = findByMajorAndEnrollmentYear(
+                        plan.getMajorName(), plan.getEnrollmentYear());
+                if (occupied.getStatus() == StatusCode.OK) {
+                    return ServiceResult.failure(StatusCode.CONFLICT,
+                            "training plan already exists for major and enrollment year");
+                }
                 return databaseFailure(failure);
             }
         } catch (SQLException failure) {
@@ -326,7 +333,14 @@ public final class AccessTrainingPlanService implements TrainingPlanService {
     }
     private Connection open() throws SQLException { return DriverManager.getConnection("jdbc:ucanaccess://" + databasePath + ";immediatelyReleaseResources=true"); }
     private static void rollbackQuietly(Connection connection) { try { connection.rollback(); } catch (SQLException ignored) { } }
-    private static boolean canChangeTo(TrainingPlanStatus current, TrainingPlanStatus target) { return (current == TrainingPlanStatus.DRAFT && target == TrainingPlanStatus.PUBLISHED) || (current == TrainingPlanStatus.PUBLISHED && target == TrainingPlanStatus.ARCHIVED); }
+    private static boolean canChangeTo(TrainingPlanStatus current, TrainingPlanStatus target) {
+        return (current == TrainingPlanStatus.DRAFT && target == TrainingPlanStatus.PUBLISHED)
+                || (current == TrainingPlanStatus.PUBLISHED
+                        && (target == TrainingPlanStatus.DRAFT
+                                || target == TrainingPlanStatus.ARCHIVED))
+                || (current == TrainingPlanStatus.ARCHIVED
+                        && target == TrainingPlanStatus.DRAFT);
+    }
     private static boolean validYear(int value) { return value >= 1900 && value <= 9999; }
     private static String normalize(String value) { if (value == null) return null; String normalized = value.trim(); return normalized.isEmpty() ? null : normalized; }
     private static <T> ServiceResult<T> databaseFailure(SQLException failure) { return ServiceResult.failure(StatusCode.SERVER_ERROR, "training plan database operation failed: " + failure.getMessage()); }

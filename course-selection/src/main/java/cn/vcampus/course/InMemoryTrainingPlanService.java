@@ -11,7 +11,7 @@ import java.util.Map;
 /**
  * 用于开发和测试的内存培养方案服务。
  *
- * <p>同一专业、同一入学年份只能有一份生效培养方案。程序关闭后数据会丢失；后续接入
+ * <p>同一专业、同一入学年份只能保留一份培养方案，归档后也不释放该范围。程序关闭后数据会丢失；后续接入
  * Access 数据库时应保持 {@link TrainingPlanService} 接口不变。</p>
  */
 public final class InMemoryTrainingPlanService implements TrainingPlanService {
@@ -247,7 +247,10 @@ public final class InMemoryTrainingPlanService implements TrainingPlanService {
     private static boolean canChangeTo(TrainingPlanStatus current, TrainingPlanStatus target) {
         return (current == TrainingPlanStatus.DRAFT && target == TrainingPlanStatus.PUBLISHED)
                 || (current == TrainingPlanStatus.PUBLISHED
-                        && target == TrainingPlanStatus.ARCHIVED);
+                        && (target == TrainingPlanStatus.DRAFT
+                                || target == TrainingPlanStatus.ARCHIVED))
+                || (current == TrainingPlanStatus.ARCHIVED
+                        && target == TrainingPlanStatus.DRAFT);
     }
 
     private ServiceResult<Void> requireActiveCourse(String courseId) {

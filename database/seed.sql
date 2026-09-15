@@ -192,9 +192,9 @@ VALUES ('plan-cs-2025-draft', '计算机科学与技术', 2025, 'DRAFT');
 INSERT INTO tblTrainingPlanCourse(plan_id, course_id, recommended_term, selection_type, cross_major_allowed)
 VALUES ('plan-cs-2025-draft', 'MATH101', 1, 'REQUIRED', 0);
 INSERT INTO tblTrainingPlan(plan_id, major_name, enrollment_year, status)
-VALUES ('plan-se-2026-archived', '软件工程', 2026, 'ARCHIVED');
+VALUES ('plan-se-2025-archived', '软件工程', 2025, 'ARCHIVED');
 INSERT INTO tblTrainingPlanCourse(plan_id, course_id, recommended_term, selection_type, cross_major_allowed)
-VALUES ('plan-se-2026-archived', 'ENG101', 1, 'ELECTIVE', 0);
+VALUES ('plan-se-2025-archived', 'ENG101', 1, 'ELECTIVE', 0);
 
 -- 当前学期的首修与重修轮次均处于开放状态，便于直接演示学生端轮次选择。
 INSERT INTO tblSelectionRound(round_id, term, round_type, starts_at, ends_at, status)

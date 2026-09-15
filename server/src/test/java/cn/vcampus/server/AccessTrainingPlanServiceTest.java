@@ -1,6 +1,7 @@
 package cn.vcampus.server;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.Course;
@@ -21,16 +22,17 @@ import org.junit.jupiter.api.io.TempDir;
 class AccessTrainingPlanServiceTest {
     @TempDir Path temporaryDirectory;
     private AccessTrainingPlanService service;
+    private Path database;
 
     @BeforeEach
     void setUp() throws Exception {
-        Path database = temporaryDirectory.resolve("training-plan-test.accdb");
+        database = temporaryDirectory.resolve("training-plan-test.accdb");
         Class.forName("net.ucanaccess.jdbc.UcanaccessDriver");
         try (Connection connection = DriverManager.getConnection("jdbc:ucanaccess://" + database
                 + ";newDatabaseVersion=V2010;immediatelyReleaseResources=true");
                 Statement statement = connection.createStatement()) {
             statement.execute("CREATE TABLE tblCourse (course_id VARCHAR(32) NOT NULL,course_name VARCHAR(100) NOT NULL,credits INTEGER NOT NULL,status VARCHAR(16) NOT NULL,PRIMARY KEY(course_id))");
-            statement.execute("CREATE TABLE tblTrainingPlan (plan_id VARCHAR(36) NOT NULL,major_name VARCHAR(64) NOT NULL,enrollment_year INTEGER NOT NULL,status VARCHAR(16) NOT NULL,PRIMARY KEY(plan_id))");
+            statement.execute("CREATE TABLE tblTrainingPlan (plan_id VARCHAR(36) NOT NULL,major_name VARCHAR(64) NOT NULL,enrollment_year INTEGER NOT NULL,status VARCHAR(16) NOT NULL,PRIMARY KEY(plan_id),CONSTRAINT uk_tblTrainingPlan_scope UNIQUE(major_name,enrollment_year))");
             statement.execute("CREATE TABLE tblTrainingPlanCourse (plan_id VARCHAR(36) NOT NULL,course_id VARCHAR(32) NOT NULL,recommended_term INTEGER NOT NULL,selection_type VARCHAR(16) NOT NULL,cross_major_allowed BIT NOT NULL,PRIMARY KEY(plan_id,course_id))");
         }
         AccessCourseCatalogService catalog = new AccessCourseCatalogService(database);
@@ -51,14 +53,41 @@ class AccessTrainingPlanServiceTest {
     }
 
     @Test
-    void rejectsDuplicateScopeAndPublishedPlanChanges() {
+    void supportsPlanRecoveryAndKeepsArchivedScopeReserved() {
         TrainingPlan plan = new TrainingPlan("PLAN-001", "软件工程", 2026, Arrays.asList(
                 new TrainingPlanCourse("CS101", 1, SelectionType.REQUIRED, false)));
-        service.create(plan);
+        assertEquals(StatusCode.OK, service.create(plan).getStatus());
+        assertEquals(StatusCode.OK,
+                service.changeStatus("PLAN-001", TrainingPlanStatus.PUBLISHED).getStatus());
+        assertEquals(StatusCode.OK,
+                service.changeStatus("PLAN-001", TrainingPlanStatus.DRAFT).getStatus());
+        assertEquals(StatusCode.OK, service.saveCourse("PLAN-001",
+                new TrainingPlanCourse("CS102", 2, SelectionType.ELECTIVE, false)).getStatus());
+        assertEquals(StatusCode.OK,
+                service.changeStatus("PLAN-001", TrainingPlanStatus.PUBLISHED).getStatus());
+        assertEquals(StatusCode.OK,
+                service.changeStatus("PLAN-001", TrainingPlanStatus.ARCHIVED).getStatus());
         TrainingPlan duplicate = new TrainingPlan("PLAN-002", "软件工程", 2026, Arrays.asList(
                 new TrainingPlanCourse("CS102", 1, SelectionType.ELECTIVE, false)));
         assertEquals(StatusCode.CONFLICT, service.create(duplicate).getStatus());
-        service.changeStatus("PLAN-001", TrainingPlanStatus.PUBLISHED);
-        assertEquals(StatusCode.CONFLICT, service.removeCourse("PLAN-001", "CS101").getStatus());
+        assertEquals(StatusCode.CONFLICT,
+                service.changeStatus("PLAN-001", TrainingPlanStatus.PUBLISHED).getStatus());
+        assertEquals(StatusCode.OK,
+                service.changeStatus("PLAN-001", TrainingPlanStatus.DRAFT).getStatus());
+        assertEquals(StatusCode.OK,
+                service.changeStatus("PLAN-001", TrainingPlanStatus.PUBLISHED).getStatus());
+    }
+
+    @Test
+    void databaseConstraintRejectsDuplicatePlanScope() throws Exception {
+        assertEquals(StatusCode.OK, service.create(new TrainingPlan("PLAN-001", "软件工程", 2026,
+                Arrays.asList(new TrainingPlanCourse("CS101", 1, SelectionType.REQUIRED, false)))).getStatus());
+
+        try (Connection connection = DriverManager.getConnection("jdbc:ucanaccess://" + database
+                + ";immediatelyReleaseResources=true"); Statement statement = connection.createStatement()) {
+            assertThrows(java.sql.SQLException.class, () -> statement.executeUpdate(
+                    "INSERT INTO tblTrainingPlan(plan_id,major_name,enrollment_year,status) "
+                            + "VALUES('PLAN-002','软件工程',2026,'DRAFT')"));
+        }
     }
 }
