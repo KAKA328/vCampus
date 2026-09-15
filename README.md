@@ -114,7 +114,27 @@ java -jar .\client\target\vCampusClient.jar --host 127.0.0.1 --port 19090
 
 使用 `demo_admin / Demo123` 登录后，在“用户管理 → 创建账号”开户注册。登录页不会显示“注册新用户”。也可以使用 `demo_student`、`demo_teacher`、`demo_librarian`、`demo_store_manager` 等演示账号登录各自模块。创建学生/教师账号时必须填写数据库中已存在且未绑定的学号/教师工号。
 
-### 3. Socket 冒烟演示
+### 3. 通过 Sakura FRP 远程连接
+
+需要让其他电脑联机验收时，先在运行服务端的电脑上启动 Sakura FRP 的 TCP 隧道。服务端仍使用本机端口 `19090`，不要把服务端端口改成 FRP 公网端口：
+
+```text
+隧道类型：JAVA TCP
+公网地址：frp-way.com
+公网端口：63286
+本地转发：运行服务端电脑的 127.0.0.1:19090
+```
+
+Sakura FRP 控制台显示“Tunnel/JAVA TCP 隧道启动成功”后，其他电脑的客户端使用公网地址和端口连接：
+
+```powershell
+cd D:\codex\java协作
+java -jar .\client\target\vCampusClient.jar --host frp-way.com --port 63286
+```
+
+服务端窗口和 Sakura FRP 隧道窗口都必须保持运行。公网隧道仅用于课程验收，建议只使用仓库中的演示账号，不要暴露真实账号、密码或真实数据库。
+
+### 4. Socket 冒烟演示
 
 服务器运行时，在第二个窗口执行：
 
@@ -125,7 +145,7 @@ java -jar .\client\target\vCampusClient.jar --demo --host 127.0.0.1 --port 19090
 该演示使用管理员会话创建并绑定 `20260006` 演示学生档案，再测试登录、课程授权和登出。首次运行会创建
 `demo_registration_student`；在同一个持久化数据库上再次运行时会复用该账号。
 
-### 4. 内存演示模式
+### 5. 内存演示模式
 
 ```powershell
 java -jar .\server\target\vCampusServer.jar --port 19090
@@ -178,7 +198,7 @@ docs/                设计基线、权限矩阵、接口和外部项目调研
 
 **登录后看不到学籍信息怎么办？** 账号与学籍档案分开保存，请确认 `user_id` 已绑定 `tblStudent` 或 `tblTeacher`，并补齐课程历史数据。
 
-**客户端无法连接服务器怎么办？** 确认服务器窗口仍在运行，并检查客户端和服务器使用相同端口（默认 `19090`）。
+**客户端无法连接服务器怎么办？** 本机联调时确认服务器窗口仍在运行，并检查客户端和服务器使用相同端口（默认 `19090`）。远程联调时确认 Sakura FRP 隧道仍显示启动成功，客户端改用 `frp-way.com:63286`，服务端仍监听本地 `19090`。
 
 **如何停止服务器？** 回到服务器窗口按 `Ctrl + C`。
 
