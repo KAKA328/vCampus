@@ -22,6 +22,9 @@ out/
 !database/*.mdb
 !database/*.db
 !database/*.sqlite
+# Local acceptance baselines and rebuild backups. Never commit runtime test data.
+database/*.bak
+database/**/*.bak
 *.env
 *.local
 

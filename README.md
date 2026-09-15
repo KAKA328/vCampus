@@ -92,6 +92,50 @@ powershell -ExecutionPolicy Bypass -File .\database\rebuild.ps1
 powershell -ExecutionPolicy Bypass -File .\database\rebuild.ps1 -DatabasePath .\database\acceptance.accdb
 ```
 
+### 验收数据库：建立基线、测试与恢复
+
+验收测试会改变账号、库存、借阅、选课、成绩和钱包数据。每轮测试必须使用同一份基线库，并且只能在服务器和客户端均已退出后备份或恢复；不要在程序运行时复制 `.accdb` 文件。基线及重建脚本自动生成的 `.bak` 文件均为本地数据，禁止提交。
+
+首次验收、切换到已同步的目标提交，或 `schema.sql`、`seed.sql`、数据库迁移发生变化时，按以下步骤重新建立基线。同步分支应遵循项目 Git 流程：只在独立、无待保留改动的验收工作区中更新 `main`，不要为了建立数据库基线而切换正在开发的分支或覆盖成员的本地数据。
+
+```powershell
+cd D:\codex\java协作
+
+# 停止正在运行的服务端和客户端后，按最新结构与演示数据重建。
+powershell -ExecutionPolicy Bypass -File .\database\rebuild.ps1
+
+# 这份文件是本轮验收唯一的可恢复基线。
+Copy-Item .\database\vCampus.accdb .\database\vCampus.accdb.acceptance-baseline.bak -Force
+Get-FileHash .\database\vCampus.accdb, .\database\vCampus.accdb.acceptance-baseline.bak -Algorithm SHA256
+```
+
+两条哈希必须相同。若不同，停止操作并重新执行“重建数据库”和复制基线步骤。不要复用旧分支、旧结构或旧演示数据生成的基线。
+
+每一轮功能、异常、并发或多客户端测试按以下流程执行：
+
+```powershell
+cd D:\codex\java协作
+
+# 1. 测试前恢复基线（所有客户端和服务端必须已经退出）。
+Copy-Item .\database\vCampus.accdb.acceptance-baseline.bak .\database\vCampus.accdb -Force
+
+# 2. 代码回归与运行库验收是两件事：此命令验证代码，测试通常使用临时库，
+#    不验证下面启动的 vCampus.accdb 服务端。
+mvn -q test
+
+# 3. 启动一个服务端；多个客户端都连接该服务端，不要分别启动多个服务端写同一文件。
+java -jar .\server\target\vCampusServer.jar --db .\database\vCampus.accdb --port 19090
+
+# 4. 在其他 PowerShell 窗口按“启动客户端”步骤连接多个客户端，执行本轮
+#    正常、异常、权限、冲突或并发验收，并记录结果。
+
+# 5. 测试结束后，先停止服务端和全部客户端，再恢复基线。
+Copy-Item .\database\vCampus.accdb.acceptance-baseline.bak .\database\vCampus.accdb -Force
+Get-FileHash .\database\vCampus.accdb, .\database\vCampus.accdb.acceptance-baseline.bak -Algorithm SHA256
+```
+
+最后两条哈希相同即表示运行库已恢复。需要保留某轮故障现场时，先把 `vCampus.accdb` 另存为带日期的 `.bak`，再恢复基线；`database/` 及其子目录中的 `.bak` 已被 Git 忽略，但提交前仍应执行 `git status --short` 确认没有误加入本地数据。图书馆的独立验收库、并发账号和专用清单见 [`test-data/LIBRARY_ACCEPTANCE.md`](test-data/LIBRARY_ACCEPTANCE.md)。
+
 ### 1. 启动服务器
 
 第一个 PowerShell 窗口：
