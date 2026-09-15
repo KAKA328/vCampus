@@ -2,11 +2,7 @@ package cn.vcampus.client.view;
 
 import java.awt.BorderLayout;
 import java.awt.Font;
-import java.text.Collator;
-import java.util.Locale;
 import javax.swing.*;
-import javax.swing.table.TableModel;
-import javax.swing.table.TableRowSorter;
 
 /** Small presentation helpers scoped to the academic pages. */
 final class AcademicViewComponents {
@@ -40,17 +36,8 @@ final class AcademicViewComponents {
         return panel;
     }
 
+    /** 与商店等页面共用同一套数值感知排序比较器，避免数值列退化成字典序。 */
     static void sortable(JTable table) {
-        TableRowSorter<TableModel> sorter = new TableRowSorter<TableModel>(table.getModel());
-        Collator collator = Collator.getInstance(Locale.CHINA);
-        for (int column = 0; column < table.getColumnCount(); column++) {
-            sorter.setComparator(column, (a, b) -> {
-                if (a instanceof Number && b instanceof Number) {
-                    return Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue());
-                }
-                return collator.compare(String.valueOf(a), String.valueOf(b));
-            });
-        }
-        table.setRowSorter(sorter);
+        SortableTables.apply(table);
     }
 }
