@@ -24,6 +24,7 @@ import java.awt.GraphicsEnvironment;
 import java.awt.GridLayout;
 import java.awt.RenderingHints;
 import java.awt.Window;
+import java.awt.geom.RoundRectangle2D;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.util.ArrayList;
@@ -81,6 +82,11 @@ public final class StorePanel extends JPanel {
     private static final int MAX_QUANTITY = 999;
     // 类别下拉的“全部”占位项（与 category=null 等价）
     private static final String ALL_CATEGORIES = "全部类别";
+    /**
+     * 商品目录自动刷新周期（毫秒）。并发购买时别人造成的库存变化必须在不操作的情况下也能看到，
+     * 服务端没有推送，因此按固定周期静默重查。
+     */
+    private static final int CATALOG_AUTO_REFRESH_MILLIS = 5000;
 
     private final String host;
     private final int port;
@@ -172,12 +178,20 @@ public final class StorePanel extends JPanel {
     private final JButton refreshLedgerButton = new JButton("刷新流水");
     private final JButton adjustBalanceButton = new JButton("校正余额");
     private final JButton allOrdersButton = new JButton("刷新全部订单");
+    /** 商品目录手动刷新：并发购买后别人造成的库存变化需要能主动拉取，不必重填查询条件。 */
+    private final JButton refreshProductsButton = new JButton("刷新商品");
 
     private int activeMutationRequests;
     /** 钱包只读请求代次，防止跨模块付款前的迟到响应覆盖新余额或流水。 */
     private long balanceRequestVersion;
     /** 流水刷新独立计数，所有代次只在 Swing 事件线程访问。 */
     private long ledgerRequestVersion;
+    /** 商品只读请求代次：自动轮询与手动刷新可能交错，防止迟到响应覆盖更新的结果。 */
+    private long productRequestVersion;
+    /** 商品目录自动刷新定时器：addNotify 启动、removeNotify 停止，离开商店页不再发请求。 */
+    private Timer catalogAutoRefresh;
+    /** 商店主题对话框打开数：模态对话框会开嵌套事件循环，定时器仍会触发，必须在此期间暂停自动刷新。 */
+    private static int openThemedDialogs;
     private boolean hotViewVisible;
     private boolean inactiveViewVisible;// 管理端「含下架」视图开关；与热销视图互斥
     private int initialProductRetryAttempts = 1;
@@ -218,6 +232,7 @@ public final class StorePanel extends JPanel {
         add(VCampusTheme.pageScroll(body()), BorderLayout.CENTER);
 
         searchButton.addActionListener(event -> loadProducts());
+        refreshProductsButton.addActionListener(event -> loadProducts());
         hotButton.addActionListener(event -> toggleHotView());
         inactiveButton.addActionListener(event -> toggleInactiveView());
         viewModeButton.addActionListener(event -> setCardView(!cardViewVisible));
@@ -274,6 +289,59 @@ public final class StorePanel extends JPanel {
         loadBalance();
         // 进入商店页自动加载一次商品列表，否则列表保持空白，必须手动点查询/切换视图才出现
         loadInitialProducts();
+    }
+
+    /**
+     * 面板进入可显示层级时启动商品目录自动刷新。
+     * MainFrame 会缓存 StorePanel 并反复加入/移出内容区，addNotify/removeNotify 正好对应"进入/离开商店页"。
+     */
+    @Override
+    public void addNotify() {
+        super.addNotify();
+        startCatalogAutoRefresh();
+    }
+
+    /** 离开商店页立即停表，避免在别的模块里继续轮询服务端。 */
+    @Override
+    public void removeNotify() {
+        stopCatalogAutoRefresh();
+        super.removeNotify();
+    }
+
+    /** 启动商品目录自动刷新定时器（幂等）。 */
+    void startCatalogAutoRefresh() {
+        if (catalogAutoRefresh == null) {
+            catalogAutoRefresh = new Timer(CATALOG_AUTO_REFRESH_MILLIS, event -> autoRefreshCatalog());
+        }
+        catalogAutoRefresh.start();
+    }
+
+    /** 停止商品目录自动刷新定时器。 */
+    void stopCatalogAutoRefresh() {
+        if (catalogAutoRefresh != null) {
+            catalogAutoRefresh.stop();
+        }
+    }
+
+    /**
+     * 静默自动刷新商品目录：并发购买时别人造成的库存变化必须在不操作的情况下也能看到。
+     *
+     * <p>刻意不自动刷新购物车：购物车表的勾选列在重建时会全部复位，轮询会破坏"勾选 → 结算选中"的操作流。
+     */
+    private void autoRefreshCatalog() {
+        if (isShowing() && canSilentlyRefreshCatalog()) {
+            loadProducts(false);
+        }
+    }
+
+    /**
+     * 静默刷新是否被允许：没有进行中的写请求、没有商店主题对话框打开。
+     *
+     * <p>对话框期间必须暂停：模态对话框会开嵌套事件循环，定时器在这期间照样触发，
+     * 否则会在用户填表时反复重查并打断交互。
+     */
+    boolean canSilentlyRefreshCatalog() {
+        return activeMutationRequests == 0 && openThemedDialogs == 0;
     }
 
     /**
@@ -400,6 +468,10 @@ public final class StorePanel extends JPanel {
         search.add(maxPriceField);
         themeSecondary(searchButton);
         search.add(searchButton);
+        // 刷新商品紧挨查询商品：并发购买后买家不必重填条件就能拉到最新库存
+        themeSecondary(refreshProductsButton);
+        refreshProductsButton.setToolTipText("重新拉取商品与库存（列表每 " + (CATALOG_AUTO_REFRESH_MILLIS / 1000) + " 秒也会自动刷新）");
+        search.add(refreshProductsButton);
         // 热销/含下架/视图切换收进“视图与筛选…”下拉，保证搜索行单行不换行（同 manageButton 下拉先例）
         themeSecondary(catalogMoreButton);
         search.add(catalogMoreButton);
@@ -667,8 +739,10 @@ public final class StorePanel extends JPanel {
     private static void configureTable(JTable table) {
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         table.setRowHeight(40);
+        // 排序比较器必须显式安装：BatchTableModel/CartTableModel 都不声明列类型，
+        // setAutoCreateRowSorter 会让数值列（库存/价格/数量/金额）退化成字典序，看起来像随机排序
+        SortableTables.apply(table);
         // 开启列排序后，视图行号与模型行号不再相同，取值一律经 convertRowIndexToModel 换算
-        table.setAutoCreateRowSorter(true);
         table.setShowVerticalLines(false);
         table.setGridColor(VCampusTheme.BORDER);
         JTableHeader header = table.getTableHeader();
@@ -725,9 +799,10 @@ public final class StorePanel extends JPanel {
     private void loadInitialProducts() {
         final String category = selectedCategory();
         final boolean includeInactive = inactiveViewVisible;
+        final long version = ++productRequestVersion;
         runReadRequest("正在加载商品…", service -> service.listProducts(session.getToken(),
                 category.isEmpty() ? null : category, includeInactive),
-                response -> showProducts(response, true), this::retryInitialProductLoad);
+                response -> acceptProducts(version, response, true), this::retryInitialProductLoad);
     }
 
     private void retryInitialProductLoad() {
@@ -766,10 +841,19 @@ public final class StorePanel extends JPanel {
         hotViewVisible = false;
         hotButton.setText("热销 Top" + HOT_PRODUCT_LIMIT);
         String suffix = includeInactive ? "（含已下架）" : "";
+        // 自动轮询与手动刷新会交错：只允许最新一次请求的结果写表格，迟到的旧响应直接丢弃
+        final long version = ++productRequestVersion;
         runReadRequest((category.isEmpty() ? "正在查询商品" : "正在查询「" + category + "」类商品") + suffix + "…",
                 service -> service.searchProducts(session.getToken(), keyword.isEmpty() ? null : keyword,
                         category.isEmpty() ? null : category, minPrice, maxPrice, includeInactive),
-                response -> showProducts(response, announce));
+                response -> acceptProducts(version, response, announce));
+    }
+
+    /** 商品响应代次守卫：只有最新一次请求的结果才允许落到表格。 */
+    private void acceptProducts(long version, Message response, boolean announce) {
+        if (version == productRequestVersion) {
+            showProducts(response, announce);
+        }
     }
 
     /** 价格区间输入解析：空白=该侧不限（null）；非数字抛 NumberFormatException 由调用方转成中文提示。 */
@@ -920,8 +1004,12 @@ public final class StorePanel extends JPanel {
     }
 
     private void loadHotProducts() {
+        final long version = ++productRequestVersion;
         runReadRequest("正在查询热销商品…", service -> service.hotProducts(session.getToken(), HOT_PRODUCT_LIMIT),
                 response -> {
+                    if (version != productRequestVersion) {
+                        return;
+                    }
                     // 先确认成功再切视图标记，否则查询失败会把按钮错留在「返回全部商品」状态
                     if (!isSuccessful(response)) {
                         return;
@@ -983,6 +1071,9 @@ public final class StorePanel extends JPanel {
     /** 关键词只在已加载的商品里本地过滤，不额外发请求；过滤结果同步写进 visibleProducts 供选中行回查。 */
     private void applyKeywordFilter() {
         String keyword = keywordField.getText().trim().toLowerCase();
+        // 重建模型行会清空表格选中；先记住当前选中的商品，重建后按商品号恢复。
+        // 自动刷新每隔几秒就会走一次这里，不恢复的话用户选好的商品会被反复清掉、购买按钮变灰。
+        final Product previouslySelected = selectedProduct();
         List<Object[]> rows = new ArrayList<Object[]>();
         visibleProducts.clear();
         for (Product product : loadedProducts) {
@@ -993,9 +1084,23 @@ public final class StorePanel extends JPanel {
             rows.add(StoreRowMapper.productRow(product));
         }
         productModel.replaceRows(rows);
+        restoreSelection(previouslySelected);
         syncQuantityLimit();
         if (cardViewVisible) {
             rebuildCardView();
+        }
+    }
+
+    /** 按商品号恢复重建前的选中行；该商品已不在当前视图（被过滤或下架）时保持未选中。 */
+    private void restoreSelection(Product previous) {
+        if (previous == null) {
+            return;
+        }
+        for (Product candidate : visibleProducts) {
+            if (previous.getProductId().equals(candidate.getProductId())) {
+                selectProductRow(candidate);
+                return;
+            }
         }
     }
 
@@ -1106,6 +1211,8 @@ public final class StorePanel extends JPanel {
         runMutationRequest("正在加入购物车…", service -> service.addToCart(session.getToken(), productId, count),
                 response -> {
                     if (!isSuccessful(response)) {
+                        // 加购失败多半是库存被别人抢先买走：静默重查商品，让买家立刻看到真实库存
+                        SwingUtilities.invokeLater(() -> loadProducts(false));
                         return;
                     }
                     showStatus("已将 " + count + " 件「" + productName + "」加入购物车", VCampusTheme.SUCCESS);
@@ -1447,9 +1554,11 @@ public final class StorePanel extends JPanel {
         runMutationRequest("正在结算选中商品…",
                 service -> service.checkoutSelected(session.getToken(), ids), response -> {
                     if (!isSuccessful(response)) {
-                        // 结算失败会触发服务端补偿回滚；静默刷新购物车与余额（不覆盖错误提示）
+                        // 结算失败会触发服务端补偿回滚；静默刷新购物车、余额和商品库存（不覆盖错误提示）。
+                        // 商品列表必须一起刷：没抢到货的买家正是从结算失败才得知库存已被别人买走。
                         SwingUtilities.invokeLater(() -> loadCart(false));
                         SwingUtilities.invokeLater(this::loadBalance);
+                        SwingUtilities.invokeLater(() -> loadProducts(false));
                         return;
                     }
                     showStatus("结算成功，正在刷新…", VCampusTheme.SUCCESS);
@@ -1488,9 +1597,11 @@ public final class StorePanel extends JPanel {
     private void submitCheckout() {
         runMutationRequest("正在结算购物车…", service -> service.checkout(session.getToken()), response -> {
             if (!isSuccessful(response)) {
-                // 结算失败会触发服务端补偿回滚；静默刷新购物车与余额（不覆盖错误提示，避免一闪即逝）
+                // 结算失败会触发服务端补偿回滚；静默刷新购物车、余额和商品库存（不覆盖错误提示，避免一闪即逝）。
+                // 商品列表必须一起刷：并发抢购时没抢到的买家库存必须立即回到真实值。
                 SwingUtilities.invokeLater(() -> loadCart(false));
                 SwingUtilities.invokeLater(this::loadBalance);
+                SwingUtilities.invokeLater(() -> loadProducts(false));
                 return;
             }
             showStatus("结算成功，正在刷新…", VCampusTheme.SUCCESS);
@@ -1754,6 +1865,7 @@ public final class StorePanel extends JPanel {
     private void updateButtonState() {
         boolean idle = activeMutationRequests == 0;
         searchButton.setEnabled(idle);
+        refreshProductsButton.setEnabled(idle);
         hotButton.setEnabled(idle);
         inactiveButton.setEnabled(idle);
         viewModeButton.setEnabled(idle);
@@ -2070,8 +2182,16 @@ public final class StorePanel extends JPanel {
         return inner;
     }
 
-    /** 商店统一对话框：无边框真圆角卡片 + 主色头部/浅色底部 + 自绘按钮，返回 JOptionPane 选项常量。 */
+    /**
+     * 商店统一对话框：无边框圆角卡片 + 主色头部/浅色底部 + 自绘按钮，返回 JOptionPane 选项常量。
+     *
+     * 窗口必须不透明（问题3修复）：历史实现用 alpha=0 的逐像素透明窗口，内容根 ShadowedCardPanel
+     * 又是非不透明组件，整棵层级没有任何不透明基底；真实键盘输入触发的局部重绘找不到不透明祖先，
+     * 会把受损区域回填成窗口背景，导致整窗刷成纯白且不会自愈。圆角改由窗口形状 setShape 提供，
+     * 既保留原有圆角视觉，又不再依赖半透明窗口。
+     */
     static int showThemedDialog(Component parent, String title, JComponent content, boolean withCancel) {
+        final int arcLogical = 16;
         final JButton ok = new JButton("确定");
         themePrimary(ok);
         final JButton cancel = new JButton("取消");
@@ -2081,15 +2201,14 @@ public final class StorePanel extends JPanel {
         close.setBorder(VCampusTheme.padding(2, 10, 2, 10));
 
         Window owner = SwingUtilities.getWindowAncestor(parent);
-        boolean rounded = isTranslucencySupported();
+        boolean shaped = isShapedWindowSupported();
         JDialog dialog = new JDialog(owner, title, Dialog.ModalityType.APPLICATION_MODAL);
-        if (rounded) {
+        if (shaped) {
             dialog.setUndecorated(true);
-            dialog.setBackground(new Color(0, 0, 0, 0));
+            dialog.setBackground(VCampusTheme.PANEL);
         }
-        JPanel root = rounded
-                ? new VCampusTheme.ShadowedCardPanel(new BorderLayout(), 16, 10)
-                : new JPanel(new BorderLayout());
+        JPanel root = new JPanel(new BorderLayout());
+        root.setOpaque(true);
         root.setBackground(VCampusTheme.PANEL);
 
         // 头部：主色浅底 + 图标徽章 + 加粗标题 + 关闭按钮，建立有色彩的第一视觉层
@@ -2140,11 +2259,18 @@ public final class StorePanel extends JPanel {
 
         // 模态遮罩压暗宿主窗口，避免浅色对话框溶进浅色背景看不见
         final Runnable detachScrim = attachScrim(owner);
+        openThemedDialogs++;// 对话框打开期间暂停商品目录自动刷新
         try {
             dialog.pack();
+            if (shaped) {
+                // 无边框窗口用形状裁剪出圆角：窗口保持不透明，圆角外区域由形状裁掉
+                int arc = UiMetrics.px(arcLogical);
+                dialog.setShape(new RoundRectangle2D.Double(0, 0, dialog.getWidth(), dialog.getHeight(), arc, arc));
+            }
             dialog.setLocationRelativeTo(owner);
             dialog.setVisible(true);
         } finally {
+            openThemedDialogs--;
             detachScrim.run();
         }
         return result[0];
@@ -2187,11 +2313,15 @@ public final class StorePanel extends JPanel {
         };
     }
 
-    /** 当前设备是否支持逐像素半透明（无边框真圆角对话框的前提），不支持则回退有边框方形。 */
-    private static boolean isTranslucencySupported() {
+    /**
+     * 当前环境是否支持形状窗口（无边框真圆角的前提）。窗口保持不透明，只用形状裁剪圆角，
+     * 不再使用逐像素半透明——半透明无边框窗口 + 无不透明基底是问题3白屏的根因。
+     * 不支持时回退为普通方角窗口，视觉略简但绘制路径完全安全。
+     */
+    private static boolean isShapedWindowSupported() {
         try {
             GraphicsDevice device = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
-            return device.isWindowTranslucencySupported(GraphicsDevice.WindowTranslucency.PERPIXEL_TRANSLUCENT);
+            return device.isWindowTranslucencySupported(GraphicsDevice.WindowTranslucency.PERPIXEL_TRANSPARENT);
         } catch (RuntimeException unavailable) {
             return false;
         }
