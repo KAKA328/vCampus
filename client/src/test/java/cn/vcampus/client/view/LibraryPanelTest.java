@@ -29,8 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LibraryPanelTest {
     @Test
-    void onlyAdministrativeLibraryRolesCanManageCatalog() {
-        assertTrue(LibraryPanel.canManage(Role.ADMIN));
+    void onlyLibrarianCanManageCatalog() {
+        assertFalse(LibraryPanel.canManage(Role.ADMIN));
         assertTrue(LibraryPanel.canManage(Role.LIBRARIAN));
         assertFalse(LibraryPanel.canManage(Role.STUDENT));
         assertFalse(LibraryPanel.canManage(Role.TEACHER));

@@ -45,7 +45,7 @@ class LibraryHistoryTitleTest {
 
     @Test
     void everyLibraryRoleLoadsTitlesWithoutReplacingTheFilteredCatalog() throws Exception {
-        for (Role role : Arrays.asList(Role.STUDENT, Role.TEACHER, Role.LIBRARIAN, Role.ADMIN)) {
+        for (Role role : Arrays.asList(Role.STUDENT, Role.TEACHER, Role.LIBRARIAN)) {
             exercise(role, StatusCode.OK, Collections.singletonList(TITLE), false, "红楼梦", false);
         }
     }

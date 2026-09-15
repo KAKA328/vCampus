@@ -813,7 +813,7 @@ final class CourseMessageHandler {
         return profile;
     }
 
-    /** 教务审核仅允许教务管理员或系统管理员在具备审核权限时调用。 */
+    /** 教务审核仅允许教务管理员在具备审核权限时调用。 */
     private ServiceResult<Session> academicReviewer(String token) {
         ServiceResult<Boolean> authorized = users.authorize(token, Permission.ACADEMIC_REVIEW.getCode());
         if (authorized.getStatus() != StatusCode.OK) {
@@ -824,7 +824,7 @@ final class CourseMessageHandler {
             return ServiceResult.failure(session.getStatus(), session.getMessage());
         }
         Role role = session.getData().getUser().getRole();
-        if (role != Role.ACADEMIC_ADMIN && role != Role.ADMIN) {
+        if (role != Role.ACADEMIC_ADMIN) {
             return ServiceResult.failure(StatusCode.FORBIDDEN,
                     "only academic administrators can review grade submissions");
         }

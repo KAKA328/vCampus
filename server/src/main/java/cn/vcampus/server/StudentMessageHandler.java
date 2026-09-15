@@ -77,13 +77,13 @@ final class StudentMessageHandler {
             return students.findMyStudentProfile(scope.getData().getUser().getUserId());
         }
         if (command.getQueryType() == StudentQueryCommand.QueryType.BY_CLASS) {
-            if (role != Role.ADMIN && role != Role.ACADEMIC_ADMIN) {
+            if (role != Role.ACADEMIC_ADMIN) {
                 return ServiceResult.failure(StatusCode.FORBIDDEN, "class student query denied");
             }
             return students.findByClass(command.getValue());
         }
         if (command.getQueryType() == StudentQueryCommand.QueryType.BY_MAJOR) {
-            if (role != Role.ADMIN && role != Role.ACADEMIC_ADMIN) {
+            if (role != Role.ACADEMIC_ADMIN) {
                 return ServiceResult.failure(StatusCode.FORBIDDEN, "major student query denied");
             }
             return students.findByMajor(command.getValue());

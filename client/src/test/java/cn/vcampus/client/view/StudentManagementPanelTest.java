@@ -109,8 +109,8 @@ class StudentManagementPanelTest {
                 model.findModule(Role.TEACHER, "教师信息")));
         assertFalse(MainFrame.useStudentManagementPanel(Role.TEACHER,
                 model.findModule(Role.TEACHER, "教师信息")));
-        assertTrue(MainFrame.useStudentManagementPanel(Role.ADMIN,
-                model.findModule(Role.ADMIN, "学籍管理")));
+        assertFalse(MainFrame.useStudentManagementPanel(Role.ADMIN,
+                new ModuleDescriptor("学籍管理", "测试", "测试")));
         assertTrue(MainFrame.useStudentManagementPanel(Role.ACADEMIC_ADMIN,
                 model.findModule(Role.ACADEMIC_ADMIN, "学籍管理")));
     }

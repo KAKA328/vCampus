@@ -19,7 +19,7 @@ class LibraryV4MessageHandlerTest {
     private Message send(MessageType type, Object payload) { return handler.handle(Message.request("test", type, payload)); }
     @Test void studentsAndTeachersCannotManageCopiesOrEditBookDetails() {
         Book before = library.getBook("B001").getData();
-        for (Role role : new Role[] {Role.STUDENT, Role.TEACHER}) {
+        for (Role role : new Role[] {Role.STUDENT, Role.TEACHER, Role.ADMIN}) {
             String token = account(role.name(), role);
             assertEquals(StatusCode.FORBIDDEN, send(MessageType.LIBRARY_COPIES_V4, new LibraryCopiesV4Command(token, "B001")).getStatusCode());
             assertEquals(StatusCode.FORBIDDEN, send(MessageType.LIBRARY_BOOK_UPDATE_V4,
@@ -38,7 +38,8 @@ class LibraryV4MessageHandlerTest {
         assertEquals(StatusCode.OK, send(MessageType.LIBRARY_COPIES_V4, new LibraryCopiesV4Command(token, "B001")).getStatusCode());
     }
     @Test void snapshotHistoryEnforcesOwnOtherAndAllScopesAndLegacyPayloadStaysUnchanged() {
-        String reader = account("reader", Role.STUDENT), other = account("other", Role.TEACHER), admin = account("admin", Role.ADMIN);
+        String reader = account("reader", Role.STUDENT), other = account("other", Role.TEACHER);
+        String librarian = account("librarian", Role.LIBRARIAN), admin = account("admin", Role.ADMIN);
         library.borrow("reader", "B001");
         library.borrow("other", "B002");
         Message own = send(MessageType.LIBRARY_HISTORY_V4, new LibraryHistoryV4Command(reader, null, false));
@@ -48,7 +49,9 @@ class LibraryV4MessageHandlerTest {
         assertEquals("reader", ((LibraryLoanSnapshot) ((List<?>) own.getPayload()).get(0)).getRecord().getUserId());
         assertEquals(StatusCode.FORBIDDEN, send(MessageType.LIBRARY_HISTORY_V4, new LibraryHistoryV4Command(reader, "other", false)).getStatusCode());
         assertEquals(StatusCode.FORBIDDEN, send(MessageType.LIBRARY_HISTORY_V4, new LibraryHistoryV4Command(other, null, true)).getStatusCode());
-        assertEquals(2, ((List<?>) send(MessageType.LIBRARY_HISTORY_V4, new LibraryHistoryV4Command(admin, null, true)).getPayload()).size());
+        assertEquals(2, ((List<?>) send(MessageType.LIBRARY_HISTORY_V4, new LibraryHistoryV4Command(librarian, null, true)).getPayload()).size());
+        assertEquals(StatusCode.FORBIDDEN, send(MessageType.LIBRARY_HISTORY_V4,
+                new LibraryHistoryV4Command(admin, null, true)).getStatusCode());
         Message legacy = send(MessageType.LIBRARY_HISTORY_V3, new LibraryHistoryV3Command(reader));
         assertTrue(((List<?>) legacy.getPayload()).get(0) instanceof BorrowRecord);
     }
@@ -60,17 +63,17 @@ class LibraryV4MessageHandlerTest {
         assertEquals(before, library.getBook("B001").getData());
     }
     @Test void realServerDispatchRoutesAllNewV4Messages() throws Exception {
-        String admin = account("dispatch_admin", Role.ADMIN);
+        String librarian = account("dispatch_librarian", Role.LIBRARIAN);
         try (ServerApplication server = new ServerApplication(0, users)) {
-            Message copies = server.dispatch(Message.request("copies", MessageType.LIBRARY_COPIES_V4, new LibraryCopiesV4Command(admin, "B001")));
+            Message copies = server.dispatch(Message.request("copies", MessageType.LIBRARY_COPIES_V4, new LibraryCopiesV4Command(librarian, "B001")));
             assertEquals(StatusCode.OK, copies.getStatusCode());
             assertFalse(((List<?>) copies.getPayload()).isEmpty());
-            Message history = server.dispatch(Message.request("history", MessageType.LIBRARY_HISTORY_V4, new LibraryHistoryV4Command(admin, null, true)));
+            Message history = server.dispatch(Message.request("history", MessageType.LIBRARY_HISTORY_V4, new LibraryHistoryV4Command(librarian, null, true)));
             assertEquals(StatusCode.OK, history.getStatusCode());
-            Message bookResponse = server.dispatch(Message.request("detail", MessageType.LIBRARY_DETAIL_V2, new LibraryDetailV2Command(admin, "B001")));
+            Message bookResponse = server.dispatch(Message.request("detail", MessageType.LIBRARY_DETAIL_V2, new LibraryDetailV2Command(librarian, "B001")));
             Book before = (Book) bookResponse.getPayload();
             Message edited = server.dispatch(Message.request("edit", MessageType.LIBRARY_BOOK_UPDATE_V4,
-                    new LibraryBookUpdateV4Command(admin, before, before)));
+                    new LibraryBookUpdateV4Command(librarian, before, before)));
             assertEquals(StatusCode.OK, edited.getStatusCode());
         }
     }

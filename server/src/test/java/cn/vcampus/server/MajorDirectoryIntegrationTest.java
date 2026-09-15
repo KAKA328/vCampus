@@ -42,19 +42,19 @@ class MajorDirectoryIntegrationTest {
         assertEquals(StatusCode.SERVER_ERROR, new AccessMajorDirectoryService(missing).listActive().getStatus());
     }
 
-    @Test void endpointRequiresAdministratorSessionAndDoesNotInventFallbackData() {
+    @Test void endpointRequiresAcademicAdministratorSessionAndDoesNotInventFallbackData() {
         InMemoryUserManagementService users = new InMemoryUserManagementService();
         MajorDirectoryMessageHandler handler = new MajorDirectoryMessageHandler(InMemoryMajorDirectoryService.demo(), users);
         for (Role role : Role.values()) {
             String token = login(users, "role_" + role, role);
             Message response = handler.handle(query(token));
-            assertEquals(role == Role.ADMIN || role == Role.ACADEMIC_ADMIN ? StatusCode.OK : StatusCode.FORBIDDEN,
+            assertEquals(role == Role.ACADEMIC_ADMIN ? StatusCode.OK : StatusCode.FORBIDDEN,
                     response.getStatusCode(), role.name());
         }
         assertEquals(StatusCode.UNAUTHORIZED, handler.handle(query("invalid")).getStatusCode());
         assertEquals(StatusCode.BAD_REQUEST, handler.handle(Message.request("bad",
                 MessageType.STUDENT_MAJOR_DIRECTORY_QUERY_V1, "not a command")).getStatusCode());
-        String admin = login(users, "empty_admin", Role.ADMIN);
+        String admin = login(users, "empty_academic_admin", Role.ACADEMIC_ADMIN);
         assertTrue(((List<?>) new MajorDirectoryMessageHandler(
                 new InMemoryMajorDirectoryService(Collections.emptyList()), users).handle(query(admin)).getPayload()).isEmpty());
         assertEquals(StatusCode.SERVER_ERROR, new MajorDirectoryMessageHandler(

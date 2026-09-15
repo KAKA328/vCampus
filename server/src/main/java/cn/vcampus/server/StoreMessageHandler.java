@@ -216,7 +216,7 @@ class StoreMessageHandler {
                     result = rechargeAuth.getStatus() != StatusCode.OK ? rechargeAuth
                             : store.recharge(requireUserId(recharge.getToken()), recharge.getAmountCents());
                     break;
-                // 管理员校正：STORE_MANAGE 权限 + 角色 ∈ {ADMIN, STORE_MANAGER} 双重门槛，targetUserId 取自
+                // 商店管理员校正：STORE_MANAGE 权限 + STORE_MANAGER 角色双重门槛，targetUserId 取自
                 // payload
                 case STORE_ACCOUNT_ADJUST:
                     StoreAccountAdjustCommand adjust = payload(request, StoreAccountAdjustCommand.class);
@@ -231,7 +231,7 @@ class StoreMessageHandler {
                         break;
                     }
                     User adjustAdmin = adjustSession.getData().getUser();
-                    if (adjustAdmin.getRole() != Role.ADMIN && adjustAdmin.getRole() != Role.STORE_MANAGER) {
+                    if (adjustAdmin.getRole() != Role.STORE_MANAGER) {
                         result = ServiceResult.failure(StatusCode.FORBIDDEN, "role not allowed to adjust balance");
                         break;
                     }

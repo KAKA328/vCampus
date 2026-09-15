@@ -21,7 +21,7 @@ class LibraryRestockMessageHandlerTest {
     @Test
     void studentsTeachersAndInvalidSessionsCannotRestock() {
         Book original = library.getBook("B001").getData();
-        for (Role role : new Role[] {Role.STUDENT, Role.TEACHER, Role.ACADEMIC_ADMIN, Role.STORE_MANAGER}) {
+        for (Role role : new Role[] {Role.STUDENT, Role.TEACHER, Role.ADMIN, Role.ACADEMIC_ADMIN, Role.STORE_MANAGER}) {
             assertEquals(StatusCode.FORBIDDEN, restock(account(role), "B001", 2).getStatusCode());
         }
         assertEquals(StatusCode.UNAUTHORIZED, restock("invalid", "B001", 2).getStatusCode());
@@ -29,14 +29,12 @@ class LibraryRestockMessageHandlerTest {
     }
 
     @Test
-    void librariansAndAdminsCanRestockAndReceiveUpdatedSnapshot() {
+    void librariansCanRestockAndReceiveUpdatedSnapshot() {
         int initial = library.getBook("B001").getData().getTotalCopies();
-        for (Role role : new Role[] {Role.LIBRARIAN, Role.ADMIN}) {
-            Message response = restock(account(role), "B001", 2);
-            initial += 2;
-            assertEquals(StatusCode.OK, response.getStatusCode());
-            assertEquals(initial, ((Book) response.getPayload()).getTotalCopies());
-        }
+        Message response = restock(account(Role.LIBRARIAN), "B001", 2);
+        initial += 2;
+        assertEquals(StatusCode.OK, response.getStatusCode());
+        assertEquals(initial, ((Book) response.getPayload()).getTotalCopies());
     }
 
     @Test

@@ -75,7 +75,7 @@ class StoreMessageHandlerTest {
                 "librarian001", "password", "图书馆员", Role.LIBRARIAN.name());
         users.register(librarian);
         librarianSession = users.login(librarian).getData();
-        // 系统管理员，用于校正余额的角色授权对照组
+        // 系统管理员，用于验证账号管理角色不能越权校正商店余额。
         UserCredentials admin = new UserCredentials(
                 "admin001", "password", "系统管理员", Role.ADMIN.name());
         users.register(admin);
@@ -429,15 +429,13 @@ class StoreMessageHandlerTest {
     }
 
     @Test
-    void testAccountAdjustByAdminAuthorized() {
+    void testAccountAdjustByAdminForbidden() {
         Message response = handler.handle(Message.request(
                 "account-adjust-admin", MessageType.STORE_ACCOUNT_ADJUST,
                 new StoreAccountAdjustCommand(adminSession.getToken(), "student001", 6666L)));
 
-        assertEquals(StatusCode.OK, response.getStatusCode());
-        assertTrue(store.adjustCalled);
-        assertEquals("admin001", store.lastAdjustAdminId);
-        assertEquals("student001", store.lastAdjustTargetUserId);
+        assertEquals(StatusCode.FORBIDDEN, response.getStatusCode());
+        assertFalse(store.adjustCalled);
     }
 
     @Test

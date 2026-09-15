@@ -28,15 +28,15 @@ class AcademicAdministrationTest {
                 studentService, new DefaultTeacherProfileService(teachers), history)), users);
         admin = login("academic", Role.ACADEMIC_ADMIN);
     }
-    @Test void administratorSeesEveryStudentAndInactiveTeacher() {
+    @Test void academicAdministratorSeesEveryStudentAndInactiveTeacherWhileSystemAdminIsDenied() {
         assertEquals(2, ((List<?>) send(command(admin, Action.STUDENTS, null, 0, null)).getPayload()).size());
         assertEquals(1, ((List<?>) send(command(admin, Action.TEACHERS, null, 0, null)).getPayload()).size());
         String system = login("admin", Role.ADMIN);
-        assertEquals(StatusCode.OK, send(command(system, Action.STUDENTS, null, 0, null)).getStatusCode());
+        assertEquals(StatusCode.FORBIDDEN, send(command(system, Action.STUDENTS, null, 0, null)).getStatusCode());
     }
     @Test void everyNonAdministratorIsRejectedBeforeListingOrReviewing() {
         for (Role role : Role.values()) {
-            if (role == Role.ADMIN || role == Role.ACADEMIC_ADMIN) continue;
+            if (role == Role.ACADEMIC_ADMIN) continue;
             String token = login("role_" + role, role);
             for (Action action : Action.values()) {
                 assertEquals(StatusCode.FORBIDDEN, send(command(token, action, "S001", 3, "fake")).getStatusCode());

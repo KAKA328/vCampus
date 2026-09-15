@@ -100,7 +100,7 @@ class LibraryInteractionTest {
             assertNull(findButton(panel(Role.STUDENT), "增加库存"));
             assertNull(findButton(panel(Role.TEACHER), "增加库存"));
             assertNotNull(findButton(panel(Role.LIBRARIAN), "增加库存"));
-            assertNotNull(findButton(panel(Role.ADMIN), "增加库存"));
+            assertNull(findButton(panel(Role.ADMIN), "增加库存"));
         });
     }
 

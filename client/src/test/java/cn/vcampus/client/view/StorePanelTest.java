@@ -15,8 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class StorePanelTest {
     @Test
-    void onlyAdminAndStoreManagerCanManageCatalog() {
-        assertTrue(StorePanel.canManage(Role.ADMIN));
+    void onlyStoreManagerCanManageCatalog() {
+        assertFalse(StorePanel.canManage(Role.ADMIN));
         assertTrue(StorePanel.canManage(Role.STORE_MANAGER));
         assertFalse(StorePanel.canManage(Role.STUDENT));
         assertFalse(StorePanel.canManage(Role.TEACHER));

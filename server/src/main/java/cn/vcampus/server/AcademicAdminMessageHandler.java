@@ -22,7 +22,7 @@ final class AcademicAdminMessageHandler {
         ServiceResult<Session> session = users.currentSession(command.getToken());
         if (session.getStatus() != StatusCode.OK) return Message.response(request, session.getStatus(), session.getMessage());
         Role role = session.getData().getUser().getRole();
-        if (role != Role.ACADEMIC_ADMIN && role != Role.ADMIN) {
+        if (role != Role.ACADEMIC_ADMIN) {
             return Message.response(request, StatusCode.FORBIDDEN, "仅教务管理员可办理");
         }
         boolean write = command.getAction() == AcademicAdminCommandV1.Action.REVIEW

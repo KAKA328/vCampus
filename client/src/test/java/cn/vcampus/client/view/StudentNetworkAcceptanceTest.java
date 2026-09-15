@@ -62,29 +62,29 @@ class StudentNetworkAcceptanceTest {
             }
             for (String id : Arrays.asList("QA_EMPTY", "QA_EXACT", "QA_SHORT", "QA_PENDING", "QA_RETAKE", "QA_DUP")) {
                 int expected = id.equals("QA_EMPTY") ? 0 : (id.equals("QA_EXACT") || id.equals("QA_PENDING") ? 6 : 3);
-                CreditSummary credits = payload(administer(admin, id, AcademicAdminCommandV1.Action.CREDITS, 0, null), CreditSummary.class);
+                CreditSummary credits = payload(administer(academic, id, AcademicAdminCommandV1.Action.CREDITS, 0, null), CreditSummary.class);
                 assertEquals(expected, credits.getEarnedCredits(), id);
                 assertEquals(id.equals("QA_PENDING") ? 1 : 0, credits.getPendingRetakes(), id);
             }
             for (String id : Arrays.asList("QA_EMPTY", "QA_SHORT", "QA_PENDING")) {
                 AcademicAssessment assessment = review(id);
                 assertFalse(assessment.isCreditRequirementMet());
-                assertEquals(StatusCode.CONFLICT, graduate(admin, id, assessment.getId()).getStatusCode());
+                assertEquals(StatusCode.CONFLICT, graduate(academic, id, assessment.getId()).getStatusCode());
             }
             for (String id : Arrays.asList("QA_LEAVE", "QA_WITHDRAWN")) {
-                assertEquals(StatusCode.CONFLICT, administer(admin, id, AcademicAdminCommandV1.Action.REVIEW, 6, null).getStatusCode());
+                assertEquals(StatusCode.CONFLICT, administer(academic, id, AcademicAdminCommandV1.Action.REVIEW, 6, null).getStatusCode());
             }
-            AcademicAssessment shortByOne = payload(administer(admin, "QA_SHORT",
+            AcademicAssessment shortByOne = payload(administer(academic, "QA_SHORT",
                     AcademicAdminCommandV1.Action.REVIEW, 4, null), AcademicAssessment.class);
             assertEquals(1, shortByOne.getShortfall());
-            StudentRecord valid = profile(admin, "QA_EDIT");
+            StudentRecord valid = profile(academic, "QA_EDIT");
             for (String phone : Arrays.asList("123", "139000001088", "1390000010a", "１３９０００００１０８")) {
                 assertEquals(StatusCode.BAD_REQUEST, call(MessageType.STUDENT_UPDATE_V2,
-                        new StudentUpdateV2Command(admin, StudentProfileSnapshot.withContacts(valid, phone, valid.getEmail()), valid)).getStatusCode());
-                assertTrue(StudentProfileSnapshot.matches(valid, profile(admin, "QA_EDIT")));
+                        new StudentUpdateV2Command(academic, StudentProfileSnapshot.withContacts(valid, phone, valid.getEmail()), valid)).getStatusCode());
+                assertTrue(StudentProfileSnapshot.matches(valid, profile(academic, "QA_EDIT")));
             }
             assertEquals(StatusCode.BAD_REQUEST, call(MessageType.STUDENT_UPDATE_V2,
-                    new StudentUpdateV2Command(admin, StudentProfileSnapshot.withContacts(valid, valid.getPhone(), "invalid-email"), valid)).getStatusCode());
+                    new StudentUpdateV2Command(academic, StudentProfileSnapshot.withContacts(valid, valid.getPhone(), "invalid-email"), valid)).getStatusCode());
             assertEquals(StatusCode.UNAUTHORIZED, call(MessageType.STUDENT_QUERY, StudentQueryCommand.self("invalid-token")).getStatusCode());
             List<UserImportRow> invalid = new UserImportFileReader().read(root.resolve("test-data/学籍验收错误账号.csv"));
             assertEquals(0, payload(call(MessageType.USER_IMPORT, new UserImportCommand(admin, invalid)), UserImportResult.class).getSuccessCount());
@@ -92,10 +92,10 @@ class StudentNetworkAcceptanceTest {
 
             // Four connections race with the same original snapshot, repeated five times.
             for (int round = 0; round < 5; round++) {
-                StudentRecord before = profile(admin, "QA_EDIT");
+                StudentRecord before = profile(academic, "QA_EDIT");
                 List<Callable<Message>> tasks = new ArrayList<>();
                 for (int i = 0; i < 4; i++) {
-                    final String token = i % 2 == 0 ? admin : academic;
+                    final String token = academic;
                     final String phone = "13900002" + String.format("%03d", round * 4 + i);
                     tasks.add(() -> call(MessageType.STUDENT_UPDATE_V2, new StudentUpdateV2Command(
                             token, StudentProfileSnapshot.withContacts(before, phone, before.getEmail()), before)));
@@ -104,7 +104,7 @@ class StudentNetworkAcceptanceTest {
                 assertEquals(1, results.stream().filter(m -> m.getStatusCode() == StatusCode.OK).count());
                 assertEquals(3, results.stream().filter(m -> m.getStatusCode() == StatusCode.CONFLICT).count());
                 StudentRecord winner = (StudentRecord) results.stream().filter(m -> m.getStatusCode() == StatusCode.OK).findFirst().get().getPayload();
-                assertTrue(StudentProfileSnapshot.matches(winner, profile(admin, "QA_EDIT")));
+                assertTrue(StudentProfileSnapshot.matches(winner, profile(academic, "QA_EDIT")));
             }
             String studentEditor = login("qa_edit", "Test123", Role.STUDENT);
             StudentRecord oldContacts = profile(studentEditor, null);
@@ -118,19 +118,19 @@ class StudentNetworkAcceptanceTest {
             assertEquals(StatusCode.OK, call(MessageType.LOGOUT, studentEditor).getStatusCode());
             assertEquals(StatusCode.UNAUTHORIZED, call(MessageType.STUDENT_QUERY, StudentQueryCommand.self(studentEditor)).getStatusCode());
             AcademicAssessment stale = review("QA_EXACT");
-            StudentRecord before = profile(admin, "QA_EXACT");
-            payload(call(MessageType.STUDENT_UPDATE_V2, new StudentUpdateV2Command(admin,
+            StudentRecord before = profile(academic, "QA_EXACT");
+            payload(call(MessageType.STUDENT_UPDATE_V2, new StudentUpdateV2Command(academic,
                     StudentProfileSnapshot.withContacts(before, "13900000999", before.getEmail()), before)), StudentRecord.class);
-            assertEquals(StatusCode.CONFLICT, graduate(admin, "QA_EXACT", stale.getId()).getStatusCode());
+            assertEquals(StatusCode.CONFLICT, graduate(academic, "QA_EXACT", stale.getId()).getStatusCode());
             AcademicAssessment grad = review("QA_GRAD");
-            StudentRecord beforeGraduation = profile(admin, "QA_GRAD");
+            StudentRecord beforeGraduation = profile(academic, "QA_GRAD");
             List<Message> graduation = race(Arrays.asList(
-                    () -> graduate(admin, "QA_GRAD", grad.getId()),
+                    () -> graduate(academic, "QA_GRAD", grad.getId()),
                     () -> graduate(academic, "QA_GRAD", grad.getId())));
             assertEquals(1, graduation.stream().filter(m -> m.getStatusCode() == StatusCode.OK).count());
             assertEquals(1, graduation.stream().filter(m -> m.getStatusCode() == StatusCode.CONFLICT).count());
-            assertEquals("毕业", profile(admin, "QA_GRAD").getStatus());
-            assertEquals(StatusCode.CONFLICT, call(MessageType.STUDENT_UPDATE_V2, new StudentUpdateV2Command(admin,
+            assertEquals("毕业", profile(academic, "QA_GRAD").getStatus());
+            assertEquals(StatusCode.CONFLICT, call(MessageType.STUDENT_UPDATE_V2, new StudentUpdateV2Command(academic,
                     StudentProfileSnapshot.withContacts(beforeGraduation, "13900000777", null), beforeGraduation)).getStatusCode());
 
             List<Message> binding = race(Arrays.asList(
@@ -140,7 +140,7 @@ class StudentNetworkAcceptanceTest {
                             new UserImportRow("qa_bind_b", "Test123", "竞争账号乙", "STUDENT", "QA_BIND"))))));
             assertEquals(1, binding.stream().map(m -> payload(m, UserImportResult.class)).mapToInt(UserImportResult::getSuccessCount).sum());
             assertEquals(1, binding.stream().map(m -> payload(m, UserImportResult.class)).mapToInt(UserImportResult::getFailureCount).sum());
-            String bound = profile(admin, "QA_BIND").getUserId();
+            String bound = profile(academic, "QA_BIND").getUserId();
             assertNotNull(bound);
             Message loserLogin = call(MessageType.LOGIN, new UserCredentials(
                     bound.equals("qa_bind_a") ? "qa_bind_b" : "qa_bind_a", "Test123", "ignored", "STUDENT"));
@@ -151,21 +151,23 @@ class StudentNetworkAcceptanceTest {
             assertEquals(1, userList.stream().map(item -> (UserAccountSummary) item)
                     .filter(item -> item.getUserId().startsWith("qa_bind")).count());
             assertEquals(StatusCode.UNAUTHORIZED, loserLogin.getStatusCode());
-            StudentRecord persisted = profile(admin, "QA_EDIT");
-            AcademicAssessment beforeRestart = (AcademicAssessment) payload(administer(admin, "QA_GRAD",
+            StudentRecord persisted = profile(academic, "QA_EDIT");
+            AcademicAssessment beforeRestart = (AcademicAssessment) payload(administer(academic, "QA_GRAD",
                     AcademicAdminCommandV1.Action.ASSESSMENTS, 0, null), List.class).get(0);
             assertTrue(beforeRestart.isGraduated(), "graduation must be visible before restart");
+            String staleAcademic = academic;
             stop(); start();
             admin = login("demo_admin", "Demo123", Role.ADMIN);
-            assertTrue(StudentProfileSnapshot.matches(persisted, profile(admin, "QA_EDIT")));
-            assertEquals("毕业", profile(admin, "QA_GRAD").getStatus());
-            assertEquals(bound, profile(admin, "QA_BIND").getUserId());
-            List<?> assessments = payload(administer(admin, "QA_GRAD", AcademicAdminCommandV1.Action.ASSESSMENTS, 0, null), List.class);
+            academic = login("demo_academic_admin", "Demo123", Role.ACADEMIC_ADMIN);
+            assertTrue(StudentProfileSnapshot.matches(persisted, profile(academic, "QA_EDIT")));
+            assertEquals("毕业", profile(academic, "QA_GRAD").getStatus());
+            assertEquals(bound, profile(academic, "QA_BIND").getUserId());
+            List<?> assessments = payload(administer(academic, "QA_GRAD", AcademicAdminCommandV1.Action.ASSESSMENTS, 0, null), List.class);
             assertEquals(1, assessments.size());
             AcademicAssessment afterRestart = (AcademicAssessment) assessments.get(0);
             assertTrue(afterRestart.isGraduated(), "after restart: actor=" + afterRestart.getGraduatedBy()
                     + " time=" + afterRestart.getGraduatedAt() + " previousTime=" + beforeRestart.getGraduatedAt());
-            assertEquals(StatusCode.UNAUTHORIZED, call(MessageType.STUDENT_QUERY, StudentQueryCommand.self(academic)).getStatusCode());
+            assertEquals(StatusCode.UNAUTHORIZED, call(MessageType.STUDENT_QUERY, StudentQueryCommand.self(staleAcademic)).getStatusCode());
             System.out.println("NETWORK ACCEPTANCE PASS: 12 imports; 5 x 4 admin-write races; 2 student writers; 2 graduation contenders; 2 binding contenders; restart persistence.");
         } catch (Throwable failure) {
             try {
@@ -211,7 +213,7 @@ class StudentNetworkAcceptanceTest {
         return call(MessageType.ACADEMIC_ADMIN_V1, new AcademicAdminCommandV1(token, action, id, required, assessment, "", true));
     }
     private AcademicAssessment review(String id) throws Exception {
-        return payload(administer(admin, id, AcademicAdminCommandV1.Action.REVIEW, 6, null), AcademicAssessment.class);
+        return payload(administer(academic, id, AcademicAdminCommandV1.Action.REVIEW, 6, null), AcademicAssessment.class);
     }
     private Message graduate(String token, String id, String assessment) throws Exception {
         return administer(token, id, AcademicAdminCommandV1.Action.GRADUATE, 0, assessment);

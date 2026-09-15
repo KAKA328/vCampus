@@ -161,6 +161,31 @@ class VCampusThemeTest {
     }
 
     @Test
+    void wheelOverScrollableInnerListMovesItsOwnVerticalBar() {
+        JPanel page = new JPanel(null);
+        page.setPreferredSize(new Dimension(360, 900));
+        JScrollPane outer = VCampusTheme.pageScroll(page);
+        outer.setSize(300, 180);
+
+        JTable table = new JTable(new DefaultTableModel(30, 2));
+        JScrollPane inner = VCampusTheme.scrollPane(table);
+        inner.setBounds(0, 0, 260, 120);
+        page.add(inner);
+        outer.doLayout();
+        inner.doLayout();
+        JScrollBar innerBar = inner.getVerticalScrollBar();
+        innerBar.setValue(innerBar.getMinimum());
+        MouseWheelEvent event = new MouseWheelEvent(table, MouseWheelEvent.MOUSE_WHEEL,
+                System.currentTimeMillis(), 0, 20, 20, 0, false,
+                MouseWheelEvent.WHEEL_UNIT_SCROLL, 3, 1);
+
+        assertTrue(VCampusTheme.forwardVerticalWheelAtBoundary(inner, event));
+        assertTrue(event.isConsumed());
+        assertTrue(innerBar.getValue() > innerBar.getMinimum(),
+                "内层列表有可见滚动条时，滚轮应直接移动该列表");
+    }
+
+    @Test
     void wheelOverPageCardContinuesToOuterPage() {
         JPanel page = new JPanel(null);
         page.setPreferredSize(new Dimension(360, 900));

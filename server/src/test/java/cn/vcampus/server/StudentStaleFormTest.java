@@ -24,7 +24,7 @@ class StudentStaleFormTest {
         StudentRecord original = row("Original", "13800000000");
         repository.save(original);
         InMemoryUserManagementService users = new InMemoryUserManagementService();
-        String admin = login(users, "admin_a", Role.ADMIN);
+        String admin = login(users, "academic_a", Role.ACADEMIC_ADMIN);
         String otherAdmin = login(users, "admin_b", Role.ACADEMIC_ADMIN);
         String student = login(users, "student_a", Role.STUDENT);
         String otherStudent = login(users, "student_b", Role.STUDENT);

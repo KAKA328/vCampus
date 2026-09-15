@@ -260,13 +260,7 @@ final class VCampusTheme {
         if (scroller == null || event == null || event.isConsumed()
                 || event.getWheelRotation() == 0) return false;
         if (event.isShiftDown() && moveHorizontal(scroller, event)) return true;
-        JScrollBar innerBar = scroller.getVerticalScrollBar();
-        int maximum = innerBar.getMaximum() - innerBar.getVisibleAmount();
-        boolean scrollUp = event.getWheelRotation() < 0;
-        if ((scrollUp && innerBar.getValue() > innerBar.getMinimum())
-                || (!scrollUp && innerBar.getValue() < maximum)) {
-            return false;
-        }
+        if (canContinueVertically(scroller, event.getWheelRotation())) return moveVertical(scroller, event);
         JScrollPane outer = parentScrollPane(scroller);
         if (outer == null) return false;
         return moveVertical(outer, event);
@@ -301,7 +295,10 @@ final class VCampusTheme {
         JScrollPane nested = nearestScrollPane(event.getComponent(), pageScroller);
         if (nested != null) {
             if (event.isShiftDown() && moveHorizontal(nested, event)) return;
-            if (canContinueVertically(nested, event.getWheelRotation())) return;
+            if (canContinueVertically(nested, event.getWheelRotation())) {
+                moveVertical(nested, event);
+                return;
+            }
         }
         moveVertical(pageScroller, event);
     }
