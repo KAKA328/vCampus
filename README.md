@@ -63,139 +63,82 @@ $env:VCAMPUS_BOOTSTRAP_ADMIN_NAME="系统管理员"
 - Maven 3.8 或更高版本
 - Access 持久化需要 `.accdb` 文件；不指定数据库时使用内存演示数据。指定 `--db` 后用户、学生/教师档案、选课核心数据、商品、订单、购物车、钱包、图书馆馆藏和借阅记录使用同一个 Access 数据库。
 
-## 构建与测试
+## 本地启动与验收
 
-在仓库根目录执行：
+推荐使用 Access 持久化模式。它使用同一个 `database/vCampus.accdb` 保存所有模块数据，适合联调和验收。启动时依次完成构建、建立基线、启动服务端和启动客户端；每轮测试结束后再恢复数据。开始前确认当前工作区已处于要验收的提交；不要为了建库切换正在开发且有未提交改动的分支。除第 1 步外，其余命令也默认在仓库根目录执行；新开 PowerShell 窗口时先运行 `cd D:\codex\java协作`。
 
-```powershell
+### 1. 构建
+
+~~~powershell
 cd D:\codex\java协作
 mvn clean test
 mvn -DskipTests package
-```
+~~~
 
-打包后生成 `server/target/vCampusServer.jar` 和 `client/target/vCampusClient.jar`。
+打包后生成 `server/target/vCampusServer.jar` 和 `client/target/vCampusClient.jar`。`mvn clean test` 是代码回归，通常使用临时数据库；它不验证随后启动的运行库。
 
-## 启动程序
+### 2. 建立验收数据基线
 
-### 0. 启动前必做：重建数据库
+首次验收，或 `schema.sql`、`seed.sql`、迁移或目标提交发生变化时，先关闭所有服务端和客户端，再执行：
 
-使用推荐的 `--db` 验收方式启动前，必须先重建本地 Access 数据库。服务器不会自动执行 `schema.sql` 或 `seed.sql`；切换分支、同步 `main` 或更新数据库结构/演示数据后，也必须重新执行下面的命令。执行前请先停止已运行的服务器和客户端。脚本会先备份现有数据库为带时间戳的 `.bak` 文件，再按 `schema.sql`、`seed.sql` 的顺序生成最新 `database/vCampus.accdb`：
-
-```powershell
-cd D:\codex\java协作
+~~~powershell
 powershell -ExecutionPolicy Bypass -File .\database\rebuild.ps1
-```
-
-如果只想重建其他路径下的数据库：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\database\rebuild.ps1 -DatabasePath .\database\acceptance.accdb
-```
-
-### 验收数据库：建立基线、测试与恢复
-
-验收测试会改变账号、库存、借阅、选课、成绩和钱包数据。每轮测试必须使用同一份基线库，并且只能在服务器和客户端均已退出后备份或恢复；不要在程序运行时复制 `.accdb` 文件。基线及重建脚本自动生成的 `.bak` 文件均为本地数据，禁止提交。
-
-首次验收、切换到已同步的目标提交，或 `schema.sql`、`seed.sql`、数据库迁移发生变化时，按以下步骤重新建立基线。同步分支应遵循项目 Git 流程：只在独立、无待保留改动的验收工作区中更新 `main`，不要为了建立数据库基线而切换正在开发的分支或覆盖成员的本地数据。
-
-```powershell
-cd D:\codex\java协作
-
-# 停止正在运行的服务端和客户端后，按最新结构与演示数据重建。
-powershell -ExecutionPolicy Bypass -File .\database\rebuild.ps1
-
-# 这份文件是本轮验收唯一的可恢复基线。
 Copy-Item .\database\vCampus.accdb .\database\vCampus.accdb.acceptance-baseline.bak -Force
 Get-FileHash .\database\vCampus.accdb, .\database\vCampus.accdb.acceptance-baseline.bak -Algorithm SHA256
-```
+~~~
 
-两条哈希必须相同。若不同，停止操作并重新执行“重建数据库”和复制基线步骤。不要复用旧分支、旧结构或旧演示数据生成的基线。
+两条哈希必须相同。`rebuild.ps1` 按 `schema.sql` 和 `seed.sql` 重建演示数据，并自动为旧库创建备份。基线用于恢复账号、库存、借阅、选课、成绩和钱包等会被测试改变的数据；不要复用旧结构或旧提交生成的基线。
 
-每一轮功能、异常、并发或多客户端测试按以下流程执行：
+### 3. 启动服务端
 
-```powershell
-cd D:\codex\java协作
+在第一个 PowerShell 窗口执行，并保持窗口运行：
 
-# 1. 测试前恢复基线（所有客户端和服务端必须已经退出）。
-Copy-Item .\database\vCampus.accdb.acceptance-baseline.bak .\database\vCampus.accdb -Force
-
-# 2. 代码回归与运行库验收是两件事：此命令验证代码，测试通常使用临时库，
-#    不验证下面启动的 vCampus.accdb 服务端。
-mvn -q test
-
-# 3. 启动一个服务端；多个客户端都连接该服务端，不要分别启动多个服务端写同一文件。
+~~~powershell
 java -jar .\server\target\vCampusServer.jar --db .\database\vCampus.accdb --port 19090
+~~~
 
-# 4. 在其他 PowerShell 窗口按“启动客户端”步骤连接多个客户端，执行本轮
-#    正常、异常、权限、冲突或并发验收，并记录结果。
+看到 `vCampus server listening on port 19090` 即表示服务端已启动。每轮并发或多客户端测试只启动这一个服务端，所有客户端都连接它；不要启动多个服务端同时写同一数据库文件。
 
-# 5. 测试结束后，先停止服务端和全部客户端，再恢复基线。
+### 4. 启动客户端并测试
+
+在第二个及后续 PowerShell 窗口执行；并发测试时重复本命令启动多个客户端：
+
+~~~powershell
+java -jar .\client\target\vCampusClient.jar --host 127.0.0.1 --port 19090
+~~~
+
+使用本地测试账号登录并执行本轮正常、异常、权限、冲突或并发场景。`demo_admin / Demo123` 用于用户管理；其他账号及可测试内容见上方“本地测试账号”。
+
+### 5. 结束测试并恢复基线
+
+先在所有客户端和服务端窗口按 `Ctrl + C` 退出，确认没有程序占用数据库后执行：
+
+~~~powershell
 Copy-Item .\database\vCampus.accdb.acceptance-baseline.bak .\database\vCampus.accdb -Force
 Get-FileHash .\database\vCampus.accdb, .\database\vCampus.accdb.acceptance-baseline.bak -Algorithm SHA256
-```
+~~~
 
-最后两条哈希相同即表示运行库已恢复。需要保留某轮故障现场时，先把 `vCampus.accdb` 另存为带日期的 `.bak`，再恢复基线；`database/` 及其子目录中的 `.bak` 已被 Git 忽略，但提交前仍应执行 `git status --short` 确认没有误加入本地数据。图书馆的独立验收库、并发账号和专用清单见 [`test-data/LIBRARY_ACCEPTANCE.md`](test-data/LIBRARY_ACCEPTANCE.md)。
+两条哈希相同即表示已恢复；下一轮从第 3 步重新开始。需要保留故障现场时，先把运行库另存为 `.bak`，再恢复基线。`database/` 及其子目录的 `.bak` 都会被 Git 忽略，但提交前仍应运行 `git status --short`，确认没有误加入本地数据。图书馆的独立验收库和并发账号见 [`test-data/LIBRARY_ACCEPTANCE.md`](test-data/LIBRARY_ACCEPTANCE.md)。
 
-### 1. 启动服务器
+### 可选启动方式
 
-第一个 PowerShell 窗口：
+**远程联机。** 在运行服务端的电脑上启动 Sakura FRP TCP 隧道，将本机 `127.0.0.1:19090` 映射到课程分配的公网地址和端口。其他电脑只需把客户端参数替换为该公网地址和端口；服务端仍监听本机 `19090`。公网隧道仅用于课程验收，只使用演示账号，不暴露真实账号或数据库。
 
-```powershell
-cd D:\codex\java协作
-java -jar .\server\target\vCampusServer.jar --db .\database\vCampus.accdb --port 19090
-```
+**Socket 冒烟。** 服务端已启动时执行：
 
-看到 `vCampus server listening on port 19090` 表示服务器已启动，并保持该窗口运行。验收和日常联调推荐使用 `--db .\database\vCampus.accdb`；只有完成上面的重建步骤后，数据库中才会包含最新版 `seed.sql` 对应的演示账号、课程目录、开放选课轮次、教学班、选课记录、成绩审核样例、105 个商店商品、钱包余额、订单、购物车、学籍和图书馆等测试数据。
-
-### 2. 启动客户端
-
-第二个 PowerShell 窗口：
-
-```powershell
-cd D:\codex\java协作
-java -jar .\client\target\vCampusClient.jar --host 127.0.0.1 --port 19090
-```
-
-使用 `demo_admin / Demo123` 登录后，在“用户管理 → 创建账号”开户注册。登录页不会显示“注册新用户”。也可以使用 `demo_student`、`demo_teacher`、`demo_librarian`、`demo_store_manager` 等演示账号登录各自模块。创建学生/教师账号时必须填写数据库中已存在且未绑定的学号/教师工号。
-
-### 3. 通过 Sakura FRP 远程连接
-
-需要让其他电脑联机验收时，先在运行服务端的电脑上启动 Sakura FRP 的 TCP 隧道。服务端仍使用本机端口 `19090`，不要把服务端端口改成 FRP 公网端口：
-
-```text
-隧道类型：JAVA TCP
-公网地址：frp-way.com
-公网端口：63286
-本地转发：运行服务端电脑的 127.0.0.1:19090
-```
-
-Sakura FRP 控制台显示“Tunnel/JAVA TCP 隧道启动成功”后，其他电脑的客户端使用公网地址和端口连接：
-
-```powershell
-cd D:\codex\java协作
-java -jar .\client\target\vCampusClient.jar --host frp-way.com --port 63286
-```
-
-服务端窗口和 Sakura FRP 隧道窗口都必须保持运行。公网隧道仅用于课程验收，建议只使用仓库中的演示账号，不要暴露真实账号、密码或真实数据库。
-
-### 4. Socket 冒烟演示
-
-服务器运行时，在第二个窗口执行：
-
-```powershell
+~~~powershell
 java -jar .\client\target\vCampusClient.jar --demo --host 127.0.0.1 --port 19090
-```
+~~~
 
-该演示使用管理员会话创建并绑定 `20260006` 演示学生档案，再测试登录、课程授权和登出。首次运行会创建
-`demo_registration_student`；在同一个持久化数据库上再次运行时会复用该账号。
+它会创建或复用 `demo_registration_student`，并验证登录、课程授权和登出。
 
-### 5. 内存演示模式
+**内存演示。** 快速调试可不传 `--db`：
 
-```powershell
+~~~powershell
 java -jar .\server\target\vCampusServer.jar --port 19090
-```
+~~~
 
-不带 `--db` 启动时使用内存演示模式，适合快速调试 Socket 和临时账号；内存模式不会读取 `database/vCampus.accdb`，商店等模块的演示数据较少，且进程退出后运行期新增数据会丢失。数据库说明、表结构和初始化数据见 [`database/README.md`](database/README.md)、[`database/schema.sql`](database/schema.sql) 和 [`database/seed.sql`](database/seed.sql)。
+内存模式不读取 `database/vCampus.accdb`，数据会在进程退出后丢失，不能用于持久化验收。数据库结构和初始化数据见 [`database/README.md`](database/README.md)、[`database/schema.sql`](database/schema.sql) 和 [`database/seed.sql`](database/seed.sql)。
 
 ## 代码结构
 
