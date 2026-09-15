@@ -3,7 +3,7 @@ package cn.vcampus.student;
 import java.io.Serializable;
 
 /** Targets are administrative business parameters; actor identity always comes from the session. */
-public final class AcademicAdminCommandV1 implements Serializable {
+public final class AcademicAdminCommandV1 implements AcademicAdminCommand, Serializable {
     private static final long serialVersionUID = 1L;
     public enum Action { STUDENTS, TEACHERS, HISTORY, CREDITS, ASSESSMENTS, REVIEW, GRADUATE }
     private final String token;
@@ -25,8 +25,8 @@ public final class AcademicAdminCommandV1 implements Serializable {
         require(token, "token");
         if (action == null) throw new IllegalArgumentException("action is required");
         if (action != Action.STUDENTS && action != Action.TEACHERS) require(studentId, "studentId");
-        if (action == Action.REVIEW) {
-            if (requiredCredits <= 0) throw new IllegalArgumentException("要求学分必须大于零");
+        if (action == Action.REVIEW && requiredCredits <= 0) {
+            throw new IllegalArgumentException("要求学分必须大于零");
         }
         if (action == Action.GRADUATE) {
             require(assessmentId, "assessmentId");
@@ -44,4 +44,5 @@ public final class AcademicAdminCommandV1 implements Serializable {
     public String getAssessmentId() { return assessmentId; }
     /** Empty optional notes are stored as empty text, compatible with existing NOT NULL basis. */
     public String getNote() { return note == null ? "" : note.trim(); }
+    public boolean isOtherRequirementsConfirmed() { return otherRequirementsConfirmed; }
 }

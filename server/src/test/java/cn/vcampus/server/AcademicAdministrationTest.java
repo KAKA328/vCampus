@@ -16,6 +16,7 @@ class AcademicAdministrationTest {
     private final InMemoryUserManagementService users = new InMemoryUserManagementService();
     private final DefaultStudentManagementService studentService = new DefaultStudentManagementService(students);
     private AcademicAdminMessageHandler handler;
+    private GraduationCreditRequirement requirement;
     private String admin;
     @BeforeEach void setup() {
         students.save(student("S001", "student_a", "在读"));
@@ -24,8 +25,10 @@ class AcademicAdministrationTest {
         history.addHistory(attempt("C1", 1, false, 0));
         history.addHistory(attempt("C1", 2, true, 3));
         history.addHistory(attempt("C1", 3, true, 3));
+        requirement = requirement(3);
         handler = new AcademicAdminMessageHandler(new AcademicAdminService(new InMemoryAcademicAdminStore(
-                studentService, new DefaultTeacherProfileService(teachers), history)), users);
+                studentService, new DefaultTeacherProfileService(teachers), history),
+                student -> ServiceResult.ok(requirement)), users);
         admin = login("academic", Role.ACADEMIC_ADMIN);
     }
     @Test void academicAdministratorSeesEveryStudentAndInactiveTeacherWhileSystemAdminIsDenied() {
@@ -85,6 +88,13 @@ class AcademicAdministrationTest {
         history.addHistory(attempt("C1", 4, true, 3)); // total is unchanged, evidence differs
         assertEquals(StatusCode.CONFLICT, send(command(admin, Action.GRADUATE, "S001", 0, latest.getId())).getStatusCode());
     }
+    @Test void changedTrainingPlanRequirementInvalidatesTheLatestReview() {
+        AcademicAssessment latest = review(3);
+        requirement = requirement(4);
+        Message result = send(command(admin, Action.GRADUATE, "S001", 0, latest.getId()));
+        assertEquals(StatusCode.CONFLICT, result.getStatusCode());
+        assertTrue(String.valueOf(result.getPayload()).contains("培养方案"));
+    }
     @Test void changedProfileOrInactiveStatusBlocksConfirmation() {
         AcademicAssessment old = review(3);
         students.save(new StudentRecord("S001", "student_a", "新姓名", "未知", "院系", "专业", "班级", 2026, "在读", "", ""));
@@ -98,28 +108,31 @@ class AcademicAdministrationTest {
         assertEquals(StatusCode.FORBIDDEN, legacy.handle(request).getStatusCode());
         assertEquals("在读", students.findById("S001").getStatus());
     }
-    @Test void requestRequiresExplicitOtherRequirementsAndPositiveCredits() {
-        assertThrows(IllegalArgumentException.class, () -> command(admin, Action.REVIEW, "S001", 0, null));
+    @Test void v1WriteContractIsRetainedButNewWritesRequireV2() {
+        assertThrows(IllegalArgumentException.class, () -> new AcademicAdminCommandV1(admin,
+                Action.REVIEW, "S001", 0, null, "", false));
+        assertEquals(StatusCode.BAD_REQUEST, send(new AcademicAdminCommandV1(admin, Action.REVIEW,
+                "S001", 3, null, "", false)).getStatusCode());
         assertThrows(IllegalArgumentException.class, () -> new AcademicAdminCommandV1(admin, Action.GRADUATE,
                 "S001", 0, "id", "依据", false));
     }
     @Test void blankNotesAreOptionalButLengthAndGraduationConfirmationAreStillEnforced() {
         for (String note : new String[] {null, "", "   "}) {
-            Message saved = send(new AcademicAdminCommandV1(admin, Action.REVIEW, "S001", 3, null, note, false));
+            Message saved = send(new AcademicAdminCommandV2(admin, Action.REVIEW, "S001", null, note, false));
             assertEquals(StatusCode.OK, saved.getStatusCode());
             assertEquals("", ((AcademicAssessment) saved.getPayload()).getBasis());
         }
         AcademicAssessment latest = (AcademicAssessment) ((List<?>) send(command(admin,
                 Action.ASSESSMENTS, "S001", 0, null)).getPayload()).get(0);
-        Message graduated = send(new AcademicAdminCommandV1(admin, Action.GRADUATE,
-                "S001", 0, latest.getId(), "", true));
+        Message graduated = send(new AcademicAdminCommandV2(admin, Action.GRADUATE,
+                "S001", latest.getId(), "", true));
         assertEquals(StatusCode.OK, graduated.getStatusCode());
         assertEquals("", ((AcademicAssessment) graduated.getPayload()).getGraduationNote());
-        assertThrows(IllegalArgumentException.class, () -> new AcademicAdminCommandV1(admin, Action.REVIEW,
-                "S001", 3, null, String.join("", Collections.nCopies(256, "字")), false));
+        assertThrows(IllegalArgumentException.class, () -> new AcademicAdminCommandV2(admin, Action.REVIEW,
+                "S001", null, String.join("", Collections.nCopies(256, "字")), false));
     }
     @Test void deserializedUnconfirmedGraduationCannotBypassValidation() throws Exception {
-        AcademicAdminCommandV1 command = command(admin, Action.GRADUATE, "S001", 0, review(3).getId());
+        AcademicAdminCommandV2 command = command(admin, Action.GRADUATE, "S001", 0, review(3).getId());
         java.lang.reflect.Field field = command.getClass().getDeclaredField("otherRequirementsConfirmed");
         field.setAccessible(true); field.setBoolean(command, false);
         assertEquals(StatusCode.BAD_REQUEST, send(command).getStatusCode());
@@ -128,22 +141,29 @@ class AcademicAdministrationTest {
 
     @Test void serverDispatchConnectsAdminDirectoryToTheSameStudentService() throws Exception {
         try (ServerApplication server = new ServerApplication(0, users)) {
-            Message result = server.dispatch(Message.request("directory", MessageType.ACADEMIC_ADMIN_V1,
+            Message result = server.dispatch(Message.request("directory", MessageType.ACADEMIC_ADMIN_V2,
                     command(admin, Action.STUDENTS, null, 0, null)));
             assertEquals(StatusCode.OK, result.getStatusCode());
             assertEquals("20260001", ((StudentRecord) ((List<?>) result.getPayload()).get(0)).getStudentId());
         }
     }
     private AcademicAssessment review(int required) {
+        requirement = requirement(required);
         Message result = send(command(admin, Action.REVIEW, "S001", required, null));
         assertEquals(StatusCode.OK, result.getStatusCode(), String.valueOf(result.getPayload()));
         return (AcademicAssessment) result.getPayload();
     }
-    private Message send(AcademicAdminCommandV1 command) {
-        return handler.handle(Message.request("admin", MessageType.ACADEMIC_ADMIN_V1, command).withSender("spoofed_actor"));
+    private Message send(AcademicAdminCommand command) {
+        MessageType type = command instanceof AcademicAdminCommandV2
+                ? MessageType.ACADEMIC_ADMIN_V2 : MessageType.ACADEMIC_ADMIN_V1;
+        return handler.handle(Message.request("admin", type, command).withSender("spoofed_actor"));
     }
-    private static AcademicAdminCommandV1 command(String token, Action action, String student, int credits, String id) {
-        return new AcademicAdminCommandV1(token, action, student, credits, id, "适用培养方案已核查", true);
+    private static AcademicAdminCommandV2 command(String token, Action action, String student, int credits, String id) {
+        return new AcademicAdminCommandV2(token, action, student, id, "适用培养方案已核查", true);
+    }
+    private static GraduationCreditRequirement requirement(int credits) {
+        return new GraduationCreditRequirement("PLAN", credits,
+                Collections.singletonList("2:C1:" + credits));
     }
     private String login(String id, Role role) {
         UserCredentials credentials = new UserCredentials(id, "Demo123", id, role.name());

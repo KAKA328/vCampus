@@ -47,15 +47,14 @@ class RemoteStudentAcademicServiceTest {
                                         "教师", "院系", "讲师", false)));
                         output.flush();
                         Message adminRequest = (Message) input.readObject();
-                        assertEquals(MessageType.ACADEMIC_ADMIN_V1, adminRequest.getType());
-                        cn.vcampus.student.AcademicAdminCommandV1 admin =
-                                (cn.vcampus.student.AcademicAdminCommandV1) adminRequest.getPayload();
+                        assertEquals(MessageType.ACADEMIC_ADMIN_V2, adminRequest.getType());
+                        cn.vcampus.student.AcademicAdminCommandV2 admin =
+                                (cn.vcampus.student.AcademicAdminCommandV2) adminRequest.getPayload();
                         assertEquals("academic-token", admin.getToken());
                         assertEquals("S001", admin.getStudentId());
-                        assertEquals(6, admin.getRequiredCredits());
                         output.writeObject(Message.response(adminRequest, StatusCode.OK,
                                 new cn.vcampus.student.AcademicAssessment("review",
-                                        new cn.vcampus.student.CreditSummary("S001", 6, 2, 0, 1), 6,
+                                        new cn.vcampus.student.CreditSummary("S001", 11, 4, 0, 1), 11,
                                         "hash", "academic", java.time.Instant.now(), "依据", null, null, null)));
                         output.flush();
                     }
@@ -72,9 +71,9 @@ class RemoteStudentAcademicServiceTest {
                 Message teacher = remote.currentTeacher("teacher-token");
                 assertEquals(StatusCode.OK, teacher.getStatusCode());
                 assertFalse(((cn.vcampus.student.TeacherProfile) teacher.getPayload()).isActive());
-                Message assessment = remote.administer(new cn.vcampus.student.AcademicAdminCommandV1(
+                Message assessment = remote.administer(new cn.vcampus.student.AcademicAdminCommandV2(
                         "academic-token", cn.vcampus.student.AcademicAdminCommandV1.Action.REVIEW,
-                        "S001", 6, null, "依据", false));
+                        "S001", null, "依据", false));
                 assertEquals(StatusCode.OK, assessment.getStatusCode());
                 assertTrue(((cn.vcampus.student.AcademicAssessment) assessment.getPayload()).isCreditRequirementMet());
             }
