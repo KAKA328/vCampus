@@ -61,28 +61,38 @@ final class LibraryViewData {
     /** 校验馆藏响应后替换列表、补充分类并更新数量概览。 */
     static void showBooks(LibraryViewState v, Message response) {
         if (!LibraryRequestRunner.isSuccessful(v, response)) return;
-        if (!(response.getPayload() instanceof List<?>)) {
+        if (!isListOf(response, Book.class)) {
             LibraryRequestRunner.showStatus(v, "服务器返回的馆藏数据格式不正确", VCampusTheme.DANGER);
             return;
         }
+        applyBooks(v, response, false);
+        v.catalogRefresh.catalogShown();
+        LibraryRequestRunner.showStatus(v, "已显示符合条件的图书，共 " + v.bookModel.getRowCount() + " 种", VCampusTheme.SUCCESS);
+    }
+
+    /** 安静更新有效馆藏，失败时保留旧表格和最近的业务提示。 */
+    static boolean showBooksQuietly(LibraryViewState v, Message response) {
+        if (!isListOf(response, Book.class)) return false;
+        applyBooks(v, response, true);
+        return true;
+    }
+
+    /** 投影已验证的馆藏响应，后台模式保留当前选择且不更改查询草稿。 */
+    private static void applyBooks(LibraryViewState v, Message response, boolean quiet) {
         List<?> books = (List<?>) response.getPayload();
         List<Object[]> rows = new ArrayList<Object[]>();
         int availableCopies = 0;
         for (Object item : books) {
-            if (!(item instanceof Book)) {
-                LibraryRequestRunner.showStatus(v, "服务器返回的馆藏数据格式不正确", VCampusTheme.DANGER);
-                return;
-            }
             Book book = (Book) item;
             LibraryWidgets.addCategoryChoice(v.categoryField, book.getCategory());
             rows.add(LibraryRowMapper.bookRow(book));
             availableCopies += book.getAvailableCopies();
         }
-        v.bookModel.replaceRows(rows);
+        if (quiet) LibraryCatalogSelection.replace(v, rows);
+        else v.bookModel.replaceRows(rows);
         LibraryViewData.cacheBookTitles(v, response, false);
         v.catalogCountValue.setText(books.size() + " 种");
         v.availableCountValue.setText(availableCopies + " 册");
-        LibraryRequestRunner.showStatus(v, "已显示符合条件的图书，共 " + books.size() + " 种", VCampusTheme.SUCCESS);
     }
 
     /** 校验借阅响应后更新列表、在借数量和到期提醒。 */

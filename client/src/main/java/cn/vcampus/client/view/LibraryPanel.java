@@ -49,6 +49,7 @@ public final class LibraryPanel extends JPanel {
     @Override
     public void removeNotify() {
         state.reminderDateTimer.stop();
+        state.catalogRefresh.stop();
         super.removeNotify();
     }
 
