@@ -27,7 +27,7 @@ class LibraryAcceptanceDataTest {
     @Test void catalogAccountsAndRelationshipsAreComplete() throws Exception {
         assertEquals(80, library.search("", null).size());
         assertEquals(25, library.findAllBorrowHistory().size());
-        assertEquals(31, LibraryV4TestFixture.count(database, "tblUser"));
+        assertEquals(34, LibraryV4TestFixture.count(database, "tblUser"));
         assertEquals(80, LibraryV4TestFixture.count(database, "tblLibraryCopyCatalog"));
         assertEquals(25, LibraryV4TestFixture.count(database, "tblLibraryLoanSnapshot"));
         assertEquals(5, LibraryV4TestFixture.count(database, "tblLibraryCompensation"));
