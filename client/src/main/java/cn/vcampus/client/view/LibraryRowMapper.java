@@ -34,9 +34,9 @@ final class LibraryRowMapper {
         return "￥" + BigDecimal.valueOf(cents, 2).toPlainString();
     }
 
-    /** 判断是否显示馆员或系统管理员的管理工作区。 */
+    /** 判断是否显示馆员的管理工作区。 */
     static boolean canManage(Role role) {
-        return role == Role.ADMIN || role == Role.LIBRARIAN;
+        return role == Role.LIBRARIAN;
     }
 
     /** 将馆藏快照映射为表格行，不修改库存。 */

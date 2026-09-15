@@ -303,7 +303,7 @@ public final class MainFrame extends JFrame {
     }
 
     static boolean useCourseManagementPanel(Role role, ModuleDescriptor module) {
-        return (role == Role.ACADEMIC_ADMIN || role == Role.ADMIN)
+        return role == Role.ACADEMIC_ADMIN
                 && module != null
                 && "教务教学管理".equals(module.getTitle());
     }
@@ -323,9 +323,9 @@ public final class MainFrame extends JFrame {
     static boolean useStorePanel(Role role, ModuleDescriptor module) {
         if (module == null)
             return false;
-        // ADMIN 与 STORE_MANAGER 同时拥有「商店」(消费者) 与「商店管理」(管理者) 两个独立入口，两个标题都要接住；
+        // STORE_MANAGER 同时拥有「商店」(消费者) 与「商店管理」(管理者) 两个独立入口；
         // STUDENT/TEACHER 只有「商店」消费者入口（对齐 useLibraryPanel 的多入口处理方式）。
-        if (role == Role.ADMIN || role == Role.STORE_MANAGER)
+        if (role == Role.STORE_MANAGER)
             return "商店".equals(module.getTitle()) || "商店管理".equals(module.getTitle());
         return (role == Role.STUDENT || role == Role.TEACHER)
                 && "商店".equals(module.getTitle());
@@ -334,8 +334,6 @@ public final class MainFrame extends JFrame {
     static boolean useLibraryPanel(Role role, ModuleDescriptor module) {
         if (module == null)
             return false;
-        if (role == Role.ADMIN)
-            return "图书管理".equals(module.getTitle());
         return (role == Role.STUDENT || role == Role.TEACHER || role == Role.LIBRARIAN)
                 && "图书馆".equals(module.getTitle());
     }
@@ -344,7 +342,7 @@ public final class MainFrame extends JFrame {
         if (module == null)
             return false;
         String title = module.getTitle();
-        return (role == Role.ADMIN || role == Role.ACADEMIC_ADMIN || role == Role.STUDENT)
+        return (role == Role.ACADEMIC_ADMIN || role == Role.STUDENT)
                 && ("学籍管理".equals(title) || "学籍信息".equals(title));
     }
 

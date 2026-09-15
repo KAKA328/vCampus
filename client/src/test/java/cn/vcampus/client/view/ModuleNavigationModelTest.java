@@ -21,15 +21,10 @@ class ModuleNavigationModelTest {
     }
 
     @Test
-    void adminSeesAllManagementEntries() {
+    void adminSeesOnlyUserManagementEntry() {
         ModuleNavigationModel model = new ModuleNavigationModel();
 
-        assertTrue(model.visibleModules(Role.ADMIN).contains("用户管理"));
-        assertTrue(model.visibleModules(Role.ADMIN).contains("学籍管理"));
-        assertTrue(model.visibleModules(Role.ADMIN).contains("教务教学管理"));
-        assertTrue(model.visibleModules(Role.ADMIN).contains("图书管理"));
-        assertTrue(model.visibleModules(Role.ADMIN).contains("商店"));
-        assertTrue(model.visibleModules(Role.ADMIN).contains("商店管理"));
+        assertEquals(java.util.Collections.singletonList("用户管理"), model.visibleModules(Role.ADMIN));
     }
 
     @Test
@@ -89,13 +84,13 @@ class ModuleNavigationModelTest {
     }
 
     @Test
-    void academicAdministratorsAndAdminsUseCourseManagementPanel() {
+    void onlyAcademicAdministratorsUseCourseManagementPanel() {
         ModuleNavigationModel model = new ModuleNavigationModel();
 
         assertTrue(MainFrame.useCourseManagementPanel(Role.ACADEMIC_ADMIN,
                 model.findModule(Role.ACADEMIC_ADMIN, "教务教学管理")));
-        assertTrue(MainFrame.useCourseManagementPanel(Role.ADMIN,
-                model.findModule(Role.ADMIN, "教务教学管理")));
+        assertFalse(MainFrame.useCourseManagementPanel(Role.ADMIN,
+                new ModuleDescriptor("教务教学管理", "测试", "测试")));
         assertFalse(MainFrame.useCourseManagementPanel(Role.STUDENT,
                 model.findModule(Role.STUDENT, "学生选课")));
         assertFalse(MainFrame.useCourseManagementPanel(Role.TEACHER,
@@ -123,14 +118,11 @@ class ModuleNavigationModelTest {
     }
 
     @Test
-    void adminUsesStorePanelViaBothConsumerAndManagementEntries() {
+    void storeManagerUsesStorePanelAndAdminCannotRouteToIt() {
         ModuleNavigationModel model = new ModuleNavigationModel();
 
-        // ADMIN 同时拥有「商店管理」(管理者) 与「商店」(消费者) 两个入口，两个标题都要路由到 StorePanel，
-        // 否则管理员会掉进占位面板，用不到商品维护/全部订单/余额校正或自身购买能力。
-        assertTrue(MainFrame.useStorePanel(Role.ADMIN, model.findModule(Role.ADMIN, "商店管理")));
-        assertTrue(MainFrame.useStorePanel(Role.ADMIN, model.findModule(Role.ADMIN, "商店")));
-        // STORE_MANAGER 同样双入口都路由到 StorePanel。
+        assertFalse(MainFrame.useStorePanel(Role.ADMIN, new ModuleDescriptor("商店管理", "测试", "测试")));
+        assertFalse(MainFrame.useStorePanel(Role.ADMIN, new ModuleDescriptor("商店", "测试", "测试")));
         assertTrue(MainFrame.useStorePanel(Role.STORE_MANAGER, model.findModule(Role.STORE_MANAGER, "商店管理")));
         assertTrue(MainFrame.useStorePanel(Role.STORE_MANAGER, model.findModule(Role.STORE_MANAGER, "商店")));
     }
@@ -142,7 +134,7 @@ class ModuleNavigationModelTest {
         assertTrue(MainFrame.useLibraryPanel(Role.STUDENT, model.findModule(Role.STUDENT, "图书馆")));
         assertTrue(MainFrame.useLibraryPanel(Role.TEACHER, model.findModule(Role.TEACHER, "图书馆")));
         assertTrue(MainFrame.useLibraryPanel(Role.LIBRARIAN, model.findModule(Role.LIBRARIAN, "图书馆")));
-        assertTrue(MainFrame.useLibraryPanel(Role.ADMIN, model.findModule(Role.ADMIN, "图书管理")));
+        assertFalse(MainFrame.useLibraryPanel(Role.ADMIN, new ModuleDescriptor("图书管理", "测试", "测试")));
         assertFalse(MainFrame.useLibraryPanel(Role.ACADEMIC_ADMIN,
                 model.findModule(Role.ACADEMIC_ADMIN, "图书馆")));
         assertFalse(MainFrame.useLibraryPanel(Role.STORE_MANAGER,

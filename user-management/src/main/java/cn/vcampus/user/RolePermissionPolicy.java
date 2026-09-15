@@ -11,7 +11,8 @@ public final class RolePermissionPolicy {
     private final Map<Role, Set<Permission>> matrix = new EnumMap<Role, Set<Permission>>(Role.class);
 
     public RolePermissionPolicy() {
-        matrix.put(Role.ADMIN, EnumSet.allOf(Permission.class));
+        // 系统管理员在正式验收仅负责账号生命周期与角色分配，业务模块各自由专责角色办理。
+        matrix.put(Role.ADMIN, EnumSet.of(Permission.USER_MANAGE));
         matrix.put(Role.STUDENT, EnumSet.of(
                 Permission.USER_SELF_READ,
                 Permission.STUDENT_READ,

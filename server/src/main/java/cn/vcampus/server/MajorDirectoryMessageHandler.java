@@ -22,8 +22,8 @@ final class MajorDirectoryMessageHandler {
             return Message.response(request, session.getStatus(), session.getMessage());
         }
         Role role = session.getData().getUser().getRole();
-        if (role != Role.ADMIN && role != Role.ACADEMIC_ADMIN) {
-            return Message.response(request, StatusCode.FORBIDDEN, "仅教务或系统管理员可查询培养方案专业目录");
+        if (role != Role.ACADEMIC_ADMIN) {
+            return Message.response(request, StatusCode.FORBIDDEN, "仅教务管理员可查询培养方案专业目录");
         }
         ServiceResult<?> result = majors.listActive();
         return Message.response(request, result.getStatus(),

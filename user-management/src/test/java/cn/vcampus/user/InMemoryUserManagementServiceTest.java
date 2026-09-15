@@ -174,10 +174,10 @@ class InMemoryUserManagementServiceTest {
     }
 
     @Test
-    void systemAdminRetainsEveryPermission() {
+    void systemAdminRetainsOnlyUserManagementPermission() {
         RolePermissionPolicy policy = new RolePermissionPolicy();
 
-        assertAllAllowed(policy, Role.ADMIN, Permission.values());
+        assertExactPermissions(policy, Role.ADMIN, "USER_MANAGE");
     }
 
     @Test

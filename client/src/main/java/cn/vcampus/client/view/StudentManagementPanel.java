@@ -84,7 +84,7 @@ public final class StudentManagementPanel extends JPanel {
         this.port = port;
         this.session = session;
         Role role = session.getUser().getRole();
-        this.canManage = role == Role.ADMIN || role == Role.ACADEMIC_ADMIN;
+        this.canManage = role == Role.ACADEMIC_ADMIN;
         this.canQueryById = canManage;
         this.canQueryClass = canManage;
         this.canEdit = canManage || role == Role.STUDENT;

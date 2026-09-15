@@ -69,13 +69,13 @@ class LibraryCompensationMessageHandlerTest {
     void onlyLibraryManagersCanDeclareLossAndRepeatedDeclarationReturnsSameBill() throws Exception {
         try (ServerApplication server = new ServerApplication(0, users)) {
             BorrowRecord loan = borrow(server, student, "B001");
-            for (String token : new String[] {student, teacher,
+            for (String token : new String[] {student, teacher, account("admin", Role.ADMIN),
                     account("store", Role.STORE_MANAGER), account("academic", Role.ACADEMIC_ADMIN)}) {
                 assertEquals(StatusCode.FORBIDDEN, send(server, MessageType.LIBRARY_LOSS_DECLARE_V3,
                         new LibraryLossDeclareV3Command(token, loan.getRecordId())).getStatusCode());
             }
             LibraryCompensation first = loss(server, librarian, loan.getRecordId());
-            LibraryCompensation second = loss(server, account("admin", Role.ADMIN), loan.getRecordId());
+            LibraryCompensation second = loss(server, librarian, loan.getRecordId());
             assertEquals(first.getCompensationId(), second.getCompensationId());
             assertEquals(BorrowStatus.LOST, history(server, student).get(0).getStatus());
         }

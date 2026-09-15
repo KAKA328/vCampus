@@ -204,9 +204,9 @@ public final class StorePanel extends JPanel {
         return session != null && canManage(session.getUser().getRole()) ? Mode.MANAGER : Mode.CONSUMER;
     }
 
-    /** 管理员与商店经理可维护商品、查看全部订单和校正余额。 */
+    /** 商店管理员可维护商品、查看全部订单和校正余额。 */
     static boolean canManage(Role role) {
-        return role == Role.ADMIN || role == Role.STORE_MANAGER;
+        return role == Role.STORE_MANAGER;
     }
 
     private void build() {

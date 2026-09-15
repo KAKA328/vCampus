@@ -73,7 +73,7 @@ final class CourseUiSupport {
         error.setForeground(VCampusTheme.DANGER);
         error.setFont(VCampusTheme.font(Font.PLAIN, 13));
         form.add(guide, BorderLayout.NORTH);
-        form.add(new JScrollPane(input), BorderLayout.CENTER);
+        form.add(VCampusTheme.scrollPane(input), BorderLayout.CENTER);
         form.add(error, BorderLayout.SOUTH);
         content.add(form, BorderLayout.CENTER);
 
