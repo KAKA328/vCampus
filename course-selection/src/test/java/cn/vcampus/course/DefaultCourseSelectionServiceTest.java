@@ -1,6 +1,7 @@
 package cn.vcampus.course;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
@@ -129,6 +130,29 @@ class DefaultCourseSelectionServiceTest {
                 .getStatus());
         assertEquals(StatusCode.CONFLICT,
                 service.select(anotherRetakeStudent, "ROUND-RETAKE", "OFFER-CS101-A", NOW).getStatus());
+    }
+
+    @Test
+    void fullOfferingRemainsVisibleButSelectionIsStillRejected() {
+        StudentSelectionProfile anotherStudent = profile("user-003", "STU-003",
+                Collections.<String>emptySet());
+
+        assertEquals(StatusCode.OK, service.select(student, "ROUND-INITIAL", "OFFER-CS101-A", NOW)
+                .getStatus());
+        assertEquals(StatusCode.OK, service.select(anotherStudent, "ROUND-INITIAL", "OFFER-CS101-A", NOW)
+                .getStatus());
+
+        ServiceResult<List<SelectableCourseOffering>> offerings = service.listAvailableOfferings(student,
+                "ROUND-INITIAL", NOW);
+        boolean fullOfferingVisible = false;
+        for (SelectableCourseOffering offering : offerings.getData()) {
+            if ("OFFER-CS101-A".equals(offering.getOffering().getOfferingId())) {
+                fullOfferingVisible = offering.getCapacityUsage().isFull();
+            }
+        }
+        assertTrue(fullOfferingVisible, "已满教学班仍应保留在可选课程结果中");
+        assertEquals(StatusCode.CONFLICT, service.select(retakeStudent, "ROUND-RETAKE",
+                "OFFER-CS101-A", NOW).getStatus());
     }
 
     private static SelectionRound round(String id, SelectionRoundType type) {

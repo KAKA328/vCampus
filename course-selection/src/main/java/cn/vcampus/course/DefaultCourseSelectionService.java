@@ -123,12 +123,10 @@ public final class DefaultCourseSelectionService implements CourseSelectionServi
                 CourseOfferingCapacitySnapshot snapshot = capacityResult.getData().get(
                         offering.getOfferingId());
                 if (snapshot == null) continue;
-                CapacityBucketUsage usage = snapshot.getUsage(
-                        eligibleCourse.getValue().getCapacityBucket());
-                if (!usage.isFull()) {
-                    result.add(new SelectableCourseOffering(course, offering,
-                            eligibleCourse.getValue(), snapshot));
-                }
+                // 即使当前容量池已满，也应让学生看见该教学班及其实时容量。
+                // 实际选课仍会在 select 中再次校验并以原子方式占用容量。
+                result.add(new SelectableCourseOffering(course, offering,
+                        eligibleCourse.getValue(), snapshot));
             }
         }
         return ServiceResult.ok(Collections.unmodifiableList(result));

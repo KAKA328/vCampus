@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import cn.vcampus.common.Role;
+import cn.vcampus.course.TrainingPlanStatus;
 import cn.vcampus.common.User;
 import cn.vcampus.user.Session;
 import java.lang.reflect.Field;
@@ -22,10 +23,21 @@ class TrainingPlanManagementPanelTest {
         assertEquals(JTable.AUTO_RESIZE_OFF, plans.getAutoResizeMode());
         assertEquals(JTable.AUTO_RESIZE_OFF, courses.getAutoResizeMode());
         assertEquals("课程名称", courses.getColumnName(1));
+        assertEquals("学分", courses.getColumnName(2));
         assertTrue(courses.getColumnModel().getColumn(1).getPreferredWidth() >= UiMetrics.px(220));
         assertTrue(button(panel, "createButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
         assertTrue(button(panel, "editPlanButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
         assertTrue(button(panel, "saveCourseButton").getUI() instanceof VCampusTheme.ReadableButtonUI);
+    }
+
+    @Test
+    void describesTheAvailableStatusActionForEachPlanState() {
+        assertEquals("发布方案", TrainingPlanManagementPanel.statusActionText(
+                TrainingPlanStatus.DRAFT));
+        assertEquals("撤回或归档", TrainingPlanManagementPanel.statusActionText(
+                TrainingPlanStatus.PUBLISHED));
+        assertEquals("恢复为草稿", TrainingPlanManagementPanel.statusActionText(
+                TrainingPlanStatus.ARCHIVED));
     }
 
     private static TrainingPlanManagementPanel panel() {

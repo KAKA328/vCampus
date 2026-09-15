@@ -15,7 +15,12 @@ public interface TrainingPlanService {
     /** 查询一个专业、一个入学年份适用的完整培养方案。 */
     ServiceResult<TrainingPlan> findByMajorAndEnrollmentYear(String majorName, int enrollmentYear);
 
-    /** 发布或归档培养方案；状态只能按 DRAFT → PUBLISHED → ARCHIVED 前进。 */
+    /**
+     * 变更培养方案状态。
+     *
+     * <p>允许的流转为：DRAFT → PUBLISHED；PUBLISHED → DRAFT 或 ARCHIVED；
+     * ARCHIVED → DRAFT。只有已发布方案会在学生端生效。</p>
+     */
     ServiceResult<TrainingPlan> changeStatus(String planId, TrainingPlanStatus status);
 
     /** 仅草稿方案允许修改专业和入学年份，方案编号保持不变。 */

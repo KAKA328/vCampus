@@ -92,7 +92,7 @@ class InMemoryTrainingPlanServiceTest {
     }
 
     @Test
-    void allowsOnlyDraftPlanToBeMaintainedAndPublishedPlanToBeQueriedByStudents() {
+    void supportsPublishedAndArchivedPlanRecoveryWithoutReleasingItsScope() {
         InMemoryTrainingPlanService service = new InMemoryTrainingPlanService(Arrays.asList(
                 computerSciencePlan("PLAN-CS-2026")));
 
@@ -105,10 +105,27 @@ class InMemoryTrainingPlanServiceTest {
         assertEquals(StatusCode.OK,
                 service.listCoursesByRecommendedTerm("计算机科学与技术", 2026, 1).getStatus());
         assertEquals(StatusCode.OK, service.changeStatus("PLAN-CS-2026",
+                TrainingPlanStatus.DRAFT).getStatus());
+        assertEquals(StatusCode.OK, service.saveCourse("PLAN-CS-2026",
+                new TrainingPlanCourse("CS301", 3, SelectionType.REQUIRED, false)).getStatus());
+        assertEquals(StatusCode.NOT_FOUND,
+                service.listCoursesByRecommendedTerm("计算机科学与技术", 2026, 1).getStatus());
+        assertEquals(StatusCode.OK, service.changeStatus("PLAN-CS-2026",
+                TrainingPlanStatus.PUBLISHED).getStatus());
+        assertEquals(StatusCode.OK, service.changeStatus("PLAN-CS-2026",
                 TrainingPlanStatus.ARCHIVED).getStatus());
+        assertEquals(StatusCode.CONFLICT, service.create(new TrainingPlan("PLAN-CS-2026-NEW",
+                "计算机科学与技术", 2026, Arrays.asList(
+                        new TrainingPlanCourse("CS101", 1, SelectionType.REQUIRED, false)))).getStatus());
         assertEquals(StatusCode.CONFLICT, service.changeStatus("PLAN-CS-2026",
                 TrainingPlanStatus.PUBLISHED).getStatus());
-        assertEquals(StatusCode.NOT_FOUND,
+        assertEquals(StatusCode.OK, service.changeStatus("PLAN-CS-2026",
+                TrainingPlanStatus.DRAFT).getStatus());
+        assertEquals(StatusCode.CONFLICT, service.changeStatus("PLAN-CS-2026",
+                TrainingPlanStatus.ARCHIVED).getStatus());
+        assertEquals(StatusCode.OK, service.changeStatus("PLAN-CS-2026",
+                TrainingPlanStatus.PUBLISHED).getStatus());
+        assertEquals(StatusCode.OK,
                 service.listCoursesByRecommendedTerm("计算机科学与技术", 2026, 1).getStatus());
     }
 
