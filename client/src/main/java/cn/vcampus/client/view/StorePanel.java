@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
+import java.util.function.BooleanSupplier;
 import javax.swing.AbstractButton;
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
@@ -190,6 +191,12 @@ public final class StorePanel extends JPanel {
     private long productRequestVersion;
     /** 商品目录自动刷新定时器：addNotify 启动、removeNotify 停止，离开商店页不再发请求。 */
     private Timer catalogAutoRefresh;
+    /**
+     * 页面代次：removeNotify 时递增，作废本实例的所有在途请求。
+     * MainFrame 缓存 StorePanel（买家页与管理页是两个实例），离开再回来是同一个实例，
+     * 没有代次守卫时旧响应会写进已经刷新的页面。必须是实例字段：一个页面被移除不得作废另一个页面的在途请求。
+     */
+    private long pageGeneration;
     /** 商店主题对话框打开数：模态对话框会开嵌套事件循环，定时器仍会触发，必须在此期间暂停自动刷新。 */
     private static int openThemedDialogs;
     private boolean hotViewVisible;
@@ -301,11 +308,17 @@ public final class StorePanel extends JPanel {
         startCatalogAutoRefresh();
     }
 
-    /** 离开商店页立即停表，避免在别的模块里继续轮询服务端。 */
+    /** 离开商店页立即停表并作废在途请求，避免旧响应写回已经离开的页面。 */
     @Override
     public void removeNotify() {
         stopCatalogAutoRefresh();
+        invalidatePendingResponses();
         super.removeNotify();
+    }
+
+    /** 作废本实例当前所有在途请求：递增页面代次，之后到达的响应与异常都不再写页面。 */
+    void invalidatePendingResponses() {
+        pageGeneration++;
     }
 
     /** 启动商品目录自动刷新定时器（幂等）。 */
@@ -330,6 +343,20 @@ public final class StorePanel extends JPanel {
      */
     private void autoRefreshCatalog() {
         if (isShowing() && canSilentlyRefreshCatalog()) {
+            silentlyRefreshCatalog();
+        }
+    }
+
+    /**
+     * 静默刷新"当前正在看的那个商品视图"：热销榜重查热销榜，普通列表重查普通列表。
+     *
+     * <p>不能一律调用 {@link #loadProducts(boolean)}：它会先把 hotViewVisible 置回 false 并改写按钮文案，
+     * 于是用户只要停在热销榜上，5 秒后就会被自动刷新悄悄切回全部商品。
+     */
+    void silentlyRefreshCatalog() {
+        if (hotViewVisible) {
+            loadHotProducts(false);
+        } else {
             loadProducts(false);
         }
     }
@@ -802,7 +829,8 @@ public final class StorePanel extends JPanel {
         final long version = ++productRequestVersion;
         runReadRequest("正在加载商品…", service -> service.listProducts(session.getToken(),
                 category.isEmpty() ? null : category, includeInactive),
-                response -> acceptProducts(version, response, true), this::retryInitialProductLoad);
+                response -> showProducts(response, true), this::retryInitialProductLoad,
+                () -> version == productRequestVersion);
     }
 
     private void retryInitialProductLoad() {
@@ -846,14 +874,8 @@ public final class StorePanel extends JPanel {
         runReadRequest((category.isEmpty() ? "正在查询商品" : "正在查询「" + category + "」类商品") + suffix + "…",
                 service -> service.searchProducts(session.getToken(), keyword.isEmpty() ? null : keyword,
                         category.isEmpty() ? null : category, minPrice, maxPrice, includeInactive),
-                response -> acceptProducts(version, response, announce));
-    }
-
-    /** 商品响应代次守卫：只有最新一次请求的结果才允许落到表格。 */
-    private void acceptProducts(long version, Message response, boolean announce) {
-        if (version == productRequestVersion) {
-            showProducts(response, announce);
-        }
+                response -> showProducts(response, announce), null,
+                () -> version == productRequestVersion);
     }
 
     /** 价格区间输入解析：空白=该侧不限（null）；非数字抛 NumberFormatException 由调用方转成中文提示。 */
@@ -1004,20 +1026,22 @@ public final class StorePanel extends JPanel {
     }
 
     private void loadHotProducts() {
+        loadHotProducts(true);
+    }
+
+    /** announce=false 用于静默自动刷新：只更新表格，不把"已显示热销商品"反复写进状态栏。 */
+    private void loadHotProducts(boolean announce) {
         final long version = ++productRequestVersion;
         runReadRequest("正在查询热销商品…", service -> service.hotProducts(session.getToken(), HOT_PRODUCT_LIMIT),
                 response -> {
-                    if (version != productRequestVersion) {
-                        return;
-                    }
                     // 先确认成功再切视图标记，否则查询失败会把按钮错留在「返回全部商品」状态
                     if (!isSuccessful(response)) {
                         return;
                     }
                     hotViewVisible = true;
                     hotButton.setText("返回全部商品");
-                    showProducts(response);
-                });
+                    showProducts(response, announce);
+                }, null, () -> version == productRequestVersion);
     }
 
     private void showProducts(Message response) {
@@ -1662,9 +1686,8 @@ public final class StorePanel extends JPanel {
 
     private void loadBalance() {
         final long version = ++balanceRequestVersion;
-        runReadRequest("正在查询余额…", service -> service.balance(session.getToken()), response -> {
-            if (version == balanceRequestVersion) showBalance(response);
-        });
+        runReadRequest("正在查询余额…", service -> service.balance(session.getToken()), this::showBalance, null,
+                () -> version == balanceRequestVersion);
     }
 
     /** 从其他模块返回缓存商店页时重查共享钱包；不重建商品页、不新增写接口。 */
@@ -1687,9 +1710,8 @@ public final class StorePanel extends JPanel {
         // 图书馆赔偿可在本页缓存期间改变同一个账户，刷新流水也必须刷新页头余额。
         loadBalance();
         final long version = ++ledgerRequestVersion;
-        runReadRequest("正在查询钱包流水…", service -> service.ledger(session.getToken()), response -> {
-            if (version == ledgerRequestVersion) showLedger(response);
-        });
+        runReadRequest("正在查询钱包流水…", service -> service.ledger(session.getToken()), this::showLedger, null,
+                () -> version == ledgerRequestVersion);
     }
 
     private void showLedger(Message response) {
@@ -1774,16 +1796,20 @@ public final class StorePanel extends JPanel {
     }
 
     private void runReadRequest(String loadingMessage, StoreRequest request, ResponseHandler responseHandler) {
-        runRequest(false, loadingMessage, request, responseHandler, null);
+        runRequest(false, loadingMessage, request, responseHandler, null, null);
     }
 
+    /**
+     * 带过期判定的读请求：请求被更新的请求取代，或页面已被移除时，
+     * 成功与失败都不再写表格、也不再覆盖状态栏（避免过期错误顶掉最新提示）。
+     */
     private void runReadRequest(String loadingMessage, StoreRequest request, ResponseHandler responseHandler,
-            Runnable failureHandler) {
-        runRequest(false, loadingMessage, request, responseHandler, failureHandler);
+            Runnable failureHandler, BooleanSupplier stillCurrent) {
+        runRequest(false, loadingMessage, request, responseHandler, failureHandler, stillCurrent);
     }
 
     private void runMutationRequest(String loadingMessage, StoreRequest request, ResponseHandler responseHandler) {
-        runRequest(true, loadingMessage, request, responseHandler, null);
+        runRequest(true, loadingMessage, request, responseHandler, null, null);
     }
 
     /**
@@ -1793,7 +1819,9 @@ public final class StorePanel extends JPanel {
      * duplicate payment submissions.
      */
     private void runRequest(boolean mutation, String loadingMessage, final StoreRequest request,
-            final ResponseHandler responseHandler, final Runnable failureHandler) {
+            final ResponseHandler responseHandler, final Runnable failureHandler,
+            final BooleanSupplier stillCurrent) {
+        final long generation = pageGeneration;
         if (mutation) {
             activeMutationRequests++;
             updateButtonState();
@@ -1814,8 +1842,15 @@ public final class StorePanel extends JPanel {
             @Override
             protected void done() {
                 try {
-                    responseHandler.handle(get());
+                    Message response = get();
+                    if (!isStale(generation, stillCurrent)) {
+                        responseHandler.handle(response);
+                    }
                 } catch (Exception failure) {
+                    if (isStale(generation, stillCurrent)) {
+                        // 过期请求的异常不得覆盖最新状态提示，也不触发失败后处理
+                        return;
+                    }
                     // 解包 SwingWorker 的 ExecutionException，区分「网络故障」与「其它异常」，不再一律报“无法连接”
                     Throwable cause = failure instanceof ExecutionException && failure.getCause() != null
                             ? failure.getCause()
@@ -1839,6 +1874,14 @@ public final class StorePanel extends JPanel {
                 }
             }
         }.execute();
+    }
+
+    /**
+     * 过期判定：页面代次变了（已离开商店页）或该请求已被更新的同类请求取代。
+     * 过期请求的响应与异常都不得再写页面或状态栏。
+     */
+    private boolean isStale(long generation, BooleanSupplier stillCurrent) {
+        return generation != pageGeneration || (stillCurrent != null && !stillCurrent.getAsBoolean());
     }
 
     // done() 的本地异常（命令构造/解析等非网络故障）文案：一律中文，绝不把 cause.getMessage() 的内部英文甩给用户

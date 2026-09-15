@@ -23,6 +23,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
+import javax.swing.JButton;
+import javax.swing.JLabel;
 import javax.swing.JTable;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
@@ -175,6 +177,123 @@ class StoreCatalogRefreshTest {
         }
     }
 
+    // —— 评审意见①：热销榜被自动刷新切回普通列表 ——
+
+    @Test
+    void silentAutoRefreshKeepsHotViewInsteadOfFallingBackToAllProducts() throws Exception {
+        try (StoreServer server = new StoreServer()) {
+            StorePanel panel = page(server);
+            await(() -> server.productQueries.get() >= 1);
+
+            // 用户切到热销榜
+            SwingUtilities.invokeAndWait(() -> invoke(panel, "loadHotProducts", new Class<?>[0]));
+            await(() -> server.hotProductQueries.get() >= 1);
+            await(() -> "返回全部商品".equals(hotButtonText(panel)));
+            assertTrue(hotViewVisible(panel));
+
+            int productQueriesBefore = server.productQueries.get();
+            int hotQueriesBefore = server.hotProductQueries.get();
+
+            // 定时器到点：静默刷新必须留在热销视图
+            SwingUtilities.invokeAndWait(panel::silentlyRefreshCatalog);
+            await(() -> server.hotProductQueries.get() > hotQueriesBefore);
+            Thread.sleep(200);
+
+            assertTrue(hotViewVisible(panel), "静默刷新不得把用户切回全部商品");
+            assertEquals("返回全部商品", hotButtonText(panel), "热销视图按钮文案不得被静默刷新改回");
+            assertEquals(productQueriesBefore, server.productQueries.get(),
+                    "热销视图中静默刷新不得发普通商品查询");
+        }
+    }
+
+    @Test
+    void silentAutoRefreshOnPlainListStillQueriesPlainProducts() throws Exception {
+        try (StoreServer server = new StoreServer()) {
+            StorePanel panel = page(server);
+            await(() -> server.productQueries.get() >= 1);
+            assertFalse(hotViewVisible(panel));
+
+            int productQueriesBefore = server.productQueries.get();
+            int hotQueriesBefore = server.hotProductQueries.get();
+            SwingUtilities.invokeAndWait(panel::silentlyRefreshCatalog);
+
+            await(() -> server.productQueries.get() > productQueriesBefore);
+            assertEquals(hotQueriesBefore, server.hotProductQueries.get(), "普通列表不得被静默刷新切到热销榜");
+            assertFalse(hotViewVisible(panel));
+        }
+    }
+
+    // —— 评审意见②：离开页面后未作废在途请求 ——
+
+    @Test
+    void removedPageDropsLateSuccessResponse() throws Exception {
+        try (StoreServer server = new StoreServer()) {
+            server.stock = 5;
+            StorePanel panel = page(server);
+            await(() -> stockOfFirstRow(panel) == 5);
+
+            // 挂起一次查询，其响应携带新库存 99
+            server.holdNextProductQuery = true;
+            server.stock = 99;
+            SwingUtilities.invokeAndWait(() -> invoke(panel, "loadProducts",
+                    new Class<?>[] {boolean.class}, Boolean.FALSE));
+            assertTrue(server.held.await(5, TimeUnit.SECONDS), "服务端应已挂起查询");
+
+            // 离开商店页（removeNotify 的等价动作）→ 在途请求作废
+            SwingUtilities.invokeAndWait(panel::invalidatePendingResponses);
+
+            // 放行迟到的成功响应：不得写回已离开的页面
+            server.release.countDown();
+            Thread.sleep(400);
+            assertEquals(5, stockOfFirstRow(panel), "页面已移除，迟到的成功响应不得写回页面");
+        }
+    }
+
+    // —— 评审意见③：过期请求的失败不得覆盖最新状态提示 ——
+
+    @Test
+    void supersededRequestFailureDoesNotOverwriteLatestStatus() throws Exception {
+        try (StoreServer server = new StoreServer()) {
+            server.stock = 5;
+            StorePanel panel = page(server);
+            await(() -> stockOfFirstRow(panel) == 5);
+
+            // 第 1 次查询被挂起，放行后以失败返回
+            server.holdNextProductQuery = true;
+            server.failHeldProductQuery = true;
+            SwingUtilities.invokeAndWait(() -> invoke(panel, "loadProducts",
+                    new Class<?>[] {boolean.class}, Boolean.FALSE));
+            assertTrue(server.held.await(5, TimeUnit.SECONDS), "服务端应已挂起第 1 次查询");
+
+            // 第 2 次查询（新代次）成功，状态栏写入成功提示
+            SwingUtilities.invokeAndWait(() -> invoke(panel, "loadProducts",
+                    new Class<?>[] {boolean.class}, Boolean.TRUE));
+            await(() -> statusText(panel).contains("已显示商品"));
+
+            // 放行过期的失败响应：不得覆盖最新提示
+            server.release.countDown();
+            Thread.sleep(400);
+            assertFalse(statusText(panel).contains("库存冲突，查询失败"),
+                    "过期请求的失败不得覆盖最新状态提示，实际为：" + statusText(panel));
+            assertTrue(statusText(panel).contains("已显示商品"));
+        }
+    }
+
+    @Test
+    void currentRequestFailureStillReportsStatus() throws Exception {
+        try (StoreServer server = new StoreServer()) {
+            StorePanel panel = page(server);
+            await(() -> server.productQueries.get() >= 1);
+
+            // 没有更新请求取代它：失败必须照常报出来，证明过期守卫没有过度抑制
+            server.productQueryStatus = StatusCode.CONFLICT;
+            SwingUtilities.invokeAndWait(() -> invoke(panel, "loadProducts",
+                    new Class<?>[] {boolean.class}, Boolean.TRUE));
+
+            await(() -> statusText(panel).contains("查询失败"));
+        }
+    }
+
     // —— helpers ——
 
     private static StorePanel page(StoreServer server) throws Exception {
@@ -225,6 +344,28 @@ class StoreCatalogRefreshTest {
         return (Timer) field(panel, "catalogAutoRefresh");
     }
 
+    /** 供 await 轮询调用：不抛受检异常。 */
+    private static String hotButtonText(StorePanel panel) {
+        try {
+            return ((JButton) field(panel, "hotButton")).getText();
+        } catch (Exception notReady) {
+            return "";
+        }
+    }
+
+    private static boolean hotViewVisible(StorePanel panel) throws Exception {
+        return ((Boolean) field(panel, "hotViewVisible")).booleanValue();
+    }
+
+    /** 供 await 轮询调用：不抛受检异常。 */
+    private static String statusText(StorePanel panel) {
+        try {
+            return ((JLabel) field(panel, "status")).getText();
+        } catch (Exception notReady) {
+            return "";
+        }
+    }
+
     private static Object field(Object target, String name) throws Exception {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
@@ -269,6 +410,7 @@ class StoreCatalogRefreshTest {
         final ServerSocket socket = new ServerSocket(0);
         final ExecutorService workers = Executors.newCachedThreadPool();
         final AtomicInteger productQueries = new AtomicInteger();
+        final AtomicInteger hotProductQueries = new AtomicInteger();
         final AtomicInteger addToCartRequests = new AtomicInteger();
         final AtomicInteger checkoutRequests = new AtomicInteger();
         final CountDownLatch held = new CountDownLatch(1);
@@ -276,6 +418,10 @@ class StoreCatalogRefreshTest {
         final AtomicBoolean heldOnce = new AtomicBoolean();
         volatile int stock = 5;
         volatile boolean holdNextProductQuery;
+        /** 被挂起的那次查询放行后是否以失败返回（用于验证过期失败不得覆盖状态栏）。 */
+        volatile boolean failHeldProductQuery;
+        /** 非挂起查询的返回状态：用于验证"未过期"的失败仍然正常报错。 */
+        volatile StatusCode productQueryStatus = StatusCode.OK;
         volatile StatusCode addToCartStatus = StatusCode.OK;
         volatile StatusCode checkoutStatus = StatusCode.OK;
 
@@ -303,11 +449,22 @@ class StoreCatalogRefreshTest {
                     case STORE_QUERY:
                         productQueries.incrementAndGet();
                         int snapshot = stock;// 快照：挂起期间 stock 可能已被改新
-                        if (holdNextProductQuery && heldOnce.compareAndSet(false, true)) {
+                        boolean heldThis = holdNextProductQuery && heldOnce.compareAndSet(false, true);
+                        if (heldThis) {
                             held.countDown();
                             release.await(10, TimeUnit.SECONDS);
                         }
-                        payload = products(snapshot);
+                        if (heldThis && failHeldProductQuery) {
+                            status = StatusCode.CONFLICT;
+                            payload = "库存冲突，查询失败";
+                        } else {
+                            status = productQueryStatus;
+                            payload = status == StatusCode.OK ? products(snapshot) : "查询失败";
+                        }
+                        break;
+                    case STORE_HOT_PRODUCTS:
+                        hotProductQueries.incrementAndGet();
+                        payload = products(stock);
                         break;
                     case STORE_ACCOUNT_QUERY:
                         payload = Long.valueOf(10000L);
