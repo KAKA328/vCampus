@@ -667,6 +667,13 @@ final class CourseMessageHandler {
             return ServiceResult.failure(StatusCode.BAD_REQUEST,
                     "课程学分请求缺少精确小数字段，请升级客户端");
         }
+        if (messageType == MessageType.COURSE_MANAGE_V3) {
+            try {
+                validatePreciseCreditPayload(command);
+            } catch (IllegalArgumentException invalidCredits) {
+                return ServiceResult.failure(StatusCode.BAD_REQUEST, invalidCredits.getMessage());
+            }
+        }
         switch (command.getOperation()) {
             case LIST_COURSES:
                 return catalog == null ? managementServiceUnavailable() : catalog.listAll();
@@ -679,7 +686,7 @@ final class CourseMessageHandler {
             case UPDATE_COURSE_DETAILS:
                 return catalog == null ? managementServiceUnavailable()
                         : command.getCourse() == null
-                                ? catalog.updateDetails(command.getTargetId(), command.getName(),
+                                ? catalog.updateDetailsDecimal(command.getTargetId(), command.getName(),
                                         command.getCreditsDecimal())
                                 : catalog.updateDetails(command.getTargetId(), command.getCourse());
             case CHANGE_COURSE_STATUS:
@@ -736,6 +743,18 @@ final class CourseMessageHandler {
                     ? command.hasPreciseCredits() : command.getCourse().hasPreciseCredits();
         }
         return true;
+    }
+
+    private static void validatePreciseCreditPayload(CourseManagementCommand command) {
+        if (command.getOperation() == CourseManagementCommand.Operation.CREATE_COURSE) {
+            cn.vcampus.common.CreditFormat.positive(command.getCourse().getCreditsDecimal(),
+                    "credits");
+        } else if (command.getOperation()
+                == CourseManagementCommand.Operation.UPDATE_COURSE_DETAILS) {
+            cn.vcampus.common.CreditFormat.positive(command.getCourse() == null
+                    ? command.getCreditsDecimal() : command.getCourse().getCreditsDecimal(),
+                    "credits");
+        }
     }
 
     /** 培养方案使用独立管理命令，仍复用教务课程管理权限。 */

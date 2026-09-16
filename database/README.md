@@ -34,7 +34,7 @@
 
 课程学分、正式成绩已获学分及学分审查字段统一使用 `DECIMAL(10,2)`。全新数据库按最新 `schema.sql` + `seed.sql` 重建；若使用 Microsoft Access 原生工具升级已有库，可执行 `migrations/018_fractional_course_credits.up.sql`，UCanAccess 4.x 不支持该 `ALTER COLUMN` 迁移语句。
 
-小数学分客户端必须使用 `COURSE_MANAGE_V3` 和 decimal getter。为兼容已发布的 Java 序列化对象，公共 DTO 保留旧 `int` 字段，但该值只是向零取整的兼容快照，不能写回数据库或用于新学分计算。
+小数学分客户端必须使用 `COURSE_MANAGE_V3` 和 decimal getter。为兼容已发布的 Java 序列化对象，公共 DTO 保留旧 `int` 字段；已获学分向下取整，要求学分和缺口向上取整，形成保守兼容快照。旧字段不能写回数据库或用于新学分计算。
 
 服务端会通过数据库唯一键阻止同一学生重复选择同一个教学班，并通过容量占用表原子预留名额；已退选记录不会占用容量。已选人数不存入 `tblCourse`，避免课程目录与教学班人数数据不一致。
 

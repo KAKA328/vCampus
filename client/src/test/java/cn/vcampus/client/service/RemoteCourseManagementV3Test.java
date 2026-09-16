@@ -18,6 +18,16 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class RemoteCourseManagementV3Test {
+    @Test void onlyCreditWritingOperationsUseV3() {
+        for (CourseManagementCommand.Operation operation
+                : CourseManagementCommand.Operation.values()) {
+            MessageType expected = operation == CourseManagementCommand.Operation.CREATE_COURSE
+                    || operation == CourseManagementCommand.Operation.UPDATE_COURSE_DETAILS
+                    ? MessageType.COURSE_MANAGE_V3 : MessageType.COURSE_MANAGE_V2;
+            assertEquals(expected, RemoteCourseService.managementMessageType(operation), operation.name());
+        }
+    }
+
     @Test void courseManagementUsesExplicitV3AndPreservesFractionalCredits() throws Exception {
         ExecutorService worker = Executors.newSingleThreadExecutor();
         try (ServerSocket listener = new ServerSocket(0)) {

@@ -32,7 +32,8 @@ public final class AcademicAssessment implements Serializable {
             Instant graduatedAt, String graduationNote) {
         this.id = id; this.credits = credits;
         this.requiredCreditsDecimal = CreditFormat.positive(requiredCredits, "requiredCredits");
-        this.requiredCredits = CreditFormat.legacyInt(this.requiredCreditsDecimal, "requiredCredits");
+        this.requiredCredits = CreditFormat.legacyRequiredInt(this.requiredCreditsDecimal,
+                "requiredCredits");
         this.evidence = evidence; this.reviewedBy = reviewedBy; this.reviewedAt = reviewedAt;
         this.basis = basis; this.graduatedBy = graduatedBy; this.graduatedAt = graduatedAt;
         this.graduationNote = graduationNote;
@@ -45,7 +46,7 @@ public final class AcademicAssessment implements Serializable {
         return CreditFormat.decimalOrLegacy(requiredCreditsDecimal, requiredCredits);
     }
     public int getShortfall() {
-        return CreditFormat.legacyInt(getShortfallDecimal(), "creditShortfall");
+        return CreditFormat.legacyRequiredInt(getShortfallDecimal(), "creditShortfall");
     }
     public BigDecimal getShortfallDecimal() {
         return getRequiredCreditsDecimal().subtract(credits.getEarnedCreditsDecimal()).max(BigDecimal.ZERO);

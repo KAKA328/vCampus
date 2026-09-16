@@ -121,7 +121,15 @@ public final class RemoteCourseService implements Closeable {
     /** 发送教务管理员维护课程目录或教学班的请求。 */
     public Message manage(CourseManagementCommand command) throws IOException, ClassNotFoundException {
         if (command == null) throw new IllegalArgumentException("command must not be null");
-        return send(MessageType.COURSE_MANAGE_V3, command);
+        return send(managementMessageType(command.getOperation()), command);
+    }
+
+    static MessageType managementMessageType(CourseManagementCommand.Operation operation) {
+        if (operation == CourseManagementCommand.Operation.CREATE_COURSE
+                || operation == CourseManagementCommand.Operation.UPDATE_COURSE_DETAILS) {
+            return MessageType.COURSE_MANAGE_V3;
+        }
+        return MessageType.COURSE_MANAGE_V2;
     }
 
     /** 查询可被分配教学班的在职教师。 */

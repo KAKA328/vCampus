@@ -82,7 +82,13 @@ public final class InMemoryAcademicReviewService
     }
 
     @Override
-    public synchronized ServiceResult<AcademicReview> review(String studentId, BigDecimal requiredCredits) {
+    public synchronized ServiceResult<AcademicReview> review(String studentId, int requiredCredits) {
+        return reviewDecimal(studentId, BigDecimal.valueOf(requiredCredits));
+    }
+
+    @Override
+    public synchronized ServiceResult<AcademicReview> reviewDecimal(String studentId,
+            BigDecimal requiredCredits) {
         if (studentId == null || studentId.trim().isEmpty()) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "studentId must not be blank");
         }

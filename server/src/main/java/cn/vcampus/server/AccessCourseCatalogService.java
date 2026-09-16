@@ -108,6 +108,12 @@ public final class AccessCourseCatalogService implements CourseCatalogService {
 
     @Override
     public synchronized ServiceResult<Course> updateDetails(String courseId, String name,
+            int credits) {
+        return updateDetailsDecimal(courseId, name, BigDecimal.valueOf(credits));
+    }
+
+    @Override
+    public synchronized ServiceResult<Course> updateDetailsDecimal(String courseId, String name,
             BigDecimal credits) {
         String normalizedCourseId = normalize(courseId);
         if (normalizedCourseId == null) {

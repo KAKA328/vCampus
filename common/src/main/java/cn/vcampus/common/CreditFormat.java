@@ -32,13 +32,22 @@ public final class CreditFormat {
     /**
      * Compatibility value for legacy integer wire fields.
      *
-     * <p>Fractional precision is available only through the parallel decimal field. The legacy
-     * value is rounded toward zero so an old client never overstates earned or required credits.</p>
+     * <p>Fractional precision is available only through the parallel decimal field. This default
+     * snapshot rounds down and is used for earned credits and course-credit display.</p>
      */
     public static int legacyInt(BigDecimal value, String fieldName) {
+        return legacyInt(value, fieldName, RoundingMode.DOWN);
+    }
+
+    /** Conservative legacy snapshot for required credits and credit shortfalls. */
+    public static int legacyRequiredInt(BigDecimal value, String fieldName) {
+        return legacyInt(value, fieldName, RoundingMode.CEILING);
+    }
+
+    private static int legacyInt(BigDecimal value, String fieldName, RoundingMode roundingMode) {
         BigDecimal normalized = nonNegative(value, fieldName);
         try {
-            return normalized.setScale(0, RoundingMode.DOWN).intValueExact();
+            return normalized.setScale(0, roundingMode).intValueExact();
         } catch (ArithmeticException outOfRange) {
             throw new IllegalArgumentException(fieldName + " exceeds legacy integer range", outOfRange);
         }

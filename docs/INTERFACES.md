@@ -106,15 +106,16 @@ StudentManagementService.findByIds(List<String> studentIds)
 
 成绩审核接口仅接受 `ACADEMIC_ADMIN` 或 `ADMIN` 角色且要求 `ACADEMIC_REVIEW` 权限。审核通过时，服务器按教学班课程、学期、选课类别和分数构造正式成绩：分数不少于 60 为通过并取得该课程学分，重修记录标记为“重修”，其余为“首修”；尝试次数从该学生该课程已有正式成绩的最大次数递增。教务可以退回待审核或已通过成绩；后一种情况会撤销该成绩单生成的正式成绩，学生学业审查将不再读取旧成绩。待审核草稿本身永不被学籍模块当作成绩依据。
 
-教务人员维护课程目录、教学班和选课轮次统一使用 `COURSE_MANAGE` 与
-`CourseManagementCommand`，服务端要求 `COURSE_MANAGE` 权限。选课轮次相关操作为：
+教务人员维护课程目录、教学班和选课轮次使用 `COURSE_MANAGE_V2` / `COURSE_MANAGE_V3`
+与 `CourseManagementCommand`，服务端要求 `COURSE_MANAGE` 权限。只有新增课程和修改课程
+详情使用 V3 精确学分载荷，其余查询及非学分操作继续使用 V2。选课轮次相关操作为：
 
 - `LIST_SELECTION_ROUNDS_BY_TERM`：查询某学期全部轮次；
 - `CREATE_SELECTION_ROUND`：创建首修或重修轮次；同一学期每种类型最多一个；
 - `UPDATE_SELECTION_ROUND_TIME_WINDOW`：仅修改轮次起止时间，不改变学期和轮次类型；
 - `CHANGE_SELECTION_ROUND_STATUS`：在草稿、开放、关闭状态之间切换。
 
-轮次操作不新增 `MessageType`，仍由现有 `COURSE_MANAGE` 分发；响应 payload 为
+轮次操作不新增 `MessageType`，仍由 `COURSE_MANAGE_V2` 分发；响应 payload 为
 `SelectionRound` 或其列表。数据库表为 `tblSelectionRound`，项目直接按最新版
 `schema.sql` 创建数据库，不保留旧表迁移要求。
 
@@ -167,7 +168,7 @@ StudentManagementService.findByIds(List<String> studentIds)
 - 首个系统管理员由服务器读取 `VCAMPUS_BOOTSTRAP_ADMIN_ID`、`VCAMPUS_BOOTSTRAP_ADMIN_PASSWORD`、`VCAMPUS_BOOTSTRAP_ADMIN_NAME` 后在进程内初始化，不通过 Socket 暴露管理员注册接口。
 - 权限新增 `COURSE_MANAGE`、`GRADE_WRITE`、`ACADEMIC_REVIEW`。
 - 学生完整选课使用 `COURSE_SELECTION_QUERY_V2`、`COURSE_SELECT_OFFERING_V2`、`COURSE_DROP_RECORD_V2`，查询要求 `COURSE_READ`，选课和退选要求 `COURSE_SELECT`。
-- 新客户端课程维护使用 `COURSE_MANAGE_V3`，要求 `COURSE_MANAGE` 权限；payload 固定为 `CourseManagementCommand`。`COURSE_MANAGE_V2` 保留查询和不涉及学分的教学班/轮次操作，但课程新增或课程详情修改返回 `BAD_REQUEST` 并提示升级。当前支持：
+- 新客户端仅在新增课程或修改课程详情时使用 `COURSE_MANAGE_V3`；查询、课程状态、教学班和轮次操作继续使用 `COURSE_MANAGE_V2`。两者都要求 `COURSE_MANAGE` 权限，payload 固定为 `CourseManagementCommand`。V2 收到课程新增或课程详情修改时返回 `BAD_REQUEST` 并提示升级。当前支持：
   - `LIST_COURSES`：查询全部课程目录，响应 `List<Course>`；
   - `LIST_OFFERINGS_BY_TERM(term)`：按学期查询教学班，响应 `List<CourseOffering>`；
   - `CREATE_COURSE(course)`：新增课程目录，响应 `Course`；
@@ -178,7 +179,7 @@ StudentManagementService.findByIds(List<String> studentIds)
   - `CHANGE_OFFERING_CAPACITIES(offeringId, requiredCapacity, electiveCapacity, crossMajorCapacity)`：修改三类容量，响应 `CourseOffering`；
   - `UPDATE_OFFERING_TEACHING_INFO(offeringId, teacherId, location)`：仅修改任课教师和上课地点，响应 `CourseOffering`，不得修改既有 `schedule` 文本或 `meetingSchedule` 结构化上课时间。
 - 停开课程或教学班时，存在选课或历史记录不得直接物理删除关联数据。
-- 选课轮次同样通过 `CourseManagementCommand` 维护；V2/V3 都支持查询某学期轮次、创建首修/重修轮次、修改轮次时间窗口和切换轮次状态；同一学期每种轮次类型最多一个。
+- 选课轮次同样通过 `CourseManagementCommand` 维护，并由客户端使用 V2 查询或修改；服务端 V3 仍兼容这些非学分操作。同一学期每种轮次类型最多一个。
 - 培养方案维护使用 `COURSE_TRAINING_PLAN_MANAGE_V2` + `TrainingPlanManagementCommand`，同样要求 `COURSE_MANAGE` 权限；支持查询、新建、维护课程要求、移除课程要求和变更方案状态。
 - 客户端只负责按角色隐藏无权入口，服务器 Handler 必须在调用业务接口前执行 `authorize`，拒绝时返回 `FORBIDDEN`。
 
@@ -186,7 +187,7 @@ StudentManagementService.findByIds(List<String> studentIds)
 
 `Course`、`CourseManagementCommand`、`CreditSummary`、`AcademicAssessment`、`AcademicReview`、`CourseHistoryRecord` 和 `FormalCourseResult` 保留旧的 `int` 序列化字段名、类型及 `serialVersionUID=1L`，同时增加并行 `BigDecimal` 精确字段。新客户端/服务端必须使用 `getCreditsDecimal()`、`getEarnedCreditsDecimal()`、`getRequiredCreditsDecimal()` 等精确 getter。缺少精确字段的旧序列化流会自动升级为整数 `BigDecimal`。
 
-新对象中的旧整数 getter 仅用于二进制兼容，对小数值向零取整，不得再用于业务计算或新 UI 展示。旧客户端可继续查询，但不能精确显示小数学分；所有课程学分写操作必须升级至 `COURSE_MANAGE_V3`，避免 `2.5` 被静默写成 `2`。
+新对象中的旧整数 getter 仅用于二进制兼容：已获学分向下取整，要求学分和缺口向上取整，使旧客户端最多保守显示未达标；这些 getter 不得再用于业务计算或新 UI 展示。旧客户端可继续查询，但不能精确显示小数学分；所有课程学分写操作必须升级至 `COURSE_MANAGE_V3`，避免 `2.5` 被静默写成 `2`。
 
 ## 教师本人档案 V1
 教师学籍入口使用 TEACHER_SELF_QUERY_V1 + TeacherSelfQueryV1Command(token)，仅返回会话绑定的 TeacherProfile，包含非在职状态，无修改功能。具体状态码和跨模块要求见 [教师本人档案对接](TEACHER_SELF_PROFILE_INTEGRATION.md)。

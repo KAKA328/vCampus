@@ -40,7 +40,11 @@ public final class GraduationCreditRequirement {
     }
 
     public String getPlanId() { return planId; }
-    public BigDecimal getRequiredCredits() { return requiredCredits; }
+    /** Legacy integer API retained for callers compiled against V1. */
+    public int getRequiredCredits() {
+        return CreditFormat.legacyRequiredInt(requiredCredits, "requiredCredits");
+    }
+    public BigDecimal getRequiredCreditsDecimal() { return requiredCredits; }
     public List<String> getRequiredCourseCredits() { return requiredCourseCredits; }
 
     /** Stable text included in the assessment evidence fingerprint. */

@@ -17,10 +17,21 @@ public interface CourseCatalogService {
 
     ServiceResult<List<Course>> listActive();
 
-    ServiceResult<Course> updateDetails(String courseId, String name, BigDecimal credits);
+    ServiceResult<Course> updateDetails(String courseId, String name, int credits);
 
-    default ServiceResult<Course> updateDetails(String courseId, String name, int credits) {
-        return updateDetails(courseId, name, BigDecimal.valueOf(credits));
+    /** Precise-credit API. Legacy implementations reject fractional values instead of truncating. */
+    default ServiceResult<Course> updateDetailsDecimal(String courseId, String name,
+            BigDecimal credits) {
+        if (credits == null) {
+            return ServiceResult.failure(cn.vcampus.common.StatusCode.BAD_REQUEST,
+                    "credits must not be null");
+        }
+        try {
+            return updateDetails(courseId, name, credits.intValueExact());
+        } catch (ArithmeticException fractionalOrOutOfRange) {
+            return ServiceResult.failure(cn.vcampus.common.StatusCode.BAD_REQUEST,
+                    "course catalog implementation does not support fractional credits");
+        }
     }
 
     /** 更新课程编号、名称、学分与状态。课程编号变更时必须同步维护关联数据。 */

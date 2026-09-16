@@ -301,7 +301,8 @@ private Message dispatch(Message request) {
         case COURSE_SELECTION_QUERY_V2:
         case COURSE_SELECT_OFFERING_V2:
         case COURSE_DROP_RECORD_V2:
-        case COURSE_MANAGE:
+        case COURSE_MANAGE_V2:
+        case COURSE_MANAGE_V3:
         case COURSE_TRAINING_PLAN_MANAGE_V2:
             return courseMessages.handle(request);
         case LIBRARY_QUERY_V2:

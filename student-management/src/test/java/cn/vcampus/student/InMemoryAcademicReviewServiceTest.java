@@ -20,7 +20,8 @@ public class InMemoryAcademicReviewServiceTest {
         service.addHistory(new CourseHistoryRecord("S-FRACTION", "C002", "Web开发",
                 "2026-2027-1", 1, "首修", 91, true, new BigDecimal("2.5")));
 
-        ServiceResult<AcademicReview> result = service.review("S-FRACTION", new BigDecimal("4.0"));
+        ServiceResult<AcademicReview> result = service.reviewDecimal("S-FRACTION",
+                new BigDecimal("4.0"));
 
         assertEquals(StatusCode.OK, result.getStatus());
         assertEquals(new BigDecimal("4"), result.getData().getTotalEarnedCreditsDecimal());

@@ -91,7 +91,13 @@ public final class AccessAcademicReviewService
     }
 
     @Override
-    public ServiceResult<AcademicReview> review(String studentId, BigDecimal requiredCredits) {
+    public ServiceResult<AcademicReview> review(String studentId, int requiredCredits) {
+        return reviewDecimal(studentId, BigDecimal.valueOf(requiredCredits));
+    }
+
+    @Override
+    public ServiceResult<AcademicReview> reviewDecimal(String studentId,
+            BigDecimal requiredCredits) {
         if (requiredCredits == null || requiredCredits.signum() < 0) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "requiredCredits cannot be negative");
         }

@@ -69,7 +69,8 @@ public final class AcademicReview implements Serializable {
         this.totalEarnedCreditsDecimal = CreditFormat.nonNegative(totalEarnedCredits, "totalEarnedCredits");
         this.requiredEarnedCreditsDecimal = CreditFormat.nonNegative(requiredEarnedCredits, "requiredEarnedCredits");
         this.totalEarnedCredits = CreditFormat.legacyInt(this.totalEarnedCreditsDecimal, "totalEarnedCredits");
-        this.requiredEarnedCredits = CreditFormat.legacyInt(this.requiredEarnedCreditsDecimal, "requiredEarnedCredits");
+        this.requiredEarnedCredits = CreditFormat.legacyRequiredInt(
+                this.requiredEarnedCreditsDecimal, "requiredEarnedCredits");
         this.passedCourseCount = passedCourseCount;
         this.failedCourseCount = failedCourseCount;
         this.retakeCourseCount = retakeCourseCount;
@@ -90,7 +91,7 @@ public final class AcademicReview implements Serializable {
         return CreditFormat.decimalOrLegacy(requiredEarnedCreditsDecimal, requiredEarnedCredits);
     }
     public int getCreditShortfall() {
-        return CreditFormat.legacyInt(getCreditShortfallDecimal(), "creditShortfall");
+        return CreditFormat.legacyRequiredInt(getCreditShortfallDecimal(), "creditShortfall");
     }
     public BigDecimal getCreditShortfallDecimal() {
         return getRequiredEarnedCreditsDecimal().subtract(getTotalEarnedCreditsDecimal()).max(BigDecimal.ZERO);
