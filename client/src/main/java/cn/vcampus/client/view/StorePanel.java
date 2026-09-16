@@ -136,6 +136,8 @@ public final class StorePanel extends JPanel {
     private final JSpinner quantity = new JSpinner(new SpinnerNumberModel(1, 1, MAX_QUANTITY, 1));
     // 上次“数量选择器对准的商品”：切换选中到另一个商品时数量复位为 1（数量属于对当前商品的操作意图）
     private String quantityTargetProductId;
+    /** 程序化恢复商品选中（刷新重建表格行）期间为 true，用于屏蔽选中联动，避免误复位数量与翻转数量上限。 */
+    private boolean restoringProductSelection;
 
     // —— 商品目录视图形态：列表（表格）/ 方块（双列卡片）。默认：买家方块、管理员列表 ——
     private boolean cardViewVisible;// 是否处于方块视图（build() 内按角色设初值）
@@ -280,10 +282,18 @@ public final class StorePanel extends JPanel {
             if (event.getValueIsAdjusting()) {
                 return;
             }
+            if (restoringProductSelection) {
+                // 刷新期间「清空选中 → 恢复选中」是程序化动作，不代表用户换了商品：
+                // 既不能把数量复位，也不能让 syncQuantityLimit 在无选中(999)/有选中(库存)之间反复翻转最大值
+                // —— SpinnerNumberModel 任何状态变化都会把编辑器里尚未提交的输入重置成模型值。
+                return;
+            }
             Product selected = selectedProduct();
-            if (selected == null) {
-                quantityTargetProductId = null;
-            } else if (!selected.getProductId().equals(quantityTargetProductId)) {
+            // 只有「确实换成了另一个商品」才把数量复位为 1。
+            // 刻意不在 selected == null（无选中）时清空 quantityTargetProductId：商品刷新会重建模型行并临时清空选中，
+            // 随后 restoreSelection 又恢复同一行的选中，会再触发一次本监听器；若中间清空过，
+            // 同一个商品就会被误判成「换了商品」，用户刚输入/调好的数量会被打回 1。
+            if (selected != null && !selected.getProductId().equals(quantityTargetProductId)) {
                 quantity.setValue(Integer.valueOf(1));
                 quantityTargetProductId = selected.getProductId();
             }
@@ -1107,9 +1117,18 @@ public final class StorePanel extends JPanel {
             visibleProducts.add(product);
             rows.add(StoreRowMapper.productRow(product));
         }
-        productModel.replaceRows(rows);
-        restoreSelection(previouslySelected);
+        // 重建行会清空选中，恢复同一行的选中属于程序化动作：期间屏蔽选中联动，
+        // 否则会被当成「换了商品」而把用户刚调好的数量打回 1（并让数量上限来回翻转、清掉未提交的输入）。
+        restoringProductSelection = true;
+        try {
+            productModel.replaceRows(rows);
+            restoreSelection(previouslySelected);
+        } finally {
+            restoringProductSelection = false;
+        }
         syncQuantityLimit();
+        // 选中联动的按钮刷新被上面屏蔽了，这里显式补一次，保证下架/库存变化后购买按钮状态不滞后
+        updateButtonState();
         if (cardViewVisible) {
             rebuildCardView();
         }
@@ -1128,11 +1147,15 @@ public final class StorePanel extends JPanel {
         }
     }
 
+    /**
+     * 关键词匹配范围：商品编号或商品名称。
+     *
+     * <p>必须与服务端 {@code DefaultStoreService.matchesKeyword} 完全一致。历史上客户端多匹配了类别与说明，
+     * 而服务端只匹配名称与说明，于是输入商品编号时「本地筛得到、一触发服务端查询（含自动刷新）就变空」。
+     */
     private static boolean matchesKeyword(Product product, String lowerKeyword) {
-        return product.getName().toLowerCase().contains(lowerKeyword)
-                || product.getProductId().toLowerCase().contains(lowerKeyword)
-                || product.getCategory().toLowerCase().contains(lowerKeyword)
-                || (product.getDescription() != null && product.getDescription().toLowerCase().contains(lowerKeyword));
+        return product.getProductId().toLowerCase().contains(lowerKeyword)
+                || product.getName().toLowerCase().contains(lowerKeyword);
     }
 
     private Product selectedProduct() {
@@ -2544,7 +2567,12 @@ public final class StorePanel extends JPanel {
                 boolean hasFocus, int row, int column) {
             super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
             int stock = value instanceof Number ? ((Number) value).intValue() : 0;
-            if (!isSelected) {
+            // 渲染器实例被整列复用，父类也不会重置前景色：每次调用都必须把所有可变状态显式写回来。
+            // 否则「缺货」单元格设过的红字会泄漏给其后每一个单元格，表现为卖光一件商品整列变红。
+            setFont(table.getFont());
+            if (isSelected) {
+                setForeground(table.getSelectionForeground());
+            } else {
                 setOpaque(true);
                 setBackground(row % 2 == 0 ? VCampusTheme.PANEL : VCampusTheme.TABLE_STRIPE);
                 if (stock <= 0) {
@@ -2554,6 +2582,8 @@ public final class StorePanel extends JPanel {
                 } else if (stock <= 5) {
                     setForeground(LOW_STOCK);
                     setFont(VCampusTheme.font(Font.BOLD, 12));
+                } else {
+                    setForeground(table.getForeground());
                 }
             }
             return this;

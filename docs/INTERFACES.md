@@ -128,7 +128,7 @@ StudentManagementService.findByIds(List<String> studentIds)
 
 图书遗失原价赔偿新增 V3 图书接口与 V2 钱包流水查询，完整请求/响应、权限、金额快照及旧版保护见 [图书赔偿对接说明](LIBRARY_COMPENSATION.md)。新版客户端通过 `STORE_ACCOUNT_LEDGER_V2` 读取含 `LIBRARY_LOSS` 的流水；下述旧流水接口仅用于兼容无新类型的历史。
 
-- `STORE_QUERY` + `StoreQueryCommand(token, keyword?, category?, minPrice?, maxPrice?, includeInactive?)`：多字段拼接查询商品，默认只返回在售商品；要求 `STORE_READ`。`keyword` 忽略大小写匹配名称或说明（可空=不限），`category` 精确匹配（可空=全部），`minPrice`/`maxPrice` 为 `Double` 闭区间、可单边（可空=该侧不限），各条件取交集；服务端经 `StoreService.searchProducts(keyword, category, minPrice, maxPrice, includeInactive)` 过滤（`listProducts(category, includeInactive)` 委托它，旧行为不变）。`includeInactive=true`（含已下架视图）学生/教师等买家**也可开启**浏览下架陈列，但"看得到 ≠ 买得到"——购买/加购仍由服务层对下架品拒绝。
+- `STORE_QUERY` + `StoreQueryCommand(token, keyword?, category?, minPrice?, maxPrice?, includeInactive?)`：多字段拼接查询商品，默认只返回在售商品；要求 `STORE_READ`。`keyword` 忽略大小写匹配商品编号或名称（可空=不限），`category` 精确匹配（可空=全部），`minPrice`/`maxPrice` 为 `Double` 闭区间、可单边（可空=该侧不限），各条件取交集；服务端经 `StoreService.searchProducts(keyword, category, minPrice, maxPrice, includeInactive)` 过滤（`listProducts(category, includeInactive)` 委托它，旧行为不变）。`includeInactive=true`（含已下架视图）学生/教师等买家**也可开启**浏览下架陈列，但"看得到 ≠ 买得到"——购买/加购仍由服务层对下架品拒绝。
 - `STORE_PURCHASE` + `StorePurchaseCommand(token, productId, quantity)`：直接购买；要求 `STORE_PURCHASE`。
 - `STORE_ORDER_QUERY` + `StoreOrderQueryCommand(token)`：查询本人订单；要求 `STORE_READ`。
 - `STORE_CART_ADD` / `STORE_CART_REMOVE` / `STORE_CART_QUERY` / `STORE_CART_CHECKOUT`：购物车增删查和结账，分别使用对应 `Cart*Command`；增删/结账要求 `STORE_PURCHASE`，查询要求 `STORE_READ`。
