@@ -17,6 +17,7 @@ class AcademicAdministrationTest {
     private final DefaultStudentManagementService studentService = new DefaultStudentManagementService(students);
     private AcademicAdminMessageHandler handler;
     private GraduationCreditRequirement requirement;
+    private boolean planArchived;
     private String admin;
     @BeforeEach void setup() {
         students.save(student("S001", "student_a", "在读"));
@@ -28,7 +29,17 @@ class AcademicAdministrationTest {
         requirement = requirement(3);
         handler = new AcademicAdminMessageHandler(new AcademicAdminService(new InMemoryAcademicAdminStore(
                 studentService, new DefaultTeacherProfileService(teachers), history),
-                student -> ServiceResult.ok(requirement)), users);
+                new GraduationCreditRequirementProvider() {
+                    @Override public ServiceResult<GraduationCreditRequirement> findFor(StudentRecord student) {
+                        return planArchived
+                                ? ServiceResult.failure(StatusCode.NOT_FOUND, "未找到该学生适用的已发布培养方案")
+                                : ServiceResult.ok(requirement);
+                    }
+
+                    public ServiceResult<GraduationCreditRequirement> findHistoricalFor(StudentRecord student) {
+                        return ServiceResult.ok(requirement);
+                    }
+                }), users);
         admin = login("academic", Role.ACADEMIC_ADMIN);
     }
     @Test void academicAdministratorSeesEveryStudentAndInactiveTeacherWhileSystemAdminIsDenied() {
@@ -82,6 +93,19 @@ class AcademicAdministrationTest {
                 admin, "S001").getPayload();
         assertEquals(reviewed.getId(), stale.getLatestAssessment().getId());
         assertFalse(stale.isLatestAssessmentCurrent());
+    }
+    @Test void overviewKeepsGraduatedSnapshotWhenTheCurrentPlanIsArchived() {
+        AcademicAssessment reviewed = review(3);
+        assertEquals(StatusCode.OK, send(command(admin, Action.GRADUATE, "S001", 0, reviewed.getId()))
+                .getStatusCode());
+        planArchived = true;
+
+        Message result = sendOverview(admin, "S001");
+
+        assertEquals(StatusCode.OK, result.getStatusCode());
+        GraduationReviewOverview overview = (GraduationReviewOverview) result.getPayload();
+        assertTrue(overview.getLatestAssessment().isGraduated());
+        assertTrue(overview.isLatestAssessmentCurrent());
     }
     @Test void overviewProtocolValidatesPayloadAndMissingStudents() {
         assertThrows(IllegalArgumentException.class,
