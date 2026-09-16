@@ -525,17 +525,20 @@ final class AcademicAdministrationPanel extends JPanel {
                 return overviewLoader.load(new AcademicAdminOverviewV1Command(token, studentId));
             }
             @Override protected void done() {
-                if (current != overviewGeneration || selectedStudent == null
-                        || !studentId.equals(selectedStudent.getStudentId())) return;
+                if (current != overviewGeneration) return;
                 reviewBusy = false;
-                try { displayOverview(get()); }
-                catch (InterruptedException interrupted) {
+                try {
+                    if (selectedStudent == null
+                            || !studentId.equals(selectedStudent.getStudentId())) return;
+                    displayOverview(get());
+                } catch (InterruptedException interrupted) {
                     Thread.currentThread().interrupt();
                     reviewStatus.setText("概览加载已中断。");
                 } catch (Exception failure) {
                     reviewStatus.setText("无法确认概览结果，请重试。");
+                } finally {
+                    updateReviewControls();
                 }
-                updateReviewControls();
             }
         }.execute();
     }
@@ -586,14 +589,15 @@ final class AcademicAdministrationPanel extends JPanel {
         }
         String identity = "审查人 " + latest.getReviewedBy() + "  ·  "
                 + TIME.format(latest.getReviewedAt().atZone(ZoneId.systemDefault()));
-        if (!overview.isLatestAssessmentCurrent()) {
+        if (latest.isGraduated()) {
+            assessmentState.setText("已办理毕业");
+            assessmentState.setForeground(VCampusTheme.SUCCESS);
+            assessmentMeta.setText(identity + "  ·  办理人 " + latest.getGraduatedBy()
+                    + (overview.isLatestAssessmentCurrent() ? "" : "  ·  当前数据已变化"));
+        } else if (!overview.isLatestAssessmentCurrent()) {
             assessmentState.setText("最新审查已过期");
             assessmentState.setForeground(VCampusTheme.DANGER);
             assessmentMeta.setText(identity + "  ·  成绩、档案或培养方案已变化，请重新审查");
-        } else if (latest.isGraduated()) {
-            assessmentState.setText("已办理毕业");
-            assessmentState.setForeground(VCampusTheme.SUCCESS);
-            assessmentMeta.setText(identity + "  ·  办理人 " + latest.getGraduatedBy());
         } else if (latest.isCreditRequirementMet()) {
             assessmentState.setText("学分审查已达标");
             assessmentState.setForeground(VCampusTheme.SUCCESS);
@@ -620,11 +624,15 @@ final class AcademicAdministrationPanel extends JPanel {
                 return loader.load(command(Action.REVIEW, studentId, null, note.getText(), false));
             }
             @Override protected void done() {
-                if (current != writeGeneration || selectedStudent == null
-                        || !studentId.equals(selectedStudent.getStudentId())) return;
+                if (current != writeGeneration) return;
                 reviewBusy = false;
                 writeBusy = false;
                 try {
+                    if (selectedStudent == null
+                            || !studentId.equals(selectedStudent.getStudentId())) {
+                        reviewStatus.setText("审查请求已完成，请重新选择学生核对结果。");
+                        return;
+                    }
                     Message response = get();
                     if (ok(response)) {
                         note.setText("");
@@ -638,8 +646,9 @@ final class AcademicAdministrationPanel extends JPanel {
                     reviewStatus.setText("学分审查已中断，请查看历史审查后再重试。");
                 } catch (Exception failure) {
                     reviewStatus.setText("未能确认审查结果，请查看历史审查后再重试。");
+                } finally {
+                    updateReviewControls();
                 }
-                updateReviewControls();
             }
         }.execute();
     }
@@ -670,11 +679,15 @@ final class AcademicAdministrationPanel extends JPanel {
                         note.getText(), confirmed.isSelected()));
             }
             @Override protected void done() {
-                if (current != writeGeneration || selectedStudent == null
-                        || !studentId.equals(selectedStudent.getStudentId())) return;
+                if (current != writeGeneration) return;
                 reviewBusy = false;
                 writeBusy = false;
                 try {
+                    if (selectedStudent == null
+                            || !studentId.equals(selectedStudent.getStudentId())) {
+                        reviewStatus.setText("毕业请求已完成，请刷新学生名单核对结果。");
+                        return;
+                    }
                     Message response = get();
                     if (ok(response)) {
                         note.setText("");
@@ -689,8 +702,9 @@ final class AcademicAdministrationPanel extends JPanel {
                     reviewStatus.setText("办理已中断，请刷新学生后核对结果。");
                 } catch (Exception failure) {
                     reviewStatus.setText("未能确认办理结果，请刷新学生后核对。");
+                } finally {
+                    updateReviewControls();
                 }
-                updateReviewControls();
             }
         }.execute();
     }
@@ -706,9 +720,10 @@ final class AcademicAdministrationPanel extends JPanel {
                 return loader.load(command(action, studentId, null, "", false));
             }
             @Override protected void done() {
-                if (selectedStudent == null || !studentId.equals(selectedStudent.getStudentId())) return;
                 reviewBusy = false;
                 try {
+                    if (selectedStudent == null
+                            || !studentId.equals(selectedStudent.getStudentId())) return;
                     Message response = get();
                     if (ok(response)) showDetailDialog(action, (List<?>) response.getPayload());
                     else reviewStatus.setText(error(response));
@@ -717,8 +732,9 @@ final class AcademicAdministrationPanel extends JPanel {
                     reviewStatus.setText("明细加载已中断。");
                 } catch (Exception failure) {
                     reviewStatus.setText("无法加载明细，请重试。");
+                } finally {
+                    updateReviewControls();
                 }
-                updateReviewControls();
             }
         }.execute();
     }
@@ -780,9 +796,9 @@ final class AcademicAdministrationPanel extends JPanel {
         boolean current = latest != null && overview.isLatestAssessmentCurrent();
         boolean ready = current && latest.isCreditRequirementMet() && !latest.isGraduated();
 
-        reviewFilter.setEnabled(!studentListBusy);
+        reviewFilter.setEnabled(!studentListBusy && !reviewBusy && !writeBusy);
         refreshStudents.setEnabled(!studentListBusy && !reviewBusy);
-        studentTable.setEnabled(!studentListBusy && !writeBusy);
+        studentTable.setEnabled(!studentListBusy && !reviewBusy && !writeBusy);
         boolean interactive = !studentListBusy && !reviewBusy;
         note.setEnabled(selected && interactive);
         courseDetails.setEnabled(overview != null && interactive);
@@ -804,6 +820,7 @@ final class AcademicAdministrationPanel extends JPanel {
 
     private void clearOverview() {
         overviewGeneration++;
+        if (!writeBusy) reviewBusy = false;
         overview = null;
         confirmed.setSelected(false);
         resetMetricValues();

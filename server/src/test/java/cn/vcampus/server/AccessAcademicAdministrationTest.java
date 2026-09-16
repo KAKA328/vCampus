@@ -41,6 +41,9 @@ class AccessAcademicAdministrationTest {
         AcademicAssessment persisted = (AcademicAssessment) ((List<?>) execute(Action.ASSESSMENTS, 0, null).getData()).get(0);
         assertEquals("demo_academic_admin", persisted.getGraduatedBy());
         assertTrue(persisted.isGraduated());
+        GraduationReviewOverview completed = service.overview("20260001").getData();
+        assertTrue(completed.getLatestAssessment().isGraduated());
+        assertTrue(completed.isLatestAssessmentCurrent());
         assertEquals("毕业条件已核查", persisted.getGraduationNote());
         assertEquals(StatusCode.CONFLICT, execute(Action.GRADUATE, 0, review.getId()).getStatus());
     }

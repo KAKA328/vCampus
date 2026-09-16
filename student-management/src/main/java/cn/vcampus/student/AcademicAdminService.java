@@ -118,12 +118,24 @@ public final class AcademicAdminService {
         GraduationCreditRequirement requirement = requirementResult.getData();
         List<AcademicAssessment> assessments = context.assessments(student.getStudentId());
         AcademicAssessment latest = assessments.isEmpty() ? null : assessments.get(0);
+        StudentRecord evidenceStudent = evidenceStudent(student, latest);
         boolean current = latest != null
                 && latest.getRequiredCreditsDecimal().compareTo(
                         requirement.getRequiredCreditsDecimal()) == 0
-                && latest.getEvidence().equals(evidence(student, history, requirement));
+                && latest.getEvidence().equals(evidence(evidenceStudent, history, requirement));
         return ServiceResult.ok(new GraduationReviewOverview(student, credits, requirement,
                 latest, current));
+    }
+
+    private static StudentRecord evidenceStudent(StudentRecord student,
+            AcademicAssessment latest) {
+        if (latest == null || !latest.isGraduated() || !"毕业".equals(student.getStatus())) {
+            return student;
+        }
+        return new StudentRecord(student.getStudentId(), student.getUserId(), student.getName(),
+                student.getGender(), student.getDepartmentName(), student.getMajorName(),
+                student.getClassId(), student.getEnrollmentYear(), "在读", student.getPhone(),
+                student.getEmail());
     }
 
     private static boolean isWrite(AcademicAdminCommandV1.Action action) {

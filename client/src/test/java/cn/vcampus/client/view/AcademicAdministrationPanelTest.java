@@ -123,6 +123,23 @@ class AcademicAdministrationPanelTest {
         });
     }
 
+    @Test void graduatedAssessmentTakesPrecedenceOverStaleFlag() throws Exception {
+        StudentRecord student = student("S001", "张三", "毕业");
+        AcademicAssessment graduated = assessment("S001", 11, 11, 0, true);
+        AcademicAdministrationPanel panel = panel(command -> null);
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                panel.displayOverview(response(overview(student, 11, 11, graduated, false)));
+                assertEquals("已办理毕业",
+                        field(panel, "assessmentState", JLabel.class).getText());
+                assertFalse(field(panel, "confirmed", JCheckBox.class).isEnabled());
+                assertFalse(field(panel, "graduate", JButton.class).isEnabled());
+            } catch (Exception failure) {
+                throw new RuntimeException(failure);
+            }
+        });
+    }
+
     @Test void staleOrInsufficientAssessmentCannotEnableGraduation() throws Exception {
         StudentRecord student = student("S001", "张三", "在读");
         AcademicAdministrationPanel panel = panel(command -> null);
@@ -178,6 +195,72 @@ class AcademicAdministrationPanelTest {
                 throw new RuntimeException(failure);
             }
         });
+    }
+
+    @Test void filteringDuringOverviewRequestDoesNotLeakBusyState() throws Exception {
+        StudentRecord student = student("S001", "张三", "在读");
+        CountDownLatch overviewStarted = new CountDownLatch(1);
+        CountDownLatch releaseOverview = new CountDownLatch(1);
+        AcademicAdministrationPanel panel = panel(command -> null, command -> {
+            overviewStarted.countDown();
+            assertTrue(releaseOverview.await(5, TimeUnit.SECONDS));
+            return response(overview(student, 11, 11, null, false));
+        });
+
+        SwingUtilities.invokeAndWait(() -> panel.displayReviewStudents(
+                response(Collections.singletonList(student)), "S001"));
+        assertTrue(overviewStarted.await(5, TimeUnit.SECONDS));
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                JTextField search = field(panel, "reviewFilter", JTextField.class);
+                assertFalse(search.isEnabled());
+                search.setText("missing");
+                field(panel, "studentTable", JTable.class).clearSelection();
+            } catch (Exception failure) {
+                throw new RuntimeException(failure);
+            }
+        });
+        releaseOverview.countDown();
+        awaitIdle(panel);
+        assertFalse(field(panel, "reviewBusy", Boolean.class));
+    }
+
+    @Test void filteringDuringReviewRequestDoesNotLeakBusyState() throws Exception {
+        StudentRecord student = student("S001", "张三", "在读");
+        CountDownLatch reviewStarted = new CountDownLatch(1);
+        CountDownLatch releaseReview = new CountDownLatch(1);
+        AcademicAdministrationPanel panel = panel(command -> {
+            if (command.getAction() == Action.REVIEW) {
+                reviewStarted.countDown();
+                assertTrue(releaseReview.await(5, TimeUnit.SECONDS));
+                return response(assessment("S001", 11, 11, 0, false));
+            }
+            return Message.response(request(), StatusCode.BAD_REQUEST, "unexpected");
+        }, command -> response(overview(student, 11, 11, null, false)));
+
+        SwingUtilities.invokeAndWait(() -> panel.displayReviewStudents(
+                response(Collections.singletonList(student)), "S001"));
+        awaitIdle(panel);
+        SwingUtilities.invokeAndWait(() -> fieldUnchecked(panel, "review", JButton.class).doClick());
+        assertTrue(reviewStarted.await(5, TimeUnit.SECONDS));
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                JTextField search = field(panel, "reviewFilter", JTextField.class);
+                JTable table = field(panel, "studentTable", JTable.class);
+                assertFalse(search.isEnabled());
+                assertFalse(table.isEnabled());
+                search.setText("missing");
+                table.clearSelection();
+            } catch (Exception failure) {
+                throw new RuntimeException(failure);
+            }
+        });
+        releaseReview.countDown();
+        awaitIdle(panel);
+        assertFalse(field(panel, "reviewBusy", Boolean.class));
+        assertFalse(field(panel, "writeBusy", Boolean.class));
+        assertTrue(field(panel, "reviewFilter", JTextField.class).isEnabled());
+        assertTrue(field(panel, "studentTable", JTable.class).isEnabled());
     }
 
     @Test void reviewSearchUsesModelIndexAfterSorting() throws Exception {

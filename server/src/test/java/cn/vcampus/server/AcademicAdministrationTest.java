@@ -105,6 +105,10 @@ class AcademicAdministrationTest {
         assertEquals("academic", saved.getGraduatedBy());
         assertNotNull(saved.getGraduatedAt());
         assertEquals("毕业", students.findById("S001").getStatus());
+        GraduationReviewOverview completed = (GraduationReviewOverview) sendOverview(
+                admin, "S001").getPayload();
+        assertTrue(completed.getLatestAssessment().isGraduated());
+        assertTrue(completed.isLatestAssessmentCurrent());
         assertEquals(StatusCode.CONFLICT, send(command(admin, Action.GRADUATE, "S001", 0, assessment.getId())).getStatusCode());
         assertTrue(((AcademicAssessment) ((List<?>) send(command(admin, Action.ASSESSMENTS, "S001", 0, null))
                 .getPayload()).get(0)).isGraduated());
