@@ -2567,7 +2567,12 @@ public final class StorePanel extends JPanel {
                 boolean hasFocus, int row, int column) {
             super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
             int stock = value instanceof Number ? ((Number) value).intValue() : 0;
-            if (!isSelected) {
+            // 渲染器实例被整列复用，父类也不会重置前景色：每次调用都必须把所有可变状态显式写回来。
+            // 否则「缺货」单元格设过的红字会泄漏给其后每一个单元格，表现为卖光一件商品整列变红。
+            setFont(table.getFont());
+            if (isSelected) {
+                setForeground(table.getSelectionForeground());
+            } else {
                 setOpaque(true);
                 setBackground(row % 2 == 0 ? VCampusTheme.PANEL : VCampusTheme.TABLE_STRIPE);
                 if (stock <= 0) {
@@ -2577,6 +2582,8 @@ public final class StorePanel extends JPanel {
                 } else if (stock <= 5) {
                     setForeground(LOW_STOCK);
                     setFont(VCampusTheme.font(Font.BOLD, 12));
+                } else {
+                    setForeground(table.getForeground());
                 }
             }
             return this;
