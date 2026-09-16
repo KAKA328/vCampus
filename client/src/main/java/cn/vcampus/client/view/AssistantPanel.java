@@ -141,28 +141,80 @@ final class AssistantPanel extends JPanel {
         String text = raw == null ? "" : raw.trim();
         if (text.isEmpty()) return;
         String normalized = text.toLowerCase(Locale.ROOT);
-        String target = null;
-        String reply = null;
-        if (normalized.contains("退课") || normalized.contains("退选") || normalized.contains("取消课程")) { target = "选课"; reply = "退课需要进入选课系统，在已选课程中选择退课。"; }
-        else if (normalized.contains("选课") || normalized.contains("课程") || normalized.contains("授课") || normalized.contains("教学班") || normalized.contains("课表") || normalized.contains("成绩") || normalized.contains("上课")) { target = "选课"; reply = "选课、课程查询、课表和授课信息都在选课系统中办理。"; }
-        else if (normalized.contains("学籍") || normalized.contains("学生档案") || normalized.contains("班级") || normalized.contains("专业") || normalized.contains("学号") || normalized.contains("联系方式") || normalized.contains("学生信息")) { target = "学籍"; reply = "学号、班级、专业和联系方式等信息可以在学籍入口查看。"; }
-        else if (normalized.contains("借阅") || normalized.contains("图书") || normalized.contains("还书") || normalized.contains("归还") || normalized.contains("馆藏") || normalized.contains("借书") || normalized.contains("续借")) { target = "图书"; reply = "图书馆支持馆藏查询、借阅、归还和借阅记录查询。"; }
-        else if (normalized.contains("商店") || normalized.contains("购买") || normalized.contains("商品") || normalized.contains("订单") || normalized.contains("购物") || normalized.contains("库存") || normalized.contains("下单")) { target = "商店"; reply = "商店可以浏览商品、购买、下单并查看订单记录。"; }
-        if (target != null) {
-            for (ModuleDescriptor module : modules) {
-                if (module.getTitle().contains(target)) {
-                    showMessage(reply, module);
-                    return;
-                }
-            }
-            showMessage("当前角色没有可用的“" + target + "”入口。");
-            return;
-        }
+        // 管理员问法：账号、权限、密码和审计都属于用户管理入口。
+        if (route(normalized, new String[] {"账号", "账户", "密码", "重置", "登录", "注销", "启用", "停用",
+                "角色", "权限", "批量导入", "导入账号", "账号导入", "审计", "操作日志", "日志", "会话", "绑定档案"},
+                new String[] {"用户管理"}, "账号、密码、权限、批量导入和操作日志都在用户管理中办理。", "用户管理")) return;
+
+        // 教师个人档案和教务管理员的档案查询共用一组问法，按当前角色选择可用入口。
+        if (route(normalized, new String[] {"教师信息", "教师档案", "教师工号", "工号", "职称", "在职", "非在职",
+                "教师资料"}, new String[] {"教师信息", "学籍管理", "教务教学管理"},
+                "教师工号、职称、院系和在职状态可以在教师/学籍档案入口查看。", "教师信息")) return;
+
+        if (route(normalized, new String[] {"学籍信息", "学生档案", "学号", "班级", "专业", "联系方式", "手机号",
+                "邮箱", "入学", "学籍状态", "在读", "休学", "退学", "学生资料"},
+                new String[] {"学籍信息", "学籍管理"}, "学号、班级、专业、学籍状态和联系方式可以在学籍入口查看。", "学籍")) return;
+
+        if (route(normalized, new String[] {"毕业", "学分审查", "毕业审查", "毕业办理", "学业审查", "毕业条件"},
+                new String[] {"学籍管理", "教务教学管理"}, "毕业审查、学分核对和毕业办理在学籍管理入口完成。", "学籍管理")) return;
+
+        if (route(normalized, new String[] {"课程目录", "课程维护", "教学班管理", "开课", "选课轮次", "轮次管理",
+                "培养方案管理", "成绩审核", "审核成绩", "教务", "教务管理", "课程管理"},
+                new String[] {"教务教学管理"}, "课程目录、教学班、选课轮次、培养方案和成绩审核在教务教学管理中办理。",
+                "教务教学管理")) return;
+
+        if (route(normalized, new String[] {"教学班", "授课", "学生名单", "成绩录入", "录入成绩", "导入成绩",
+                "成绩草稿", "提交审核", "教师成绩", "成绩单"},
+                new String[] {"教学管理", "教务教学管理", "学生选课"},
+                "教学班、学生名单、成绩录入和成绩导入在教学管理入口办理。", "教学管理")) return;
+
+        if (route(normalized, new String[] {"退课", "退选", "取消课程", "选课", "课程", "课表", "重修", "选修",
+                "必修", "课程历史", "已选", "退选记录", "上课", "成绩"},
+                new String[] {"学生选课", "教学管理", "教务教学管理"},
+                "课程查询、选课、退课、重修和已选记录在选课入口办理。", "选课")) return;
+
+        if (route(normalized, new String[] {"借阅", "图书", "还书", "归还", "馆藏", "借书", "续借", "逾期",
+                "挂失", "遗失", "赔偿", "图书管理员", "借阅记录"}, new String[] {"图书馆"},
+                "图书馆支持馆藏查询、借阅、归还、逾期、挂失赔偿和借阅记录查询。", "图书馆")) return;
+
+        if (route(normalized, new String[] {"补货", "上架", "下架", "商品维护", "商品管理", "库存管理", "余额校正",
+                "全量订单", "全部订单", "商品新增", "改价", "修改商品"}, new String[] {"商店管理", "商店"},
+                "商店管理支持商品维护、库存补货、上下架、全部订单和余额校正。", "商店管理")) return;
+
+        if (route(normalized, new String[] {"商店", "购买", "商品", "订单", "购物", "购物车", "结算", "钱包", "余额",
+                "流水", "充值", "消费", "付款", "下单"}, new String[] {"商店", "商店管理"},
+                "商店支持商品查询、购买、购物车结算、订单和校园钱包流水。", "商店")) return;
+
         if (normalized.contains("可用") || normalized.contains("功能") || normalized.contains("入口")) {
             showMessage("当前角色可用：" + joinTitles());
         } else {
-            showMessage("很抱歉，我不知道该怎么处理这句话。你可以询问选课、学籍、图书馆或商店相关功能。");
+            showMessage("很抱歉，我暂时无法匹配这个问题。你可以询问账号、学籍、选课、成绩、培养方案、图书馆、商店或钱包相关功能。");
         }
+    }
+
+    private boolean route(String normalized, String[] keywords, String[] moduleFragments,
+            String reply, String unavailableTarget) {
+        for (String keyword : keywords) {
+            if (normalized.contains(keyword)) {
+                ModuleDescriptor module = findModule(moduleFragments);
+                if (module == null) {
+                    showMessage("当前角色没有可用的“" + unavailableTarget + "”入口。");
+                } else {
+                    showMessage(reply, module);
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private ModuleDescriptor findModule(String[] fragments) {
+        for (String fragment : fragments) {
+            for (ModuleDescriptor module : modules) {
+                if (module.getTitle().contains(fragment)) return module;
+            }
+        }
+        return null;
     }
 
     private String joinTitles() {
