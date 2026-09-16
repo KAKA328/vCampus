@@ -57,6 +57,22 @@ class RemoteStudentAcademicServiceTest {
                                         new cn.vcampus.student.CreditSummary("S001", 11, 4, 0, 1), 11,
                                         "hash", "academic", java.time.Instant.now(), "依据", null, null, null)));
                         output.flush();
+                        Message overviewRequest = (Message) input.readObject();
+                        assertEquals(MessageType.ACADEMIC_ADMIN_V2, overviewRequest.getType());
+                        cn.vcampus.student.AcademicAdminCommandV2 overviewCommand =
+                                (cn.vcampus.student.AcademicAdminCommandV2) overviewRequest.getPayload();
+                        assertEquals(cn.vcampus.student.AcademicAdminCommandV1.Action.OVERVIEW,
+                                overviewCommand.getAction());
+                        cn.vcampus.student.StudentRecord student = new cn.vcampus.student.StudentRecord(
+                                "S001", "student", "学生", "未知", "院系", "专业", "班级",
+                                2026, "在读", "", "");
+                        output.writeObject(Message.response(overviewRequest, StatusCode.OK,
+                                new cn.vcampus.student.GraduationReviewOverview(student,
+                                        new cn.vcampus.student.CreditSummary("S001", 11, 4, 0, 0),
+                                        new cn.vcampus.student.GraduationCreditRequirement("PLAN", 11,
+                                                Collections.singletonList("JAVA101=3")),
+                                        null, false)));
+                        output.flush();
                     }
                 } catch (Exception failure) { throw new RuntimeException(failure); }
             });
@@ -76,6 +92,14 @@ class RemoteStudentAcademicServiceTest {
                         "S001", null, "依据", false));
                 assertEquals(StatusCode.OK, assessment.getStatusCode());
                 assertTrue(((cn.vcampus.student.AcademicAssessment) assessment.getPayload()).isCreditRequirementMet());
+                Message overview = remote.administer(new cn.vcampus.student.AcademicAdminCommandV2(
+                        "academic-token", cn.vcampus.student.AcademicAdminCommandV1.Action.OVERVIEW,
+                        "S001", null, "", false));
+                assertEquals(StatusCode.OK, overview.getStatusCode());
+                cn.vcampus.student.GraduationReviewOverview data =
+                        (cn.vcampus.student.GraduationReviewOverview) overview.getPayload();
+                assertEquals("PLAN", data.getRequirement().getPlanId());
+                assertEquals(11, data.getCredits().getEarnedCredits());
             }
             server.get(5, TimeUnit.SECONDS);
         } finally { worker.shutdownNow(); }

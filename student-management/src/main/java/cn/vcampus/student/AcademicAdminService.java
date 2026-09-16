@@ -49,6 +49,20 @@ public final class AcademicAdminService {
         if (command.getAction() == AcademicAdminCommandV1.Action.HISTORY) return ServiceResult.ok(history);
         CreditSummary credits = CreditSummary.from(student.getStudentId(), history);
         if (command.getAction() == AcademicAdminCommandV1.Action.CREDITS) return ServiceResult.ok(credits);
+        if (command.getAction() == AcademicAdminCommandV1.Action.OVERVIEW) {
+            ServiceResult<GraduationCreditRequirement> requirementResult = requirements.findFor(student);
+            if (requirementResult.getStatus() != StatusCode.OK) {
+                return ServiceResult.failure(requirementResult.getStatus(), requirementResult.getMessage());
+            }
+            GraduationCreditRequirement requirement = requirementResult.getData();
+            List<AcademicAssessment> assessments = context.assessments(student.getStudentId());
+            AcademicAssessment latest = assessments.isEmpty() ? null : assessments.get(0);
+            boolean current = latest != null
+                    && latest.getRequiredCredits() == requirement.getRequiredCredits()
+                    && latest.getEvidence().equals(evidence(student, history, requirement));
+            return ServiceResult.ok(new GraduationReviewOverview(student, credits, requirement,
+                    latest, current));
+        }
         if (!"在读".equals(student.getStatus())) {
             return ServiceResult.failure(StatusCode.CONFLICT, "仅在读学生可新建审查或办理毕业");
         }

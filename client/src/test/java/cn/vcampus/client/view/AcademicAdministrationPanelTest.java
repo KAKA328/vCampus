@@ -1,178 +1,290 @@
 package cn.vcampus.client.view;
 
-import cn.vcampus.common.*;
-import cn.vcampus.student.*;
+import cn.vcampus.common.Message;
+import cn.vcampus.common.MessageType;
+import cn.vcampus.common.StatusCode;
 import cn.vcampus.student.AcademicAdminCommandV1.Action;
-import java.awt.Component;
-import java.awt.Container;
+import cn.vcampus.student.AcademicAssessment;
+import cn.vcampus.student.CreditSummary;
+import cn.vcampus.student.GraduationCreditRequirement;
+import cn.vcampus.student.GraduationReviewOverview;
+import cn.vcampus.student.StudentRecord;
+import cn.vcampus.student.TeacherProfile;
 import java.lang.reflect.Field;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-import javax.swing.*;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JLabel;
+import javax.swing.JSplitPane;
+import javax.swing.JTabbedPane;
+import javax.swing.JTable;
+import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class AcademicAdministrationPanelTest {
-    @Test void labelsUseShorterSearchAndReviewWording() throws Exception {
+    @Test void directoryAndGraduationWorkspaceUseSeparateTables() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             try {
-                AcademicAdministrationPanel panel = new AcademicAdministrationPanel("token", command -> null);
-                assertNotNull(findLabel(panel, "搜索"));
-                assertEquals("学分审查", field(panel, "review", JButton.class).getText());
-            } catch (Exception e) { throw new RuntimeException(e); }
-        });
-    }
-
-    @Test void switchingFromTeacherDirectoryToReviewLoadsStudents() throws Exception {
-        CountDownLatch requested = new CountDownLatch(1);
-        AtomicReference<Action> action = new AtomicReference<Action>();
-        AtomicReference<AcademicAdministrationPanel> panelRef =
-                new AtomicReference<AcademicAdministrationPanel>();
-        SwingUtilities.invokeAndWait(() -> {
-            AcademicAdministrationPanel panel = new AcademicAdministrationPanel("token", command -> {
-                action.set(command.getAction());
-                requested.countDown();
-                return response(Collections.emptyList());
-            });
-            panel.display(Action.TEACHERS, response(Collections.singletonList(
-                    new TeacherProfile("T001", "teacher", "教师", "院系", "教授", true))));
-            try {
-                field(panel, "operations", JTabbedPane.class).setSelectedIndex(1);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+                AcademicAdministrationPanel panel = panel(command -> null);
+                panel.displayDirectory(Action.TEACHERS, response(Collections.singletonList(
+                        new TeacherProfile("T001", "teacher", "教师", "院系", "教授", false))));
+                JTable directory = field(panel, "directoryTable", JTable.class);
+                JTable students = field(panel, "studentTable", JTable.class);
+                assertEquals(6, directory.getColumnCount());
+                assertEquals("非在职", directory.getValueAt(0, 5));
+                assertEquals(0, students.getRowCount());
+                assertNotSame(directory.getModel(), students.getModel());
+                assertThrows(NoSuchFieldException.class,
+                        () -> AcademicAdministrationPanel.class.getDeclaredField("required"));
+            } catch (Exception failure) {
+                throw new RuntimeException(failure);
             }
-            panelRef.set(panel);
-        });
-
-        assertTrue(requested.await(5, TimeUnit.SECONDS));
-        awaitIdle(panelRef.get());
-        assertEquals(Action.STUDENTS, action.get());
-        SwingUtilities.invokeAndWait(() -> {
-            try {
-                JTable table = field(panelRef.get(), "table", JTable.class);
-                assertEquals(11, table.getColumnCount());
-                assertEquals(0, table.getRowCount());
-            } catch (Exception e) { throw new RuntimeException(e); }
         });
     }
 
-    @Test void manualRequiredCreditInputIsAbsent() {
-        assertThrows(NoSuchFieldException.class,
-                () -> AcademicAdministrationPanel.class.getDeclaredField("required"));
-    }
+    @Test void enteringGraduationTabLoadsStudentsThenOverview() throws Exception {
+        List<Action> actions = Collections.synchronizedList(new ArrayList<Action>());
+        CountDownLatch overviewLoaded = new CountDownLatch(1);
+        StudentRecord student = student("S001", "张三", "在读");
+        AcademicAdministrationPanel panel = panel(command -> {
+            actions.add(command.getAction());
+            if (command.getAction() == Action.STUDENTS) {
+                return response(Collections.singletonList(student));
+            }
+            if (command.getAction() == Action.OVERVIEW) {
+                overviewLoaded.countDown();
+                return response(overview(student, 11, 11, null, false));
+            }
+            return Message.response(request(), StatusCode.BAD_REQUEST, "unexpected");
+        });
 
-    @Test void historyAttemptNumbersSortNumerically() throws Exception {
+        SwingUtilities.invokeAndWait(() -> tabs(panel).setSelectedIndex(1));
+        assertTrue(overviewLoaded.await(5, TimeUnit.SECONDS));
+        awaitIdle(panel);
+        assertEquals(Arrays.asList(Action.STUDENTS, Action.OVERVIEW), actions);
         SwingUtilities.invokeAndWait(() -> {
             try {
-                AcademicAdministrationPanel panel = new AcademicAdministrationPanel("token", command -> null);
-                panel.display(Action.HISTORY, response(java.util.Arrays.asList(
-                        new CourseHistoryRecord("S001", "C1", "课程", "2026-2027-1", 10, "重修", 60, true, 3),
-                        new CourseHistoryRecord("S001", "C1", "课程", "2026-2027-1", 2, "重修", 50, false, 0))));
-                JTable table = field(panel, "table", JTable.class);
-                table.getRowSorter().toggleSortOrder(3);
-                assertEquals(2, table.getValueAt(0, 3));
-            } catch (Exception e) { throw new RuntimeException(e); }
+                assertEquals(1, field(panel, "studentTable", JTable.class).getRowCount());
+                assertEquals("S001  张三", field(panel, "studentTitle", JLabel.class).getText());
+                assertEquals("11", field(panel, "earnedValue", JLabel.class).getText());
+                assertEquals("11", field(panel, "requiredValue", JLabel.class).getText());
+                assertEquals("0", field(panel, "shortfallValue", JLabel.class).getText());
+                assertEquals("PLAN-S001", field(panel, "planValue", JLabel.class).getText());
+                assertTrue(field(panel, "review", JButton.class).isEnabled());
+                assertFalse(field(panel, "confirmed", JCheckBox.class).isEnabled());
+            } catch (Exception failure) {
+                throw new RuntimeException(failure);
+            }
         });
     }
-    @Test void sortingAndFilteringStillSelectTheCorrectStudent() throws Exception {
+
+    @Test void validAssessmentRequiresManualConfirmationBeforeGraduation() throws Exception {
+        StudentRecord student = student("S001", "张三", "在读");
+        AcademicAssessment assessment = assessment("S001", 11, 11, 0, false);
+        AcademicAdministrationPanel panel = panel(command -> null);
         SwingUtilities.invokeAndWait(() -> {
             try {
-                AcademicAdministrationPanel panel = new AcademicAdministrationPanel("token", command -> null);
-                StudentRecord first = new StudentRecord("S002", "a", "乙", "未知", "院系", "专业", "班", 2026, "在读", "", "");
-                StudentRecord second = new StudentRecord("S001", "b", "甲", "未知", "院系", "专业", "班", 2026, "在读", "", "");
-                panel.display(Action.STUDENTS, response(java.util.Arrays.asList(first, second)));
-                JTable table = field(panel, "table", JTable.class);
+                panel.displayOverview(response(overview(student, 11, 11, assessment, true)));
+                JCheckBox confirmed = field(panel, "confirmed", JCheckBox.class);
+                JButton graduate = field(panel, "graduate", JButton.class);
+                assertEquals("学分审查已达标", field(panel, "assessmentState", JLabel.class).getText());
+                assertTrue(confirmed.isEnabled());
+                assertFalse(graduate.isEnabled());
+                confirmed.doClick();
+                assertTrue(graduate.isEnabled());
+            } catch (Exception failure) {
+                throw new RuntimeException(failure);
+            }
+        });
+    }
+
+    @Test void staleOrInsufficientAssessmentCannotEnableGraduation() throws Exception {
+        StudentRecord student = student("S001", "张三", "在读");
+        AcademicAdministrationPanel panel = panel(command -> null);
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                panel.displayOverview(response(overview(student, 11, 11,
+                        assessment("S001", 11, 11, 0, false), false)));
+                assertEquals("最新审查已过期", field(panel, "assessmentState", JLabel.class).getText());
+                assertFalse(field(panel, "confirmed", JCheckBox.class).isEnabled());
+                assertFalse(field(panel, "graduate", JButton.class).isEnabled());
+
+                panel.displayOverview(response(overview(student, 6, 11,
+                        assessment("S001", 6, 11, 1, false), true)));
+                assertEquals("学分审查未达标", field(panel, "assessmentState", JLabel.class).getText());
+                assertFalse(field(panel, "confirmed", JCheckBox.class).isEnabled());
+            } catch (Exception failure) {
+                throw new RuntimeException(failure);
+            }
+        });
+    }
+
+    @Test void rapidStudentSwitchDiscardsLateOverview() throws Exception {
+        StudentRecord first = student("S001", "甲", "在读");
+        StudentRecord second = student("S002", "乙", "在读");
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        CountDownLatch secondReturned = new CountDownLatch(1);
+        AcademicAdministrationPanel panel = panel(command -> {
+            if (command.getAction() != Action.OVERVIEW) {
+                return Message.response(request(), StatusCode.BAD_REQUEST, "unexpected");
+            }
+            if ("S001".equals(command.getStudentId())) {
+                firstStarted.countDown();
+                assertTrue(releaseFirst.await(5, TimeUnit.SECONDS));
+                return response(overview(first, 11, 11, null, false));
+            }
+            secondReturned.countDown();
+            return response(overview(second, 7, 12, null, false));
+        });
+
+        SwingUtilities.invokeAndWait(() -> panel.displayReviewStudents(
+                response(Arrays.asList(first, second)), "S001"));
+        assertTrue(firstStarted.await(5, TimeUnit.SECONDS));
+        SwingUtilities.invokeAndWait(() -> fieldUnchecked(panel, "studentTable", JTable.class)
+                .setRowSelectionInterval(1, 1));
+        assertTrue(secondReturned.await(5, TimeUnit.SECONDS));
+        awaitOverviewStudent(panel, "S002");
+        releaseFirst.countDown();
+        Thread.sleep(100);
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                assertEquals("S002  乙", field(panel, "studentTitle", JLabel.class).getText());
+                assertEquals("7", field(panel, "earnedValue", JLabel.class).getText());
+                assertEquals("12", field(panel, "requiredValue", JLabel.class).getText());
+            } catch (Exception failure) {
+                throw new RuntimeException(failure);
+            }
+        });
+    }
+
+    @Test void reviewSearchUsesModelIndexAfterSorting() throws Exception {
+        StudentRecord first = student("S002", "乙", "在读");
+        StudentRecord second = student("S001", "甲", "在读");
+        AcademicAdministrationPanel panel = panel(command -> response(overview(
+                "S001".equals(command.getStudentId()) ? second : first, 3, 6, null, false)));
+        SwingUtilities.invokeAndWait(() -> panel.displayReviewStudents(
+                response(Arrays.asList(first, second)), null));
+        awaitIdle(panel);
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                JTable table = field(panel, "studentTable", JTable.class);
                 table.getRowSorter().toggleSortOrder(0);
-                table.setRowSelectionInterval(0, 0);
-                assertEquals("S001", field(panel, "studentId", JTextField.class).getText());
-                field(panel, "filter", JTextField.class).setText("S002");
+                JTextField search = field(panel, "reviewFilter", JTextField.class);
+                search.setText("S002");
                 assertEquals(1, table.getRowCount());
                 table.setRowSelectionInterval(0, 0);
-                assertEquals("S002", field(panel, "studentId", JTextField.class).getText());
-                field(panel, "filter", JTextField.class).setText("[");
-                assertEquals(0, table.getRowCount());
-            } catch (Exception e) { throw new RuntimeException(e); }
+            } catch (Exception failure) {
+                throw new RuntimeException(failure);
+            }
         });
+        awaitOverviewStudent(panel, "S002");
     }
-    @Test void directoryDisplaysCompleteStudentAndTeacherInformation() throws Exception {
+
+    @Test void workspaceHasStableSplitLayoutAndNoSharedResultTable() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             try {
-                AcademicAdministrationPanel panel = new AcademicAdministrationPanel("token", command -> null);
-                panel.display(Action.STUDENTS, response(Collections.singletonList(new StudentRecord(
-                        "S001", "account", "学生", "未知", "院系", "专业", "班级", 2026, "休学", "123", "mail"))));
-                JTable table = field(panel, "table", JTable.class);
-                assertEquals(11, table.getColumnCount());
-                assertEquals("123", table.getValueAt(0, 9));
-                table.setRowSelectionInterval(0, 0);
-                assertEquals("S001", field(panel, "studentId", JTextField.class).getText());
-                panel.display(Action.TEACHERS, response(Collections.singletonList(
-                        new TeacherProfile("T001", "teacher", "教师", "院系", "教授", false))));
-                assertEquals("非在职", table.getValueAt(0, 5));
-                assertFalse(table.isCellEditable(0, 0));
-            } catch (Exception e) { throw new RuntimeException(e); }
+                AcademicAdministrationPanel panel = panel(command -> null);
+                JSplitPane split = find(panel, JSplitPane.class);
+                assertNotNull(split);
+                assertEquals(0.34d, split.getResizeWeight(), 0.001d);
+                assertNotSame(field(panel, "directoryTable", JTable.class),
+                        field(panel, "studentTable", JTable.class));
+            } catch (Exception failure) {
+                throw new RuntimeException(failure);
+            }
         });
     }
-    @Test void changingTargetOrFailureDisablesGraduationAndClearsResults() throws Exception {
-        SwingUtilities.invokeAndWait(() -> {
-            try {
-                AcademicAdministrationPanel panel = new AcademicAdministrationPanel("token", command -> null);
-                JTextField id = field(panel, "studentId", JTextField.class);
-                id.setText("S001");
-                AcademicAssessment review = new AcademicAssessment("review", new CreditSummary("S001", 6, 2, 0, 1),
-                        6, "evidence", "academic", Instant.now(), "依据", null, null, null);
-                panel.display(Action.REVIEW, response(review));
-                JButton graduate = field(panel, "graduate", JButton.class);
-                assertFalse(graduate.isEnabled());
-                field(panel, "confirmed", JCheckBox.class).doClick();
-                assertTrue(graduate.isEnabled());
-                id.setText("S002");
-                assertFalse(graduate.isEnabled());
-                panel.display(Action.ASSESSMENTS, Message.response(request(), StatusCode.CONFLICT, "过期"));
-                assertEquals(0, field(panel, "table", JTable.class).getRowCount());
-                assertFalse(graduate.isEnabled());
-            } catch (Exception e) { throw new RuntimeException(e); }
-        });
+
+    private static AcademicAdministrationPanel panel(AcademicAdministrationPanel.Loader loader) {
+        return new AcademicAdministrationPanel("token", loader);
     }
-    @Test void insufficientReviewCannotEnableGraduationEvenAfterCheckbox() throws Exception {
-        SwingUtilities.invokeAndWait(() -> {
-            try {
-                AcademicAdministrationPanel panel = new AcademicAdministrationPanel("token", command -> null);
-                field(panel, "studentId", JTextField.class).setText("S001");
-                panel.display(Action.REVIEW, response(new AcademicAssessment("review",
-                        new CreditSummary("S001", 3, 1, 1, 0), 6, "hash", "academic", Instant.now(),
-                        "依据", null, null, null)));
-                field(panel, "confirmed", JCheckBox.class).doClick();
-                assertFalse(field(panel, "graduate", JButton.class).isEnabled());
-            } catch (Exception e) { throw new RuntimeException(e); }
-        });
+
+    private static StudentRecord student(String id, String name, String status) {
+        return new StudentRecord(id, "user-" + id, name, "未知", "计算机学院",
+                "计算机科学与技术", "CS2026-01", 2026, status, "", "");
     }
-    private static Message request() { return Message.request("admin", MessageType.ACADEMIC_ADMIN_V2, null); }
-    private static Message response(Object data) { return Message.response(request(), StatusCode.OK, data); }
+
+    private static AcademicAssessment assessment(String id, int earned, int required,
+            int pendingRetakes, boolean graduated) {
+        AcademicAssessment result = new AcademicAssessment("review-" + id,
+                new CreditSummary(id, earned, 4, pendingRetakes, 0), required,
+                "hash", "academic", Instant.parse("2026-09-16T04:25:00Z"), "", null, null, null);
+        return graduated ? result.graduate("academic", "") : result;
+    }
+
+    private static GraduationReviewOverview overview(StudentRecord student, int earned,
+            int required, AcademicAssessment assessment, boolean current) {
+        return new GraduationReviewOverview(student,
+                new CreditSummary(student.getStudentId(), earned, 4, 0, 0),
+                new GraduationCreditRequirement("PLAN-" + student.getStudentId(), required,
+                        Collections.singletonList("course=" + required)),
+                assessment, current);
+    }
+
+    private static Message request() {
+        return Message.request("admin", MessageType.ACADEMIC_ADMIN_V2, null);
+    }
+
+    private static Message response(Object data) {
+        return Message.response(request(), StatusCode.OK, data);
+    }
+
+    private static JTabbedPane tabs(AcademicAdministrationPanel panel) {
+        return fieldUnchecked(panel, "operations", JTabbedPane.class);
+    }
+
     private static <T> T field(Object object, String name, Class<T> type) throws Exception {
-        Field field = object.getClass().getDeclaredField(name); field.setAccessible(true);
+        Field field = object.getClass().getDeclaredField(name);
+        field.setAccessible(true);
         return type.cast(field.get(object));
     }
-    private static JLabel findLabel(Container root, String text) {
-        for (Component component : root.getComponents()) {
-            if (component instanceof JLabel && text.equals(((JLabel) component).getText())) {
-                return (JLabel) component;
-            }
-            if (component instanceof Container) {
-                JLabel found = findLabel((Container) component, text);
+
+    private static <T> T fieldUnchecked(Object object, String name, Class<T> type) {
+        try {
+            return field(object, name, type);
+        } catch (Exception failure) {
+            throw new AssertionError(failure);
+        }
+    }
+
+    private static <T> T find(java.awt.Container root, Class<T> type) {
+        for (java.awt.Component component : root.getComponents()) {
+            if (type.isInstance(component)) return type.cast(component);
+            if (component instanceof java.awt.Container) {
+                T found = find((java.awt.Container) component, type);
                 if (found != null) return found;
             }
         }
         return null;
     }
+
     private static void awaitIdle(AcademicAdministrationPanel panel) throws Exception {
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 200; i++) {
             SwingUtilities.invokeAndWait(() -> { });
-            if (!field(panel, "busy", Boolean.class)) return;
+            if (!field(panel, "studentListBusy", Boolean.class)
+                    && !field(panel, "reviewBusy", Boolean.class)) return;
             Thread.sleep(20);
         }
-        fail("panel request did not finish");
+        fail("panel did not become idle");
+    }
+
+    private static void awaitOverviewStudent(AcademicAdministrationPanel panel, String id)
+            throws Exception {
+        for (int i = 0; i < 200; i++) {
+            SwingUtilities.invokeAndWait(() -> { });
+            GraduationReviewOverview value = field(panel, "overview", GraduationReviewOverview.class);
+            if (value != null && id.equals(value.getStudent().getStudentId())) return;
+            Thread.sleep(20);
+        }
+        fail("overview did not load for " + id);
     }
 }

@@ -56,6 +56,29 @@ class AcademicAdministrationTest {
         assertEquals(3, history.review("S001", 3).getData().getTotalEarnedCredits());
         assertEquals(StatusCode.NOT_FOUND, send(command(admin, Action.CREDITS, "missing", 0, null)).getStatusCode());
     }
+    @Test void overviewCombinesCurrentProgressRequirementAndLatestAssessmentWithoutWriting() {
+        GraduationReviewOverview initial = (GraduationReviewOverview) send(command(admin,
+                Action.OVERVIEW, "S001", 0, null)).getPayload();
+        assertEquals("S001", initial.getStudent().getStudentId());
+        assertEquals(3, initial.getCredits().getEarnedCredits());
+        assertEquals(3, initial.getRequirement().getRequiredCredits());
+        assertNull(initial.getLatestAssessment());
+        assertFalse(initial.isLatestAssessmentCurrent());
+        assertTrue(((List<?>) send(command(admin, Action.ASSESSMENTS,
+                "S001", 0, null)).getPayload()).isEmpty());
+
+        AcademicAssessment reviewed = review(3);
+        GraduationReviewOverview current = (GraduationReviewOverview) send(command(admin,
+                Action.OVERVIEW, "S001", 0, null)).getPayload();
+        assertEquals(reviewed.getId(), current.getLatestAssessment().getId());
+        assertTrue(current.isLatestAssessmentCurrent());
+
+        history.addHistory(attempt("C1", 4, true, 3));
+        GraduationReviewOverview stale = (GraduationReviewOverview) send(command(admin,
+                Action.OVERVIEW, "S001", 0, null)).getPayload();
+        assertEquals(reviewed.getId(), stale.getLatestAssessment().getId());
+        assertFalse(stale.isLatestAssessmentCurrent());
+    }
     @Test void reviewIsPersistedAndGraduationRequiresSeparateConfirmation() {
         AcademicAssessment assessment = review(3);
         assertEquals("academic", assessment.getReviewedBy());

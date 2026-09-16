@@ -74,6 +74,29 @@ class AccessAcademicAdministrationTest {
         assertFalse(stored.isGraduated());
         assertEquals("在读", new AccessStudentRepository(database).findById("20260001").getStatus());
     }
+    @Test void overviewReadsCurrentRequirementAndMarksPersistedSnapshotStale() throws Exception {
+        GraduationReviewOverview initial = (GraduationReviewOverview) execute(
+                Action.OVERVIEW, 0, null).getData();
+        assertEquals(11, initial.getCredits().getEarnedCredits());
+        assertEquals(11, initial.getRequirement().getRequiredCredits());
+        assertEquals("plan-cs-2026", initial.getRequirement().getPlanId());
+        assertNull(initial.getLatestAssessment());
+
+        AcademicAssessment reviewed = review();
+        service = service();
+        GraduationReviewOverview current = (GraduationReviewOverview) execute(
+                Action.OVERVIEW, 0, null).getData();
+        assertEquals(reviewed.getId(), current.getLatestAssessment().getId());
+        assertTrue(current.isLatestAssessmentCurrent());
+
+        try (Connection c = open(); Statement q = c.createStatement()) {
+            q.executeUpdate("UPDATE tblCourseResult SET score=87 WHERE result_id='result-java-demo-1'");
+        }
+        GraduationReviewOverview stale = (GraduationReviewOverview) execute(
+                Action.OVERVIEW, 0, null).getData();
+        assertEquals(reviewed.getId(), stale.getLatestAssessment().getId());
+        assertFalse(stale.isLatestAssessmentCurrent());
+    }
     @Test void courseCreditOrPlanStatusChangesInvalidateTheReview() throws Exception {
         AcademicAssessment creditReview = review();
         try (Connection c = open(); Statement q = c.createStatement()) {
