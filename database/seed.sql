@@ -213,7 +213,7 @@ INSERT INTO tblSelectionRoundKey(term, round_type) VALUES ('2025-2026-1', 'RETAK
 
 -- 当前有效选课记录：覆盖必修、选修、跨专业选修和重修四种身份。
 INSERT INTO tblCourseSelection(selection_id, student_id, offering_id, round_id, selection_type, selected_at, status, dropped_at)
-VALUES ('selection-demo-java-001', '20260001', 'offering-java-2026a', 'round-2026-initial', 'REQUIRED', DATEADD('d', -2, NOW()), 'ACTIVE', NULL);
+VALUES ('selection-demo-java-001', '20260009', 'offering-java-2026a', 'round-2026-initial', 'REQUIRED', DATEADD('d', -2, NOW()), 'ACTIVE', NULL);
 INSERT INTO tblCourseSelection(selection_id, student_id, offering_id, round_id, selection_type, selected_at, status, dropped_at)
 VALUES ('selection-demo-db-retake', '20230003', 'offering-db-2026a', 'round-2026-retake', 'RETAKE', DATEADD('d', -2, NOW()), 'ACTIVE', NULL);
 INSERT INTO tblCourseSelection(selection_id, student_id, offering_id, round_id, selection_type, selected_at, status, dropped_at)
@@ -226,7 +226,7 @@ INSERT INTO tblCourseSelection(selection_id, student_id, offering_id, round_id, 
 VALUES ('selection-demo-ai-required', '20260007', 'offering-ai-2026a', 'round-2026-initial', 'REQUIRED', DATEADD('h', -8, NOW()), 'ACTIVE', NULL);
 INSERT INTO tblCourseSelection(selection_id, student_id, offering_id, round_id, selection_type, selected_at, status, dropped_at)
 VALUES ('selection-demo-ai-elective', '20260008', 'offering-ai-2026a', 'round-2026-initial', 'ELECTIVE', DATEADD('h', -7, NOW()), 'ACTIVE', NULL);
-INSERT INTO tblActiveCourseSelection(student_id, offering_id) VALUES ('20260001', 'offering-java-2026a');
+INSERT INTO tblActiveCourseSelection(student_id, offering_id) VALUES ('20260009', 'offering-java-2026a');
 INSERT INTO tblActiveCourseSelection(student_id, offering_id) VALUES ('20230003', 'offering-db-2026a');
 INSERT INTO tblActiveCourseSelection(student_id, offering_id) VALUES ('20260004', 'offering-db-2026a');
 INSERT INTO tblActiveCourseSelection(student_id, offering_id) VALUES ('20260005', 'offering-ge-2026a');
@@ -238,11 +238,11 @@ INSERT INTO tblActiveCourseSelection(student_id, offering_id) VALUES ('20260008'
 INSERT INTO tblGradeSubmission(submission_id, offering_id, teacher_id, status, created_at, updated_at, reviewed_by, reviewed_at, review_remark)
 VALUES ('grade-demo-java-001', 'offering-java-2026a', '教师001', 'PENDING_REVIEW', DATEADD('h', -5, NOW()), DATEADD('h', -4, NOW()), NULL, NULL, NULL);
 INSERT INTO tblGradeEntry(submission_id, student_id, selection_type, score, updated_at)
-VALUES ('grade-demo-java-001', '20260001', 'REQUIRED', 92, DATEADD('h', -4, NOW()));
+VALUES ('grade-demo-java-001', '20260009', 'REQUIRED', 92, DATEADD('h', -4, NOW()));
 INSERT INTO tblGradeSubmissionSnapshot(submission_id, version_no, submitted_at)
 VALUES ('grade-demo-java-001', 1, DATEADD('h', -4, NOW()));
 INSERT INTO tblGradeSubmissionSnapshotEntry(submission_id, version_no, student_id, selection_type, score)
-VALUES ('grade-demo-java-001', 1, '20260001', 'REQUIRED', 92);
+VALUES ('grade-demo-java-001', 1, '20260009', 'REQUIRED', 92);
 INSERT INTO tblGradeSubmissionAudit(audit_id, submission_id, action, actor_id, occurred_at, remark)
 VALUES ('grade-audit-java-001', 'grade-demo-java-001', 'SUBMITTED', '教师001', DATEADD('h', -4, NOW()), '提交第1版');
 INSERT INTO tblGradeSubmission(submission_id, offering_id, teacher_id, status, created_at, updated_at, reviewed_by, reviewed_at, review_remark)
@@ -283,12 +283,6 @@ VALUES ('grade-demo-ai-001', '20260008', 'ELECTIVE', 91, DATEADD('h', -2, NOW())
 
 INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at)
 VALUES ('result-db-retake-failed', '20230003', 'DB101', NULL, '2025-2026-2', 1, '首修', 48, 0, 0, NOW());
-INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at)
-VALUES ('result-java-demo-1', '20260001', 'JAVA101', 'offering-java-2026a', '2025-2026-2', 1, '首修', 90, 1, 3, NOW());
-INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at)
-VALUES ('result-db-demo-1', '20260001', 'DB101', 'offering-db-2026a', '2025-2026-2', 1, '首修', 86, 1, 3, NOW());
-INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at)
-VALUES ('result-web-demo-1', '20260001', 'WEB101', 'offering-web-roster-1', '2026-2027-1', 1, '首修', 88, 1, 2.5, NOW());
 INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at)
 VALUES ('result-net-approved-001', '20260002', 'NET101', 'offering-net-2026a', '2026-2027-1', 1, '首修', 85, 1, 3, DATEADD('d', -2, NOW()));
 INSERT INTO tblGradeSubmissionResult(submission_id, result_id)
@@ -412,6 +406,14 @@ INSERT INTO tblTrainingPlanCourse(plan_id, course_id, recommended_term, selectio
 INSERT INTO tblTrainingPlan(plan_id, major_name, enrollment_year, status) VALUES ('plan-se-2026', '软件工程', 2026, 'PUBLISHED');
 INSERT INTO tblTrainingPlanCourse(plan_id, course_id, recommended_term, selection_type, cross_major_allowed) VALUES ('plan-se-2026', 'DS101', 1, 'REQUIRED', 0);
 INSERT INTO tblTrainingPlanCourse(plan_id, course_id, recommended_term, selection_type, cross_major_allowed) VALUES ('plan-se-2026', 'WEB101', 1, 'ELECTIVE', 0);
+
+-- 默认演示学生恰好完成适用培养方案的全部必修课，用于学分审查与毕业演示。
+INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at) VALUES ('result-java-demo-1', '20260001', 'JAVA101', NULL, '2026-2027-1', 1, '首修', 90, 1, 3, NOW());
+INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at) VALUES ('result-net-demo-1', '20260001', 'NET101', NULL, '2026-2027-1', 1, '首修', 88, 1, 3, NOW());
+INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at) VALUES ('result-ai-demo-1', '20260001', 'AI101', NULL, '2026-2027-1', 1, '首修', 92, 1, 2, NOW());
+INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at) VALUES ('result-ds-demo-1', '20260001', 'DS101', NULL, '2026-2027-1', 1, '首修', 86, 1, 3, NOW());
+-- 小数学分成绩示例：WEB101 为 2.5 学分，供成绩与学分汇总验收。
+INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at) VALUES ('result-web-fractional-1', '20260002', 'WEB101', 'offering-web-roster-1', '2026-2027-1', 1, '首修', 88, 1, 2.5, NOW());
 
 -- 三个固定学期的组合完整覆盖首修、重修、开放、结束与停用状态。
 INSERT INTO tblSelectionRound(round_id, term, round_type, starts_at, ends_at, status) VALUES ('round-2025b-retake', '2025-2026-2', 'RETAKE', DATEADD('d', -190, NOW()), DATEADD('d', -180, NOW()), 'CLOSED');

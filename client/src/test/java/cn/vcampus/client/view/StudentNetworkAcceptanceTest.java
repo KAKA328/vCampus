@@ -61,8 +61,9 @@ class StudentNetworkAcceptanceTest {
                 }
             }
             for (String id : Arrays.asList("QA_EMPTY", "QA_EXACT", "QA_SHORT", "QA_PENDING", "QA_RETAKE", "QA_DUP")) {
-                int expected = id.equals("QA_EMPTY") ? 0 : (id.equals("QA_EXACT") || id.equals("QA_PENDING") ? 6 : 3);
-                CreditSummary credits = payload(administer(academic, id, AcademicAdminCommandV1.Action.CREDITS, 0, null), CreditSummary.class);
+                int expected = id.equals("QA_EMPTY") ? 0 : (id.equals("QA_EXACT") || id.equals("QA_PENDING") ? 11 : 3);
+                CreditSummary credits = payload(administer(academic, id,
+                        AcademicAdminCommandV1.Action.CREDITS, null), CreditSummary.class);
                 assertEquals(java.math.BigDecimal.valueOf(expected), credits.getEarnedCredits(), id);
                 assertEquals(id.equals("QA_PENDING") ? 1 : 0, credits.getPendingRetakes(), id);
             }
@@ -72,11 +73,12 @@ class StudentNetworkAcceptanceTest {
                 assertEquals(StatusCode.CONFLICT, graduate(academic, id, assessment.getId()).getStatusCode());
             }
             for (String id : Arrays.asList("QA_LEAVE", "QA_WITHDRAWN")) {
-                assertEquals(StatusCode.CONFLICT, administer(academic, id, AcademicAdminCommandV1.Action.REVIEW, 6, null).getStatusCode());
+                assertEquals(StatusCode.CONFLICT, administer(academic, id,
+                        AcademicAdminCommandV1.Action.REVIEW, null).getStatusCode());
             }
-            AcademicAssessment shortByOne = payload(administer(academic, "QA_SHORT",
-                    AcademicAdminCommandV1.Action.REVIEW, 4, null), AcademicAssessment.class);
-            assertEquals(new java.math.BigDecimal("1"), shortByOne.getShortfall());
+            AcademicAssessment shortfall = review("QA_SHORT");
+            assertEquals(new java.math.BigDecimal("11"), shortfall.getRequiredCredits());
+            assertEquals(new java.math.BigDecimal("8"), shortfall.getShortfall());
             StudentRecord valid = profile(academic, "QA_EDIT");
             for (String phone : Arrays.asList("123", "139000001088", "1390000010a", "１３９０００００１０８")) {
                 assertEquals(StatusCode.BAD_REQUEST, call(MessageType.STUDENT_UPDATE_V2,
@@ -153,7 +155,7 @@ class StudentNetworkAcceptanceTest {
             assertEquals(StatusCode.UNAUTHORIZED, loserLogin.getStatusCode());
             StudentRecord persisted = profile(academic, "QA_EDIT");
             AcademicAssessment beforeRestart = (AcademicAssessment) payload(administer(academic, "QA_GRAD",
-                    AcademicAdminCommandV1.Action.ASSESSMENTS, 0, null), List.class).get(0);
+                    AcademicAdminCommandV1.Action.ASSESSMENTS, null), List.class).get(0);
             assertTrue(beforeRestart.isGraduated(), "graduation must be visible before restart");
             String staleAcademic = academic;
             stop(); start();
@@ -162,7 +164,8 @@ class StudentNetworkAcceptanceTest {
             assertTrue(StudentProfileSnapshot.matches(persisted, profile(academic, "QA_EDIT")));
             assertEquals("毕业", profile(academic, "QA_GRAD").getStatus());
             assertEquals(bound, profile(academic, "QA_BIND").getUserId());
-            List<?> assessments = payload(administer(academic, "QA_GRAD", AcademicAdminCommandV1.Action.ASSESSMENTS, 0, null), List.class);
+            List<?> assessments = payload(administer(academic, "QA_GRAD",
+                    AcademicAdminCommandV1.Action.ASSESSMENTS, null), List.class);
             assertEquals(1, assessments.size());
             AcademicAssessment afterRestart = (AcademicAssessment) assessments.get(0);
             assertTrue(afterRestart.isGraduated(), "after restart: actor=" + afterRestart.getGraduatedBy()
@@ -209,14 +212,17 @@ class StudentNetworkAcceptanceTest {
         return payload(call(MessageType.STUDENT_QUERY, id == null ? StudentQueryCommand.self(token)
                 : StudentQueryCommand.byId(token, id)), StudentRecord.class);
     }
-    private Message administer(String token, String id, AcademicAdminCommandV1.Action action, int required, String assessment) throws Exception {
-        return call(MessageType.ACADEMIC_ADMIN_V1, new AcademicAdminCommandV1(token, action, id, required, assessment, "", true));
+    private Message administer(String token, String id, AcademicAdminCommandV1.Action action,
+            String assessment) throws Exception {
+        return call(MessageType.ACADEMIC_ADMIN_V2,
+                new AcademicAdminCommandV2(token, action, id, assessment, "", true));
     }
     private AcademicAssessment review(String id) throws Exception {
-        return payload(administer(academic, id, AcademicAdminCommandV1.Action.REVIEW, 6, null), AcademicAssessment.class);
+        return payload(administer(academic, id, AcademicAdminCommandV1.Action.REVIEW, null),
+                AcademicAssessment.class);
     }
     private Message graduate(String token, String id, String assessment) throws Exception {
-        return administer(token, id, AcademicAdminCommandV1.Action.GRADUATE, 0, assessment);
+        return administer(token, id, AcademicAdminCommandV1.Action.GRADUATE, assessment);
     }
     private static <T> T payload(Message response, Class<T> type) {
         assertEquals(StatusCode.OK, response.getStatusCode(), String.valueOf(response.getPayload()));

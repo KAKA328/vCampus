@@ -23,6 +23,7 @@ out/
 !database/*.db
 !database/*.sqlite
 # Local acceptance baselines and rebuild backups. Never commit runtime test data.
+database/runtime/
 database/*.bak
 database/**/*.bak
 *.env

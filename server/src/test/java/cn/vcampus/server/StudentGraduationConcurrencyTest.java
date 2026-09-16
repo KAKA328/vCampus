@@ -56,7 +56,9 @@ class StudentGraduationConcurrencyTest {
                 "2026-2027-1", 1, "首修", 80, true, 6));
         administration = new AcademicAdminService(access ? new AccessAcademicAdminStore(database)
                 : new InMemoryAcademicAdminStore(students, new DefaultTeacherProfileService(
-                        new InMemoryTeacherRepository()), academics));
+                        new InMemoryTeacherRepository()), academics),
+                student -> ServiceResult.ok(new GraduationCreditRequirement("PLAN", 6,
+                        java.util.Collections.singletonList("2:C1:6"))));
         ServiceResult<?> reviewed = administration.execute(command(studentId,
                 AcademicAdminCommandV1.Action.REVIEW, null), "academic");
         assertEquals(StatusCode.OK, reviewed.getStatus());
@@ -99,8 +101,8 @@ class StudentGraduationConcurrencyTest {
             assertTrue(worker.awaitTermination(15, TimeUnit.SECONDS));
         }
     }
-    private static AcademicAdminCommandV1 command(String studentId,
+    private static AcademicAdminCommandV2 command(String studentId,
             AcademicAdminCommandV1.Action action, String id) {
-        return new AcademicAdminCommandV1("internal", action, studentId, 6, id, "测试依据", true);
+        return new AcademicAdminCommandV2("internal", action, studentId, id, "测试依据", true);
     }
 }
