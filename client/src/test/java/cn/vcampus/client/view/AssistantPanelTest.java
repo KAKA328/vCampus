@@ -74,6 +74,7 @@ class AssistantPanelTest {
     void studentQuestionsCoverStudyLibraryAndStoreVocabulary() {
         assertRoutes(Role.STUDENT, "我的手机号和邮箱在哪里修改", "学籍信息");
         assertRoutes(Role.STUDENT, "怎么查看重修课程和培养方案", "学生选课");
+        assertRoutes(Role.STUDENT, "在哪里查看我的成绩单", "学生选课");
         assertRoutes(Role.STUDENT, "图书逾期、挂失和赔偿怎么办", "图书馆");
         assertRoutes(Role.STUDENT, "在哪里查看钱包流水和订单", "商店");
     }

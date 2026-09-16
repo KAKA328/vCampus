@@ -164,7 +164,7 @@ final class AssistantPanel extends JPanel {
                 "教务教学管理")) return;
 
         if (route(normalized, new String[] {"教学班", "授课", "学生名单", "成绩录入", "录入成绩", "导入成绩",
-                "成绩草稿", "提交审核", "教师成绩", "成绩单"},
+                "成绩草稿", "提交审核", "教师成绩"},
                 new String[] {"教学管理", "教务教学管理", "学生选课"},
                 "教学班、学生名单、成绩录入和成绩导入在教学管理入口办理。", "教学管理")) return;
 
