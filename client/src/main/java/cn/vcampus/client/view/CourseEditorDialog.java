@@ -7,6 +7,7 @@ import java.awt.Component;
 import java.awt.Dialog;
 import java.awt.FlowLayout;
 import java.awt.Window;
+import java.math.BigDecimal;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
@@ -30,7 +31,7 @@ final class CourseEditorDialog extends JDialog {
         if (initial != null) {
             courseId.setText(initial.getCourseId());
             courseName.setText(initial.getName());
-            credits.setText(String.valueOf(initial.getCredits()));
+            credits.setText(cn.vcampus.common.CreditFormat.display(initial.getCreditsDecimal()));
             status.setSelectedItem(initial.getStatus());
         }
         build(initial == null);
@@ -81,13 +82,12 @@ final class CourseEditorDialog extends JDialog {
 
     private void confirm() {
         try {
-            int value = Integer.parseInt(credits.getText().trim());
-            if (value <= 0) throw new IllegalArgumentException("学分必须是正整数");
+            BigDecimal value = new BigDecimal(credits.getText().trim());
             result = new Course(text(courseId, "课程编号"), text(courseName, "课程名称"), value)
                     .withStatus((CourseStatus) status.getSelectedItem());
             dispose();
         } catch (NumberFormatException invalid) {
-            error.setText("学分必须是正整数。 ");
+            error.setText("学分须为最多两位小数的正数，例如 1.5。 ");
         } catch (IllegalArgumentException invalid) {
             error.setText(invalid.getMessage());
         }

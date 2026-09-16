@@ -36,16 +36,16 @@ class AccessAcademicReviewServiceTest {
              Statement statement = connection.createStatement()) {
             statement.execute("CREATE TABLE tblCourse ("
                     + "course_id VARCHAR(32) NOT NULL, course_name VARCHAR(100) NOT NULL,"
-                    + "credits INTEGER NOT NULL, capacity INTEGER NOT NULL, PRIMARY KEY (course_id))");
+                    + "credits DECIMAL(10,2) NOT NULL, capacity INTEGER NOT NULL, PRIMARY KEY (course_id))");
             statement.execute("CREATE TABLE tblCourseResult ("
                     + "result_id VARCHAR(36) NOT NULL, student_id VARCHAR(32) NOT NULL,"
                     + "course_id VARCHAR(32) NOT NULL, offering_id VARCHAR(36), semester VARCHAR(32) NOT NULL,"
                     + "attempt_no INTEGER NOT NULL, attempt_type VARCHAR(16) NOT NULL, score INTEGER,"
-                    + "passed BIT NOT NULL, earned_credits INTEGER NOT NULL, recorded_at DATETIME NOT NULL,"
+                    + "passed BIT NOT NULL, earned_credits DECIMAL(10,2) NOT NULL, recorded_at DATETIME NOT NULL,"
                         + "PRIMARY KEY (result_id))");
             statement.execute("CREATE TABLE tblAcademicReview ("
                     + "review_id VARCHAR(36) NOT NULL, student_id VARCHAR(32) NOT NULL,"
-                    + "total_earned_credits INTEGER NOT NULL, required_earned_credits INTEGER NOT NULL,"
+                    + "total_earned_credits DECIMAL(10,2) NOT NULL, required_earned_credits DECIMAL(10,2) NOT NULL,"
                     + "failed_course_count INTEGER NOT NULL, retake_course_count INTEGER NOT NULL,"
                     + "graduation_ready BIT NOT NULL, reviewed_by VARCHAR(32) NOT NULL,"
                     + "reviewed_at DATETIME NOT NULL, remark VARCHAR(255), PRIMARY KEY (review_id))");
@@ -127,7 +127,7 @@ class AccessAcademicReviewServiceTest {
     void latestReviewMapsSnapshotColumns() {
         assertEquals(StatusCode.OK, service.latestReview("S001").getStatus());
         assertEquals("RV001", service.latestReview("S001").getData().getReviewId());
-        assertEquals(6, service.latestReview("S001").getData().getRequiredEarnedCredits());
+        assertEquals(new java.math.BigDecimal("6"), service.latestReview("S001").getData().getRequiredEarnedCreditsDecimal());
         assertEquals(1, service.latestReview("S001").getData().getPassedCourseCount());
         assertEquals("admin", service.latestReview("S001").getData().getReviewedBy());
         assertEquals("阶段审查", service.latestReview("S001").getData().getRemark());
@@ -136,7 +136,7 @@ class AccessAcademicReviewServiceTest {
     @Test
     void reviewComputesCurrentResultsWithoutOverwritingSnapshot() {
         assertEquals(StatusCode.OK, service.review("S001", 3).getStatus());
-        assertEquals(3, service.review("S001", 3).getData().getTotalEarnedCredits());
+        assertEquals(new java.math.BigDecimal("3"), service.review("S001", 3).getData().getTotalEarnedCreditsDecimal());
         assertEquals(1, service.review("S001", 3).getData().getPassedCourseCount());
         assertEquals(1, service.review("S001", 3).getData().getFailedCourseCount());
         assertEquals(1, service.review("S001", 3).getData().getRetakeCourseCount());

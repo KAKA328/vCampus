@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.math.BigDecimal;
 
 /** Calculates required graduation credits from a student's published training plan. */
 final class TrainingPlanGraduationCreditRequirementProvider
@@ -58,7 +59,7 @@ final class TrainingPlanGraduationCreditRequirementProvider
             return ServiceResult.failure(StatusCode.NOT_FOUND, "未找到该学生适用的已发布培养方案");
         }
 
-        int total = 0;
+        BigDecimal total = BigDecimal.ZERO;
         List<String> courseCredits = new ArrayList<String>();
         Set<String> counted = new LinkedHashSet<String>();
         for (TrainingPlanCourse requirement : plan.getCourses()) {
@@ -78,13 +79,9 @@ final class TrainingPlanGraduationCreditRequirementProvider
             if (course == null) {
                 return ServiceResult.failure(StatusCode.SERVER_ERROR, "课程目录服务返回了空数据");
             }
-            try {
-                total = Math.addExact(total, course.getCredits());
-            } catch (ArithmeticException overflow) {
-                return ServiceResult.failure(StatusCode.SERVER_ERROR, "培养方案必修学分合计超出整数范围");
-            }
+            total = total.add(course.getCreditsDecimal());
             courseCredits.add(course.getCourseId().length() + ":" + course.getCourseId()
-                    + ":" + course.getCredits());
+                    + ":" + course.getCreditsDecimal().stripTrailingZeros().toPlainString());
         }
         if (courseCredits.isEmpty()) {
             return ServiceResult.failure(StatusCode.CONFLICT, "已发布培养方案未配置必修课程");

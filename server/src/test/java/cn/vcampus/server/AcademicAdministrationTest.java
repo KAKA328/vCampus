@@ -50,10 +50,10 @@ class AcademicAdministrationTest {
     @Test void creditSummaryDoesNotDoubleCountPassedAttemptsOrUseFailedCredits() {
         history.addHistory(attempt("C1", 4, false, 99));
         CreditSummary summary = (CreditSummary) send(command(admin, Action.CREDITS, "S001", 0, null)).getPayload();
-        assertEquals(3, summary.getEarnedCredits());
+        assertEquals(new java.math.BigDecimal("3"), summary.getEarnedCreditsDecimal());
         assertEquals(1, summary.getPassedCourses());
         assertEquals(0, summary.getPendingRetakes());
-        assertEquals(3, history.review("S001", 3).getData().getTotalEarnedCredits());
+        assertEquals(new java.math.BigDecimal("3"), history.review("S001", 3).getData().getTotalEarnedCreditsDecimal());
         assertEquals(StatusCode.NOT_FOUND, send(command(admin, Action.CREDITS, "missing", 0, null)).getStatusCode());
     }
     @Test void reviewIsPersistedAndGraduationRequiresSeparateConfirmation() {
@@ -74,7 +74,7 @@ class AcademicAdministrationTest {
     }
     @Test void insufficientCreditsOrPendingRetakesCannotGraduate() {
         AcademicAssessment insufficient = review(6);
-        assertEquals(3, insufficient.getShortfall());
+        assertEquals(new java.math.BigDecimal("3"), insufficient.getShortfallDecimal());
         assertEquals(StatusCode.CONFLICT, send(command(admin, Action.GRADUATE, "S001", 0, insufficient.getId())).getStatusCode());
         history.addHistory(attempt("C2", 1, false, 0));
         AcademicAssessment failed = review(3);

@@ -65,7 +65,7 @@ class RemoteStudentAcademicServiceTest {
                     Message result = remote.academicQuery("session-token", type);
                     assertEquals(StatusCode.OK, result.getStatusCode());
                     if (type == QueryType.CREDITS) {
-                        assertEquals(6, ((cn.vcampus.student.CreditSummary) result.getPayload()).getEarnedCredits());
+                        assertEquals(new java.math.BigDecimal("6"), ((cn.vcampus.student.CreditSummary) result.getPayload()).getEarnedCreditsDecimal());
                     }
                 }
                 Message teacher = remote.currentTeacher("teacher-token");

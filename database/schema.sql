@@ -38,7 +38,7 @@ CREATE TABLE tblPasswordResetApplication (
 CREATE TABLE tblCourse (
     course_id VARCHAR(32) NOT NULL,
     course_name VARCHAR(100) NOT NULL,
-    credits INTEGER NOT NULL,
+    credits DECIMAL(10,2) NOT NULL,
     status VARCHAR(16) NOT NULL,
     PRIMARY KEY (course_id)
 );
@@ -245,7 +245,7 @@ CREATE TABLE tblCourseResult (
     attempt_type VARCHAR(16) NOT NULL,
     score INTEGER,
     passed BIT NOT NULL,
-    earned_credits INTEGER NOT NULL,
+    earned_credits DECIMAL(10,2) NOT NULL,
     recorded_at DATETIME NOT NULL,
     PRIMARY KEY (result_id)
 );
@@ -261,8 +261,8 @@ CREATE TABLE tblGradeSubmissionResult (
 CREATE TABLE tblAcademicReview (
     review_id VARCHAR(36) NOT NULL,
     student_id VARCHAR(32) NOT NULL,
-    total_earned_credits INTEGER NOT NULL,
-    required_earned_credits INTEGER NOT NULL,
+    total_earned_credits DECIMAL(10,2) NOT NULL,
+    required_earned_credits DECIMAL(10,2) NOT NULL,
     failed_course_count INTEGER NOT NULL,
     retake_course_count INTEGER NOT NULL,
     graduation_ready BIT NOT NULL,
@@ -277,11 +277,11 @@ CREATE TABLE tblAcademicAssessment (
     assessment_order COUNTER,
     assessment_id VARCHAR(36) NOT NULL,
     student_id VARCHAR(32) NOT NULL,
-    earned_credits INTEGER NOT NULL,
+    earned_credits DECIMAL(10,2) NOT NULL,
     passed_courses INTEGER NOT NULL,
     pending_retakes INTEGER NOT NULL,
     historical_retakes INTEGER NOT NULL,
-    required_credits INTEGER NOT NULL,
+    required_credits DECIMAL(10,2) NOT NULL,
     evidence VARCHAR(64) NOT NULL,
     reviewed_by VARCHAR(32) NOT NULL,
     reviewed_at DATETIME NOT NULL,

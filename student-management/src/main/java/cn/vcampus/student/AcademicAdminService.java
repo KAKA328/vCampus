@@ -59,7 +59,8 @@ public final class AcademicAdminService {
             }
             GraduationCreditRequirement requirement = requirementResult.getData();
             AcademicAssessment assessment = new AcademicAssessment(UUID.randomUUID().toString(),
-                    credits, requirement.getRequiredCredits(), evidence(student, history, requirement), actor,
+                    credits, requirement.getRequiredCreditsDecimal(),
+                    evidence(student, history, requirement), actor,
                     Instant.now(), command.getNote(), null, null, null);
             context.save(assessment);
             return ServiceResult.ok(assessment);
@@ -77,7 +78,8 @@ public final class AcademicAdminService {
             return ServiceResult.failure(requirementResult.getStatus(), requirementResult.getMessage());
         }
         GraduationCreditRequirement requirement = requirementResult.getData();
-        if (latest.getRequiredCredits() != requirement.getRequiredCredits()
+        if (latest.getRequiredCreditsDecimal().compareTo(
+                requirement.getRequiredCreditsDecimal()) != 0
                 || !latest.getEvidence().equals(evidence(student, history, requirement))) {
             return ServiceResult.failure(StatusCode.CONFLICT,
                     "培养方案、课程学分、成绩或学生档案已变更，请重新审查");

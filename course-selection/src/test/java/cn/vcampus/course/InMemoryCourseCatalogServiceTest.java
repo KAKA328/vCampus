@@ -21,7 +21,7 @@ class InMemoryCourseCatalogServiceTest {
         assertEquals(StatusCode.OK, createResult.getStatus());
         assertEquals(StatusCode.OK, updateResult.getStatus());
         assertEquals("Java 程序设计", updateResult.getData().getName());
-        assertEquals(4, updateResult.getData().getCredits());
+        assertEquals(new java.math.BigDecimal("4"), updateResult.getData().getCreditsDecimal());
         assertEquals(1, activeResult.getData().size());
     }
 

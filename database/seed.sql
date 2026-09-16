@@ -301,7 +301,7 @@ VALUES ('test_student_concurrent_03', 'IZBIc+YD2QyDs5+HFIF4yQ==:jZiW3CFhJ854HF2P
 
 -- 课程目录同时覆盖启用、停用、必修、选修与跨专业演示场景。
 INSERT INTO tblCourse(course_id, course_name, credits, status) VALUES ('DS101', '数据结构', 3, 'ACTIVE');
-INSERT INTO tblCourse(course_id, course_name, credits, status) VALUES ('WEB101', 'Web 应用开发', 2, 'ACTIVE');
+INSERT INTO tblCourse(course_id, course_name, credits, status) VALUES ('WEB101', 'Web 应用开发', 2.5, 'ACTIVE');
 INSERT INTO tblCourse(course_id, course_name, credits, status) VALUES ('LAW101', '大学生法治教育', 2, 'ACTIVE');
 INSERT INTO tblCourse(course_id, course_name, credits, status) VALUES ('SE101', '软件工程导论', 2, 'ACTIVE');
 INSERT INTO tblCourse(course_id, course_name, credits, status) VALUES ('PHYS101', '大学物理', 3, 'DISABLED');
@@ -412,6 +412,8 @@ INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semes
 INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at) VALUES ('result-net-demo-1', '20260001', 'NET101', NULL, '2026-2027-1', 1, '首修', 88, 1, 3, NOW());
 INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at) VALUES ('result-ai-demo-1', '20260001', 'AI101', NULL, '2026-2027-1', 1, '首修', 92, 1, 2, NOW());
 INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at) VALUES ('result-ds-demo-1', '20260001', 'DS101', NULL, '2026-2027-1', 1, '首修', 86, 1, 3, NOW());
+-- 小数学分成绩示例：WEB101 为 2.5 学分，供成绩与学分汇总验收。
+INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at) VALUES ('result-web-fractional-1', '20260002', 'WEB101', 'offering-web-roster-1', '2026-2027-1', 1, '首修', 88, 1, 2.5, NOW());
 
 -- 三个固定学期的组合完整覆盖首修、重修、开放、结束与停用状态。
 INSERT INTO tblSelectionRound(round_id, term, round_type, starts_at, ends_at, status) VALUES ('round-2025b-retake', '2025-2026-2', 'RETAKE', DATEADD('d', -190, NOW()), DATEADD('d', -180, NOW()), 'CLOSED');

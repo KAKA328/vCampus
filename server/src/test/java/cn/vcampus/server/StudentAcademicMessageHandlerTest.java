@@ -50,7 +50,7 @@ class StudentAcademicMessageHandlerTest {
         assertEquals(StatusCode.OK, result.getStatusCode());
         cn.vcampus.student.CreditSummary credits = (cn.vcampus.student.CreditSummary) result.getPayload();
         assertEquals("S001", credits.getStudentId());
-        assertEquals(3, credits.getEarnedCredits());
+        assertEquals(new java.math.BigDecimal("3"), credits.getEarnedCreditsDecimal());
         assertEquals(1, credits.getPendingRetakes());
         assertEquals(StatusCode.NOT_FOUND, academics.latestReview("S001").getStatus());
     }

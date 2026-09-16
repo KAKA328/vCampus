@@ -48,7 +48,7 @@ class AccessGradeApprovalWorkflowTest {
                     + "result_id VARCHAR(36) NOT NULL,student_id VARCHAR(32) NOT NULL,"
                     + "course_id VARCHAR(32) NOT NULL,offering_id VARCHAR(36),semester VARCHAR(32) NOT NULL,"
                     + "attempt_no INTEGER NOT NULL,attempt_type VARCHAR(16) NOT NULL,score INTEGER,"
-                    + "passed BIT NOT NULL,earned_credits INTEGER NOT NULL,recorded_at DATETIME NOT NULL,"
+                    + "passed BIT NOT NULL,earned_credits DECIMAL(10,2) NOT NULL,recorded_at DATETIME NOT NULL,"
                     + "PRIMARY KEY (result_id))");
             statement.execute("CREATE TABLE tblGradeSubmissionResult ("
                     + "submission_id VARCHAR(36) NOT NULL,result_id VARCHAR(36) NOT NULL,"
@@ -219,7 +219,7 @@ class AccessGradeApprovalWorkflowTest {
             statement.setString(7, result.getAttemptType());
             statement.setInt(8, result.getScore());
             statement.setBoolean(9, result.isPassed());
-            statement.setInt(10, result.getEarnedCredits());
+            statement.setBigDecimal(10, result.getEarnedCreditsDecimal());
             statement.setTimestamp(11, java.sql.Timestamp.valueOf(result.getRecordedAt()));
             statement.executeUpdate();
         }

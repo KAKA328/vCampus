@@ -25,7 +25,7 @@ class StudentAcademicPanelTest {
                 Message.response(request(), StatusCode.OK, new cn.vcampus.student.CreditSummary("S001", 6, 2, 0, 1))));
         edt(() -> { field(panel, "query", JComboBox.class).setSelectedIndex(2); return null; });
         awaitLoaded(panel);
-        assertEquals(6, edt(() -> table(panel).getValueAt(0, 1)));
+        assertEquals("6", edt(() -> table(panel).getValueAt(0, 1)));
         assertEquals(1, edt(() -> table(panel).getRowCount()));
         assertTrue(edt(() -> status(panel).contains("去重")));
         assertEquals("6", edt(() -> field(panel, "earned", JLabel.class).getText()));

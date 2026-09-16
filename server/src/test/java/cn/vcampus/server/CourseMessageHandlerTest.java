@@ -109,7 +109,7 @@ class CourseMessageHandlerTest {
     }
 
     @Test
-    void academicAdminCanManageCatalogAndOfferings() {
+    void academicAdminCanManageCatalogAndOfferings() throws Exception {
         DefaultUserManagementService users = new DefaultUserManagementService(new InMemoryUserRepository(),
                 new SessionManager(), new InMemoryAuditLogRepository());
         UserCredentials academicAdmin = new UserCredentials("academic_001", "password", "教务老师",
@@ -123,10 +123,44 @@ class CourseMessageHandlerTest {
                 new InMemoryStudentSelectionProfileProvider(Collections.<StudentSelectionProfile>emptyList()),
                 users);
 
-        Message createCourse = managementHandler.handle(Message.request("create-course",
+        Message legacyCreateCourse = managementHandler.handle(Message.request("legacy-create-course",
                 MessageType.COURSE_MANAGE_V2, CourseManagementCommand.createCourse(
                         academicSession.getToken(), new Course("CS201", "算法设计", 3))));
+        assertEquals(StatusCode.BAD_REQUEST, legacyCreateCourse.getStatusCode());
+
+        Message legacyFieldUpdate = managementHandler.handle(Message.request("legacy-field-update",
+                MessageType.COURSE_MANAGE_V2, CourseManagementCommand.updateCourseDetails(
+                        academicSession.getToken(), "CS101", "程序设计", 3)));
+        assertEquals(StatusCode.BAD_REQUEST, legacyFieldUpdate.getStatusCode());
+
+        Message legacyObjectUpdate = managementHandler.handle(Message.request("legacy-object-update",
+                MessageType.COURSE_MANAGE_V2, CourseManagementCommand.updateCourseDetails(
+                        academicSession.getToken(), "CS101", new Course("CS101", "程序设计", 3))));
+        assertEquals(StatusCode.BAD_REQUEST, legacyObjectUpdate.getStatusCode());
+
+        Course missingPrecise = new Course("CS202", "旧协议课程", 3);
+        java.lang.reflect.Field creditsDecimal = Course.class.getDeclaredField("creditsDecimal");
+        creditsDecimal.setAccessible(true);
+        creditsDecimal.set(missingPrecise, null);
+        Message missingPreciseCreate = managementHandler.handle(Message.request("missing-precise",
+                MessageType.COURSE_MANAGE_V3, CourseManagementCommand.createCourse(
+                        academicSession.getToken(), missingPrecise)));
+        assertEquals(StatusCode.BAD_REQUEST, missingPreciseCreate.getStatusCode());
+
+        Course invalidPrecise = new Course("CS203", "非法学分课程", 3);
+        creditsDecimal.set(invalidPrecise, new java.math.BigDecimal("-0.5"));
+        Message invalidPreciseCreate = managementHandler.handle(Message.request("invalid-precise",
+                MessageType.COURSE_MANAGE_V3, CourseManagementCommand.createCourse(
+                        academicSession.getToken(), invalidPrecise)));
+        assertEquals(StatusCode.BAD_REQUEST, invalidPreciseCreate.getStatusCode());
+
+        Message createCourse = managementHandler.handle(Message.request("create-course",
+                MessageType.COURSE_MANAGE_V3, CourseManagementCommand.createCourse(
+                        academicSession.getToken(), new Course("CS201", "算法设计",
+                                new java.math.BigDecimal("2.5")))));
         assertEquals(StatusCode.OK, createCourse.getStatusCode());
+        assertEquals(new java.math.BigDecimal("2.5"),
+                ((Course) createCourse.getPayload()).getCreditsDecimal());
 
         Message createOffering = managementHandler.handle(Message.request("create-offering",
                 MessageType.COURSE_MANAGE_V2, CourseManagementCommand.createOffering(
