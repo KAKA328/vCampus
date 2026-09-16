@@ -1629,17 +1629,32 @@ class StoreServiceTest {
         assertEquals(50L, byId.get("00003").getSubtotalCents());
     }
 
-    // 多字段查询：keyword 忽略大小写匹配名称或说明
+    // 多字段查询：keyword 忽略大小写匹配商品编号或名称
     @Test
-    void testSearchProductsByKeywordMatchesNameOrDescription() {
+    void testSearchProductsByKeywordMatchesProductIdOrName() {
         ServiceResult<List<Product>> byName = service.searchProducts("APPLE", null, null, null, false);
         assertEquals(StatusCode.OK, byName.getStatus());
         assertEquals(1, byName.getData().size());
         assertEquals("00001", byName.getData().get(0).getProductId());
 
-        ServiceResult<List<Product>> byDesc = service.searchProducts("crunchy", null, null, null, false);
-        assertEquals(1, byDesc.getData().size());
-        assertEquals("00003", byDesc.getData().get(0).getProductId());
+        // 商品编号：完整编号与编号片段都能命中（子串匹配）
+        ServiceResult<List<Product>> byFullId = service.searchProducts("00003", null, null, null, false);
+        assertEquals(1, byFullId.getData().size());
+        assertEquals("00003", byFullId.getData().get(0).getProductId());
+
+        ServiceResult<List<Product>> byIdPrefix = service.searchProducts("0000", null, null, null, false);
+        assertEquals(4, byIdPrefix.getData().size());
+    }
+
+    // 多字段查询：说明与类别不参与关键词匹配（契约已从「名称或说明」改为「编号或名称」）
+    @Test
+    void testSearchProductsKeywordIgnoresDescriptionAndCategory() {
+        ServiceResult<List<Product>> byDescription = service.searchProducts("crunchy", null, null, null, false);
+        assertEquals(StatusCode.OK, byDescription.getStatus());
+        assertEquals(0, byDescription.getData().size());
+
+        ServiceResult<List<Product>> byCategoryOnly = service.searchProducts("Vegetable", null, null, null, false);
+        assertEquals(0, byCategoryOnly.getData().size());
     }
 
     // 多字段查询：价格闭区间（单边/双边）

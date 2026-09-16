@@ -1128,11 +1128,15 @@ public final class StorePanel extends JPanel {
         }
     }
 
+    /**
+     * 关键词匹配范围：商品编号或商品名称。
+     *
+     * <p>必须与服务端 {@code DefaultStoreService.matchesKeyword} 完全一致。历史上客户端多匹配了类别与说明，
+     * 而服务端只匹配名称与说明，于是输入商品编号时「本地筛得到、一触发服务端查询（含自动刷新）就变空」。
+     */
     private static boolean matchesKeyword(Product product, String lowerKeyword) {
-        return product.getName().toLowerCase().contains(lowerKeyword)
-                || product.getProductId().toLowerCase().contains(lowerKeyword)
-                || product.getCategory().toLowerCase().contains(lowerKeyword)
-                || (product.getDescription() != null && product.getDescription().toLowerCase().contains(lowerKeyword));
+        return product.getProductId().toLowerCase().contains(lowerKeyword)
+                || product.getName().toLowerCase().contains(lowerKeyword);
     }
 
     private Product selectedProduct() {

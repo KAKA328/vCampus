@@ -5,11 +5,11 @@ import java.io.Serializable;
 public final class StoreQueryCommand implements Serializable {
     private static final long serialVersionUID = 1L;
     private final String token;// 用户令牌
-    private final String keyword;// 关键词，可空=不限；服务端忽略大小写匹配商品名称或说明
+    private final String keyword;// 关键词，可空=不限；服务端忽略大小写匹配商品编号或名称
     private final String category;// 商品类别，可空=全部类别
     private final Double minPrice;// 最低价格（元），可空=不限下界
     private final Double maxPrice;// 最高价格（元），可空=不限上界
-    // 是否一并返回已下架商品（仅管理端视图用）：服务端要求 STORE_MANAGE 双门槛，普通买家带此位会被拒
+    // 是否一并返回已下架商品：只要求 STORE_READ，买家也可开启浏览下架陈列；购买/加购仍被服务层拒绝
     private final boolean includeInactive;
 
     // 全参构造：多字段拼接查询（关键词 + 类别 + 价格区间 + 是否含下架）
