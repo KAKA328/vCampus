@@ -31,7 +31,7 @@ final class CourseEditorDialog extends JDialog {
         if (initial != null) {
             courseId.setText(initial.getCourseId());
             courseName.setText(initial.getName());
-            credits.setText(String.valueOf(initial.getCredits()));
+            credits.setText(cn.vcampus.common.CreditFormat.display(initial.getCreditsDecimal()));
             status.setSelectedItem(initial.getStatus());
         }
         build(initial == null);

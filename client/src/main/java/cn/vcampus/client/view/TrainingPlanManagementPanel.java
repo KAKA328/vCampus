@@ -255,7 +255,7 @@ final class TrainingPlanManagementPanel extends JPanel {
 
     private Object courseCredits(String courseId) {
         Course course = coursesById.get(courseId);
-        return course == null ? "—" : cn.vcampus.common.CreditFormat.display(course.getCredits());
+        return course == null ? "—" : cn.vcampus.common.CreditFormat.display(course.getCreditsDecimal());
     }
 
     private void editPlan() {

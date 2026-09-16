@@ -304,7 +304,7 @@ public final class CourseManagementPanel extends JPanel {
                 if (item instanceof Course) {
                     Course course = (Course) item;
                     rows.add(new Object[] { course.getCourseId(), course.getName(),
-                            cn.vcampus.common.CreditFormat.display(course.getCredits()),
+                            cn.vcampus.common.CreditFormat.display(course.getCreditsDecimal()),
                             course.getStatus().getDisplayName() });
                 }
             }

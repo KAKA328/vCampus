@@ -10,7 +10,9 @@ public final class Course implements Serializable {
 
     private final String courseId;
     private final String name;
-    private final BigDecimal credits;
+    /** Legacy serialized field. Keep name and type for Java wire compatibility. */
+    private final int credits;
+    private final BigDecimal creditsDecimal;
     private final CourseStatus status;
 
     /**
@@ -32,7 +34,8 @@ public final class Course implements Serializable {
         if (status == null) {
             throw new IllegalArgumentException("status must not be null");
         }
-        this.credits = CreditFormat.positive(credits, "credits");
+        this.creditsDecimal = CreditFormat.positive(credits, "credits");
+        this.credits = CreditFormat.legacyInt(this.creditsDecimal, "credits");
         this.status = status;
     }
 
@@ -44,9 +47,15 @@ public final class Course implements Serializable {
         return name;
     }
 
-    public BigDecimal getCredits() {
+    public int getCredits() {
         return credits;
     }
+
+    public BigDecimal getCreditsDecimal() {
+        return CreditFormat.decimalOrLegacy(creditsDecimal, credits);
+    }
+
+    public boolean hasPreciseCredits() { return creditsDecimal != null; }
 
     public CourseStatus getStatus() {
         return status;
@@ -63,7 +72,7 @@ public final class Course implements Serializable {
 
     /** 返回状态更新后的新课程对象。 */
     public Course withStatus(CourseStatus newStatus) {
-        return new Course(courseId, name, credits, newStatus);
+        return new Course(courseId, name, getCreditsDecimal(), newStatus);
     }
 
     private static String requireText(String value, String fieldName) {

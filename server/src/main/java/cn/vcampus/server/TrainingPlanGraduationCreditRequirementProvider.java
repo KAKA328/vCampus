@@ -79,9 +79,9 @@ final class TrainingPlanGraduationCreditRequirementProvider
             if (course == null) {
                 return ServiceResult.failure(StatusCode.SERVER_ERROR, "课程目录服务返回了空数据");
             }
-            total = total.add(course.getCredits());
+            total = total.add(course.getCreditsDecimal());
             courseCredits.add(course.getCourseId().length() + ":" + course.getCourseId()
-                    + ":" + course.getCredits());
+                    + ":" + course.getCreditsDecimal().stripTrailingZeros().toPlainString());
         }
         if (courseCredits.isEmpty()) {
             return ServiceResult.failure(StatusCode.CONFLICT, "已发布培养方案未配置必修课程");

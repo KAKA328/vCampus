@@ -23,8 +23,8 @@ public class InMemoryAcademicReviewServiceTest {
         ServiceResult<AcademicReview> result = service.review("S-FRACTION", new BigDecimal("4.0"));
 
         assertEquals(StatusCode.OK, result.getStatus());
-        assertEquals(new BigDecimal("4"), result.getData().getTotalEarnedCredits());
-        assertEquals(new BigDecimal("4"), result.getData().getRequiredEarnedCredits());
+        assertEquals(new BigDecimal("4"), result.getData().getTotalEarnedCreditsDecimal());
+        assertEquals(new BigDecimal("4"), result.getData().getRequiredEarnedCreditsDecimal());
         assertTrue(result.getData().isGraduationReady());
     }
 
@@ -39,14 +39,14 @@ public class InMemoryAcademicReviewServiceTest {
 
         assertEquals(StatusCode.OK, result.getStatus());
         assertTrue(result.getData().isGraduationReady());
-        assertEquals(new java.math.BigDecimal("6"), result.getData().getTotalEarnedCredits());
-        assertEquals(new java.math.BigDecimal("6"), result.getData().getRequiredEarnedCredits());
-        assertEquals(new java.math.BigDecimal("0"), result.getData().getCreditShortfall());
+        assertEquals(new java.math.BigDecimal("6"), result.getData().getTotalEarnedCreditsDecimal());
+        assertEquals(new java.math.BigDecimal("6"), result.getData().getRequiredEarnedCreditsDecimal());
+        assertEquals(new java.math.BigDecimal("0"), result.getData().getCreditShortfallDecimal());
         assertEquals(2, result.getData().getPassedCourseCount());
         assertEquals(0, result.getData().getFailedCourseCount());
         assertEquals(1, result.getData().getRetakeCourseCount());
         assertEquals(StatusCode.OK, service.latestReview("S001").getStatus());
-        assertEquals(new java.math.BigDecimal("6"), service.latestReview("S001").getData().getTotalEarnedCredits());
+        assertEquals(new java.math.BigDecimal("6"), service.latestReview("S001").getData().getTotalEarnedCreditsDecimal());
     }
 
     @Test
@@ -59,9 +59,9 @@ public class InMemoryAcademicReviewServiceTest {
 
         assertEquals(StatusCode.OK, result.getStatus());
         assertFalse(result.getData().isGraduationReady());
-        assertEquals(new java.math.BigDecimal("3"), result.getData().getTotalEarnedCredits());
-        assertEquals(new java.math.BigDecimal("6"), result.getData().getRequiredEarnedCredits());
-        assertEquals(new java.math.BigDecimal("3"), result.getData().getCreditShortfall());
+        assertEquals(new java.math.BigDecimal("3"), result.getData().getTotalEarnedCreditsDecimal());
+        assertEquals(new java.math.BigDecimal("6"), result.getData().getRequiredEarnedCreditsDecimal());
+        assertEquals(new java.math.BigDecimal("3"), result.getData().getCreditShortfallDecimal());
         assertEquals(1, result.getData().getPassedCourseCount());
         assertEquals(1, result.getData().getFailedCourseCount());
         assertEquals(0, result.getData().getRetakeCourseCount());

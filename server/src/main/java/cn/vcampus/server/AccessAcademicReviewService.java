@@ -100,7 +100,7 @@ public final class AccessAcademicReviewService
             return ServiceResult.failure(history.getStatus(), history.getMessage());
         }
         cn.vcampus.student.CreditSummary summary = cn.vcampus.student.CreditSummary.from(normalize(studentId), history.getData());
-        BigDecimal totalCredits = summary.getEarnedCredits();
+        BigDecimal totalCredits = summary.getEarnedCreditsDecimal();
         int passedCourses = summary.getPassedCourses();
         int failedCourses = summary.getPendingRetakes();
         int retakeCourses = summary.getHistoricalRetakes();
@@ -197,7 +197,7 @@ public final class AccessAcademicReviewService
                     statement.setString(7, result.getAttemptType());
                     statement.setInt(8, result.getScore());
                     statement.setBoolean(9, result.isPassed());
-                    statement.setBigDecimal(10, result.getEarnedCredits());
+                    statement.setBigDecimal(10, result.getEarnedCreditsDecimal());
                     statement.setTimestamp(11, Timestamp.valueOf(result.getRecordedAt()));
                     statement.executeUpdate();
                 }

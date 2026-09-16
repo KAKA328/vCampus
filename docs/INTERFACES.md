@@ -167,7 +167,7 @@ StudentManagementService.findByIds(List<String> studentIds)
 - 首个系统管理员由服务器读取 `VCAMPUS_BOOTSTRAP_ADMIN_ID`、`VCAMPUS_BOOTSTRAP_ADMIN_PASSWORD`、`VCAMPUS_BOOTSTRAP_ADMIN_NAME` 后在进程内初始化，不通过 Socket 暴露管理员注册接口。
 - 权限新增 `COURSE_MANAGE`、`GRADE_WRITE`、`ACADEMIC_REVIEW`。
 - 学生完整选课使用 `COURSE_SELECTION_QUERY_V2`、`COURSE_SELECT_OFFERING_V2`、`COURSE_DROP_RECORD_V2`，查询要求 `COURSE_READ`，选课和退选要求 `COURSE_SELECT`。
-- 课程维护使用 `COURSE_MANAGE`，要求 `COURSE_MANAGE` 权限；payload 固定为 `CourseManagementCommand`。当前支持：
+- 新客户端课程维护使用 `COURSE_MANAGE_V3`，要求 `COURSE_MANAGE` 权限；payload 固定为 `CourseManagementCommand`。`COURSE_MANAGE_V2` 保留查询和不涉及学分的教学班/轮次操作，但课程新增或课程详情修改返回 `BAD_REQUEST` 并提示升级。当前支持：
   - `LIST_COURSES`：查询全部课程目录，响应 `List<Course>`；
   - `LIST_OFFERINGS_BY_TERM(term)`：按学期查询教学班，响应 `List<CourseOffering>`；
   - `CREATE_COURSE(course)`：新增课程目录，响应 `Course`；
@@ -178,9 +178,15 @@ StudentManagementService.findByIds(List<String> studentIds)
   - `CHANGE_OFFERING_CAPACITIES(offeringId, requiredCapacity, electiveCapacity, crossMajorCapacity)`：修改三类容量，响应 `CourseOffering`；
   - `UPDATE_OFFERING_TEACHING_INFO(offeringId, teacherId, location)`：仅修改任课教师和上课地点，响应 `CourseOffering`，不得修改既有 `schedule` 文本或 `meetingSchedule` 结构化上课时间。
 - 停开课程或教学班时，存在选课或历史记录不得直接物理删除关联数据。
-- 选课轮次同样通过 `COURSE_MANAGE` + `CourseManagementCommand` 维护，支持查询某学期轮次、创建首修/重修轮次、修改轮次时间窗口和切换轮次状态；同一学期每种轮次类型最多一个。
+- 选课轮次同样通过 `CourseManagementCommand` 维护；V2/V3 都支持查询某学期轮次、创建首修/重修轮次、修改轮次时间窗口和切换轮次状态；同一学期每种轮次类型最多一个。
 - 培养方案维护使用 `COURSE_TRAINING_PLAN_MANAGE_V2` + `TrainingPlanManagementCommand`，同样要求 `COURSE_MANAGE` 权限；支持查询、新建、维护课程要求、移除课程要求和变更方案状态。
 - 客户端只负责按角色隐藏无权入口，服务器 Handler 必须在调用业务接口前执行 `authorize`，拒绝时返回 `FORBIDDEN`。
+
+### 小数学分序列化兼容
+
+`Course`、`CourseManagementCommand`、`CreditSummary`、`AcademicAssessment`、`AcademicReview`、`CourseHistoryRecord` 和 `FormalCourseResult` 保留旧的 `int` 序列化字段名、类型及 `serialVersionUID=1L`，同时增加并行 `BigDecimal` 精确字段。新客户端/服务端必须使用 `getCreditsDecimal()`、`getEarnedCreditsDecimal()`、`getRequiredCreditsDecimal()` 等精确 getter。缺少精确字段的旧序列化流会自动升级为整数 `BigDecimal`。
+
+新对象中的旧整数 getter 仅用于二进制兼容，对小数值向零取整，不得再用于业务计算或新 UI 展示。旧客户端可继续查询，但不能精确显示小数学分；所有课程学分写操作必须升级至 `COURSE_MANAGE_V3`，避免 `2.5` 被静默写成 `2`。
 
 ## 教师本人档案 V1
 教师学籍入口使用 TEACHER_SELF_QUERY_V1 + TeacherSelfQueryV1Command(token)，仅返回会话绑定的 TeacherProfile，包含非在职状态，无修改功能。具体状态码和跨模块要求见 [教师本人档案对接](TEACHER_SELF_PROFILE_INTEGRATION.md)。

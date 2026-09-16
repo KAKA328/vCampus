@@ -11,8 +11,11 @@ public final class AcademicReview implements Serializable {
 
     private final String studentId;
     private final String reviewId;
-    private final BigDecimal totalEarnedCredits;
-    private final BigDecimal requiredEarnedCredits;
+    /** Legacy serialized fields. Keep names and types for Java wire compatibility. */
+    private final int totalEarnedCredits;
+    private final int requiredEarnedCredits;
+    private final BigDecimal totalEarnedCreditsDecimal;
+    private final BigDecimal requiredEarnedCreditsDecimal;
     private final int passedCourseCount;
     private final int failedCourseCount;
     private final int retakeCourseCount;
@@ -63,8 +66,10 @@ public final class AcademicReview implements Serializable {
             String remark) {
         this.studentId = studentId;
         this.reviewId = reviewId;
-        this.totalEarnedCredits = CreditFormat.nonNegative(totalEarnedCredits, "totalEarnedCredits");
-        this.requiredEarnedCredits = CreditFormat.nonNegative(requiredEarnedCredits, "requiredEarnedCredits");
+        this.totalEarnedCreditsDecimal = CreditFormat.nonNegative(totalEarnedCredits, "totalEarnedCredits");
+        this.requiredEarnedCreditsDecimal = CreditFormat.nonNegative(requiredEarnedCredits, "requiredEarnedCredits");
+        this.totalEarnedCredits = CreditFormat.legacyInt(this.totalEarnedCreditsDecimal, "totalEarnedCredits");
+        this.requiredEarnedCredits = CreditFormat.legacyInt(this.requiredEarnedCreditsDecimal, "requiredEarnedCredits");
         this.passedCourseCount = passedCourseCount;
         this.failedCourseCount = failedCourseCount;
         this.retakeCourseCount = retakeCourseCount;
@@ -76,10 +81,19 @@ public final class AcademicReview implements Serializable {
 
     public String getStudentId() { return studentId; }
     public String getReviewId() { return reviewId; }
-    public BigDecimal getTotalEarnedCredits() { return totalEarnedCredits; }
-    public BigDecimal getRequiredEarnedCredits() { return requiredEarnedCredits; }
-    public BigDecimal getCreditShortfall() {
-        return requiredEarnedCredits.subtract(totalEarnedCredits).max(BigDecimal.ZERO);
+    public int getTotalEarnedCredits() { return totalEarnedCredits; }
+    public BigDecimal getTotalEarnedCreditsDecimal() {
+        return CreditFormat.decimalOrLegacy(totalEarnedCreditsDecimal, totalEarnedCredits);
+    }
+    public int getRequiredEarnedCredits() { return requiredEarnedCredits; }
+    public BigDecimal getRequiredEarnedCreditsDecimal() {
+        return CreditFormat.decimalOrLegacy(requiredEarnedCreditsDecimal, requiredEarnedCredits);
+    }
+    public int getCreditShortfall() {
+        return CreditFormat.legacyInt(getCreditShortfallDecimal(), "creditShortfall");
+    }
+    public BigDecimal getCreditShortfallDecimal() {
+        return getRequiredEarnedCreditsDecimal().subtract(getTotalEarnedCreditsDecimal()).max(BigDecimal.ZERO);
     }
     public int getPassedCourseCount() { return passedCourseCount; }
     public int getFailedCourseCount() { return failedCourseCount; }

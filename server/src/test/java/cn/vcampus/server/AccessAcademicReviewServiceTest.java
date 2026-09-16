@@ -127,7 +127,7 @@ class AccessAcademicReviewServiceTest {
     void latestReviewMapsSnapshotColumns() {
         assertEquals(StatusCode.OK, service.latestReview("S001").getStatus());
         assertEquals("RV001", service.latestReview("S001").getData().getReviewId());
-        assertEquals(new java.math.BigDecimal("6"), service.latestReview("S001").getData().getRequiredEarnedCredits());
+        assertEquals(new java.math.BigDecimal("6"), service.latestReview("S001").getData().getRequiredEarnedCreditsDecimal());
         assertEquals(1, service.latestReview("S001").getData().getPassedCourseCount());
         assertEquals("admin", service.latestReview("S001").getData().getReviewedBy());
         assertEquals("阶段审查", service.latestReview("S001").getData().getRemark());
@@ -136,7 +136,7 @@ class AccessAcademicReviewServiceTest {
     @Test
     void reviewComputesCurrentResultsWithoutOverwritingSnapshot() {
         assertEquals(StatusCode.OK, service.review("S001", 3).getStatus());
-        assertEquals(new java.math.BigDecimal("3"), service.review("S001", 3).getData().getTotalEarnedCredits());
+        assertEquals(new java.math.BigDecimal("3"), service.review("S001", 3).getData().getTotalEarnedCreditsDecimal());
         assertEquals(1, service.review("S001", 3).getData().getPassedCourseCount());
         assertEquals(1, service.review("S001", 3).getData().getFailedCourseCount());
         assertEquals(1, service.review("S001", 3).getData().getRetakeCourseCount());

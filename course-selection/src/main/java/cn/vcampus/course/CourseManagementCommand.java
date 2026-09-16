@@ -33,7 +33,9 @@ public final class CourseManagementCommand implements Serializable {
     private final String targetId;
     private final String term;
     private final String name;
-    private BigDecimal credits;
+    /** Legacy serialized field. Keep name and type for Java wire compatibility. */
+    private final int credits;
+    private BigDecimal creditsDecimal;
     private final int requiredCapacity;
     private final int electiveCapacity;
     private final int crossMajorCapacity;
@@ -81,7 +83,8 @@ public final class CourseManagementCommand implements Serializable {
         this.targetId = targetId;
         this.term = term;
         this.name = name;
-        this.credits = BigDecimal.valueOf(credits);
+        this.credits = credits;
+        this.creditsDecimal = BigDecimal.valueOf(credits);
         this.requiredCapacity = requiredCapacity;
         this.electiveCapacity = electiveCapacity;
         this.crossMajorCapacity = crossMajorCapacity;
@@ -120,9 +123,10 @@ public final class CourseManagementCommand implements Serializable {
             String name, BigDecimal credits) {
         cn.vcampus.common.CreditFormat.positive(credits, "credits");
         CourseManagementCommand command = new CourseManagementCommand(token, Operation.UPDATE_COURSE_DETAILS, null, null,
-                requireText(courseId, "courseId"), null, requireText(name, "name"), credits.intValue(),
+                requireText(courseId, "courseId"), null, requireText(name, "name"),
+                cn.vcampus.common.CreditFormat.legacyInt(credits, "credits"),
                 0, 0, 0, null, null);
-        command.credits = credits.stripTrailingZeros();
+        command.creditsDecimal = credits.stripTrailingZeros();
         return command;
     }
 
@@ -241,7 +245,11 @@ public final class CourseManagementCommand implements Serializable {
     public String getTargetId() { return targetId; }
     public String getTerm() { return term; }
     public String getName() { return name; }
-    public BigDecimal getCredits() { return credits; }
+    public int getCredits() { return credits; }
+    public BigDecimal getCreditsDecimal() {
+        return cn.vcampus.common.CreditFormat.decimalOrLegacy(creditsDecimal, credits);
+    }
+    public boolean hasPreciseCredits() { return creditsDecimal != null; }
     public int getRequiredCapacity() { return requiredCapacity; }
     public int getElectiveCapacity() { return electiveCapacity; }
     public int getCrossMajorCapacity() { return crossMajorCapacity; }

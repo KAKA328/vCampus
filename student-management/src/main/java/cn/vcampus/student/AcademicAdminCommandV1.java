@@ -1,8 +1,6 @@
 package cn.vcampus.student;
 
 import java.io.Serializable;
-import java.math.BigDecimal;
-import cn.vcampus.common.CreditFormat;
 
 /** Targets are administrative business parameters; actor identity always comes from the session. */
 public final class AcademicAdminCommandV1 implements AcademicAdminCommand, Serializable {
@@ -11,17 +9,12 @@ public final class AcademicAdminCommandV1 implements AcademicAdminCommand, Seria
     private final String token;
     private final Action action;
     private final String studentId;
-    private final BigDecimal requiredCredits;
+    private final int requiredCredits;
     private final String assessmentId;
     private final String note;
     private final boolean otherRequirementsConfirmed;
 
     public AcademicAdminCommandV1(String token, Action action, String studentId, int requiredCredits,
-            String assessmentId, String note, boolean otherRequirementsConfirmed) {
-        this(token, action, studentId, BigDecimal.valueOf(requiredCredits), assessmentId, note,
-                otherRequirementsConfirmed);
-    }
-    public AcademicAdminCommandV1(String token, Action action, String studentId, BigDecimal requiredCredits,
             String assessmentId, String note, boolean otherRequirementsConfirmed) {
         this.token = token; this.action = action; this.studentId = studentId;
         this.requiredCredits = requiredCredits; this.assessmentId = assessmentId;
@@ -32,8 +25,8 @@ public final class AcademicAdminCommandV1 implements AcademicAdminCommand, Seria
         require(token, "token");
         if (action == null) throw new IllegalArgumentException("action is required");
         if (action != Action.STUDENTS && action != Action.TEACHERS) require(studentId, "studentId");
-        if (action == Action.REVIEW) {
-            CreditFormat.positive(requiredCredits, "要求学分");
+        if (action == Action.REVIEW && requiredCredits <= 0) {
+            throw new IllegalArgumentException("要求学分必须大于零");
         }
         if (action == Action.GRADUATE) {
             require(assessmentId, "assessmentId");
@@ -47,7 +40,7 @@ public final class AcademicAdminCommandV1 implements AcademicAdminCommand, Seria
     public String getToken() { return token; }
     public Action getAction() { return action; }
     public String getStudentId() { return studentId == null ? null : studentId.trim(); }
-    public BigDecimal getRequiredCredits() { return requiredCredits; }
+    public int getRequiredCredits() { return requiredCredits; }
     public String getAssessmentId() { return assessmentId; }
     /** Empty optional notes are stored as empty text, compatible with existing NOT NULL basis. */
     public String getNote() { return note == null ? "" : note.trim(); }

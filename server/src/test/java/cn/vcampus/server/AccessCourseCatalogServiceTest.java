@@ -67,7 +67,7 @@ class AccessCourseCatalogServiceTest {
                 service.create(new Course("GE102", "大学美育", new BigDecimal("1.50"))).getStatus());
 
         ServiceResult<Course> saved = service.findById("GE102");
-        assertEquals(new BigDecimal("1.5"), saved.getData().getCredits());
+        assertEquals(new BigDecimal("1.5"), saved.getData().getCreditsDecimal());
     }
 
     @Test
@@ -81,7 +81,7 @@ class AccessCourseCatalogServiceTest {
 
         ServiceResult<Course> saved = service.findById("CS101");
         assertEquals("Java 程序设计", saved.getData().getName());
-        assertEquals(new java.math.BigDecimal("4"), saved.getData().getCredits());
+        assertEquals(new java.math.BigDecimal("4"), saved.getData().getCreditsDecimal());
         assertEquals(CourseStatus.DISABLED, saved.getData().getStatus());
         assertEquals(StatusCode.CONFLICT, service.findActiveById("CS101").getStatus());
         assertEquals(0, service.listActive().getData().size());

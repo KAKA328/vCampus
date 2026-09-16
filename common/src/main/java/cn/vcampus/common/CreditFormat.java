@@ -28,4 +28,24 @@ public final class CreditFormat {
         return value.setScale(Math.max(0, value.stripTrailingZeros().scale()), RoundingMode.UNNECESSARY)
                 .toPlainString();
     }
+
+    /**
+     * Compatibility value for legacy integer wire fields.
+     *
+     * <p>Fractional precision is available only through the parallel decimal field. The legacy
+     * value is rounded toward zero so an old client never overstates earned or required credits.</p>
+     */
+    public static int legacyInt(BigDecimal value, String fieldName) {
+        BigDecimal normalized = nonNegative(value, fieldName);
+        try {
+            return normalized.setScale(0, RoundingMode.DOWN).intValueExact();
+        } catch (ArithmeticException outOfRange) {
+            throw new IllegalArgumentException(fieldName + " exceeds legacy integer range", outOfRange);
+        }
+    }
+
+    /** Uses the precise field when present, otherwise upgrades a legacy serialized integer. */
+    public static BigDecimal decimalOrLegacy(BigDecimal precise, int legacy) {
+        return precise == null ? BigDecimal.valueOf(legacy) : precise;
+    }
 }

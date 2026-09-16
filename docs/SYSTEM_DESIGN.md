@@ -262,7 +262,7 @@ database                 vCampus.accdb、schema.sql、seed.sql
 | `COURSE_SELECTION_QUERY_V2` | `CourseSelectionQueryV2Command(token, roundId?)` | `COURSE_READ`，服务端按 token 推导学生档案 |
 | `COURSE_SELECT_OFFERING_V2` | `CourseSelectOfferingV2Command(token, roundId, offeringId)` | `COURSE_SELECT`，服务端按 token 推导学生档案 |
 | `COURSE_DROP_RECORD_V2` | `CourseDropRecordV2Command(token, recordId)` | `COURSE_SELECT`，服务端按 token 推导学生档案 |
-| `COURSE_MANAGE` | `CourseManagementCommand`：课程目录维护；教学班创建、状态/容量调整；`UPDATE_OFFERING_TEACHING_INFO(offeringId, teacherId, location)` 仅修改任课教师和地点，不修改上课时间 | `COURSE_MANAGE` |
+| `COURSE_MANAGE_V3` | `CourseManagementCommand`：小数学分课程目录维护；教学班创建、状态/容量调整；`UPDATE_OFFERING_TEACHING_INFO(offeringId, teacherId, location)` 仅修改任课教师和地点，不修改上课时间。V2 保留查询及非学分写操作 | `COURSE_MANAGE` |
 | `LIBRARY_QUERY_V2` / `LIBRARY_DETAIL_V2` | `LibraryQueryV2Command` / `LibraryDetailV2Command` | `LIBRARY_READ` |
 | `LIBRARY_BORROW_V2` / `LIBRARY_RETURN_V2` | token + 图书号列表 / 借阅记录号 | `LIBRARY_BORROW`，服务端按 token 取得 userId；批量借阅原子执行 |
 | `LIBRARY_HISTORY_V2` | 本人、指定用户或全量记录范围 | 本人使用 `LIBRARY_READ`；指定/全量使用 `LIBRARY_MANAGE` |

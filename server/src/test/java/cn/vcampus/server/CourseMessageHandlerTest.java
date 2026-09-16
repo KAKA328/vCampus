@@ -123,10 +123,18 @@ class CourseMessageHandlerTest {
                 new InMemoryStudentSelectionProfileProvider(Collections.<StudentSelectionProfile>emptyList()),
                 users);
 
-        Message createCourse = managementHandler.handle(Message.request("create-course",
+        Message legacyCreateCourse = managementHandler.handle(Message.request("legacy-create-course",
                 MessageType.COURSE_MANAGE_V2, CourseManagementCommand.createCourse(
                         academicSession.getToken(), new Course("CS201", "算法设计", 3))));
+        assertEquals(StatusCode.BAD_REQUEST, legacyCreateCourse.getStatusCode());
+
+        Message createCourse = managementHandler.handle(Message.request("create-course",
+                MessageType.COURSE_MANAGE_V3, CourseManagementCommand.createCourse(
+                        academicSession.getToken(), new Course("CS201", "算法设计",
+                                new java.math.BigDecimal("2.5")))));
         assertEquals(StatusCode.OK, createCourse.getStatusCode());
+        assertEquals(new java.math.BigDecimal("2.5"),
+                ((Course) createCourse.getPayload()).getCreditsDecimal());
 
         Message createOffering = managementHandler.handle(Message.request("create-offering",
                 MessageType.COURSE_MANAGE_V2, CourseManagementCommand.createOffering(

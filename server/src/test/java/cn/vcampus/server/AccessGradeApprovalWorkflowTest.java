@@ -219,7 +219,7 @@ class AccessGradeApprovalWorkflowTest {
             statement.setString(7, result.getAttemptType());
             statement.setInt(8, result.getScore());
             statement.setBoolean(9, result.isPassed());
-            statement.setBigDecimal(10, result.getEarnedCredits());
+            statement.setBigDecimal(10, result.getEarnedCreditsDecimal());
             statement.setTimestamp(11, java.sql.Timestamp.valueOf(result.getRecordedAt()));
             statement.executeUpdate();
         }

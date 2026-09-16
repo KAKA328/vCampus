@@ -18,7 +18,9 @@ public final class FormalCourseResult implements Serializable {
     private final String attemptType;
     private final int score;
     private final boolean passed;
-    private final BigDecimal earnedCredits;
+    /** Legacy serialized field. Keep name and type for Java wire compatibility. */
+    private final int earnedCredits;
+    private final BigDecimal earnedCreditsDecimal;
     private final LocalDateTime recordedAt;
 
     public FormalCourseResult(String resultId, String studentId, String courseId, String offeringId,
@@ -47,7 +49,8 @@ public final class FormalCourseResult implements Serializable {
         this.attemptNo = attemptNo;
         this.score = score;
         this.passed = passed;
-        this.earnedCredits = CreditFormat.nonNegative(earnedCredits, "earnedCredits");
+        this.earnedCreditsDecimal = CreditFormat.nonNegative(earnedCredits, "earnedCredits");
+        this.earnedCredits = CreditFormat.legacyInt(this.earnedCreditsDecimal, "earnedCredits");
         this.recordedAt = recordedAt;
     }
 
@@ -60,12 +63,15 @@ public final class FormalCourseResult implements Serializable {
     public String getAttemptType() { return attemptType; }
     public int getScore() { return score; }
     public boolean isPassed() { return passed; }
-    public BigDecimal getEarnedCredits() { return earnedCredits; }
+    public int getEarnedCredits() { return earnedCredits; }
+    public BigDecimal getEarnedCreditsDecimal() {
+        return CreditFormat.decimalOrLegacy(earnedCreditsDecimal, earnedCredits);
+    }
     public LocalDateTime getRecordedAt() { return recordedAt; }
 
     public CourseHistoryRecord toHistoryRecord(String courseName) {
         return new CourseHistoryRecord(studentId, courseId, courseName, semester, attemptNo,
-                attemptType, score, passed, earnedCredits);
+                attemptType, score, passed, getEarnedCreditsDecimal());
     }
 
     private static String requireText(String value, String field) {

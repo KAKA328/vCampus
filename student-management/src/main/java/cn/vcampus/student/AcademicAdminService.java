@@ -77,7 +77,7 @@ public final class AcademicAdminService {
             return ServiceResult.failure(requirementResult.getStatus(), requirementResult.getMessage());
         }
         GraduationCreditRequirement requirement = requirementResult.getData();
-        if (latest.getRequiredCredits().compareTo(requirement.getRequiredCredits()) != 0
+        if (latest.getRequiredCreditsDecimal().compareTo(requirement.getRequiredCredits()) != 0
                 || !latest.getEvidence().equals(evidence(student, history, requirement))) {
             return ServiceResult.failure(StatusCode.CONFLICT,
                     "培养方案、课程学分、成绩或学生档案已变更，请重新审查");

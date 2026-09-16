@@ -14,13 +14,13 @@ class CourseTest {
 
         assertEquals("CS101", course.getCourseId());
         assertEquals("Java 程序设计", course.getName());
-        assertEquals(new BigDecimal("3"), course.getCredits());
+        assertEquals(new BigDecimal("3"), course.getCreditsDecimal());
     }
 
     @Test
     void supportsFractionalCreditsWithTwoDecimalPlaces() {
         assertEquals(new BigDecimal("1.5"), new Course("GE102", "大学美育", new BigDecimal("1.50"))
-                .getCredits());
+                .getCreditsDecimal());
     }
 
     @Test
@@ -28,7 +28,7 @@ class CourseTest {
         CourseManagementCommand command = CourseManagementCommand.updateCourseDetails(
                 "token", "GE102", "大学美育", new BigDecimal("2.50"));
 
-        assertEquals(new BigDecimal("2.5"), command.getCredits());
+        assertEquals(new BigDecimal("2.5"), command.getCreditsDecimal());
     }
 
     @Test

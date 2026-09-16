@@ -92,7 +92,7 @@ public final class InMemoryAcademicReviewService
         String normalizedStudentId = studentId.trim();
         List<CourseHistoryRecord> records = historyFor(normalizedStudentId).getData();
         CreditSummary summary = CreditSummary.from(normalizedStudentId, records);
-        BigDecimal totalEarnedCredits = summary.getEarnedCredits();
+        BigDecimal totalEarnedCredits = summary.getEarnedCreditsDecimal();
         int passedCourseCount = summary.getPassedCourses();
         int failedCourseCount = summary.getPendingRetakes();
         int retakeCourseCount = summary.getHistoricalRetakes();

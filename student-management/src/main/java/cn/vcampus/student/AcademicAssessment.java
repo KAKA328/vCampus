@@ -10,7 +10,9 @@ public final class AcademicAssessment implements Serializable {
     private static final long serialVersionUID = 1L;
     private final String id;
     private final CreditSummary credits;
-    private final BigDecimal requiredCredits;
+    /** Legacy serialized field. Keep name and type for Java wire compatibility. */
+    private final int requiredCredits;
+    private final BigDecimal requiredCreditsDecimal;
     private final String evidence;
     private final String reviewedBy;
     private final Instant reviewedAt;
@@ -28,7 +30,9 @@ public final class AcademicAssessment implements Serializable {
     public AcademicAssessment(String id, CreditSummary credits, BigDecimal requiredCredits, String evidence,
             String reviewedBy, Instant reviewedAt, String basis, String graduatedBy,
             Instant graduatedAt, String graduationNote) {
-        this.id = id; this.credits = credits; this.requiredCredits = CreditFormat.positive(requiredCredits, "requiredCredits");
+        this.id = id; this.credits = credits;
+        this.requiredCreditsDecimal = CreditFormat.positive(requiredCredits, "requiredCredits");
+        this.requiredCredits = CreditFormat.legacyInt(this.requiredCreditsDecimal, "requiredCredits");
         this.evidence = evidence; this.reviewedBy = reviewedBy; this.reviewedAt = reviewedAt;
         this.basis = basis; this.graduatedBy = graduatedBy; this.graduatedAt = graduatedAt;
         this.graduationNote = graduationNote;
@@ -36,9 +40,19 @@ public final class AcademicAssessment implements Serializable {
     public String getId() { return id; }
     public String getStudentId() { return credits.getStudentId(); }
     public CreditSummary getCredits() { return credits; }
-    public BigDecimal getRequiredCredits() { return requiredCredits; }
-    public BigDecimal getShortfall() { return requiredCredits.subtract(credits.getEarnedCredits()).max(BigDecimal.ZERO); }
-    public boolean isCreditRequirementMet() { return getShortfall().signum() == 0 && credits.getPendingRetakes() == 0; }
+    public int getRequiredCredits() { return requiredCredits; }
+    public BigDecimal getRequiredCreditsDecimal() {
+        return CreditFormat.decimalOrLegacy(requiredCreditsDecimal, requiredCredits);
+    }
+    public int getShortfall() {
+        return CreditFormat.legacyInt(getShortfallDecimal(), "creditShortfall");
+    }
+    public BigDecimal getShortfallDecimal() {
+        return getRequiredCreditsDecimal().subtract(credits.getEarnedCreditsDecimal()).max(BigDecimal.ZERO);
+    }
+    public boolean isCreditRequirementMet() {
+        return getShortfallDecimal().signum() == 0 && credits.getPendingRetakes() == 0;
+    }
     public String getEvidence() { return evidence; }
     public String getReviewedBy() { return reviewedBy; }
     public Instant getReviewedAt() { return reviewedAt; }
@@ -48,7 +62,7 @@ public final class AcademicAssessment implements Serializable {
     public String getGraduationNote() { return graduationNote; }
     public boolean isGraduated() { return graduatedAt != null; }
     public AcademicAssessment graduate(String actor, String note) {
-        return new AcademicAssessment(id, credits, requiredCredits, evidence, reviewedBy,
+        return new AcademicAssessment(id, credits, getRequiredCreditsDecimal(), evidence, reviewedBy,
                 reviewedAt, basis, actor, Instant.now(), note);
     }
 }

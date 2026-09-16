@@ -158,7 +158,7 @@ public final class AccessCourseCatalogService implements CourseCatalogService {
                 }
                 statement.setString(1, course.getCourseId());
                 statement.setString(2, course.getName());
-                statement.setBigDecimal(3, course.getCredits());
+                statement.setBigDecimal(3, course.getCreditsDecimal());
                 statement.setString(4, course.getStatus().name());
                 statement.setString(5, normalizedOriginalId);
                 if (statement.executeUpdate() != 1) {
@@ -229,7 +229,7 @@ public final class AccessCourseCatalogService implements CourseCatalogService {
     private static void writeCourse(PreparedStatement statement, Course course) throws SQLException {
         statement.setString(1, course.getCourseId());
         statement.setString(2, course.getName());
-        statement.setBigDecimal(3, course.getCredits());
+        statement.setBigDecimal(3, course.getCreditsDecimal());
         statement.setString(4, course.getStatus().name());
     }
 

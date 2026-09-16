@@ -212,7 +212,8 @@ final class CourseMessageHandler {
                             payload(request, TrainingPlanManagementCommand.class));
                     break;
                 case COURSE_MANAGE_V2:
-                    result = manage(payload(request, CourseManagementCommand.class));
+                case COURSE_MANAGE_V3:
+                    result = manage(payload(request, CourseManagementCommand.class), request.getType());
                     break;
                 default:
                     return Message.response(request, StatusCode.NOT_FOUND,
@@ -633,7 +634,7 @@ final class CourseMessageHandler {
                     student.getStudentId()), student.getStudentId(), course.getCourseId(),
                     offering.getOfferingId(), offering.getTerm(), nextAttempt.getData().intValue(),
                     student.getSelectionType() == cn.vcampus.course.SelectionType.RETAKE ? "重修" : "首修",
-                    grade.getScore(), passed, passed ? course.getCredits() : java.math.BigDecimal.ZERO, now));
+                    grade.getScore(), passed, passed ? course.getCreditsDecimal() : java.math.BigDecimal.ZERO, now));
         }
         return ServiceResult.ok(result);
     }
@@ -651,10 +652,20 @@ final class CourseMessageHandler {
     }
 
     /** 课程目录和教学班管理仅允许拥有 COURSE_MANAGE 权限的教务人员使用。 */
-    private ServiceResult<?> manage(CourseManagementCommand command) {
+    private ServiceResult<?> manage(CourseManagementCommand command, MessageType messageType) {
         ServiceResult<Void> authorization = authorizeCourseManager(command.getToken());
         if (authorization.getStatus() != StatusCode.OK) {
             return authorization;
+        }
+        if (messageType == MessageType.COURSE_MANAGE_V2
+                && (command.getOperation() == CourseManagementCommand.Operation.CREATE_COURSE
+                        || command.getOperation() == CourseManagementCommand.Operation.UPDATE_COURSE_DETAILS)) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "课程学分维护请使用 COURSE_MANAGE_V3 协议");
+        }
+        if (messageType == MessageType.COURSE_MANAGE_V3 && !hasPreciseCreditPayload(command)) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST,
+                    "课程学分请求缺少精确小数字段，请升级客户端");
         }
         switch (command.getOperation()) {
             case LIST_COURSES:
@@ -669,7 +680,7 @@ final class CourseMessageHandler {
                 return catalog == null ? managementServiceUnavailable()
                         : command.getCourse() == null
                                 ? catalog.updateDetails(command.getTargetId(), command.getName(),
-                                        command.getCredits())
+                                        command.getCreditsDecimal())
                                 : catalog.updateDetails(command.getTargetId(), command.getCourse());
             case CHANGE_COURSE_STATUS:
                 return catalog == null ? managementServiceUnavailable()
@@ -714,6 +725,17 @@ final class CourseMessageHandler {
             default:
                 return ServiceResult.failure(StatusCode.BAD_REQUEST, "unsupported management operation");
         }
+    }
+
+    private static boolean hasPreciseCreditPayload(CourseManagementCommand command) {
+        if (command.getOperation() == CourseManagementCommand.Operation.CREATE_COURSE) {
+            return command.getCourse() != null && command.getCourse().hasPreciseCredits();
+        }
+        if (command.getOperation() == CourseManagementCommand.Operation.UPDATE_COURSE_DETAILS) {
+            return command.getCourse() == null
+                    ? command.hasPreciseCredits() : command.getCourse().hasPreciseCredits();
+        }
+        return true;
     }
 
     /** 培养方案使用独立管理命令，仍复用教务课程管理权限。 */
