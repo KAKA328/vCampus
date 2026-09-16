@@ -303,7 +303,8 @@ public final class CourseManagementPanel extends JPanel {
             for (Object item : (List<?>) response.getPayload()) {
                 if (item instanceof Course) {
                     Course course = (Course) item;
-                    rows.add(new Object[] { course.getCourseId(), course.getName(), course.getCredits(),
+                    rows.add(new Object[] { course.getCourseId(), course.getName(),
+                            cn.vcampus.common.CreditFormat.display(course.getCreditsDecimal()),
                             course.getStatus().getDisplayName() });
                 }
             }
@@ -328,7 +329,7 @@ public final class CourseManagementPanel extends JPanel {
         }
         Course initial = new Course(String.valueOf(courseModel.getValueAt(row, 0)),
                 String.valueOf(courseModel.getValueAt(row, 1)),
-                ((Number) courseModel.getValueAt(row, 2)).intValue()).withStatus(
+                new java.math.BigDecimal(String.valueOf(courseModel.getValueAt(row, 2)))).withStatus(
                         "启用".equals(courseModel.getValueAt(row, 3))
                                 ? CourseStatus.ACTIVE : CourseStatus.DISABLED);
         Course value = CourseEditorDialog.edit(this, initial);

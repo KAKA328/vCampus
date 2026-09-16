@@ -78,6 +78,11 @@ public final class RemoteStudentService implements Closeable {
         return send(MessageType.ACADEMIC_ADMIN_V2, command);
     }
 
+    public Message academicOverview(cn.vcampus.student.AcademicAdminOverviewV1Command command)
+            throws IOException, ClassNotFoundException {
+        return send(MessageType.ACADEMIC_ADMIN_OVERVIEW_V1, command);
+    }
+
     private Message send(MessageType type, Object payload) throws IOException, ClassNotFoundException {
         return messages.send(Message.request("student-" + sequence.incrementAndGet(), type, payload));
     }

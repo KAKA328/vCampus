@@ -1,8 +1,10 @@
 package cn.vcampus.client.view;
 
 import cn.vcampus.client.service.RemoteStudentService;
+import cn.vcampus.common.CreditFormat;
 import cn.vcampus.common.Message;
 import cn.vcampus.common.StatusCode;
+import cn.vcampus.student.AcademicAdminOverviewV1Command;
 import cn.vcampus.student.AcademicAdminCommandV1.Action;
 import cn.vcampus.student.AcademicAdminCommandV2;
 import cn.vcampus.student.AcademicAssessment;
@@ -22,6 +24,7 @@ import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.math.BigDecimal;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -52,10 +55,12 @@ import javax.swing.table.TableRowSorter;
 /** Academic-administration directory and single-student graduation workspace. */
 final class AcademicAdministrationPanel extends JPanel {
     interface Loader { Message load(AcademicAdminCommandV2 command) throws Exception; }
+    interface OverviewLoader { Message load(AcademicAdminOverviewV1Command command) throws Exception; }
 
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private final Loader loader;
+    private final OverviewLoader overviewLoader;
     private final String token;
     private final JTabbedPane operations = new JTabbedPane();
 
@@ -108,19 +113,26 @@ final class AcademicAdministrationPanel extends JPanel {
     private long writeGeneration;
 
     AcademicAdministrationPanel(String host, int port, Session session) {
-        this(session.getToken(), command -> {
-            try (RemoteStudentService remote = new RemoteStudentService(host, port)) {
-                return remote.administer(command);
-            }
-        });
+        this(session.getToken(),
+                command -> {
+                    try (RemoteStudentService remote = new RemoteStudentService(host, port)) {
+                        return remote.administer(command);
+                    }
+                },
+                command -> {
+                    try (RemoteStudentService remote = new RemoteStudentService(host, port)) {
+                        return remote.academicOverview(command);
+                    }
+                });
     }
 
-    AcademicAdministrationPanel(String token, Loader loader) {
-        if (token == null || token.trim().isEmpty() || loader == null) {
-            throw new IllegalArgumentException("token and loader are required");
+    AcademicAdministrationPanel(String token, Loader loader, OverviewLoader overviewLoader) {
+        if (token == null || token.trim().isEmpty() || loader == null || overviewLoader == null) {
+            throw new IllegalArgumentException("token and loaders are required");
         }
         this.token = token;
         this.loader = loader;
+        this.overviewLoader = overviewLoader;
         build();
     }
 
@@ -192,7 +204,6 @@ final class AcademicAdministrationPanel extends JPanel {
         page.add(statusBand(reviewStatus), BorderLayout.SOUTH);
         return page;
     }
-
     private JComponent studentSelector() {
         JPanel panel = new JPanel(new BorderLayout(0, UiMetrics.px(8)));
         VCampusTheme.panel(panel);
@@ -511,7 +522,7 @@ final class AcademicAdministrationPanel extends JPanel {
         updateReviewControls();
         new SwingWorker<Message, Void>() {
             @Override protected Message doInBackground() throws Exception {
-                return loader.load(command(Action.OVERVIEW, studentId, null, "", false));
+                return overviewLoader.load(new AcademicAdminOverviewV1Command(token, studentId));
             }
             @Override protected void done() {
                 if (current != overviewGeneration || selectedStudent == null
@@ -547,15 +558,17 @@ final class AcademicAdministrationPanel extends JPanel {
         studentMeta.setText(studentMeta(selectedStudent));
         CreditSummary credits = overview.getCredits();
         GraduationCreditRequirement requirement = overview.getRequirement();
-        int shortfall = Math.max(0, requirement.getRequiredCredits() - credits.getEarnedCredits());
-        earnedValue.setText(String.valueOf(credits.getEarnedCredits()));
-        requiredValue.setText(String.valueOf(requirement.getRequiredCredits()));
-        shortfallValue.setText(String.valueOf(shortfall));
+        BigDecimal shortfall = requirement.getRequiredCreditsDecimal()
+                .subtract(credits.getEarnedCreditsDecimal()).max(BigDecimal.ZERO);
+        earnedValue.setText(CreditFormat.display(credits.getEarnedCreditsDecimal()));
+        requiredValue.setText(CreditFormat.display(requirement.getRequiredCreditsDecimal()));
+        shortfallValue.setText(CreditFormat.display(shortfall));
         retakeValue.setText(String.valueOf(credits.getPendingRetakes()));
         planValue.setText(requirement.getPlanId());
-        boolean creditsReady = shortfall == 0 && credits.getPendingRetakes() == 0;
+        boolean creditsReady = shortfall.signum() == 0 && credits.getPendingRetakes() == 0;
         earnedValue.setForeground(creditsReady ? VCampusTheme.SUCCESS : VCampusTheme.PRIMARY_DARK);
-        shortfallValue.setForeground(shortfall == 0 ? VCampusTheme.SUCCESS : VCampusTheme.DANGER);
+        shortfallValue.setForeground(shortfall.signum() == 0
+                ? VCampusTheme.SUCCESS : VCampusTheme.DANGER);
         retakeValue.setForeground(credits.getPendingRetakes() == 0
                 ? VCampusTheme.SUCCESS : VCampusTheme.DANGER);
         updateAssessmentBand();
@@ -588,7 +601,8 @@ final class AcademicAdministrationPanel extends JPanel {
         } else {
             assessmentState.setText("学分审查未达标");
             assessmentState.setForeground(VCampusTheme.DANGER);
-            assessmentMeta.setText(identity + "  ·  缺口 " + latest.getShortfall()
+            assessmentMeta.setText(identity + "  ·  缺口 "
+                    + CreditFormat.display(latest.getShortfallDecimal())
                     + " 学分，待重修 " + latest.getCredits().getPendingRetakes() + " 门");
         }
     }
@@ -635,8 +649,9 @@ final class AcademicAdministrationPanel extends JPanel {
         if (!graduate.isEnabled() || selectedStudent == null || latest == null) return;
         String message = "确认将学生 " + selectedStudent.getStudentId() + " " + selectedStudent.getName()
                 + " 的学籍状态变更为“毕业”？\n"
-                + "已获学分 " + latest.getCredits().getEarnedCredits() + "，要求学分 "
-                + latest.getRequiredCredits() + "。\n此操作当前不提供撤销，请确认其他毕业条件已核查。";
+                + "已获学分 " + CreditFormat.display(latest.getCredits().getEarnedCreditsDecimal())
+                + "，要求学分 " + CreditFormat.display(latest.getRequiredCreditsDecimal())
+                + "。\n此操作当前不提供撤销，请确认其他毕业条件已核查。";
         if (JOptionPane.showConfirmDialog(this, message, "教务毕业确认",
                 JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION) return;
         performGraduation(latest.getId());
@@ -718,15 +733,19 @@ final class AcademicAdministrationPanel extends JPanel {
                 CourseHistoryRecord row = (CourseHistoryRecord) item;
                 rows.add(new Object[] {row.getCourseId(), row.getCourseName(), row.getSemester(),
                         row.getAttemptNo(), row.getAttemptType(), row.getScore(),
-                        row.isPassed() ? "是" : "否", row.getEarnedCredits()});
+                        row.isPassed() ? "是" : "否",
+                        CreditFormat.display(row.getEarnedCreditsDecimal())});
             }
         } else {
             detailModel = new BatchTableModel(new Object[] {"审查编号", "已获学分", "要求学分",
                     "缺口", "待重修", "结果", "审查人", "时间", "毕业办理"});
             for (Object item : data) {
                 AcademicAssessment row = (AcademicAssessment) item;
-                rows.add(new Object[] {row.getId(), row.getCredits().getEarnedCredits(),
-                        row.getRequiredCredits(), row.getShortfall(), row.getCredits().getPendingRetakes(),
+                rows.add(new Object[] {row.getId(),
+                        CreditFormat.display(row.getCredits().getEarnedCreditsDecimal()),
+                        CreditFormat.display(row.getRequiredCreditsDecimal()),
+                        CreditFormat.display(row.getShortfallDecimal()),
+                        row.getCredits().getPendingRetakes(),
                         row.isCreditRequirementMet() ? "达标" : "未达标", row.getReviewedBy(),
                         row.getReviewedAt(), row.isGraduated() ? "已毕业" : "未办理"});
             }

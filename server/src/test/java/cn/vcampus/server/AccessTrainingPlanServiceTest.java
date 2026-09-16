@@ -32,7 +32,7 @@ class AccessTrainingPlanServiceTest {
         try (Connection connection = DriverManager.getConnection("jdbc:ucanaccess://" + database
                 + ";newDatabaseVersion=V2010;immediatelyReleaseResources=true");
                 Statement statement = connection.createStatement()) {
-            statement.execute("CREATE TABLE tblCourse (course_id VARCHAR(32) NOT NULL,course_name VARCHAR(100) NOT NULL,credits INTEGER NOT NULL,status VARCHAR(16) NOT NULL,PRIMARY KEY(course_id))");
+            statement.execute("CREATE TABLE tblCourse (course_id VARCHAR(32) NOT NULL,course_name VARCHAR(100) NOT NULL,credits DECIMAL(10,2) NOT NULL,status VARCHAR(16) NOT NULL,PRIMARY KEY(course_id))");
             statement.execute("CREATE TABLE tblTrainingPlan (plan_id VARCHAR(36) NOT NULL,major_name VARCHAR(64) NOT NULL,enrollment_year INTEGER NOT NULL,status VARCHAR(16) NOT NULL,PRIMARY KEY(plan_id),CONSTRAINT uk_tblTrainingPlan_scope UNIQUE(major_name,enrollment_year))");
             statement.execute("CREATE TABLE tblTrainingPlanCourse (plan_id VARCHAR(36) NOT NULL,course_id VARCHAR(32) NOT NULL,recommended_term INTEGER NOT NULL,selection_type VARCHAR(16) NOT NULL,cross_major_allowed BIT NOT NULL,PRIMARY KEY(plan_id,course_id))");
         }

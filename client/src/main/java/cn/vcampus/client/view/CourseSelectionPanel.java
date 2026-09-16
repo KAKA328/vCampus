@@ -446,7 +446,7 @@ public final class CourseSelectionPanel extends JPanel {
         for (CourseChoice choice : courseChoices) {
             SelectableCourseOffering first = choice.firstOffering;
             rows.add(new Object[] { first.getCourse().getCourseId(), first.getCourse().getName(),
-                    Integer.valueOf(first.getCourse().getCredits()),
+                    cn.vcampus.common.CreditFormat.display(first.getCourse().getCreditsDecimal()),
                     first.getSelectionType().getDisplayName() });
         }
         courseModel.replaceRows(rows);
@@ -595,7 +595,7 @@ public final class CourseSelectionPanel extends JPanel {
         for (SelectedCourseOffering value : selectedOfferings) {
             rows.add(new Object[] { value.getCourse().getCourseId() + " · "
                     + value.getCourse().getName(), value.getOffering().getOfferingId(),
-                    Integer.valueOf(value.getCourse().getCredits()),
+                    cn.vcampus.common.CreditFormat.display(value.getCourse().getCreditsDecimal()),
                     value.getOffering().getTeacherDisplayName(),
                     selectedScheduleSummary(value.getOffering()) });
         }
@@ -622,7 +622,7 @@ public final class CourseSelectionPanel extends JPanel {
                     + selected.getCourse().getName());
             selectedDetailMeta.setText("<html>教学班：" + escape(offering.getOfferingId())
                     + "　任课教师：" + escape(offering.getTeacherDisplayName())
-                    + "　学分：" + selected.getCourse().getCredits()
+                    + "　学分：" + cn.vcampus.common.CreditFormat.display(selected.getCourse().getCreditsDecimal())
                     + "　选课类别：" + escape(selected.getRecord().getSelectionType().getDisplayName())
                     + "<br/>选课时间：" + SELECTED_AT_FORMAT.format(selected.getRecord().getSelectedAt())
                     + "</html>");

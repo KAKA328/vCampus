@@ -62,9 +62,9 @@ final class AccessAcademicAdminStore implements AcademicAdminStore {
                 query.setString(1, id);
                 try (ResultSet result = query.executeQuery()) {
                     while (result.next()) rows.add(new AcademicAssessment(result.getString("assessment_id"),
-                            new CreditSummary(id, result.getInt("earned_credits"), result.getInt("passed_courses"),
+                            new CreditSummary(id, result.getBigDecimal("earned_credits"), result.getInt("passed_courses"),
                                     result.getInt("pending_retakes"), result.getInt("historical_retakes")),
-                            result.getInt("required_credits"), result.getString("evidence"),
+                            result.getBigDecimal("required_credits"), result.getString("evidence"),
                             result.getString("reviewed_by"), instant(result.getTimestamp("reviewed_at")),
                             result.getString("basis"), result.getString("graduated_by"),
                             instant(result.getTimestamp("graduated_at")), result.getString("graduation_note")));
@@ -78,9 +78,9 @@ final class AccessAcademicAdminStore implements AcademicAdminStore {
                     + "pending_retakes,historical_retakes,required_credits,evidence,reviewed_by,reviewed_at,basis)"
                     + " VALUES(?,?,?,?,?,?,?,?,?,?,?)")) {
                 insert.setString(1, row.getId()); insert.setString(2, row.getStudentId());
-                insert.setInt(3, row.getCredits().getEarnedCredits()); insert.setInt(4, row.getCredits().getPassedCourses());
+                insert.setBigDecimal(3, row.getCredits().getEarnedCreditsDecimal()); insert.setInt(4, row.getCredits().getPassedCourses());
                 insert.setInt(5, row.getCredits().getPendingRetakes()); insert.setInt(6, row.getCredits().getHistoricalRetakes());
-                insert.setInt(7, row.getRequiredCredits()); insert.setString(8, row.getEvidence());
+                insert.setBigDecimal(7, row.getRequiredCreditsDecimal()); insert.setString(8, row.getEvidence());
                 insert.setString(9, row.getReviewedBy()); insert.setTimestamp(10, accessTimestamp(row.getReviewedAt()));
                 insert.setString(11, row.getBasis()); insert.executeUpdate();
             }

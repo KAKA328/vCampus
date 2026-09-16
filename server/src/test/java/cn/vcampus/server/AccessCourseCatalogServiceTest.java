@@ -7,6 +7,7 @@ import cn.vcampus.common.StatusCode;
 import cn.vcampus.course.Course;
 import cn.vcampus.course.CourseStatus;
 import java.nio.file.Path;
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
@@ -32,7 +33,7 @@ class AccessCourseCatalogServiceTest {
             statement.execute("CREATE TABLE tblCourse ("
                     + "course_id VARCHAR(32) NOT NULL,"
                     + "course_name VARCHAR(100) NOT NULL,"
-                    + "credits INTEGER NOT NULL,"
+                    + "credits DECIMAL(10,2) NOT NULL,"
                     + "status VARCHAR(16) NOT NULL,"
                     + "PRIMARY KEY (course_id))");
             statement.execute("CREATE TABLE tblCourseOffering ("
@@ -61,6 +62,15 @@ class AccessCourseCatalogServiceTest {
     }
 
     @Test
+    void persistsFractionalCreditsWithoutFloatingPointLoss() {
+        assertEquals(StatusCode.OK,
+                service.create(new Course("GE102", "大学美育", new BigDecimal("1.50"))).getStatus());
+
+        ServiceResult<Course> saved = service.findById("GE102");
+        assertEquals(new BigDecimal("1.5"), saved.getData().getCreditsDecimal());
+    }
+
+    @Test
     void updatesDetailsAndKeepsDisabledCourseForHistory() {
         service.create(new Course("CS101", "程序设计基础", 3));
 
@@ -71,7 +81,7 @@ class AccessCourseCatalogServiceTest {
 
         ServiceResult<Course> saved = service.findById("CS101");
         assertEquals("Java 程序设计", saved.getData().getName());
-        assertEquals(4, saved.getData().getCredits());
+        assertEquals(new java.math.BigDecimal("4"), saved.getData().getCreditsDecimal());
         assertEquals(CourseStatus.DISABLED, saved.getData().getStatus());
         assertEquals(StatusCode.CONFLICT, service.findActiveById("CS101").getStatus());
         assertEquals(0, service.listActive().getData().size());

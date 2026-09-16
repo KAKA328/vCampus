@@ -11,6 +11,7 @@ import cn.vcampus.student.GraduationReviewOverview;
 import cn.vcampus.student.StudentRecord;
 import cn.vcampus.student.TeacherProfile;
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -51,25 +52,25 @@ class AcademicAdministrationPanelTest {
     }
 
     @Test void enteringGraduationTabLoadsStudentsThenOverview() throws Exception {
-        List<Action> actions = Collections.synchronizedList(new ArrayList<Action>());
+        List<String> actions = Collections.synchronizedList(new ArrayList<String>());
         CountDownLatch overviewLoaded = new CountDownLatch(1);
         StudentRecord student = student("S001", "张三", "在读");
         AcademicAdministrationPanel panel = panel(command -> {
-            actions.add(command.getAction());
+            actions.add(command.getAction().name());
             if (command.getAction() == Action.STUDENTS) {
                 return response(Collections.singletonList(student));
             }
-            if (command.getAction() == Action.OVERVIEW) {
-                overviewLoaded.countDown();
-                return response(overview(student, 11, 11, null, false));
-            }
             return Message.response(request(), StatusCode.BAD_REQUEST, "unexpected");
+        }, command -> {
+            actions.add("OVERVIEW");
+            overviewLoaded.countDown();
+            return response(overview(student, 11, 11, null, false));
         });
 
         SwingUtilities.invokeAndWait(() -> tabs(panel).setSelectedIndex(1));
         assertTrue(overviewLoaded.await(5, TimeUnit.SECONDS));
         awaitIdle(panel);
-        assertEquals(Arrays.asList(Action.STUDENTS, Action.OVERVIEW), actions);
+        assertEquals(Arrays.asList("STUDENTS", "OVERVIEW"), actions);
         SwingUtilities.invokeAndWait(() -> {
             try {
                 assertEquals(1, field(panel, "studentTable", JTable.class).getRowCount());
@@ -80,6 +81,22 @@ class AcademicAdministrationPanelTest {
                 assertEquals("PLAN-S001", field(panel, "planValue", JLabel.class).getText());
                 assertTrue(field(panel, "review", JButton.class).isEnabled());
                 assertFalse(field(panel, "confirmed", JCheckBox.class).isEnabled());
+            } catch (Exception failure) {
+                throw new RuntimeException(failure);
+            }
+        });
+    }
+
+    @Test void fractionalCreditsDisplayWithoutTruncation() throws Exception {
+        StudentRecord student = student("S001", "张三", "在读");
+        AcademicAdministrationPanel panel = panel(command -> null);
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                panel.displayOverview(response(overview(student, new BigDecimal("8.5"),
+                        new BigDecimal("11.5"), null, false)));
+                assertEquals("8.5", field(panel, "earnedValue", JLabel.class).getText());
+                assertEquals("11.5", field(panel, "requiredValue", JLabel.class).getText());
+                assertEquals("3", field(panel, "shortfallValue", JLabel.class).getText());
             } catch (Exception failure) {
                 throw new RuntimeException(failure);
             }
@@ -133,10 +150,7 @@ class AcademicAdministrationPanelTest {
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
         CountDownLatch secondReturned = new CountDownLatch(1);
-        AcademicAdministrationPanel panel = panel(command -> {
-            if (command.getAction() != Action.OVERVIEW) {
-                return Message.response(request(), StatusCode.BAD_REQUEST, "unexpected");
-            }
+        AcademicAdministrationPanel panel = panel(command -> null, command -> {
             if ("S001".equals(command.getStudentId())) {
                 firstStarted.countDown();
                 assertTrue(releaseFirst.await(5, TimeUnit.SECONDS));
@@ -169,7 +183,7 @@ class AcademicAdministrationPanelTest {
     @Test void reviewSearchUsesModelIndexAfterSorting() throws Exception {
         StudentRecord first = student("S002", "乙", "在读");
         StudentRecord second = student("S001", "甲", "在读");
-        AcademicAdministrationPanel panel = panel(command -> response(overview(
+        AcademicAdministrationPanel panel = panel(command -> null, command -> response(overview(
                 "S001".equals(command.getStudentId()) ? second : first, 3, 6, null, false)));
         SwingUtilities.invokeAndWait(() -> panel.displayReviewStudents(
                 response(Arrays.asList(first, second)), null));
@@ -205,7 +219,12 @@ class AcademicAdministrationPanelTest {
     }
 
     private static AcademicAdministrationPanel panel(AcademicAdministrationPanel.Loader loader) {
-        return new AcademicAdministrationPanel("token", loader);
+        return panel(loader, command -> null);
+    }
+
+    private static AcademicAdministrationPanel panel(AcademicAdministrationPanel.Loader loader,
+            AcademicAdministrationPanel.OverviewLoader overviewLoader) {
+        return new AcademicAdministrationPanel("token", loader, overviewLoader);
     }
 
     private static StudentRecord student(String id, String name, String status) {
@@ -223,10 +242,17 @@ class AcademicAdministrationPanelTest {
 
     private static GraduationReviewOverview overview(StudentRecord student, int earned,
             int required, AcademicAssessment assessment, boolean current) {
+        return overview(student, BigDecimal.valueOf(earned), BigDecimal.valueOf(required),
+                assessment, current);
+    }
+
+    private static GraduationReviewOverview overview(StudentRecord student, BigDecimal earned,
+            BigDecimal required, AcademicAssessment assessment, boolean current) {
         return new GraduationReviewOverview(student,
                 new CreditSummary(student.getStudentId(), earned, 4, 0, 0),
                 new GraduationCreditRequirement("PLAN-" + student.getStudentId(), required,
-                        Collections.singletonList("course=" + required)),
+                        Collections.singletonList("course="
+                                + required.stripTrailingZeros().toPlainString())),
                 assessment, current);
     }
 

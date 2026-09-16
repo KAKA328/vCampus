@@ -33,13 +33,14 @@ class TrainingPlanGraduationCreditRequirementProviderTest {
                 new TrainingPlanGraduationCreditRequirementProvider(plans, catalog);
 
         GraduationCreditRequirement initial = provider.findFor(student("计算机", 2026)).getData();
-        assertEquals(5, initial.getRequiredCredits());
+        assertEquals(new java.math.BigDecimal("5"), initial.getRequiredCreditsDecimal());
         assertEquals(2, initial.getRequiredCourseCredits().size());
 
         catalog.changeStatus("C2", CourseStatus.DISABLED);
         catalog.updateDetails("C1", "必修一", 4);
         GraduationCreditRequirement changed = provider.findFor(student("计算机", 2026)).getData();
-        assertEquals(6, changed.getRequiredCredits(), "已发布方案中的停用课程仍计入要求");
+        assertEquals(new java.math.BigDecimal("6"), changed.getRequiredCreditsDecimal(),
+                "已发布方案中的停用课程仍计入要求");
         assertNotEquals(initial.fingerprint(), changed.fingerprint());
     }
 

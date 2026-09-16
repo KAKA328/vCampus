@@ -1,6 +1,8 @@
 package cn.vcampus.student;
 
+import cn.vcampus.common.CreditFormat;
 import java.io.Serializable;
+import java.math.BigDecimal;
 
 /** One historical course attempt for academic review. */
 public final class CourseHistoryRecord implements Serializable {
@@ -14,7 +16,9 @@ public final class CourseHistoryRecord implements Serializable {
     private final String attemptType;
     private final int score;
     private final boolean passed;
+    /** Legacy serialized field. Keep name and type for Java wire compatibility. */
     private final int earnedCredits;
+    private final BigDecimal earnedCreditsDecimal;
 
     public CourseHistoryRecord(
             String studentId,
@@ -27,6 +31,12 @@ public final class CourseHistoryRecord implements Serializable {
             boolean passed,
             int earnedCredits
     ) {
+        this(studentId, courseId, courseName, semester, attemptNo, attemptType, score, passed,
+                BigDecimal.valueOf(earnedCredits));
+    }
+
+    public CourseHistoryRecord(String studentId, String courseId, String courseName, String semester,
+            int attemptNo, String attemptType, int score, boolean passed, BigDecimal earnedCredits) {
         this.studentId = requireText(studentId, "studentId");
         this.courseId = requireText(courseId, "courseId");
         this.courseName = normalize(courseName);
@@ -38,13 +48,11 @@ public final class CourseHistoryRecord implements Serializable {
         if (score < 0 || score > 100) {
             throw new IllegalArgumentException("score must be between 0 and 100");
         }
-        if (earnedCredits < 0) {
-            throw new IllegalArgumentException("earnedCredits cannot be negative");
-        }
         this.attemptNo = attemptNo;
         this.score = score;
         this.passed = passed;
-        this.earnedCredits = earnedCredits;
+        this.earnedCreditsDecimal = CreditFormat.nonNegative(earnedCredits, "earnedCredits");
+        this.earnedCredits = CreditFormat.legacyInt(this.earnedCreditsDecimal, "earnedCredits");
     }
 
     public String getStudentId() { return studentId; }
@@ -56,6 +64,9 @@ public final class CourseHistoryRecord implements Serializable {
     public int getScore() { return score; }
     public boolean isPassed() { return passed; }
     public int getEarnedCredits() { return earnedCredits; }
+    public BigDecimal getEarnedCreditsDecimal() {
+        return CreditFormat.decimalOrLegacy(earnedCreditsDecimal, earnedCredits);
+    }
 
     private static String requireText(String value, String field) {
         String normalized = normalize(value);

@@ -5,7 +5,7 @@ import java.io.Serializable;
 /** Targets are administrative business parameters; actor identity always comes from the session. */
 public final class AcademicAdminCommandV1 implements AcademicAdminCommand, Serializable {
     private static final long serialVersionUID = 1L;
-    public enum Action { STUDENTS, TEACHERS, HISTORY, CREDITS, ASSESSMENTS, OVERVIEW, REVIEW, GRADUATE }
+    public enum Action { STUDENTS, TEACHERS, HISTORY, CREDITS, ASSESSMENTS, REVIEW, GRADUATE }
     private final String token;
     private final Action action;
     private final String studentId;

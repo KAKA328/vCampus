@@ -257,7 +257,8 @@ public final class ServerApplication implements Closeable {
             return majorMessages.handle(request);
         }
         if (request != null && (request.getType() == MessageType.ACADEMIC_ADMIN_V1
-                || request.getType() == MessageType.ACADEMIC_ADMIN_V2)) {
+                || request.getType() == MessageType.ACADEMIC_ADMIN_V2
+                || request.getType() == MessageType.ACADEMIC_ADMIN_OVERVIEW_V1)) {
             return adminMessages.handle(request);
         }
         if (request != null && request.getType() == MessageType.TEACHER_SELF_QUERY_V1) {
@@ -283,6 +284,7 @@ public final class ServerApplication implements Closeable {
 
     private static boolean isCourseMessage(MessageType type) {
         return type == MessageType.COURSE_MANAGE_V2
+                || type == MessageType.COURSE_MANAGE_V3
                 || type == MessageType.COURSE_TEACHER_DIRECTORY_V1
                 || type == MessageType.COURSE_SELECTION_QUERY_V2
                 || type == MessageType.COURSE_SELECT_OFFERING_V2

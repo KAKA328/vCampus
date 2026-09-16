@@ -4,6 +4,7 @@ import cn.vcampus.common.ServiceResult;
 import cn.vcampus.common.StatusCode;
 import org.junit.Test;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -11,6 +12,23 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class InMemoryAcademicReviewServiceTest {
+    @Test
+    public void reviewAccumulatesFractionalCreditsExactly() {
+        InMemoryAcademicReviewService service = new InMemoryAcademicReviewService();
+        service.addHistory(new CourseHistoryRecord("S-FRACTION", "C001", "人工智能导论",
+                "2026-2027-1", 1, "首修", 88, true, new BigDecimal("1.5")));
+        service.addHistory(new CourseHistoryRecord("S-FRACTION", "C002", "Web开发",
+                "2026-2027-1", 1, "首修", 91, true, new BigDecimal("2.5")));
+
+        ServiceResult<AcademicReview> result = service.reviewDecimal("S-FRACTION",
+                new BigDecimal("4.0"));
+
+        assertEquals(StatusCode.OK, result.getStatus());
+        assertEquals(new BigDecimal("4"), result.getData().getTotalEarnedCreditsDecimal());
+        assertEquals(new BigDecimal("4"), result.getData().getRequiredEarnedCreditsDecimal());
+        assertTrue(result.getData().isGraduationReady());
+    }
+
     @Test
     public void reviewCountsRetakePassedCourseCreditsOnlyOnce() {
         InMemoryAcademicReviewService service = new InMemoryAcademicReviewService();
@@ -22,14 +40,14 @@ public class InMemoryAcademicReviewServiceTest {
 
         assertEquals(StatusCode.OK, result.getStatus());
         assertTrue(result.getData().isGraduationReady());
-        assertEquals(6, result.getData().getTotalEarnedCredits());
-        assertEquals(6, result.getData().getRequiredEarnedCredits());
-        assertEquals(0, result.getData().getCreditShortfall());
+        assertEquals(new java.math.BigDecimal("6"), result.getData().getTotalEarnedCreditsDecimal());
+        assertEquals(new java.math.BigDecimal("6"), result.getData().getRequiredEarnedCreditsDecimal());
+        assertEquals(new java.math.BigDecimal("0"), result.getData().getCreditShortfallDecimal());
         assertEquals(2, result.getData().getPassedCourseCount());
         assertEquals(0, result.getData().getFailedCourseCount());
         assertEquals(1, result.getData().getRetakeCourseCount());
         assertEquals(StatusCode.OK, service.latestReview("S001").getStatus());
-        assertEquals(6, service.latestReview("S001").getData().getTotalEarnedCredits());
+        assertEquals(new java.math.BigDecimal("6"), service.latestReview("S001").getData().getTotalEarnedCreditsDecimal());
     }
 
     @Test
@@ -42,9 +60,9 @@ public class InMemoryAcademicReviewServiceTest {
 
         assertEquals(StatusCode.OK, result.getStatus());
         assertFalse(result.getData().isGraduationReady());
-        assertEquals(3, result.getData().getTotalEarnedCredits());
-        assertEquals(6, result.getData().getRequiredEarnedCredits());
-        assertEquals(3, result.getData().getCreditShortfall());
+        assertEquals(new java.math.BigDecimal("3"), result.getData().getTotalEarnedCreditsDecimal());
+        assertEquals(new java.math.BigDecimal("6"), result.getData().getRequiredEarnedCreditsDecimal());
+        assertEquals(new java.math.BigDecimal("3"), result.getData().getCreditShortfallDecimal());
         assertEquals(1, result.getData().getPassedCourseCount());
         assertEquals(1, result.getData().getFailedCourseCount());
         assertEquals(0, result.getData().getRetakeCourseCount());
