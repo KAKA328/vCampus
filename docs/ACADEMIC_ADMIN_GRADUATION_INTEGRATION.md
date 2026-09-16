@@ -6,10 +6,10 @@
 
 | 角色 | 信息查询 | 审查与管理 |
 |---|---|---|
-| 学籍教务管理员 ACADEMIC_ADMIN | 全部学生完整档案、全部教师档案（含非在职），指定学生课程历史与当前学分 | 维护学生档案；填写适用要求学分、选填审查说明并保存学分审查；查看历次记录；人工核查其他条件后办理毕业 |
+| 学籍教务管理员 ACADEMIC_ADMIN | 全部学生完整档案、全部教师档案（含非在职），指定学生课程历史与当前学分 | 维护学生档案；按已发布培养方案自动生成要求学分并保存审查；查看历次记录；人工核查其他条件后办理毕业 |
 | 学生 STUDENT | 本人档案、本人课程历史、待重修、当前累计学分 | 无教务审查、他人档案、毕业办理权限；原本人联系方式维护权限保留 |
 | 教师 TEACHER | 本人工号、账号、姓名、院系、职称与在职状态 | 全部只读；不能查看授课学生档案或学生成绩 |
-| 系统管理员 ADMIN | 保留教务查询与办理能力，便于维护和验收 | 与教务使用相同审查和毕业规则 |
+| 系统管理员 ADMIN | 账号与权限管理 | 不办理学籍审查或毕业；验收使用 ACADEMIC_ADMIN 账号 |
 
 “全部人员”在学籍领域是全部学生与教师档案。账号密码、登录安全、其他岗位账号管理继续归用户管理模块，不向教务暴露密码哈希或赋予用户管理权。
 
@@ -35,16 +35,17 @@
 
 ### 保存审查
 
-教务选定学生，填写正整数“要求学分”；“审查说明（选填）”可留空，也可备注适用专业、年级或培养方案。系统从服务端数据库重算学分，保存完整统计、要求学分、依据、操作人、时间，以及学生档案和每条课程尝试的指纹。
+教务选定学生后直接保存审查，客户端不再提供“要求学分”输入。服务端按学生 `majorName + enrollmentYear` 查找适用方案，仅接受 `PUBLISHED` 状态，并汇总方案内所有 `SelectionType.REQUIRED` 课程的当前目录学分。停用课程仍保留在已发布方案的要求中。
 
-本阶段没有自动从培养方案推导毕业要求的正式契约，因此要求学分由有权限教务依据适用规则填写；学生不能提交或修改此数值。系统拒绝 0 或负数要求学分。
+系统保存完整学分统计、自动计算的要求学分、审查说明、操作人和时间，并把学生档案、每条课程尝试、培养方案编号及必修课学分明细纳入审查指纹。学生专业/入学年份不完整、无适用已发布方案、方案无必修课或引用不存在课程时，拒绝保存审查。
 
 ### 确认毕业
 
 - 必须使用该学生最新的审查记录；审查已达到要求学分且当前待重修为 0。
 - 学生当前状态必须为“在读”；重复毕业办理、休学/退学等状态均拒绝。
-- 成绩任一尝试或学生档案发生变化，即使总学分相同，也拒绝旧记录，要求重新审查。
-- 教务必须勾选已核查培养方案、必修/选修及其他毕业条件，再确认弹窗；审查说明可留空。
+- 成绩任一尝试、学生档案、适用培养方案或必修课学分发生变化，即使总学分或要求总数相同，也拒绝旧记录，要求重新审查。
+- 毕业办理时再次读取当前已发布培养方案；方案退回草稿或已归档时不能沿用旧审查。
+- 教务必须勾选已核查选修课程及其他毕业条件，再确认弹窗；审查说明可留空。
 - 服务端记录毕业操作人、时间和说明，并将 tblStudent.status 改为“毕业”。两处写入使用同一 Access 连接和事务，任一写入失败回滚全部变化。
 - 普通 STUDENT_UPDATE 不允许直接设置或撤销“毕业”，避免绕过审查链。已毕业学生其他档案字段仍可按原教务权限维护。
 
@@ -60,7 +61,7 @@ HISTORY / PENDING_RETAKES 原语义不变。新枚举值为新增查询能力，
 
 ### 教务
 
-`ACADEMIC_ADMIN_V1 + AcademicAdminCommandV1`：
+`ACADEMIC_ADMIN_V2 + AcademicAdminCommandV2`：
 
 | Action | 参数（除 token） | 成功数据 |
 |---|---|---|
@@ -69,10 +70,12 @@ HISTORY / PENDING_RETAKES 原语义不变。新枚举值为新增查询能力，
 | HISTORY | studentId | List<CourseHistoryRecord> |
 | CREDITS | studentId | CreditSummary |
 | ASSESSMENTS | studentId | List<AcademicAssessment>，最新在前 |
-| REVIEW | studentId、requiredCredits、note（选填） | 保存的 AcademicAssessment |
+| REVIEW | studentId、note（选填） | 保存的 AcademicAssessment，requiredCredits 由服务端计算 |
 | GRADUATE | studentId、assessmentId、note（选填）、otherRequirementsConfirmed=true | 包含毕业操作信息的 AcademicAssessment |
 
-操作人不能由客户端指定，由 token 当前会话推导。服务端先检查 ADMIN/ACADEMIC_ADMIN 角色，查询要求 STUDENT_READ，REVIEW/GRADUATE 要求 ACADEMIC_REVIEW。其他角色即使伪造命令也被拒绝。
+操作人不能由客户端指定，由 token 当前会话推导。服务端先检查 ACADEMIC_ADMIN 角色，查询要求 STUDENT_READ，REVIEW/GRADUATE 要求 ACADEMIC_REVIEW。其他角色即使伪造命令也被拒绝。
+
+`ACADEMIC_ADMIN_V1 + AcademicAdminCommandV1` 保留查询兼容。V1 的 `requiredCredits` 字段和正数校验保持原契约，但 V1 的 REVIEW/GRADUATE 返回 `BAD_REQUEST`，防止旧客户端继续用手填数值办理毕业。
 
 失效会话 UNAUTHORIZED；角色/权限不足 FORBIDDEN；参数错误 BAD_REQUEST；学生不存在 NOT_FOUND；过期审查、学分不足、非在读、重复办理 CONFLICT；数据库失败 SERVER_ERROR。列表无数据返回 OK + empty list。
 
@@ -94,10 +97,16 @@ Access 模式重启保留审查和毕业记录；无 --db 的内存模式仅作�
 - 后续 result_status/source_submission_id 落地时，学籍方在 AccessAcademicReviewService.readHistory 筛选正式有效成绩，供学生查询与教务审查使用。选课重修资格保留其原实现，过滤条件由选课负责人同步，不直接改动对方代码。
 - 成绩撤回/更正不得直接修改既有学籍审查快照。新毕业确认会检查指纹；已办理毕业之后的成绩更正则需要另行建立教务复核/纠正流程，当前不会自动撤销毕业。
 - 审核写入端应与毕业确认协调并发事务和重新审查规则；未经联合验证不将外部直接改库作为正式工作流。
-- 自动读取培养方案要求学分、自动验证必修/选修仍需选课方提供明确规则和接口。本阶段按教务填写要求学分并人工确认其余条件落地，说明可选填。
+- 选课负责人已确认“要求学分 = 学生适用的已发布培养方案中所有必修课程学分总和”，本轮已接入。必修课是否逐门完成、选修最低学分和跨专业计入规则仍由教务人工核查，本轮不扩大自动判定范围。
 - 既有 seed 缺完整选课轮次且年级/教学班样例不匹配的问题仍存在，见 STUDENT_ACADEMIC_QUERY_INTEGRATION.md；不影响直接读取学籍成绩与教务审查。
 
 ## 8. 本轮验证结果
+
+培养方案必修学分自动计算与默认演示数据关联接入后，已执行全仓 `mvn clean test package "-DargLine=-Djdk.net.URLClassPath.disableClassPathURLCheck=true"`：BUILD SUCCESS，1002 项测试，0 失败、0 错误、0 跳过。服务端 366 项、客户端 256 项；`StudentNetworkAcceptanceTest` 三轮真实 Socket + Access 验收全部通过。
+
+随后执行 `mvn clean package -DskipTests "-Dmaven.compiler.release=8"`，所有主源码和测试源码均以 Java 8 API 约束重新编译成功，并生成干净的服务端/客户端 JAR。
+
+新增覆盖：仅汇总 REQUIRED 课程、停用课仍计入已发布方案、当前目录学分变更使旧审查失效、方案退回草稿后不得毕业、V1 写操作拒绝、V2 Socket 序列化、客户端无手工要求学分输入、20260001 已通过课程与培养方案必修课集合完全一致，以及 11 学分验收数据的并发毕业与重启持久化。`git diff --check` 通过。
 
 2026-09-06 已执行全仓 `mvn clean test package`：BUILD SUCCESS，616 项测试，0 失败、0 错误、0 跳过；`git diff --check` 通过。
 

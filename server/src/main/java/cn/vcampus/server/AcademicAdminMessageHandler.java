@@ -11,10 +11,16 @@ final class AcademicAdminMessageHandler {
         this.service = service; this.users = users;
     }
     Message handle(Message request) {
-        if (!(request.getPayload() instanceof AcademicAdminCommandV1)) {
+        AcademicAdminCommand command;
+        if (request.getType() == MessageType.ACADEMIC_ADMIN_V1
+                && request.getPayload() instanceof AcademicAdminCommandV1) {
+            command = (AcademicAdminCommandV1) request.getPayload();
+        } else if (request.getType() == MessageType.ACADEMIC_ADMIN_V2
+                && request.getPayload() instanceof AcademicAdminCommandV2) {
+            command = (AcademicAdminCommandV2) request.getPayload();
+        } else {
             return Message.response(request, StatusCode.BAD_REQUEST, "错误的教务命令");
         }
-        AcademicAdminCommandV1 command = (AcademicAdminCommandV1) request.getPayload();
         try { command.validate(); }
         catch (IllegalArgumentException invalid) {
             return Message.response(request, StatusCode.BAD_REQUEST, invalid.getMessage());
