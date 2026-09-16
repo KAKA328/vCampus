@@ -1,6 +1,8 @@
 package cn.vcampus.student;
 
+import cn.vcampus.common.CreditFormat;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.time.Instant;
 
 /** Complete, persisted academic assessment; final graduation requires a separate human decision. */
@@ -8,7 +10,7 @@ public final class AcademicAssessment implements Serializable {
     private static final long serialVersionUID = 1L;
     private final String id;
     private final CreditSummary credits;
-    private final int requiredCredits;
+    private final BigDecimal requiredCredits;
     private final String evidence;
     private final String reviewedBy;
     private final Instant reviewedAt;
@@ -20,7 +22,13 @@ public final class AcademicAssessment implements Serializable {
     public AcademicAssessment(String id, CreditSummary credits, int requiredCredits, String evidence,
             String reviewedBy, Instant reviewedAt, String basis, String graduatedBy,
             Instant graduatedAt, String graduationNote) {
-        this.id = id; this.credits = credits; this.requiredCredits = requiredCredits;
+        this(id, credits, BigDecimal.valueOf(requiredCredits), evidence, reviewedBy, reviewedAt,
+                basis, graduatedBy, graduatedAt, graduationNote);
+    }
+    public AcademicAssessment(String id, CreditSummary credits, BigDecimal requiredCredits, String evidence,
+            String reviewedBy, Instant reviewedAt, String basis, String graduatedBy,
+            Instant graduatedAt, String graduationNote) {
+        this.id = id; this.credits = credits; this.requiredCredits = CreditFormat.positive(requiredCredits, "requiredCredits");
         this.evidence = evidence; this.reviewedBy = reviewedBy; this.reviewedAt = reviewedAt;
         this.basis = basis; this.graduatedBy = graduatedBy; this.graduatedAt = graduatedAt;
         this.graduationNote = graduationNote;
@@ -28,9 +36,9 @@ public final class AcademicAssessment implements Serializable {
     public String getId() { return id; }
     public String getStudentId() { return credits.getStudentId(); }
     public CreditSummary getCredits() { return credits; }
-    public int getRequiredCredits() { return requiredCredits; }
-    public int getShortfall() { return Math.max(0, requiredCredits - credits.getEarnedCredits()); }
-    public boolean isCreditRequirementMet() { return getShortfall() == 0 && credits.getPendingRetakes() == 0; }
+    public BigDecimal getRequiredCredits() { return requiredCredits; }
+    public BigDecimal getShortfall() { return requiredCredits.subtract(credits.getEarnedCredits()).max(BigDecimal.ZERO); }
+    public boolean isCreditRequirementMet() { return getShortfall().signum() == 0 && credits.getPendingRetakes() == 0; }
     public String getEvidence() { return evidence; }
     public String getReviewedBy() { return reviewedBy; }
     public Instant getReviewedAt() { return reviewedAt; }

@@ -11,6 +11,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -107,7 +108,7 @@ public final class AccessCourseCatalogService implements CourseCatalogService {
 
     @Override
     public synchronized ServiceResult<Course> updateDetails(String courseId, String name,
-            int credits) {
+            BigDecimal credits) {
         String normalizedCourseId = normalize(courseId);
         if (normalizedCourseId == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "courseId must not be blank");
@@ -157,7 +158,7 @@ public final class AccessCourseCatalogService implements CourseCatalogService {
                 }
                 statement.setString(1, course.getCourseId());
                 statement.setString(2, course.getName());
-                statement.setInt(3, course.getCredits());
+                statement.setBigDecimal(3, course.getCredits());
                 statement.setString(4, course.getStatus().name());
                 statement.setString(5, normalizedOriginalId);
                 if (statement.executeUpdate() != 1) {
@@ -228,14 +229,14 @@ public final class AccessCourseCatalogService implements CourseCatalogService {
     private static void writeCourse(PreparedStatement statement, Course course) throws SQLException {
         statement.setString(1, course.getCourseId());
         statement.setString(2, course.getName());
-        statement.setInt(3, course.getCredits());
+        statement.setBigDecimal(3, course.getCredits());
         statement.setString(4, course.getStatus().name());
     }
 
     private static Course readCourse(ResultSet results) throws SQLException {
         String courseId = results.getString("course_id");
         String name = results.getString("course_name");
-        int credits = results.getInt("credits");
+        BigDecimal credits = results.getBigDecimal("credits");
         Course course = new Course(courseId, name, credits);
         return course.withStatus(CourseStatus.valueOf(results.getString("status")));
     }

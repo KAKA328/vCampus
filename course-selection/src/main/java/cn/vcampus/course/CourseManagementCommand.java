@@ -1,6 +1,7 @@
 package cn.vcampus.course;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /** 教务管理员维护课程目录和教学班的 Socket 请求。 */
@@ -32,7 +33,7 @@ public final class CourseManagementCommand implements Serializable {
     private final String targetId;
     private final String term;
     private final String name;
-    private final int credits;
+    private BigDecimal credits;
     private final int requiredCapacity;
     private final int electiveCapacity;
     private final int crossMajorCapacity;
@@ -80,7 +81,7 @@ public final class CourseManagementCommand implements Serializable {
         this.targetId = targetId;
         this.term = term;
         this.name = name;
-        this.credits = credits;
+        this.credits = BigDecimal.valueOf(credits);
         this.requiredCapacity = requiredCapacity;
         this.electiveCapacity = electiveCapacity;
         this.crossMajorCapacity = crossMajorCapacity;
@@ -112,10 +113,17 @@ public final class CourseManagementCommand implements Serializable {
 
     public static CourseManagementCommand updateCourseDetails(String token, String courseId,
             String name, int credits) {
-        if (credits <= 0) throw new IllegalArgumentException("credits must be positive");
-        return new CourseManagementCommand(token, Operation.UPDATE_COURSE_DETAILS, null, null,
-                requireText(courseId, "courseId"), null, requireText(name, "name"), credits,
+        return updateCourseDetails(token, courseId, name, BigDecimal.valueOf(credits));
+    }
+
+    public static CourseManagementCommand updateCourseDetails(String token, String courseId,
+            String name, BigDecimal credits) {
+        cn.vcampus.common.CreditFormat.positive(credits, "credits");
+        CourseManagementCommand command = new CourseManagementCommand(token, Operation.UPDATE_COURSE_DETAILS, null, null,
+                requireText(courseId, "courseId"), null, requireText(name, "name"), credits.intValue(),
                 0, 0, 0, null, null);
+        command.credits = credits.stripTrailingZeros();
+        return command;
     }
 
     /** 更新课程时保留原编号，用于服务端安全迁移关联记录。 */
@@ -233,7 +241,7 @@ public final class CourseManagementCommand implements Serializable {
     public String getTargetId() { return targetId; }
     public String getTerm() { return term; }
     public String getName() { return name; }
-    public int getCredits() { return credits; }
+    public BigDecimal getCredits() { return credits; }
     public int getRequiredCapacity() { return requiredCapacity; }
     public int getElectiveCapacity() { return electiveCapacity; }
     public int getCrossMajorCapacity() { return crossMajorCapacity; }

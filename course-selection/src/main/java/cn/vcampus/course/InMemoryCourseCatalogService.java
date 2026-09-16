@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.math.BigDecimal;
 
 /**
  * 用于开发和测试的内存课程目录服务。
@@ -92,7 +93,7 @@ public final class InMemoryCourseCatalogService implements CourseCatalogService 
 
     @Override
     public synchronized ServiceResult<Course> updateDetails(String courseId, String name,
-            int credits) {
+            BigDecimal credits) {
         String normalizedCourseId = normalize(courseId);
         if (normalizedCourseId == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "courseId must not be blank");

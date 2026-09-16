@@ -139,14 +139,14 @@ final class StudentAcademicPanel extends JPanel {
                     if (type == QueryType.CREDITS) {
                         if (!(response.getPayload() instanceof CreditSummary)) throw new IllegalArgumentException("invalid credits");
                         CreditSummary summary = (CreditSummary) response.getPayload();
-                        earned.setText(String.valueOf(summary.getEarnedCredits()));
+                        earned.setText(cn.vcampus.common.CreditFormat.display(summary.getEarnedCredits()));
                         passed.setText(String.valueOf(summary.getPassedCourses()));
                         pending.setText(String.valueOf(summary.getPendingRetakes()));
                         retakes.setText(String.valueOf(summary.getHistoricalRetakes()));
                         pending.setForeground(summary.getPendingRetakes() == 0 ? VCampusTheme.PRIMARY : VCampusTheme.DANGER);
                         creditOwner.setText("本人学号：" + summary.getStudentId());
                         model.replaceRows(Collections.singletonList(new Object[] {summary.getStudentId(),
-                                summary.getEarnedCredits(), summary.getPassedCourses(),
+                                cn.vcampus.common.CreditFormat.display(summary.getEarnedCredits()), summary.getPassedCourses(),
                                 summary.getPendingRetakes(), summary.getHistoricalRetakes()}));
                         status.setText("当前累计学分按通过课程去重统计；同一课程取最高通过学分。");
                         return;
@@ -190,7 +190,7 @@ final class StudentAcademicPanel extends JPanel {
             CourseHistoryRecord record = (CourseHistoryRecord) item;
             rows.add(new Object[] {record.getCourseId(), record.getCourseName(), record.getSemester(),
                     record.getAttemptNo(), record.getAttemptType(), record.getScore(),
-                    record.isPassed() ? "通过" : "未通过", record.getEarnedCredits()});
+                    record.isPassed() ? "通过" : "未通过", cn.vcampus.common.CreditFormat.display(record.getEarnedCredits())});
         }
         return rows;
     }

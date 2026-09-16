@@ -63,7 +63,7 @@ class StudentNetworkAcceptanceTest {
             for (String id : Arrays.asList("QA_EMPTY", "QA_EXACT", "QA_SHORT", "QA_PENDING", "QA_RETAKE", "QA_DUP")) {
                 int expected = id.equals("QA_EMPTY") ? 0 : (id.equals("QA_EXACT") || id.equals("QA_PENDING") ? 6 : 3);
                 CreditSummary credits = payload(administer(academic, id, AcademicAdminCommandV1.Action.CREDITS, 0, null), CreditSummary.class);
-                assertEquals(expected, credits.getEarnedCredits(), id);
+                assertEquals(java.math.BigDecimal.valueOf(expected), credits.getEarnedCredits(), id);
                 assertEquals(id.equals("QA_PENDING") ? 1 : 0, credits.getPendingRetakes(), id);
             }
             for (String id : Arrays.asList("QA_EMPTY", "QA_SHORT", "QA_PENDING")) {
@@ -76,7 +76,7 @@ class StudentNetworkAcceptanceTest {
             }
             AcademicAssessment shortByOne = payload(administer(academic, "QA_SHORT",
                     AcademicAdminCommandV1.Action.REVIEW, 4, null), AcademicAssessment.class);
-            assertEquals(1, shortByOne.getShortfall());
+            assertEquals(new java.math.BigDecimal("1"), shortByOne.getShortfall());
             StudentRecord valid = profile(academic, "QA_EDIT");
             for (String phone : Arrays.asList("123", "139000001088", "1390000010a", "１３９０００００１０８")) {
                 assertEquals(StatusCode.BAD_REQUEST, call(MessageType.STUDENT_UPDATE_V2,

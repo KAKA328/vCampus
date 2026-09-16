@@ -154,7 +154,7 @@ class AccessCourseSelectionRecordServiceTest {
     private static void createCurrentTables(Statement statement) throws Exception {
         statement.execute("CREATE TABLE tblCourse ("
                 + "course_id VARCHAR(32) NOT NULL,course_name VARCHAR(100) NOT NULL,"
-                + "credits INTEGER NOT NULL,status VARCHAR(16) NOT NULL,"
+                + "credits DECIMAL(10,2) NOT NULL,status VARCHAR(16) NOT NULL,"
                 + "PRIMARY KEY (course_id))");
         statement.execute("CREATE TABLE tblCourseOffering ("
                 + "offering_id VARCHAR(36) NOT NULL,course_id VARCHAR(32) NOT NULL,"

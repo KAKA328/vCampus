@@ -160,8 +160,8 @@ final class AcademicAdministrationPanel extends JPanel {
         if (!graduate.isEnabled()) return;
         if (JOptionPane.showConfirmDialog(this,
                 "确认将学生 " + assessment.getStudentId() + " 的学籍状态变更为“毕业”？\n"
-                + "本次审查累计 " + assessment.getCredits().getEarnedCredits() + " 学分，要求 "
-                + assessment.getRequiredCredits() + " 学分。\n请确认其他毕业条件已经人工核查。",
+                + "本次审查累计 " + cn.vcampus.common.CreditFormat.display(assessment.getCredits().getEarnedCredits()) + " 学分，要求 "
+                + cn.vcampus.common.CreditFormat.display(assessment.getRequiredCredits()) + " 学分。\n请确认其他毕业条件已经人工核查。",
                 "教务毕业确认", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.OK_OPTION) {
             submit(Action.GRADUATE);
         }
@@ -171,11 +171,11 @@ final class AcademicAdministrationPanel extends JPanel {
         final AcademicAdminCommandV1 command;
         try {
             command = new AcademicAdminCommandV1(token, action, studentId.getText(),
-                    action == Action.REVIEW ? Integer.parseInt(required.getText().trim()) : 0,
+                    action == Action.REVIEW ? new java.math.BigDecimal(required.getText().trim()) : java.math.BigDecimal.ZERO,
                     assessment == null ? null : assessment.getId(), note.getText(), confirmed.isSelected());
         } catch (IllegalArgumentException invalid) {
             status.setText("输入有误：" + (invalid instanceof NumberFormatException
-                    ? "要求学分须填写正整数。" : invalid.getMessage()));
+                    ? "要求学分须填写最多两位小数的正数。" : invalid.getMessage()));
             return;
         }
         final long current = ++generation;
@@ -233,12 +233,12 @@ final class AcademicAdministrationPanel extends JPanel {
             for (Object item : (List<?>) data) {
                 CourseHistoryRecord r = (CourseHistoryRecord) item;
                 rows.add(new Object[] {r.getCourseId(), r.getCourseName(), r.getSemester(),
-                        r.getAttemptNo(), r.getAttemptType(), r.getScore(), r.isPassed() ? "是" : "否", r.getEarnedCredits()});
+                        r.getAttemptNo(), r.getAttemptType(), r.getScore(), r.isPassed() ? "是" : "否", cn.vcampus.common.CreditFormat.display(r.getEarnedCredits())});
             }
         } else if (action == Action.CREDITS) {
             CreditSummary r = (CreditSummary) data;
             columns = new String[] {"学号", "当前学分", "通过课程", "待重修", "历史重修"};
-            rows.add(new Object[] {r.getStudentId(), r.getEarnedCredits(), r.getPassedCourses(),
+            rows.add(new Object[] {r.getStudentId(), cn.vcampus.common.CreditFormat.display(r.getEarnedCredits()), r.getPassedCourses(),
                     r.getPendingRetakes(), r.getHistoricalRetakes()});
         } else {
             List<?> assessments = action == Action.ASSESSMENTS ? (List<?>) data : Collections.singletonList(data);
@@ -246,15 +246,15 @@ final class AcademicAdministrationPanel extends JPanel {
                     "审查人", "时间", "审查说明", "毕业办理", "办理人", "办理时间", "毕业说明"};
             for (Object item : assessments) {
                 AcademicAssessment r = (AcademicAssessment) item;
-                rows.add(new Object[] {r.getId(), r.getStudentId(), r.getCredits().getEarnedCredits(),
-                        r.getRequiredCredits(), r.getShortfall(), r.getCredits().getPendingRetakes(),
+                rows.add(new Object[] {r.getId(), r.getStudentId(), cn.vcampus.common.CreditFormat.display(r.getCredits().getEarnedCredits()),
+                        cn.vcampus.common.CreditFormat.display(r.getRequiredCredits()), cn.vcampus.common.CreditFormat.display(r.getShortfall()), r.getCredits().getPendingRetakes(),
                         r.isCreditRequirementMet() ? "达标" : "未达标", r.getReviewedBy(), r.getReviewedAt(),
                         r.getBasis(), r.isGraduated() ? "已毕业" : "未办理", r.getGraduatedBy(), r.getGraduatedAt(), r.getGraduationNote()});
             }
             assessment = assessments.isEmpty() ? null : (AcademicAssessment) assessments.get(0);
             confirmed.setSelected(false);
             assessmentInfo.setText(assessment == null ? "暂无审查记录" : "最新审查："
-                    + assessment.getCredits().getEarnedCredits() + " / " + assessment.getRequiredCredits()
+                    + cn.vcampus.common.CreditFormat.display(assessment.getCredits().getEarnedCredits()) + " / " + cn.vcampus.common.CreditFormat.display(assessment.getRequiredCredits())
                     + " 学分；" + (assessment.isGraduated() ? "已办理毕业" : assessment.isCreditRequirementMet()
                     ? "学分达标，待教务核查其他条件" : "学分审查未达标"));
         }

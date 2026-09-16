@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.math.BigDecimal;
 import java.util.Map;
 
 /** Access-backed academic history reader shared with course selection. */
@@ -90,8 +91,8 @@ public final class AccessAcademicReviewService
     }
 
     @Override
-    public ServiceResult<AcademicReview> review(String studentId, int requiredCredits) {
-        if (requiredCredits < 0) {
+    public ServiceResult<AcademicReview> review(String studentId, BigDecimal requiredCredits) {
+        if (requiredCredits == null || requiredCredits.signum() < 0) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "requiredCredits cannot be negative");
         }
         ServiceResult<List<CourseHistoryRecord>> history = historyFor(studentId);
@@ -99,11 +100,11 @@ public final class AccessAcademicReviewService
             return ServiceResult.failure(history.getStatus(), history.getMessage());
         }
         cn.vcampus.student.CreditSummary summary = cn.vcampus.student.CreditSummary.from(normalize(studentId), history.getData());
-        int totalCredits = summary.getEarnedCredits();
+        BigDecimal totalCredits = summary.getEarnedCredits();
         int passedCourses = summary.getPassedCourses();
         int failedCourses = summary.getPendingRetakes();
         int retakeCourses = summary.getHistoricalRetakes();
-        boolean ready = totalCredits >= requiredCredits && failedCourses == 0;
+        boolean ready = totalCredits.compareTo(requiredCredits) >= 0 && failedCourses == 0;
         String remark = history.getData().isEmpty() ? "暂无课程成绩记录"
                 : (ready ? "达到阶段学分要求" : "未达到阶段学分要求");
         return ServiceResult.ok(new AcademicReview(null, history.getData().isEmpty()
@@ -132,8 +133,8 @@ public final class AccessAcademicReviewService
                 return ServiceResult.ok(new AcademicReview(
                         results.getString("review_id"),
                         results.getString("student_id"),
-                        results.getInt("total_earned_credits"),
-                        results.getInt("required_earned_credits"),
+                        results.getBigDecimal("total_earned_credits"),
+                        results.getBigDecimal("required_earned_credits"),
                         passedCourseCount(connection, normalized),
                         results.getInt("failed_course_count"),
                         results.getInt("retake_course_count"),
@@ -196,7 +197,7 @@ public final class AccessAcademicReviewService
                     statement.setString(7, result.getAttemptType());
                     statement.setInt(8, result.getScore());
                     statement.setBoolean(9, result.isPassed());
-                    statement.setInt(10, result.getEarnedCredits());
+                    statement.setBigDecimal(10, result.getEarnedCredits());
                     statement.setTimestamp(11, Timestamp.valueOf(result.getRecordedAt()));
                     statement.executeUpdate();
                 }
@@ -278,7 +279,7 @@ public final class AccessAcademicReviewService
                     results.getString("attempt_type"),
                     score,
                     results.getBoolean("passed"),
-                    results.getInt("earned_credits")));
+                    results.getBigDecimal("earned_credits")));
         }
         return history;
     }

@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.math.BigDecimal;
 
 /** In-memory academic review implementation used before Access persistence is connected. */
 public final class InMemoryAcademicReviewService
@@ -81,22 +82,22 @@ public final class InMemoryAcademicReviewService
     }
 
     @Override
-    public synchronized ServiceResult<AcademicReview> review(String studentId, int requiredCredits) {
+    public synchronized ServiceResult<AcademicReview> review(String studentId, BigDecimal requiredCredits) {
         if (studentId == null || studentId.trim().isEmpty()) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "studentId must not be blank");
         }
-        if (requiredCredits < 0) {
+        if (requiredCredits == null || requiredCredits.signum() < 0) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "requiredCredits cannot be negative");
         }
         String normalizedStudentId = studentId.trim();
         List<CourseHistoryRecord> records = historyFor(normalizedStudentId).getData();
         CreditSummary summary = CreditSummary.from(normalizedStudentId, records);
-        int totalEarnedCredits = summary.getEarnedCredits();
+        BigDecimal totalEarnedCredits = summary.getEarnedCredits();
         int passedCourseCount = summary.getPassedCourses();
         int failedCourseCount = summary.getPendingRetakes();
         int retakeCourseCount = summary.getHistoricalRetakes();
 
-        boolean graduationReady = totalEarnedCredits >= requiredCredits && failedCourseCount == 0;
+        boolean graduationReady = totalEarnedCredits.compareTo(requiredCredits) >= 0 && failedCourseCount == 0;
         String remark = records.isEmpty() ? "暂无课程成绩记录" : (graduationReady ? "达到阶段学分要求" : "未达到阶段学分要求");
         AcademicReview review = new AcademicReview(null, normalizedStudentId,
                 totalEarnedCredits, requiredCredits, passedCourseCount, failedCourseCount,

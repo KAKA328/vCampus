@@ -1,6 +1,7 @@
 package cn.vcampus.course;
 
 import cn.vcampus.common.ServiceResult;
+import java.math.BigDecimal;
 import java.util.List;
 
 /** 教务人员维护全校课程目录的业务接口。 */
@@ -16,7 +17,11 @@ public interface CourseCatalogService {
 
     ServiceResult<List<Course>> listActive();
 
-    ServiceResult<Course> updateDetails(String courseId, String name, int credits);
+    ServiceResult<Course> updateDetails(String courseId, String name, BigDecimal credits);
+
+    default ServiceResult<Course> updateDetails(String courseId, String name, int credits) {
+        return updateDetails(courseId, name, BigDecimal.valueOf(credits));
+    }
 
     /** 更新课程编号、名称、学分与状态。课程编号变更时必须同步维护关联数据。 */
     ServiceResult<Course> updateDetails(String originalCourseId, Course course);

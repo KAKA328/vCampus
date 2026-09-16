@@ -33,7 +33,7 @@ class AccessAcademicAdministrationTest {
                         && "20260006".equals(((StudentRecord) item).getStudentId())));
         assertEquals(8, ((List<?>) execute(Action.TEACHERS, 0, null).getData()).size());
         AcademicAssessment review = review();
-        assertEquals(6, review.getCredits().getEarnedCredits());
+        assertEquals(new java.math.BigDecimal("8.5"), review.getCredits().getEarnedCredits());
         assertEquals(StatusCode.OK, execute(Action.GRADUATE, 0, review.getId()).getStatus());
         assertEquals("毕业", new AccessStudentRepository(database).findById("20260001").getStatus());
         service = new AcademicAdminService(new AccessAcademicAdminStore(database));
@@ -69,7 +69,7 @@ class AccessAcademicAdministrationTest {
         }
         assertEquals(StatusCode.CONFLICT, execute(Action.GRADUATE, 0, newer.getId()).getStatus());
         AcademicAssessment stored = (AcademicAssessment) ((List<?>) execute(Action.ASSESSMENTS, 0, null).getData()).get(0);
-        assertEquals(6, stored.getCredits().getEarnedCredits());
+        assertEquals(new java.math.BigDecimal("8.5"), stored.getCredits().getEarnedCredits());
         assertFalse(stored.isGraduated());
         assertEquals("在读", new AccessStudentRepository(database).findById("20260001").getStatus());
     }

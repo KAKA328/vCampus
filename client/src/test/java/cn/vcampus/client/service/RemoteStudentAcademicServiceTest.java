@@ -52,7 +52,7 @@ class RemoteStudentAcademicServiceTest {
                                 (cn.vcampus.student.AcademicAdminCommandV1) adminRequest.getPayload();
                         assertEquals("academic-token", admin.getToken());
                         assertEquals("S001", admin.getStudentId());
-                        assertEquals(6, admin.getRequiredCredits());
+                        assertEquals(new java.math.BigDecimal("6"), admin.getRequiredCredits());
                         output.writeObject(Message.response(adminRequest, StatusCode.OK,
                                 new cn.vcampus.student.AcademicAssessment("review",
                                         new cn.vcampus.student.CreditSummary("S001", 6, 2, 0, 1), 6,
@@ -66,7 +66,7 @@ class RemoteStudentAcademicServiceTest {
                     Message result = remote.academicQuery("session-token", type);
                     assertEquals(StatusCode.OK, result.getStatusCode());
                     if (type == QueryType.CREDITS) {
-                        assertEquals(6, ((cn.vcampus.student.CreditSummary) result.getPayload()).getEarnedCredits());
+                        assertEquals(new java.math.BigDecimal("6"), ((cn.vcampus.student.CreditSummary) result.getPayload()).getEarnedCredits());
                     }
                 }
                 Message teacher = remote.currentTeacher("teacher-token");

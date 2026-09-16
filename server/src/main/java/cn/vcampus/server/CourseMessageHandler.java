@@ -633,7 +633,7 @@ final class CourseMessageHandler {
                     student.getStudentId()), student.getStudentId(), course.getCourseId(),
                     offering.getOfferingId(), offering.getTerm(), nextAttempt.getData().intValue(),
                     student.getSelectionType() == cn.vcampus.course.SelectionType.RETAKE ? "重修" : "首修",
-                    grade.getScore(), passed, passed ? course.getCredits() : 0, now));
+                    grade.getScore(), passed, passed ? course.getCredits() : java.math.BigDecimal.ZERO, now));
         }
         return ServiceResult.ok(result);
     }

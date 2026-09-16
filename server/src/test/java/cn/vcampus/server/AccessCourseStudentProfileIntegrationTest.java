@@ -74,12 +74,12 @@ class AccessCourseStudentProfileIntegrationTest {
                     + "phone VARCHAR(32), email VARCHAR(100), PRIMARY KEY (student_id))");
             statement.execute("CREATE TABLE tblCourse ("
                     + "course_id VARCHAR(32) NOT NULL, course_name VARCHAR(100) NOT NULL,"
-                    + "credits INTEGER NOT NULL, capacity INTEGER NOT NULL, PRIMARY KEY (course_id))");
+                    + "credits DECIMAL(10,2) NOT NULL, capacity INTEGER NOT NULL, PRIMARY KEY (course_id))");
             statement.execute("CREATE TABLE tblCourseResult ("
                     + "result_id VARCHAR(36) NOT NULL, student_id VARCHAR(32) NOT NULL,"
                     + "course_id VARCHAR(32) NOT NULL, offering_id VARCHAR(36), semester VARCHAR(32) NOT NULL,"
                     + "attempt_no INTEGER NOT NULL, attempt_type VARCHAR(16) NOT NULL, score INTEGER,"
-                    + "passed BIT NOT NULL, earned_credits INTEGER NOT NULL, recorded_at DATETIME NOT NULL,"
+                    + "passed BIT NOT NULL, earned_credits DECIMAL(10,2) NOT NULL, recorded_at DATETIME NOT NULL,"
                     + "PRIMARY KEY (result_id))");
             insertStudent(connection);
             insertCourse(connection);

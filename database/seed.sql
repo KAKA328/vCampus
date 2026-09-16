@@ -288,6 +288,8 @@ VALUES ('result-java-demo-1', '20260001', 'JAVA101', 'offering-java-2026a', '202
 INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at)
 VALUES ('result-db-demo-1', '20260001', 'DB101', 'offering-db-2026a', '2025-2026-2', 1, '首修', 86, 1, 3, NOW());
 INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at)
+VALUES ('result-web-demo-1', '20260001', 'WEB101', 'offering-web-roster-1', '2026-2027-1', 1, '首修', 88, 1, 2.5, NOW());
+INSERT INTO tblCourseResult(result_id, student_id, course_id, offering_id, semester, attempt_no, attempt_type, score, passed, earned_credits, recorded_at)
 VALUES ('result-net-approved-001', '20260002', 'NET101', 'offering-net-2026a', '2026-2027-1', 1, '首修', 85, 1, 3, DATEADD('d', -2, NOW()));
 INSERT INTO tblGradeSubmissionResult(submission_id, result_id)
 VALUES ('grade-demo-net-001', 'result-net-approved-001');
@@ -305,7 +307,7 @@ VALUES ('test_student_concurrent_03', 'IZBIc+YD2QyDs5+HFIF4yQ==:jZiW3CFhJ854HF2P
 
 -- 课程目录同时覆盖启用、停用、必修、选修与跨专业演示场景。
 INSERT INTO tblCourse(course_id, course_name, credits, status) VALUES ('DS101', '数据结构', 3, 'ACTIVE');
-INSERT INTO tblCourse(course_id, course_name, credits, status) VALUES ('WEB101', 'Web 应用开发', 2, 'ACTIVE');
+INSERT INTO tblCourse(course_id, course_name, credits, status) VALUES ('WEB101', 'Web 应用开发', 2.5, 'ACTIVE');
 INSERT INTO tblCourse(course_id, course_name, credits, status) VALUES ('LAW101', '大学生法治教育', 2, 'ACTIVE');
 INSERT INTO tblCourse(course_id, course_name, credits, status) VALUES ('SE101', '软件工程导论', 2, 'ACTIVE');
 INSERT INTO tblCourse(course_id, course_name, credits, status) VALUES ('PHYS101', '大学物理', 3, 'DISABLED');

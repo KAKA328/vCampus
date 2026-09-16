@@ -19,7 +19,7 @@
 
 ## 选课模块表
 
-- `tblCourse`：课程目录，保存课程号、课程名称、学分和启用/停用状态；实际可选人数由 `tblCourseOffering` 的具体教学班容量决定。
+- `tblCourse`：课程目录，保存课程号、课程名称、学分和启用/停用状态；学分使用 `DECIMAL(10,2)`，支持 `1.5`、`2.5` 等小数；实际可选人数由 `tblCourseOffering` 的具体教学班容量决定。
 - `tblCourseSelection`：学生选课记录，包含学生、教学班、选课轮次、选课身份、选课/退选时间和状态。已退选记录会保留，但不计入容量和名单。
 - `tblActiveCourseSelection`：当前有效选课的唯一占用键，保证同一学生、同一教学班最多只有一条有效记录；退选时删除该占用键。
 - `tblCourseOfferingCapacityUsage`：教学班三个容量池当前已占用人数。选课通过数据库条件更新预留名额，避免多人同时选课时超额。
@@ -31,6 +31,8 @@
 - `tblGradeSubmissionSnapshot`、`tblGradeSubmissionSnapshotEntry`：教师每次提交时冻结的成绩版本及其明细。教务审核只读取最新提交快照；待审核期间修改 `tblGradeEntry` 只会影响工作草稿，教师必须再次提交才会产生新的审核版本。
 - `tblGradeSubmissionAudit`：成绩单状态流转审计，保存教师提交、教务通过、教务退回的操作人、操作时间和备注；不会因重新提交而覆盖历史记录。
 - `tblGradeSubmissionResult`：成绩单与其审核通过后生成的正式成绩之间的一对多关联。教务若退回已通过成绩，服务器会按此关联精确撤销对应 `tblCourseResult` 记录，再允许任课教师修改并重新提交。
+
+课程学分、正式成绩已获学分及学分审查字段统一使用 `DECIMAL(10,2)`。全新数据库按最新 `schema.sql` + `seed.sql` 重建；若使用 Microsoft Access 原生工具升级已有库，可执行 `migrations/018_fractional_course_credits.up.sql`，UCanAccess 4.x 不支持该 `ALTER COLUMN` 迁移语句。
 
 服务端会通过数据库唯一键阻止同一学生重复选择同一个教学班，并通过容量占用表原子预留名额；已退选记录不会占用容量。已选人数不存入 `tblCourse`，避免课程目录与教学班人数数据不一致。
 
