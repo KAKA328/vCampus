@@ -61,8 +61,8 @@ public final class RemoteStoreService implements Closeable {
     }
 
     /**
-     * 按类别查询商品（管理端含下架视图）：includeInactive=true 时服务端把已下架商品一并返回，
-     * 服务端要求 STORE_MANAGE 双门槛，普通买家携带此位会被拒。
+     * 按类别查询商品（含下架视图共用）：includeInactive=true 时服务端把已下架商品一并返回。
+     * 该位只要求 STORE_READ，买家也可以开启浏览下架陈列，但下架商品购买/加购仍被服务层拒绝。
      */
     public Message listProducts(String token, String category, boolean includeInactive)
             throws IOException, ClassNotFoundException {
@@ -70,7 +70,7 @@ public final class RemoteStoreService implements Closeable {
     }
 
     /**
-     * 多字段拼接查询：keyword 忽略大小写匹配名称或说明（可空=不限）、category 精确匹配（可空=全部）、
+     * 多字段拼接查询：keyword 忽略大小写匹配商品编号或名称（可空=不限）、category 精确匹配（可空=全部）、
      * minPrice/maxPrice 闭区间（可空=该侧不限），includeInactive=true 一并返回已下架商品。
      */
     public Message searchProducts(String token, String keyword, String category, Double minPrice, Double maxPrice,

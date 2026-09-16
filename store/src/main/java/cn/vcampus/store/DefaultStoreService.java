@@ -620,8 +620,8 @@ public final class DefaultStoreService implements StoreService {
         return searchProducts(null, category, null, null, includeInactive);
     }
 
-    // 多字段拼接查询：includeInactive=false 只返回在售；=true 一并返回已下架（管理端专用，通信层已拦截普通买家）。
-    // keyword 可空/空白=不限，忽略大小写匹配名称或说明；category 可空/空白=全部类别，精确匹配；
+    // 多字段拼接查询：includeInactive=false 只返回在售；=true 一并返回已下架（买家也可开启浏览下架陈列）。
+    // keyword 可空/空白=不限，忽略大小写匹配商品编号或名称；category 可空/空白=全部类别，精确匹配；
     // minPrice/maxPrice 可空=该侧不限，闭区间比较。结果不可变。
     // 排序固定为「在售在前、已下架在后，组内按商品编号升序」，与 listProducts 一致，便于管理员定位恢复
     @Override
@@ -662,11 +662,13 @@ public final class DefaultStoreService implements StoreService {
         return ServiceResult.ok(Collections.unmodifiableList(result));
     }
 
-    // keyword 忽略大小写匹配商品名称或说明（null 字段按空串处理）
+    // keyword 忽略大小写匹配商品编号或名称（null 字段按空串处理）。
+    // 必须与客户端 StorePanel.matchesKeyword 保持同一口径：客户端每次按键先做本地过滤，
+    // 若服务端范围更窄（例如只匹配名称），就会出现「本地筛得到、一刷新就变空」的矛盾结果。
     private static boolean matchesKeyword(Product product, String lowerKeyword) {
+        String productId = product.getProductId() == null ? "" : product.getProductId().toLowerCase();
         String name = product.getName() == null ? "" : product.getName().toLowerCase();
-        String description = product.getDescription() == null ? "" : product.getDescription().toLowerCase();
-        return name.contains(lowerKeyword) || description.contains(lowerKeyword);
+        return productId.contains(lowerKeyword) || name.contains(lowerKeyword);
     }
 
     // 查询余额：无账户返回 0

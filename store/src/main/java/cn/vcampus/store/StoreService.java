@@ -61,7 +61,7 @@ public interface StoreService {
     // 通信层只要求 STORE_READ（不额外要求 STORE_MANAGE），买家也可带此位浏览下架陈列；但购买/加购仍由服务层拒绝下架品
     ServiceResult<List<Product>> listProducts(String category, boolean includeInactive);
 
-    // 多字段拼接查询：keyword 忽略大小写匹配名称或说明（可空=不限）、category 精确匹配（可空=全部）、
+    // 多字段拼接查询：keyword 忽略大小写匹配商品编号或名称（可空=不限）、category 精确匹配（可空=全部）、
     // minPrice/maxPrice 闭区间（可空=该侧不限），includeInactive 语义同 listProducts；各条件取交集
     ServiceResult<List<Product>> searchProducts(String keyword, String category, Double minPrice, Double maxPrice,
             boolean includeInactive);
