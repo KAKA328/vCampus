@@ -41,6 +41,9 @@ class AccessAcademicAdministrationTest {
         AcademicAssessment persisted = (AcademicAssessment) ((List<?>) execute(Action.ASSESSMENTS, 0, null).getData()).get(0);
         assertEquals("demo_academic_admin", persisted.getGraduatedBy());
         assertTrue(persisted.isGraduated());
+        GraduationReviewOverview completed = service.overview("20260001").getData();
+        assertTrue(completed.getLatestAssessment().isGraduated());
+        assertTrue(completed.isLatestAssessmentCurrent());
         assertEquals("毕业条件已核查", persisted.getGraduationNote());
         assertEquals(StatusCode.CONFLICT, execute(Action.GRADUATE, 0, review.getId()).getStatus());
     }
@@ -73,6 +76,28 @@ class AccessAcademicAdministrationTest {
         assertEquals(new java.math.BigDecimal("11"), stored.getCredits().getEarnedCreditsDecimal());
         assertFalse(stored.isGraduated());
         assertEquals("在读", new AccessStudentRepository(database).findById("20260001").getStatus());
+    }
+    @Test void overviewReadsCurrentRequirementAndMarksPersistedSnapshotStale() throws Exception {
+        GraduationReviewOverview initial = service.overview("20260001").getData();
+        assertEquals(new java.math.BigDecimal("11"),
+                initial.getCredits().getEarnedCreditsDecimal());
+        assertEquals(new java.math.BigDecimal("11"),
+                initial.getRequirement().getRequiredCreditsDecimal());
+        assertEquals("plan-cs-2026", initial.getRequirement().getPlanId());
+        assertNull(initial.getLatestAssessment());
+
+        AcademicAssessment reviewed = review();
+        service = service();
+        GraduationReviewOverview current = service.overview("20260001").getData();
+        assertEquals(reviewed.getId(), current.getLatestAssessment().getId());
+        assertTrue(current.isLatestAssessmentCurrent());
+
+        try (Connection c = open(); Statement q = c.createStatement()) {
+            q.executeUpdate("UPDATE tblCourseResult SET score=87 WHERE result_id='result-java-demo-1'");
+        }
+        GraduationReviewOverview stale = service.overview("20260001").getData();
+        assertEquals(reviewed.getId(), stale.getLatestAssessment().getId());
+        assertFalse(stale.isLatestAssessmentCurrent());
     }
     @Test void courseCreditOrPlanStatusChangesInvalidateTheReview() throws Exception {
         AcademicAssessment creditReview = review();

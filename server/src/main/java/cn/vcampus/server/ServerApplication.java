@@ -257,7 +257,8 @@ public final class ServerApplication implements Closeable {
             return majorMessages.handle(request);
         }
         if (request != null && (request.getType() == MessageType.ACADEMIC_ADMIN_V1
-                || request.getType() == MessageType.ACADEMIC_ADMIN_V2)) {
+                || request.getType() == MessageType.ACADEMIC_ADMIN_V2
+                || request.getType() == MessageType.ACADEMIC_ADMIN_OVERVIEW_V1)) {
             return adminMessages.handle(request);
         }
         if (request != null && request.getType() == MessageType.TEACHER_SELF_QUERY_V1) {

@@ -33,6 +33,20 @@ public final class AcademicAdminService {
         }
     }
 
+    public ServiceResult<GraduationReviewOverview> overview(String studentId) {
+        try {
+            if (studentId == null || studentId.trim().isEmpty()) {
+                throw new IllegalArgumentException("studentId不能为空");
+            }
+            final String normalized = studentId.trim();
+            return store.transaction(context -> overview(context, normalized));
+        } catch (IllegalArgumentException invalid) {
+            return ServiceResult.failure(StatusCode.BAD_REQUEST, invalid.getMessage());
+        } catch (Exception failure) {
+            return ServiceResult.failure(StatusCode.SERVER_ERROR, "教务概览加载失败");
+        }
+    }
+
     private ServiceResult<?> execute(AcademicAdminStore.Context context,
             AcademicAdminCommand command, String actor) throws Exception {
         switch (command.getAction()) {
@@ -87,6 +101,41 @@ public final class AcademicAdminService {
         AcademicAssessment graduated = latest.graduate(actor, command.getNote());
         context.graduate(student, graduated);
         return ServiceResult.ok(graduated);
+    }
+
+    private ServiceResult<GraduationReviewOverview> overview(AcademicAdminStore.Context context,
+            String studentId) throws Exception {
+        StudentRecord student = context.student(studentId);
+        if (student == null) {
+            return ServiceResult.failure(StatusCode.NOT_FOUND, "学生档案不存在");
+        }
+        List<CourseHistoryRecord> history = context.history(student.getStudentId());
+        CreditSummary credits = CreditSummary.from(student.getStudentId(), history);
+        ServiceResult<GraduationCreditRequirement> requirementResult = requirements.findFor(student);
+        if (requirementResult.getStatus() != StatusCode.OK) {
+            return ServiceResult.failure(requirementResult.getStatus(), requirementResult.getMessage());
+        }
+        GraduationCreditRequirement requirement = requirementResult.getData();
+        List<AcademicAssessment> assessments = context.assessments(student.getStudentId());
+        AcademicAssessment latest = assessments.isEmpty() ? null : assessments.get(0);
+        StudentRecord evidenceStudent = evidenceStudent(student, latest);
+        boolean current = latest != null
+                && latest.getRequiredCreditsDecimal().compareTo(
+                        requirement.getRequiredCreditsDecimal()) == 0
+                && latest.getEvidence().equals(evidence(evidenceStudent, history, requirement));
+        return ServiceResult.ok(new GraduationReviewOverview(student, credits, requirement,
+                latest, current));
+    }
+
+    private static StudentRecord evidenceStudent(StudentRecord student,
+            AcademicAssessment latest) {
+        if (latest == null || !latest.isGraduated() || !"毕业".equals(student.getStatus())) {
+            return student;
+        }
+        return new StudentRecord(student.getStudentId(), student.getUserId(), student.getName(),
+                student.getGender(), student.getDepartmentName(), student.getMajorName(),
+                student.getClassId(), student.getEnrollmentYear(), "在读", student.getPhone(),
+                student.getEmail());
     }
 
     private static boolean isWrite(AcademicAdminCommandV1.Action action) {

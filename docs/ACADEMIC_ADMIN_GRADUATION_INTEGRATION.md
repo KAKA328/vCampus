@@ -73,7 +73,11 @@ HISTORY / PENDING_RETAKES 原语义不变。新枚举值为新增查询能力，
 | REVIEW | studentId、note（选填） | 保存的 AcademicAssessment，requiredCredits 由服务端计算 |
 | GRADUATE | studentId、assessmentId、note（选填）、otherRequirementsConfirmed=true | 包含毕业操作信息的 AcademicAssessment |
 
-操作人不能由客户端指定，由 token 当前会话推导。服务端先检查 ACADEMIC_ADMIN 角色，查询要求 STUDENT_READ，REVIEW/GRADUATE 要求 ACADEMIC_REVIEW。其他角色即使伪造命令也被拒绝。
+单学生工作台概览使用独立只读协议 `ACADEMIC_ADMIN_OVERVIEW_V1 + AcademicAdminOverviewV1Command(token, studentId)`，返回 `GraduationReviewOverview`。概览不复用 V1/V2 的 Action 枚举，避免给已发布命令偷偷增加新协议语义。
+
+操作人不能由客户端指定，由 token 当前会话推导。服务端先检查 ACADEMIC_ADMIN 角色，目录、历史、学分、审查记录和独立概览协议要求 STUDENT_READ，REVIEW/GRADUATE 要求 ACADEMIC_REVIEW。其他角色即使伪造命令也被拒绝。
+
+`GraduationReviewOverview` 不创建审查记录。`credits` 和 `requirement` 是当前实时值，`latestAssessment` 是最新持久化快照；服务端使用同一指纹规则计算 `latestAssessmentCurrent`。客户端只有在最新快照仍有效且学分达标时才启用毕业确认。
 
 `ACADEMIC_ADMIN_V1 + AcademicAdminCommandV1` 保留查询兼容。V1 的 `requiredCredits` 字段和正数校验保持原契约，但 V1 的 REVIEW/GRADUATE 返回 `BAD_REQUEST`，防止旧客户端继续用手填数值办理毕业。
 

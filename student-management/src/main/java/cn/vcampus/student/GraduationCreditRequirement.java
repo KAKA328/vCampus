@@ -1,13 +1,16 @@
 package cn.vcampus.student;
 
 import cn.vcampus.common.CreditFormat;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.math.BigDecimal;
 
 /** Immutable source data used to calculate and fingerprint graduation credit requirements. */
-public final class GraduationCreditRequirement {
+public final class GraduationCreditRequirement implements Serializable {
+    private static final long serialVersionUID = 1L;
+
     private final String planId;
     private final BigDecimal requiredCredits;
     private final List<String> requiredCourseCredits;

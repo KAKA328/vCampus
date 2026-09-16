@@ -44,8 +44,10 @@ class AcademicAdministrationTest {
             for (Action action : Action.values()) {
                 assertEquals(StatusCode.FORBIDDEN, send(command(token, action, "S001", 3, "fake")).getStatusCode());
             }
+            assertEquals(StatusCode.FORBIDDEN, sendOverview(token, "S001").getStatusCode());
         }
         assertEquals(StatusCode.UNAUTHORIZED, send(command("invalid", Action.STUDENTS, null, 0, null)).getStatusCode());
+        assertEquals(StatusCode.UNAUTHORIZED, sendOverview("invalid", "S001").getStatusCode());
     }
     @Test void creditSummaryDoesNotDoubleCountPassedAttemptsOrUseFailedCredits() {
         history.addHistory(attempt("C1", 4, false, 99));
@@ -55,6 +57,41 @@ class AcademicAdministrationTest {
         assertEquals(0, summary.getPendingRetakes());
         assertEquals(new java.math.BigDecimal("3"), history.review("S001", 3).getData().getTotalEarnedCreditsDecimal());
         assertEquals(StatusCode.NOT_FOUND, send(command(admin, Action.CREDITS, "missing", 0, null)).getStatusCode());
+    }
+    @Test void overviewCombinesCurrentProgressRequirementAndLatestAssessmentWithoutWriting() {
+        GraduationReviewOverview initial = (GraduationReviewOverview) sendOverview(
+                admin, "S001").getPayload();
+        assertEquals("S001", initial.getStudent().getStudentId());
+        assertEquals(new java.math.BigDecimal("3"),
+                initial.getCredits().getEarnedCreditsDecimal());
+        assertEquals(new java.math.BigDecimal("3"),
+                initial.getRequirement().getRequiredCreditsDecimal());
+        assertNull(initial.getLatestAssessment());
+        assertFalse(initial.isLatestAssessmentCurrent());
+        assertTrue(((List<?>) send(command(admin, Action.ASSESSMENTS,
+                "S001", 0, null)).getPayload()).isEmpty());
+
+        AcademicAssessment reviewed = review(3);
+        GraduationReviewOverview current = (GraduationReviewOverview) sendOverview(
+                admin, "S001").getPayload();
+        assertEquals(reviewed.getId(), current.getLatestAssessment().getId());
+        assertTrue(current.isLatestAssessmentCurrent());
+
+        history.addHistory(attempt("C1", 4, true, 3));
+        GraduationReviewOverview stale = (GraduationReviewOverview) sendOverview(
+                admin, "S001").getPayload();
+        assertEquals(reviewed.getId(), stale.getLatestAssessment().getId());
+        assertFalse(stale.isLatestAssessmentCurrent());
+    }
+    @Test void overviewProtocolValidatesPayloadAndMissingStudents() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new AcademicAdminOverviewV1Command("", "S001"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new AcademicAdminOverviewV1Command(admin, " "));
+        Message wrongPayload = handler.handle(Message.request("overview",
+                MessageType.ACADEMIC_ADMIN_OVERVIEW_V1, "bad"));
+        assertEquals(StatusCode.BAD_REQUEST, wrongPayload.getStatusCode());
+        assertEquals(StatusCode.NOT_FOUND, sendOverview(admin, "missing").getStatusCode());
     }
     @Test void reviewIsPersistedAndGraduationRequiresSeparateConfirmation() {
         AcademicAssessment assessment = review(3);
@@ -68,6 +105,10 @@ class AcademicAdministrationTest {
         assertEquals("academic", saved.getGraduatedBy());
         assertNotNull(saved.getGraduatedAt());
         assertEquals("毕业", students.findById("S001").getStatus());
+        GraduationReviewOverview completed = (GraduationReviewOverview) sendOverview(
+                admin, "S001").getPayload();
+        assertTrue(completed.getLatestAssessment().isGraduated());
+        assertTrue(completed.isLatestAssessmentCurrent());
         assertEquals(StatusCode.CONFLICT, send(command(admin, Action.GRADUATE, "S001", 0, assessment.getId())).getStatusCode());
         assertTrue(((AcademicAssessment) ((List<?>) send(command(admin, Action.ASSESSMENTS, "S001", 0, null))
                 .getPayload()).get(0)).isGraduated());
@@ -157,6 +198,10 @@ class AcademicAdministrationTest {
         MessageType type = command instanceof AcademicAdminCommandV2
                 ? MessageType.ACADEMIC_ADMIN_V2 : MessageType.ACADEMIC_ADMIN_V1;
         return handler.handle(Message.request("admin", type, command).withSender("spoofed_actor"));
+    }
+    private Message sendOverview(String token, String studentId) {
+        return handler.handle(Message.request("overview", MessageType.ACADEMIC_ADMIN_OVERVIEW_V1,
+                new AcademicAdminOverviewV1Command(token, studentId)).withSender("spoofed_actor"));
     }
     private static AcademicAdminCommandV2 command(String token, Action action, String student, int credits, String id) {
         return new AcademicAdminCommandV2(token, action, student, id, "适用培养方案已核查", true);
