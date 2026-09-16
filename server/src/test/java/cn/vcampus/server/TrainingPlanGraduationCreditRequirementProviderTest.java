@@ -69,6 +69,25 @@ class TrainingPlanGraduationCreditRequirementProviderTest {
         assertStatus(StatusCode.CONFLICT, provider.findFor(student("", 2026)));
     }
 
+    @Test void historicalLookupReadsArchivedPlanWithoutReenablingCurrentReview() {
+        InMemoryCourseCatalogService catalog = new InMemoryCourseCatalogService(
+                Collections.singletonList(new Course("C1", "课程", 3)));
+        InMemoryTrainingPlanService plans = new InMemoryTrainingPlanService(catalog);
+        plans.create(new TrainingPlan("ARCHIVED", "计算机", 2026,
+                Collections.singletonList(new TrainingPlanCourse(
+                        "C1", 1, SelectionType.REQUIRED, false))));
+        plans.changeStatus("ARCHIVED", TrainingPlanStatus.PUBLISHED);
+        plans.changeStatus("ARCHIVED", TrainingPlanStatus.ARCHIVED);
+        TrainingPlanGraduationCreditRequirementProvider provider =
+                new TrainingPlanGraduationCreditRequirementProvider(plans, catalog);
+
+        assertStatus(StatusCode.NOT_FOUND, provider.findFor(student("计算机", 2026)));
+        ServiceResult<GraduationCreditRequirement> historical =
+                provider.findHistoricalFor(student("计算机", 2026));
+        assertStatus(StatusCode.OK, historical);
+        assertEquals(new java.math.BigDecimal("3"), historical.getData().getRequiredCreditsDecimal());
+    }
+
     private static StudentRecord student(String major, int year) {
         return new StudentRecord("S1", "u1", "学生", "未知", "院系", major,
                 "班级", year, "在读", "", "");

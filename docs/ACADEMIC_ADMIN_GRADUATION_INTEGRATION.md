@@ -77,7 +77,7 @@ HISTORY / PENDING_RETAKES 原语义不变。新枚举值为新增查询能力，
 
 操作人不能由客户端指定，由 token 当前会话推导。服务端先检查 ACADEMIC_ADMIN 角色，目录、历史、学分、审查记录和独立概览协议要求 STUDENT_READ，REVIEW/GRADUATE 要求 ACADEMIC_REVIEW。其他角色即使伪造命令也被拒绝。
 
-`GraduationReviewOverview` 不创建审查记录。`credits` 和 `requirement` 是当前实时值，`latestAssessment` 是最新持久化快照；服务端使用同一指纹规则计算 `latestAssessmentCurrent`。客户端只有在最新快照仍有效且学分达标时才启用毕业确认。
+`GraduationReviewOverview` 不创建审查记录。`credits` 和 `requirement` 是当前实时值，`latestAssessment` 是最新持久化快照；服务端使用同一指纹规则计算 `latestAssessmentCurrent`。客户端只有在最新快照仍有效且学分达标时才启用毕业确认。已毕业学生的概览可读取其已归档培养方案，以保留历史毕业快照；该方案不能用于新建审查或办理毕业。
 
 `ACADEMIC_ADMIN_V1 + AcademicAdminCommandV1` 保留查询兼容。V1 的 `requiredCredits` 字段和正数校验保持原契约，但 V1 的 REVIEW/GRADUATE 返回 `BAD_REQUEST`，防止旧客户端继续用手填数值办理毕业。
 

@@ -35,6 +35,16 @@ final class TrainingPlanGraduationCreditRequirementProvider
 
     @Override
     public ServiceResult<GraduationCreditRequirement> findFor(StudentRecord student) {
+        return find(student, false);
+    }
+
+    @Override
+    public ServiceResult<GraduationCreditRequirement> findHistoricalFor(StudentRecord student) {
+        return find(student, true);
+    }
+
+    private ServiceResult<GraduationCreditRequirement> find(StudentRecord student,
+            boolean allowArchivedPlan) {
         if (student == null) {
             return ServiceResult.failure(StatusCode.BAD_REQUEST, "学生档案不能为空");
         }
@@ -55,7 +65,8 @@ final class TrainingPlanGraduationCreditRequirementProvider
         if (plan == null) {
             return ServiceResult.failure(StatusCode.SERVER_ERROR, "培养方案服务返回了空数据");
         }
-        if (plan.getStatus() != TrainingPlanStatus.PUBLISHED) {
+        if (plan.getStatus() != TrainingPlanStatus.PUBLISHED
+                && (!allowArchivedPlan || plan.getStatus() != TrainingPlanStatus.ARCHIVED)) {
             return ServiceResult.failure(StatusCode.NOT_FOUND, "未找到该学生适用的已发布培养方案");
         }
 

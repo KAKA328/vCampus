@@ -111,13 +111,14 @@ public final class AcademicAdminService {
         }
         List<CourseHistoryRecord> history = context.history(student.getStudentId());
         CreditSummary credits = CreditSummary.from(student.getStudentId(), history);
-        ServiceResult<GraduationCreditRequirement> requirementResult = requirements.findFor(student);
+        List<AcademicAssessment> assessments = context.assessments(student.getStudentId());
+        AcademicAssessment latest = assessments.isEmpty() ? null : assessments.get(0);
+        ServiceResult<GraduationCreditRequirement> requirementResult = latest != null && latest.isGraduated()
+                ? requirements.findHistoricalFor(student) : requirements.findFor(student);
         if (requirementResult.getStatus() != StatusCode.OK) {
             return ServiceResult.failure(requirementResult.getStatus(), requirementResult.getMessage());
         }
         GraduationCreditRequirement requirement = requirementResult.getData();
-        List<AcademicAssessment> assessments = context.assessments(student.getStudentId());
-        AcademicAssessment latest = assessments.isEmpty() ? null : assessments.get(0);
         StudentRecord evidenceStudent = evidenceStudent(student, latest);
         boolean current = latest != null
                 && latest.getRequiredCreditsDecimal().compareTo(
