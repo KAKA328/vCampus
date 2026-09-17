@@ -500,7 +500,7 @@ final class VCampusTheme {
         }
     }
 
-    /** Paints the configured button background instead of letting Windows L&F replace it. */
+    /** Paints the configured button background instead of letting Windows L&amp;F replace it. */
     static final class ReadableButtonUI extends BasicButtonUI {
         @Override
         public void paint(Graphics graphics, JComponent component) {

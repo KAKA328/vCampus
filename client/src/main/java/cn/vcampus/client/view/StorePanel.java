@@ -995,7 +995,7 @@ public final class StorePanel extends JPanel {
         }
     }
 
-    /** 依可用宽度切换方块列数：<720 逻辑像素单列，否则双列；列数变化时重排网格。 */
+    /** 依可用宽度切换方块列数：小于 720 逻辑像素时单列，否则双列；列数变化时重排网格。 */
     private void updateCardColumns(int availableWidth) {
         int target = availableWidth > 0 && availableWidth < UiMetrics.px(720) ? 1 : 2;
         if (target != cardColumns) {
@@ -2554,7 +2554,7 @@ public final class StorePanel extends JPanel {
         }
     }
 
-    /** 库存列：<=0 红字“缺货”、<=5 琥珀提醒、其余默认；居中。 */
+    /** 库存列：小于等于 0 时红字“缺货”、小于等于 5 时琥珀提醒、其余默认；居中。 */
     private static final class StockRenderer extends DefaultTableCellRenderer {
         private static final Color LOW_STOCK = new Color(202, 138, 4);
 
