@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>vCampus 源代码帮助文档</title>
+</head>
+<body>
+    <h1>vCampus 虚拟校园系统源代码帮助文档</h1>
+    <p>本电子文档由 JDK 的 <code>javadoc</code> 程序生成，覆盖各模块 <code>src/main/java</code> 下的生产源码，并显示内部实现成员，供课程验收、代码阅读和维护使用。</p>
+
+    <h2>覆盖模块</h2>
+    <ul>
+        <li><code>common</code>：共享 DTO、协议、权限与公共工具。</li>
+        <li><code>user-management</code>：账号、角色、会话、审计与档案绑定。</li>
+        <li><code>student-management</code>：学生和教师档案、学籍维护。</li>
+        <li><code>course-selection</code>：课程、教学班、选退课、培养方案与成绩。</li>
+        <li><code>library</code>：馆藏、借阅、归还、遗失赔偿。</li>
+        <li><code>store</code>：商品、订单、库存与校园钱包。</li>
+        <li><code>server</code>：Socket 服务、请求分发和持久化适配。</li>
+        <li><code>client</code>：Swing 客户端、页面、传输与本地交互。</li>
+    </ul>
+
+    <h2>重新生成</h2>
+    <p>在仓库根目录执行：</p>
+    <pre>powershell -ExecutionPolicy Bypass -File .\scripts\Build-SourceCodeHelp.ps1 -Overwrite</pre>
+    <p>该脚本会先编译项目并解析课程模块的第三方依赖，再调用 JavaDoc 生成到 <code>docs/source-code-help</code>。<code>-Overwrite</code> 只会清理该生成目录中的旧文档。</p>
+
+    <h2>阅读说明</h2>
+    <p>从 <code>index.html</code> 打开。页面顶部可按模块包名导航，类和接口页面可查看字段、构造器、方法及其 JavaDoc 注释。</p>
+</body>
+</html>

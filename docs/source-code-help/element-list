@@ -1,0 +1,11 @@
+cn.vcampus.client
+cn.vcampus.client.service
+cn.vcampus.client.transport
+cn.vcampus.client.view
+cn.vcampus.common
+cn.vcampus.course
+cn.vcampus.library
+cn.vcampus.server
+cn.vcampus.store
+cn.vcampus.student
+cn.vcampus.user
